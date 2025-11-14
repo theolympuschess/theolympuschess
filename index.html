@@ -1616,6 +1616,242 @@ section[id*="sec-"] {
       popupFrame.src = '';
     };
   </script>
+	<div style="margin-top: 10px; text-align: center;">
+  <h2 style="color:#00e6ff; font-weight: 900; font-size: 50px; letter-spacing: 1px; display: inline-flex; align-items: center; gap: 12px;">
+    Olympus Beginner Course
+    <span class="flashing-badge">Exclusive!</span>
+  </h2>
+</div>
+
+<div class="oca-slider-wrapper">
+  <button class="oca-nav-btn oca-left-btn" onclick="ocaPrev()">⟨</button>
+  <div class="oca-slider-track" id="ocaSlider"></div>
+  <button class="oca-nav-btn oca-right-btn" onclick="ocaNext()">⟩</button>
+</div>
+
+<!-- Password Popup -->
+<div class="oca-password-popup" id="ocaPasswordPopup">
+  <div class="oca-password-box">
+    <h3>Enter Password</h3>
+    <input type="text" id="ocaPasswordInput" placeholder="Password">
+    <button onclick="ocaValidatePassword()">Unlock</button>
+    <div class="oca-error-text" id="ocaErrorText">Incorrect password</div>
+  </div>
+</div>
+
+<!-- Video Popup -->
+<div class="oca-video-popup" id="ocaVideoPopup">
+  <iframe id="ocaFrame" allowfullscreen></iframe>
+</div>
+
+<style>
+.oca-slider-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+.oca-slider-track {
+  display: flex;
+  transition: transform 0.35s ease;
+}
+.oca-thumb {
+  width: 320px;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-right: 14px;
+}
+.oca-thumb img {
+  width: 100%;
+  border-radius: 10px;
+  border: 2px solid #0aff9d;
+}
+.oca-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #0aff9d;
+  border: none;
+  padding: 10px 15px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 50%;
+  z-index: 999;
+}
+.oca-left-btn { left: 5px; }
+.oca-right-btn { right: 5px; }
+.flashing-badge {
+  background: #ff3d00;
+  color: #fff;
+  font-weight: bold;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 18px;
+  animation: flash 1s infinite alternate;
+}
+@keyframes flash {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* Password popup */
+.oca-password-popup {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.85);
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+  flex-direction: column;
+}
+.oca-password-popup.active { display: flex; }
+.oca-password-box {
+  background: #f8d538;
+  padding: 25px;
+  border-radius: 12px;
+  width: 310px;
+  text-align: center;
+  color: #8200b6;
+  border: 2px solid #0aff9d;
+}
+.oca-password-box input {
+  width: 90%;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 16px;
+}
+.oca-password-box button {
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: #00d084;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+.oca-error-text {
+  margin-top: 8px;
+  color: #ff4d4d;
+  display: none;
+}
+/* Video popup */
+.oca-video-popup {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.9);
+  justify-content: center;
+  align-items: center;
+  z-index: 99999999;
+}
+.oca-video-popup.active { display: flex; }
+.oca-video-popup iframe { width: 90%; height: 70%; }
+</style>
+
+<script>
+const OCA_PASSWORD = "olympus2025";
+const ocaVideos = [
+  "https://www.youtube.com/watch?v=YtLgObaCFq4",
+  "https://www.youtube.com/watch?v=oFTojjggq6o",
+  "https://www.youtube.com/watch?v=iUBMcOddyx8",
+  "https://www.youtube.com/watch?v=JsrCIo7G6kg",
+  "https://www.youtube.com/watch?v=6CCPnkonl5M",
+  "https://www.youtube.com/watch?v=Se8jVMsVHC4",
+  "https://www.youtube.com/watch?v=Ugu6nxMkCcU",
+  "https://www.youtube.com/watch?v=-GfnNhhDUtI",
+  "https://www.youtube.com/watch?v=M-n5sKqf_PA",
+  "https://www.youtube.com/watch?v=aZ06lgZ8WH0",
+  "https://www.youtube.com/watch?v=zDDIaofMKxE",
+  "https://www.youtube.com/watch?v=_6lTfdBJVPY",
+  "https://www.youtube.com/watch?v=RWdXukTen-c",
+  "https://www.youtube.com/watch?v=4meszzVxHok"
+];
+
+const ocaSlider = document.getElementById("ocaSlider");
+const cardWidth = 334; 
+let ocaIndex = 0;
+let ocaClickedVideo = null;
+
+/* Generate thumbnails + click event */
+ocaVideos.forEach(url => {
+  const id = url.split("v=")[1];
+  const div = document.createElement("div");
+  div.className = "oca-thumb";
+  div.innerHTML = `<img src="https://img.youtube.com/vi/${id}/hqdefault.jpg">`;
+  div.onclick = () => {
+    ocaClickedVideo = id;
+    document.getElementById("ocaPasswordPopup").classList.add("active");
+    document.getElementById("ocaPasswordInput").value = "";
+    document.getElementById("ocaErrorText").style.display = "none";
+  };
+  ocaSlider.appendChild(div);
+});
+
+/* Clone first 3 for smooth loop */
+ocaVideos.slice(0,3).forEach(url => {
+  const id = url.split("v=")[1];
+  const div = document.createElement("div");
+  div.className = "oca-thumb";
+  div.innerHTML = `<img src="https://img.youtube.com/vi/${id}/hqdefault.jpg">`;
+  ocaSlider.appendChild(div);
+});
+
+/* Buttons */
+function ocaNext() {
+  ocaIndex++;
+  ocaSlider.style.transition = "transform 0.35s ease";
+  ocaSlider.style.transform = `translateX(${-ocaIndex * cardWidth}px)`;
+  if(ocaIndex === ocaVideos.length){
+    setTimeout(()=>{
+      ocaSlider.style.transition="none";
+      ocaIndex=0;
+      ocaSlider.style.transform=`translateX(0px)`;
+    },360);
+  }
+}
+function ocaPrev(){
+  if(ocaIndex===0){
+    ocaSlider.style.transition="none";
+    ocaIndex=ocaVideos.length;
+    ocaSlider.style.transform=`translateX(${-ocaIndex*cardWidth}px)`;
+    setTimeout(()=>{
+      ocaIndex--;
+      ocaSlider.style.transition="transform 0.35s ease";
+      ocaSlider.style.transform=`translateX(${-ocaIndex*cardWidth}px)`;
+    },20);
+  } else{
+    ocaIndex--;
+    ocaSlider.style.transition="transform 0.35s ease";
+    ocaSlider.style.transform=`translateX(${-ocaIndex*cardWidth}px)`;
+  }
+}
+
+/* Password Validation */
+function ocaValidatePassword(){
+  const val = document.getElementById("ocaPasswordInput").value;
+  if(val === OCA_PASSWORD){
+    document.getElementById("ocaPasswordPopup").classList.remove("active");
+    document.getElementById("ocaVideoPopup").classList.add("active");
+    document.getElementById("ocaFrame").src = `https://www.youtube.com/embed/${ocaClickedVideo}?autoplay=1`;
+  } else{
+    document.getElementById("ocaErrorText").style.display="block";
+  }
+}
+
+/* Close popups */
+document.getElementById("ocaPasswordPopup").onclick = e => {
+  if(e.target === document.getElementById("ocaPasswordPopup"))
+    document.getElementById("ocaPasswordPopup").classList.remove("active");
+};
+document.getElementById("ocaVideoPopup").onclick = () => {
+  document.getElementById("ocaVideoPopup").classList.remove("active");
+  document.getElementById("ocaFrame").src="";
+};
+</script>
 </body>
 </html>
 	  </section>
