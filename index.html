@@ -1859,6 +1859,159 @@ document.getElementById("ocaVideoPopup").onclick = () => {
   document.getElementById("ocaFrame").src="";
 };
 </script>
+
+	<div style="margin-top: 10px; text-align: center;">
+  <h2 style="color:#ffbf00; font-weight: 900; font-size: 50px; letter-spacing: 1px; display: inline-flex; align-items: center; gap: 12px;">
+    Olympus Intermediate Course
+    <span class="ioc-flashing-badge">Exclusive!</span>
+  </h2>
+</div>
+
+<div class="ioc-slider-wrapper">
+  <button class="ioc-nav-btn ioc-left-btn" onclick="iocPrev()">⟨</button>
+  <div class="ioc-slider-track" id="iocSlider"></div>
+  <button class="ioc-nav-btn ioc-right-btn" onclick="iocNext()">⟩</button>
+</div>
+
+<!-- Password Popup -->
+<div class="ioc-password-popup" id="iocPasswordPopup">
+  <div class="ioc-password-box">
+    <h3>Enter Password</h3>
+    <input type="text" id="iocPasswordInput" placeholder="Password">
+    <button onclick="iocValidatePassword()">Unlock</button>
+    <div class="ioc-error-text" id="iocErrorText">Incorrect password</div>
+  </div>
+</div>
+
+<!-- Video Popup -->
+<div class="ioc-video-popup" id="iocVideoPopup">
+  <iframe id="iocFrame" allowfullscreen></iframe>
+</div>
+
+<style>
+/* Slider */
+.ioc-slider-wrapper { position: relative; width: 100%; overflow: hidden; }
+.ioc-slider-track { display: flex; transition: transform 0.35s ease; }
+.ioc-thumb { width: 320px; flex-shrink: 0; cursor: pointer; margin-right: 14px; }
+.ioc-thumb img { width: 100%; border-radius: 10px; border: 2px solid #ffbf00; }
+.ioc-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: #ffbf00; border: none; padding: 10px 15px; font-size: 24px; cursor: pointer; border-radius: 50%; z-index: 999; }
+.ioc-left-btn { left: 5px; }
+.ioc-right-btn { right: 5px; }
+.ioc-flashing-badge { background: #ff3d00; color: #fff; font-weight: bold; padding: 5px 12px; border-radius: 8px; font-size: 18px; animation: flash 1s infinite alternate; }
+@keyframes flash { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.1); } 100% { opacity: 1; transform: scale(1); } }
+
+/* Password popup */
+.ioc-password-popup { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 999999; flex-direction: column; }
+.ioc-password-popup.active { display: flex; }
+.ioc-password-box { background: #f8d538; padding: 25px; border-radius: 12px; width: 310px; text-align: center; color: #8200b6; border: 2px solid #ffbf00; }
+.ioc-password-box input { width: 90%; padding: 10px; margin-top: 10px; border-radius: 6px; border: none; font-size: 16px; }
+.ioc-password-box button { margin-top: 12px; padding: 10px 20px; background: #00d084; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+.ioc-error-text { margin-top: 8px; color: #ff4d4d; display: none; }
+
+/* Video popup */
+.ioc-video-popup { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 99999999; }
+.ioc-video-popup.active { display: flex; }
+.ioc-video-popup iframe { width: 90%; height: 70%; }
+</style>
+
+<script>
+const IOC_PASSWORD = "olympus2025int";
+const iocVideos = [
+  "https://www.youtube.com/watch?v=jY3MGvcVQOI",
+  "https://www.youtube.com/watch?v=_XcAe-VfT5E",
+  "https://www.youtube.com/watch?v=5-WpeOaaUrw",
+  "https://www.youtube.com/watch?v=fO6UisocSck",
+  "https://www.youtube.com/watch?v=B2KKX1Mby3I",
+  "https://www.youtube.com/watch?v=C7qQ8NnHzUY",
+  "https://www.youtube.com/watch?v=DnGaOwqXRX0",
+  "https://www.youtube.com/watch?v=XWBTP3u5Dcg",
+  "https://www.youtube.com/watch?v=QvSl81K7VOQ",
+  "https://www.youtube.com/watch?v=_71k7MQceAM",
+  "https://www.youtube.com/watch?v=UJMtmKWEqGI"
+];
+
+const iocSlider = document.getElementById("iocSlider");
+const iocCardWidth = 334; 
+let iocIndex = 0;
+let iocClickedVideo = null;
+
+/* Generate thumbnails */
+iocVideos.forEach(url => {
+  const id = url.split("v=")[1];
+  const div = document.createElement("div");
+  div.className = "ioc-thumb";
+  div.innerHTML = `<img src="https://img.youtube.com/vi/${id}/hqdefault.jpg">`;
+  div.onclick = () => {
+    iocClickedVideo = id;
+    document.getElementById("iocPasswordPopup").classList.add("active");
+    document.getElementById("iocPasswordInput").value = "";
+    document.getElementById("iocErrorText").style.display = "none";
+  };
+  iocSlider.appendChild(div);
+});
+
+/* Clone first 2 for smooth loop */
+iocVideos.slice(0,2).forEach(url => {
+  const id = url.split("v=")[1];
+  const div = document.createElement("div");
+  div.className = "ioc-thumb";
+  div.innerHTML = `<img src="https://img.youtube.com/vi/${id}/hqdefault.jpg">`;
+  iocSlider.appendChild(div);
+});
+
+/* Buttons */
+function iocNext() {
+  iocIndex++;
+  iocSlider.style.transition = "transform 0.35s ease";
+  iocSlider.style.transform = `translateX(${-iocIndex * iocCardWidth}px)`;
+  if(iocIndex === iocVideos.length){
+    setTimeout(()=>{
+      iocSlider.style.transition="none";
+      iocIndex=0;
+      iocSlider.style.transform=`translateX(0px)`;
+    },360);
+  }
+}
+function iocPrev(){
+  if(iocIndex===0){
+    iocSlider.style.transition="none";
+    iocIndex=iocVideos.length;
+    iocSlider.style.transform=`translateX(${-iocIndex*iocCardWidth}px)`;
+    setTimeout(()=>{
+      iocIndex--;
+      iocSlider.style.transition="transform 0.35s ease";
+      iocSlider.style.transform=`translateX(${-iocIndex*iocCardWidth}px)`;
+    },20);
+  } else{
+    iocIndex--;
+    iocSlider.style.transition="transform 0.35s ease";
+    iocSlider.style.transform=`translateX(${-iocIndex*iocCardWidth}px)`;
+  }
+}
+
+/* Password Validation */
+function iocValidatePassword(){
+  const val = document.getElementById("iocPasswordInput").value;
+  if(val === IOC_PASSWORD){
+    document.getElementById("iocPasswordPopup").classList.remove("active");
+    document.getElementById("iocVideoPopup").classList.add("active");
+    document.getElementById("iocFrame").src = `https://www.youtube.com/embed/${iocClickedVideo}?autoplay=1`;
+  } else{
+    document.getElementById("iocErrorText").style.display="block";
+  }
+}
+
+/* Close popups */
+document.getElementById("iocPasswordPopup").onclick = e => {
+  if(e.target === document.getElementById("iocPasswordPopup"))
+    document.getElementById("iocPasswordPopup").classList.remove("active");
+};
+document.getElementById("iocVideoPopup").onclick = () => {
+  document.getElementById("iocVideoPopup").classList.remove("active");
+  document.getElementById("iocFrame").src="";
+};
+</script>
+	
 </body>
 </html>
 	  </section>
