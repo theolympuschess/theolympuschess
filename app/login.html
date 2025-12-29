@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Olympus Chess Academy — Login</title>
+  <style>
+    :root {
+      --bg1: #0e0f1f;
+      --bg2: #2a2d4a;
+      --card: #1c1f35;
+      --accent: #ffd700;
+      --text: #f0f0f0;
+      --muted: #a9a9b3;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 2.2rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 30px;
+      font-size: 1rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #2a2d4a;
+      color: #fff;
+      font-size: 1rem;
+      transition: all 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+
+    input::placeholder {
+      color: #888;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #101225;
+      font-weight: bold;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #e6c200;
+    }
+
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      background: rgba(255, 107, 107, 0.1);
+      color: #ff6b6b;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .loading {
+      color: var(--accent);
+      margin: 15px 0;
+      display: none;
+    }
+
+    .admin-info {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #333;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .admin-info strong {
+      color: var(--accent);
+
+
+
+
+      .login-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.login-logo {
+  width: 100px;
+  height: 100px;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  display: block;
+}
+
+.login-header h1 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 2.2rem;
+  text-align: center;
+  line-height: 1.15;
+}
+
+@media (max-width: 480px) {
+  .login-logo {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+
+
+
+
+
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="login-header">
+  <img src="favicon.png" alt="Olympus Chess Academy Logo" class="login-logo">
+  <h1>The Olympus Chess Academy</h1>
+</div>
+
+
+
+    <p class="subtitle">Secure login for authorized users</p>
+
+    <div class="error-message" id="errorMessage"></div>
+
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input 
+        type="text" 
+        id="username" 
+        placeholder="Enter username" 
+        autocomplete="username"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input 
+        type="text" 
+        id="password" 
+        placeholder="Enter password" 
+        autocomplete="current-password"
+      >
+    </div>
+
+    <div class="loading" id="loading">Logging in...</div>
+
+    <button id="loginBtn">Login</button>
+
+    
+
+  <script type="module">
+    import { supabase } from './supabase-client.js';
+
+    // DOM Elements
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMsg = document.getElementById('errorMessage');
+    const loading = document.getElementById('loading');
+
+    // Show error message
+    function showError(message) {
+      errorMsg.textContent = message;
+      errorMsg.style.display = 'block';
+      loading.style.display = 'none';
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Login';
+    }
+
+    // Show loading state
+    function showLoading() {
+      errorMsg.style.display = 'none';
+      loading.style.display = 'block';
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Please wait...';
+    }
+
+    // Main login function
+    async function loginUser(username, password) {
+      showLoading();
+
+      // Basic validation
+      if (!username || !password) {
+        showError('Please enter both username and password.');
+        return false;
+      }
+
+      // Convert username to email format
+      const email = username.includes('@') ? username : username + '@olympuschess.com';
+
+      console.log('Login attempt for:', email);
+
+      try {
+        // 1. Attempt Supabase authentication
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (authError) {
+          console.error('Auth error:', authError);
+          
+          // User-friendly error messages
+          if (authError.message.includes('Invalid login credentials')) {
+            showError('Invalid username or password.');
+          } else if (authError.message.includes('Email not confirmed')) {
+            showError('Please check your email for verification link.');
+          } else {
+            showError('Login failed: ' + authError.message);
+          }
+          return false;
+        }
+
+        // 2. Check if user has a valid profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, role, active')
+          .eq('id', authData.user.id)
+          .single();
+
+        // Block users without profile
+        if (profileError || !profile) {
+          await supabase.auth.signOut();
+          showError('Access denied. Your account is not authorized.');
+          return false;
+        }
+
+        // Block inactive accounts
+        if (profile.active === false) {
+          await supabase.auth.signOut();
+          showError('Your account has been deactivated.');
+          return false;
+        }
+
+        // Block invalid roles
+        if (!['admin', 'student', 'coach'].includes(profile.role)) {
+          await supabase.auth.signOut();
+          showError('Access denied. Invalid user role.');
+          return false;
+        }
+
+        console.log('✅ Login successful! Role:', profile.role);
+
+        // 3. Store session data
+        sessionStorage.setItem('role', profile.role);
+        sessionStorage.setItem('username', profile.username || username);
+        sessionStorage.setItem('user_id', profile.id);
+        sessionStorage.setItem('email', authData.user.email);
+
+        return true;
+
+      } catch (error) {
+        console.error('Unexpected error:', error);
+        showError('An unexpected error occurred. Please try again.');
+        return false;
+      }
+    }
+
+    // Event: Login button click
+    loginBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      const success = await loginUser(username, password);
+      
+      if (success) {
+        // Redirect to dashboard
+        window.location.href = 'mainUI.html';
+      }
+    });
+
+    // Event: Press Enter to login
+    passwordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        loginBtn.click();
+      }
+    });
+
+    // Event: Clear error when typing
+    usernameInput.addEventListener('input', () => {
+      errorMsg.style.display = 'none';
+    });
+
+    passwordInput.addEventListener('input', () => {
+      errorMsg.style.display = 'none';
+    });
+
+    // Auto-focus username field
+    window.onload = () => {
+      usernameInput.focus();
+    };
+  </script>
+</body>
+</html>
