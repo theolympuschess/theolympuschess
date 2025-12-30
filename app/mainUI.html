@@ -4814,10 +4814,80 @@ body:not(.student-view) #studentProgressCard {
 
 
 
+/* ============================= */
+/* Knight vs Monster - Mode UI  */
+/* ============================= */
+
+.kvm-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.kvm-mode {
+  background: linear-gradient(180deg, #1b1f3b, #12142a);
+  border: 2px solid #2f335c;
+  border-radius: 14px;
+  padding: 18px 10px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+}
+
+.kvm-mode span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Hover effect */
+.kvm-mode:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.6);
+}
+
+/* Difficulty colors */
+.kvm-mode.easy {
+  border-color: #2ecc71;
+}
+.kvm-mode.medium {
+  border-color: #f1c40f;
+}
+.kvm-mode.hard {
+  border-color: #e74c3c;
+}
+
+/* Click feedback */
+.kvm-mode:active {
+  transform: scale(0.97);
+}
 
 
 
 
+/* ============================= */
+/* Knight vs Monster - Emoji UI */
+/* ============================= */
+
+#kvmBoard .kp-square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;          /* 👈 MAIN SIZE CONTROL */
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Slight emphasis */
+#kvmBoard .kp-square span {
+  transform: scale(1.1);
+}
 
 
 
@@ -4845,10 +4915,12 @@ body:not(.student-view) #studentProgressCard {
 <button class="nav-btn" data-tab="memory">🧠 IQ Hunter</button>
 <button class="nav-btn" data-tab="color">🧪 Lab Mixer</button>
 
-<button class="nav-btn" data-tab="knightpath">🐴 Knight</button>
+<button class="nav-btn" data-tab="knightpath">🐴 Knight Hunter</button>
+<button class="nav-btn" data-tab="knightmonster">👹 Knight vs Monster</button>
+
 
 <button class="nav-btn" data-tab="flashqueen">
-  👸 Find Queen
+  👸 Find The Queen
 </button>
 <button class="nav-btn" data-tab="pathfinder">👸 Path Finder</button>
 
@@ -5488,7 +5560,7 @@ body:not(.student-view) #studentProgressCard {
 
 </section>
 <section id="knightpath-section" class="section hidden">
-  <h2>🐴 Knight Flash Path</h2>
+  <h2>🐴 Knight Journey</h2>
 
   <!-- MODE MENU -->
   <div class="card kp-card" id="kpMenu">
@@ -5589,6 +5661,51 @@ body:not(.student-view) #studentProgressCard {
   </div>
 </section>
 
+<section id="knightmonster-section" class="section hidden">
+  <h2>🐴👹 Knight vs Monster</h2>
+
+  <!-- MODE MENU -->
+  <div class="card" id="kvmMenu">
+    <h3>Select Mode</h3>
+
+    <div class="kvm-modes">
+  <button class="kvm-mode easy" onclick="startKVM('easy')">
+    🟢 Easy<br><span>1 Monster</span>
+  </button>
+
+  <button class="kvm-mode medium" onclick="startKVM('medium')">
+    🟡 Medium<br><span>2 Monsters</span>
+  </button>
+
+  <button class="kvm-mode hard" onclick="startKVM('hard')">
+    🔥 Hard<br><span>3 Monsters</span>
+  </button>
+</div>
+
+
+    <div class="kp-how">
+      <h4>📘 How to Play</h4>
+      <ul>
+        <li>🐴 You control the knight</li>
+        <li>👹 Monsters chase you like a king</li>
+        <li>🎯 Survive as many turns as possible</li>
+        <li>💀 If a monster catches you — game over</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- GAME AREA -->
+  <div id="kvmGame" class="hidden">
+    <div class="memory-top">
+      <div>⭐ Turns: <span id="kvmTurns">0</span></div>
+      <div>👹 Monsters: <span id="kvmMonsterCount">1</span></div>
+    </div>
+
+    <div id="kvmBoard" class="mini-board"></div>
+
+    <button class="btn-secondary" onclick="exitKVM()">⬅ Exit</button>
+  </div>
+</section>
 
 
 
@@ -17260,9 +17377,297 @@ window.exitLabMixer = function () {
 
 
 
+// ================================
+// KNIGHT VS MONSTER (ISOLATED)
+// ================================
+
+// STATE
+let kvmMode = "easy";
+let kvmKnight = null;
+let kvmMonsters = [];
+let kvmTurns = 0;
+let kvmWaiting = false;
+let kvmLevel = 1;           // future-proof
+let kvmBlockedSquares = []; // 🧱 level 1 only
 
 
 
+const kvmBoard = document.getElementById("kvmBoard");
+const kvmTurnsEl = document.getElementById("kvmTurns");
+const kvmMonsterCountEl = document.getElementById("kvmMonsterCount");
+
+
+function generateKVMBlockedSquares(count) {
+  const blocks = [];
+
+  while (blocks.length < count) {
+    const sq = kvmRandomSquare();
+
+    // ❌ avoid knight start
+    if (sq.x === kvmKnight.x && sq.y === kvmKnight.y) continue;
+
+    // ❌ avoid monsters
+    if (kvmMonsters.some(m => m.x === sq.x && m.y === sq.y)) continue;
+
+    // ❌ avoid duplicates
+    if (blocks.some(b => b.x === sq.x && b.y === sq.y)) continue;
+
+    blocks.push(sq);
+  }
+
+  return blocks;
+}
+
+
+
+// ================================
+// Knight vs Monster - Game Over Sound
+// ================================
+function playKVMGameOverSound() {
+  try {
+    const audio = new Audio("./sounds/party.mp3");
+    audio.volume = 0.6; // 🔊 not too loud
+    audio.play();
+  } catch (e) {
+    console.warn("🔇 party.mp3 could not play", e);
+  }
+}
+
+// ================================
+// Knight vs Monster - Move Sound
+// ================================
+function playKVMMoveSound() {
+  try {
+    const audio = new Audio("./sounds/move.mp3");
+    audio.volume = 0.5; // balanced, not loud
+    audio.play();
+  } catch (e) {
+    console.warn("🔇 move.mp3 could not play", e);
+  }
+}
+
+
+
+// ================================
+// START GAME
+// ================================
+window.startKVM = function (mode) {
+  kvmMode = mode;
+  kvmTurns = 0;
+
+  document.getElementById("kvmMenu").classList.add("hidden");
+  document.getElementById("kvmGame").classList.remove("hidden");
+
+  kvmKnight = kvmRandomSquare();
+  kvmMonsters = [];
+
+  const monsterCount =
+    mode === "easy" ? 1 : mode === "medium" ? 2 : 3;
+
+  for (let i = 0; i < monsterCount; i++) {
+    kvmMonsters.push(kvmRandomSquare());
+  }
+
+  // ✅ STEP 3 — BLOCK SQUARES (LEVEL 1 ONLY)
+  kvmLevel = 1;
+
+  if (kvmLevel === 1) {
+    const blockCount =
+      mode === "easy" ? 5 : mode === "medium" ? 4 : 4;
+
+    kvmBlockedSquares = generateKVMBlockedSquares(blockCount);
+  } else {
+    kvmBlockedSquares = [];
+  }
+
+  kvmMonsterCountEl.textContent = monsterCount;
+  kvmTurnsEl.textContent = 0;
+
+  drawKVMBoard();
+  kvmWaiting = true;
+};
+
+
+// ================================
+// EXIT GAME
+// ================================
+window.exitKVM = function () {
+  document.getElementById("kvmGame").classList.add("hidden");
+  document.getElementById("kvmMenu").classList.remove("hidden");
+};
+
+// ================================
+// RANDOM SQUARE
+// ================================
+function kvmRandomSquare() {
+  return {
+    x: Math.floor(Math.random() * 8),
+    y: Math.floor(Math.random() * 8)
+  };
+}
+
+// ================================
+// HANDLE KNIGHT CLICK
+// ================================
+function handleKVMClick(x, y) {
+  if (!kvmWaiting) return;
+
+  const dx = Math.abs(x - kvmKnight.x);
+  const dy = Math.abs(y - kvmKnight.y);
+
+  // 🐴 knight legality
+  if (!((dx === 2 && dy === 1) || (dx === 1 && dy === 2))) return;
+
+  // 🚫 blocked square (level 1 only)
+  if (
+    kvmLevel === 1 &&
+    kvmBlockedSquares.some(b => b.x === x && b.y === y)
+  ) {
+    return;
+  }
+
+  // ✅ MOVE KNIGHT
+  kvmKnight = { x, y };
+  playKVMMoveSound();
+
+  kvmTurns++;
+  kvmTurnsEl.textContent = kvmTurns;
+
+  moveMonsters();
+
+  if (isKnightCaught()) {
+    showKVMGameOver(kvmTurns);
+    return;
+  }
+
+  drawKVMBoard();
+}
+
+
+// ================================
+// MOVE MONSTERS
+// ================================
+function moveMonsters() {
+  const newPositions = [];
+
+  for (let i = 0; i < kvmMonsters.length; i++) {
+    const m = kvmMonsters[i];
+
+    let bestMove = null;
+    let bestDist = Infinity;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
+        const nx = m.x + dx;
+        const ny = m.y + dy;
+
+        // board bounds
+        if (nx < 0 || nx > 7 || ny < 0 || ny > 7) continue;
+
+        // 🚫 avoid occupied monster squares
+        if (newPositions.some(p => p.x === nx && p.y === ny)) continue;
+
+        const dist =
+          Math.abs(nx - kvmKnight.x) +
+          Math.abs(ny - kvmKnight.y);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestMove = { x: nx, y: ny };
+        }
+      }
+    }
+
+    // if no legal free square → stay
+    newPositions.push(bestMove || { ...m });
+  }
+
+  kvmMonsters = newPositions;
+}
+
+
+// ================================
+// CHECK CAUGHT
+// ================================
+function isKnightCaught() {
+  return kvmMonsters.some(
+    m => m.x === kvmKnight.x && m.y === kvmKnight.y
+  );
+}
+
+// ================================
+// DRAW BOARD
+// ================================
+function drawKVMBoard() {
+  kvmBoard.innerHTML = "";
+
+  for (let y = 7; y >= 0; y--) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+      sq.className = "kp-square";
+      sq.classList.add((x + y) % 2 === 0 ? "light" : "dark");
+      sq.onclick = () => handleKVMClick(x, y);
+
+      // 🧱 blocked square (level 1 only)
+      if (
+        kvmLevel === 1 &&
+        kvmBlockedSquares.some(b => b.x === x && b.y === y)
+      ) {
+        sq.textContent = "🧱";
+        sq.style.fontSize = "32px";
+        sq.style.opacity = "0.85";
+      }
+
+      // 🐴 knight
+      if (kvmKnight.x === x && kvmKnight.y === y) {
+        sq.textContent = "🐴";
+      }
+
+      // 👹 monsters
+      for (const m of kvmMonsters) {
+        if (m.x === x && m.y === y) {
+          sq.textContent = "👹";
+        }
+      }
+
+      kvmBoard.appendChild(sq);
+    }
+  }
+}
+
+
+
+
+function showKVMGameOver(turns) {
+   playKVMGameOverSound(); // 🎉 PLAY SOUND ON GAME OVER
+  const modal = document.getElementById("floatingModal");
+  const title = document.getElementById("modalTitle");
+  const body = document.getElementById("modalBody");
+  const okBtn = document.getElementById("modalOkBtn");
+
+  if (!modal || !title || !body || !okBtn) {
+    console.error("❌ Floating modal not found");
+    return;
+  }
+
+  title.textContent = "👹 Game Over!";
+  body.innerHTML = `
+    <p style="font-size:16px; line-height:1.6;">
+      The monster caught your knight 🐴<br><br>
+      ⭐ <b>Turns survived:</b> ${turns}
+    </p>
+  `;
+
+  modal.classList.remove("hidden");
+
+  // Close behavior ONLY for this game
+  okBtn.onclick = () => {
+    modal.classList.add("hidden");
+    exitKVM(); // 👈 safely exit Knight vs Monster only
+  };
+}
 
 
 
