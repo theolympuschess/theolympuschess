@@ -4918,6 +4918,8 @@ body:not(.student-view) #studentProgressCard {
 <button class="nav-btn" data-tab="knightpath">🐴 Knight Hunt</button>
 <button class="nav-btn" data-tab="knightmonster">🐴 vs 👹</button>
 <button class="nav-btn" data-tab="knightescape">🏰 Escape</button>
+<button class="nav-btn" data-tab="knightspeed">🐴 Speed Run</button>
+
 
 
 
@@ -5753,6 +5755,54 @@ body:not(.student-view) #studentProgressCard {
     <button class="btn-secondary" onclick="exitKEM()">⬅ Exit</button>
   </div>
 </section>
+
+<section id="knightspeed-section" class="section hidden">
+  <h2>🐴 Knight Speed Run</h2>
+
+  <!-- MENU -->
+  <div class="card" id="ksrMenu">
+    <h3>Speed Challenge</h3>
+    <p>Collect as many ⭐ as possible before time runs out!</p>
+
+    <div class="kvm-modes">
+      <button class="kvm-mode easy" onclick="startKSR('easy')">
+        🟢 Easy<br><span>40 Seconds</span>
+      </button>
+
+      <button class="kvm-mode medium" onclick="startKSR('medium')">
+        🟡 Medium<br><span>30 Seconds</span>
+      </button>
+
+      <button class="kvm-mode hard" onclick="startKSR('hard')">
+        🔥 Hard<br><span>20 Seconds</span>
+      </button>
+    </div>
+
+    <div class="kp-how">
+      <h4>📘 How to Play</h4>
+      <ul>
+        <li>🐴 Move the knight legally</li>
+        <li>⭐ Collect stars as fast as possible</li>
+        <li>💣 Watch Out for Bombs! </li>
+        <li>⏱ Beat the timer</li>
+        <li>🏆 Higher score = better speed</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="ksrGame" class="hidden">
+    <div class="memory-top">
+      <div>⭐ Score: <span id="ksrScore">0</span></div>
+      <div>⏱ Time: <span id="ksrTime">30</span>s</div>
+    </div>
+
+    <div id="ksrBoard" class="mini-board"></div>
+
+    <button class="btn-secondary" onclick="exitKSR()">⬅ Exit</button>
+  </div>
+</section>
+
 
 
 
@@ -17996,6 +18046,252 @@ function showKEMGameOver() {
 
 
 
+// ================================
+// ⚡ KNIGHT SPEED RUN (WITH BOMBS)
+// ================================
+
+// STATE
+let ksrMode = "medium";
+let ksrKnight = null;
+let ksrTarget = null;
+let ksrBombs = [];
+let ksrScore = 0;
+let ksrTime = 30;
+let ksrTimer = null;
+let ksrRunning = false;
+
+// ELEMENTS
+const ksrBoard = document.getElementById("ksrBoard");
+const ksrScoreEl = document.getElementById("ksrScore");
+const ksrTimeEl = document.getElementById("ksrTime");
+
+// ================================
+// RANDOM SQUARE
+// ================================
+function ksrRandomSquare() {
+  return {
+    x: Math.floor(Math.random() * 8),
+    y: Math.floor(Math.random() * 8)
+  };
+}
+
+// ================================
+// GENERATE BOMBS
+// ================================
+function generateKSRBombs(count) {
+  const bombs = [];
+
+  while (bombs.length < count) {
+    const sq = ksrRandomSquare();
+
+    if (
+      (ksrKnight && sq.x === ksrKnight.x && sq.y === ksrKnight.y) ||
+      (ksrTarget && sq.x === ksrTarget.x && sq.y === ksrTarget.y)
+    ) continue;
+
+    if (bombs.some(b => b.x === sq.x && b.y === sq.y)) continue;
+
+    bombs.push(sq);
+  }
+  return bombs;
+}
+
+// ================================
+// SPAWN TARGET
+// ================================
+function spawnKSRTarget() {
+  do {
+    ksrTarget = ksrRandomSquare();
+  } while (
+    ksrKnight &&
+    ksrTarget.x === ksrKnight.x &&
+    ksrTarget.y === ksrKnight.y
+  );
+}
+
+// ================================
+// START GAME
+// ================================
+window.startKSR = function (mode = "medium") {
+  ksrMode = mode;
+
+  document.getElementById("ksrMenu").classList.add("hidden");
+  document.getElementById("ksrGame").classList.remove("hidden");
+
+  ksrScore = 0;
+  ksrRunning = true;
+
+  ksrTime =
+    mode === "easy" ? 40 :
+    mode === "medium" ? 30 : 20;
+
+  ksrKnight = ksrRandomSquare();
+  spawnKSRTarget();
+
+  const bombCount =
+    mode === "easy" ? 3 :
+    mode === "medium" ? 5 : 7;
+
+  ksrBombs = generateKSRBombs(bombCount);
+
+  ksrScoreEl.textContent = ksrScore;
+  ksrTimeEl.textContent = ksrTime;
+
+  drawKSRBoard();
+  startKSRTimer();
+};
+
+// ================================
+// EXIT GAME
+// ================================
+window.exitKSR = function () {
+  stopKSRTimer();
+  ksrRunning = false;
+
+  document.getElementById("ksrGame").classList.add("hidden");
+  document.getElementById("ksrMenu").classList.remove("hidden");
+};
+
+// ================================
+// TIMER
+// ================================
+function startKSRTimer() {
+  stopKSRTimer();
+
+  ksrTimer = setInterval(() => {
+    if (!ksrRunning) return;
+
+    ksrTime--;
+    ksrTimeEl.textContent = ksrTime;
+
+    if (ksrTime <= 0) {
+      stopKSRTimer();
+      showKSRGameOver();
+    }
+  }, 1000);
+}
+
+function stopKSRTimer() {
+  if (ksrTimer) {
+    clearInterval(ksrTimer);
+    ksrTimer = null;
+  }
+}
+
+// ================================
+// HANDLE CLICK
+// ================================
+function handleKSRClick(x, y) {
+  if (!ksrRunning) return;
+
+  const dx = Math.abs(x - ksrKnight.x);
+  const dy = Math.abs(y - ksrKnight.y);
+
+  // 🐴 Knight legality
+  if (!((dx === 2 && dy === 1) || (dx === 1 && dy === 2))) return;
+
+  // ✅ Move knight
+  ksrKnight = { x, y };
+  playKVMMoveSound?.();
+
+  // 💥 BOMB HIT (CHECK IMMEDIATELY)
+  if (ksrBombs.some(b => b.x === x && b.y === y)) {
+    showKSRGameOver(true);
+    return;
+  }
+
+  // ⭐ STAR COLLECT
+  if (x === ksrTarget.x && y === ksrTarget.y) {
+    ksrScore++;
+    ksrScoreEl.textContent = ksrScore;
+    playKEMNextSound?.();
+    spawnKSRTarget();
+  }
+
+  // 💣 NOW regenerate bombs AFTER survival
+  const bombCount =
+    ksrMode === "easy" ? 9 :
+    ksrMode === "medium" ? 12 : 15;
+
+  ksrBombs = generateKSRBombs(bombCount);
+
+  drawKSRBoard();
+}
+
+
+// ================================
+// DRAW BOARD
+// ================================
+function drawKSRBoard() {
+  ksrBoard.innerHTML = "";
+
+  for (let y = 7; y >= 0; y--) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+      sq.className = "kp-square";
+      sq.classList.add((x + y) % 2 === 0 ? "light" : "dark");
+      sq.onclick = () => handleKSRClick(x, y);
+
+      // 💣 BOMBS
+      for (const b of ksrBombs) {
+        if (b.x === x && b.y === y) {
+          sq.textContent = "💣";
+          sq.style.fontSize = "30px";
+        }
+      }
+
+      // ⭐ TARGET
+      if (ksrTarget && ksrTarget.x === x && ksrTarget.y === y) {
+        sq.textContent = "⭐";
+        sq.style.fontSize = "30px";
+      }
+
+      // 🐴 KNIGHT (TOP PRIORITY)
+      if (ksrKnight && ksrKnight.x === x && ksrKnight.y === y) {
+        sq.textContent = "🐴";
+        sq.style.fontSize = "36px";
+        sq.style.transform = "scale(1.15)";
+      }
+
+      ksrBoard.appendChild(sq);
+    }
+  }
+}
+
+// ================================
+// GAME OVER
+// ================================
+function showKSRGameOver(hitBomb = false) {
+  ksrRunning = false;
+  stopKSRTimer();
+  playKVMGameOverSound?.();
+
+  const modal = document.getElementById("floatingModal");
+  const title = document.getElementById("modalTitle");
+  const body = document.getElementById("modalBody");
+  const okBtn = document.getElementById("modalOkBtn");
+
+  title.textContent = hitBomb ? "💥 BOOM!" : "⏱ Time's Up!";
+  body.innerHTML = `
+    <p style="font-size:16px; line-height:1.6;">
+      ${hitBomb ? "You hit a bomb 💣" : "Speed Run Complete"}<br><br>
+      ⭐ <b>Stars:</b> ${ksrScore}<br>
+      🎮 <b>Mode:</b> ${ksrMode.toUpperCase()}
+    </p>
+  `;
+
+  modal.classList.remove("hidden");
+
+  okBtn.onclick = () => {
+    modal.classList.add("hidden");
+    exitKSR();
+  };
+}
+
+
+
+
+
 
 
 
@@ -18208,6 +18504,7 @@ function showKEMGameOver() {
 
 </body>
 </html>
+
 
 
 
