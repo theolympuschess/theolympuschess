@@ -4913,10 +4913,12 @@ body:not(.student-view) #studentProgressCard {
     <button class="nav-btn" data-tab="piecePractice">
   🦖 Toy Hunt
 <button class="nav-btn" data-tab="memory">🧠 IQ Hunt</button>
-<button class="nav-btn" data-tab="color">🧪 Lab</button>
+<button class="nav-btn" data-tab="color">🧪 Lab Hunt</button>
 
 <button class="nav-btn" data-tab="knightpath">🐴 Knight Hunt</button>
 <button class="nav-btn" data-tab="knightmonster">🐴 vs 👹</button>
+<button class="nav-btn" data-tab="knightescape">🏰 Escape</button>
+
 
 
 <button class="nav-btn" data-tab="flashqueen">
@@ -5706,6 +5708,52 @@ body:not(.student-view) #studentProgressCard {
     <button class="btn-secondary" onclick="exitKVM()">⬅ Exit</button>
   </div>
 </section>
+
+<section id="knightescape-section" class="section hidden">
+  <h2>🏰 Knight Escape Maze</h2>
+
+  <!-- MENU -->
+  <div class="card" id="kemMenu">
+    <h3>Select Mode</h3>
+
+    <div class="kvm-modes">
+      <button class="kvm-mode easy" onclick="startKEM('easy')">
+        🟢 Easy<br><span>Few Walls</span>
+      </button>
+
+      <button class="kvm-mode medium" onclick="startKEM('medium')">
+        🟡 Medium<br><span>More Walls</span>
+      </button>
+
+      <button class="kvm-mode hard" onclick="startKEM('hard')">
+        🔥 Hard<br><span>Maze Mode</span>
+      </button>
+    </div>
+
+    <div class="kp-how">
+      <h4>📘 How to Play</h4>
+      <ul>
+        <li>🐴 Move the knight legally</li>
+        <li>🧱 Walls block your path</li>
+        <li>👹 Watch out! they are coming for you!</li>
+        <li>🏁 Reach the exit to win</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="kemGame" class="hidden">
+    <div class="memory-top">
+      <div>⭐ Moves: <span id="kemTurns">0</span></div>
+      <div>🏆 Level: <span id="kemLevel">1</span></div>
+    </div>
+
+    <div id="kemBoard" class="mini-board"></div>
+
+    <button class="btn-secondary" onclick="exitKEM()">⬅ Exit</button>
+  </div>
+</section>
+
 
 
 
@@ -17669,6 +17717,282 @@ function showKVMGameOver(turns) {
   };
 }
 
+
+// ================================
+// KNIGHT ESCAPE MAZE (ISOLATED)
+// ================================
+
+// STATE
+let kemMode = "easy";
+let kemKnight = null;
+let kemExit = null;
+let kemWalls = [];
+let kemMonsters = [];
+let kemTurns = 0;
+let kemLevel = 1;
+let kemWaiting = false;
+
+const kemBoard = document.getElementById("kemBoard");
+const kemTurnsEl = document.getElementById("kemTurns");
+const kemLevelEl = document.getElementById("kemLevel");
+
+
+// ================================
+// Knight Escape Maze - Next Level Sound
+// ================================
+function playKEMNextSound() {
+  try {
+    const audio = new Audio("./sounds/next.mp3");
+    audio.volume = 0.6;
+    audio.play();
+  } catch (e) {
+    console.warn("🔇 next.mp3 could not play", e);
+  }
+}
+
+
+// ================================
+// RANDOM SQUARE
+// ================================
+function kemRandomSquare() {
+  return {
+    x: Math.floor(Math.random() * 8),
+    y: Math.floor(Math.random() * 8)
+  };
+}
+
+// ================================
+// GENERATE WALLS
+// ================================
+function generateKEMWalls(count) {
+  const walls = [];
+
+  while (walls.length < count) {
+    const sq = kemRandomSquare();
+
+    if (
+      (sq.x === kemKnight.x && sq.y === kemKnight.y) ||
+      (sq.x === kemExit.x && sq.y === kemExit.y) ||
+      kemMonsters.some(m => m.x === sq.x && m.y === sq.y)
+    ) continue;
+
+    if (walls.some(w => w.x === sq.x && w.y === sq.y)) continue;
+
+    walls.push(sq);
+  }
+  return walls;
+}
+
+// ================================
+// START GAME
+// ================================
+window.startKEM = function (mode) {
+  kemMode = mode;
+  kemTurns = 0;
+  kemLevel = 1;
+
+  document.getElementById("kemMenu").classList.add("hidden");
+  document.getElementById("kemGame").classList.remove("hidden");
+
+  initKEMLevel();
+};
+
+// ================================
+// INIT LEVEL
+// ================================
+function initKEMLevel() {
+  kemKnight = kemRandomSquare();
+  kemExit = kemRandomSquare();
+
+  while (kemExit.x === kemKnight.x && kemExit.y === kemKnight.y) {
+    kemExit = kemRandomSquare();
+  }
+
+  const monsterCount =
+    kemMode === "easy" ? 1 :
+    kemMode === "medium" ? 2 : 3;
+
+  kemMonsters = [];
+  for (let i = 0; i < monsterCount; i++) {
+    kemMonsters.push(kemRandomSquare());
+  }
+
+  const wallBase =
+    kemMode === "easy" ? 6 :
+    kemMode === "medium" ? 10 : 14;
+
+  kemWalls = generateKEMWalls(wallBase + kemLevel);
+
+  kemTurnsEl.textContent = kemTurns;
+  kemLevelEl.textContent = kemLevel;
+
+  kemWaiting = true;
+  drawKEMBoard();
+}
+
+// ================================
+// EXIT GAME
+// ================================
+window.exitKEM = function () {
+  document.getElementById("kemGame").classList.add("hidden");
+  document.getElementById("kemMenu").classList.remove("hidden");
+};
+
+// ================================
+// HANDLE CLICK
+// ================================
+function handleKEMClick(x, y) {
+  if (!kemWaiting) return;
+
+  const dx = Math.abs(x - kemKnight.x);
+  const dy = Math.abs(y - kemKnight.y);
+
+  // knight legality
+  if (!((dx === 2 && dy === 1) || (dx === 1 && dy === 2))) return;
+
+  // blocked by wall
+  if (kemWalls.some(w => w.x === x && w.y === y)) return;
+
+  kemKnight = { x, y };
+  kemTurns++;
+  kemTurnsEl.textContent = kemTurns;
+
+  playKVMMoveSound?.();
+
+  moveKEMMonsters();
+
+  // 💀 CAUGHT
+  if (isKEMKnightCaught()) {
+    showKEMGameOver();
+    return;
+  }
+
+  // 🏁 NEXT LEVEL
+  if (x === kemExit.x && y === kemExit.y) {
+   playKEMNextSound();   // 🔊 LEVEL UP SOUND
+    kemLevel++;
+    initKEMLevel();
+    return;
+  }
+
+  drawKEMBoard();
+}
+
+// ================================
+// MOVE MONSTERS (CHASE)
+// ================================
+function moveKEMMonsters() {
+  const newPositions = [];
+
+  for (const m of kemMonsters) {
+    let bestMove = null;
+    let bestDist = Infinity;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+
+        const nx = m.x + dx;
+        const ny = m.y + dy;
+
+        if (nx < 0 || nx > 7 || ny < 0 || ny > 7) continue;
+        if (kemWalls.some(w => w.x === nx && w.y === ny)) continue;
+        if (newPositions.some(p => p.x === nx && p.y === ny)) continue;
+
+        const dist =
+          Math.abs(nx - kemKnight.x) +
+          Math.abs(ny - kemKnight.y);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestMove = { x: nx, y: ny };
+        }
+      }
+    }
+    newPositions.push(bestMove || { ...m });
+  }
+
+  kemMonsters = newPositions;
+}
+
+// ================================
+// CHECK CAUGHT
+// ================================
+function isKEMKnightCaught() {
+  return kemMonsters.some(
+    m => m.x === kemKnight.x && m.y === kemKnight.y
+  );
+}
+
+// ================================
+// DRAW BOARD
+// ================================
+function drawKEMBoard() {
+  kemBoard.innerHTML = "";
+
+  for (let y = 7; y >= 0; y--) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+      sq.className = "kp-square";
+      sq.classList.add((x + y) % 2 === 0 ? "light" : "dark");
+      sq.onclick = () => handleKEMClick(x, y);
+
+      if (kemWalls.some(w => w.x === x && w.y === y)) {
+        sq.textContent = "🧱";
+      }
+
+      if (kemExit.x === x && kemExit.y === y) {
+        sq.textContent = "🏁";
+      }
+
+      // 👹 MONSTERS (bigger)
+for (const m of kemMonsters) {
+  if (m.x === x && m.y === y) {
+    sq.textContent = "👹";
+    sq.style.fontSize = "34px";
+    sq.style.transform = "scale(1.1)";
+  }
+}
+
+// 🐴 KNIGHT (bigger & priority)
+if (kemKnight.x === x && kemKnight.y === y) {
+  sq.textContent = "🐴";
+  sq.style.fontSize = "30px";
+  sq.style.transform = "scale(1.15)";
+      }
+
+      kemBoard.appendChild(sq);
+    }
+  }
+}
+
+// ================================
+// GAME OVER (ONLY HERE MODAL)
+// ================================
+function showKEMGameOver() {
+  playKVMGameOverSound?.();
+
+  const modal = document.getElementById("floatingModal");
+  const title = document.getElementById("modalTitle");
+  const body = document.getElementById("modalBody");
+  const okBtn = document.getElementById("modalOkBtn");
+
+  title.textContent = "👹 Game Over!";
+  body.innerHTML = `
+    <p style="font-size:16px;">
+      The monster caught your knight 🐴<br><br>
+      🏆 Level reached: <b>${kemLevel}</b><br>
+      ⭐ Moves: <b>${kemTurns}</b>
+    </p>
+  `;
+
+  modal.classList.remove("hidden");
+
+  okBtn.onclick = () => {
+    modal.classList.add("hidden");
+    exitKEM();
+  };
+}
 
 
 
