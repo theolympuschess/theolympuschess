@@ -6220,7 +6220,7 @@ body:not(.student-view) #studentProgressCard {
   font-size: 16px;
   color: #ccc;
   text-align: center;
-  margin-top: 17px;
+  margin-top: 20px;
 }
 
 /* Board alignment fix */
@@ -6229,6 +6229,45 @@ body:not(.student-view) #studentProgressCard {
 }
 
 
+#musicControl {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9999;
+}
+
+#musicMuteBtn {
+  font-size: 24px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#musicMenu {
+  position: absolute;
+  bottom: 36px;
+  left: 0;
+  background: #1c1f35;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+}
+
+#musicMenu div {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+#musicMenu div:hover {
+  background: #2a2d4a;
+}
+
+.hidden {
+  display: none;
+}
 
 
 
@@ -6284,7 +6323,7 @@ body:not(.student-view) #studentProgressCard {
 <button class="nav-btn" data-tab="kingmath">
   👑 Chess Math Journey
 </button>
-<button class="nav-btn" data-tab="colorchaos">🎨 Color Madness</button>
+<button class="nav-btn" data-tab="colorchaos">🎨 Rainbow Mania</button>
 
 
 
@@ -7364,7 +7403,7 @@ body:not(.student-view) #studentProgressCard {
 
 
 <section id="colorchaos-section" class="section hidden">
-  <h2>🎨⚡ Color Flip Chaos</h2>
+  <h2>🎨⚡ Rainbow Showdwon</h2>
 
   <!-- MODE MENU -->
   <div class="card cfc-card" id="cfcMenu">
@@ -20848,20 +20887,25 @@ function showKNDModal(title, message) {
 // ================================
 
 const GAME_MUSIC_TRACKS = [
-  "./sounds/game-1.mp3",
-  "./sounds/game-2.mp3"
+  "./sounds/sound_track_1.mp3",
+  "./sounds/sound_track_2.mp3",
+  "./sounds/sound_track_3.mp3",
+  "./sounds/sound_track_4.mp3",
+  "./sounds/sound_track_5.mp3",
+  "./sounds/sound_track_6.mp3",
+  "./sounds/sound_track_7.mp3",
+  "./sounds/sound_track_8.mp3",
+  "./sounds/sound_track_9.mp3",
+  "./sounds/sound_track_10.mp3",
 ];
 
 let gameMusic = null;
 let musicMuted = false;
 let musicStarted = false;
 
-// ▶️ START MUSIC
-function startGameMusic() {
-  if (musicMuted || musicStarted) return;
-
-  const src =
-    GAME_MUSIC_TRACKS[Math.floor(Math.random() * GAME_MUSIC_TRACKS.length)];
+// ▶️ PLAY SPECIFIC MUSIC (SINGLE SOURCE OF TRUTH)
+function playMusic(src) {
+  stopGameMusic();
 
   gameMusic = new Audio(src);
   gameMusic.loop = true;
@@ -20872,8 +20916,18 @@ function startGameMusic() {
       musicStarted = true;
     })
     .catch(() => {
-      // browser blocked — will retry on user interaction
+      // autoplay blocked – will retry on interaction
     });
+}
+
+// ▶️ START RANDOM MUSIC
+function startGameMusic() {
+  if (musicMuted || musicStarted) return;
+
+  const src =
+    GAME_MUSIC_TRACKS[Math.floor(Math.random() * GAME_MUSIC_TRACKS.length)];
+
+  playMusic(src);
 }
 
 // ⏹ STOP MUSIC
@@ -20888,6 +20942,7 @@ function stopGameMusic() {
 // ================================
 // 🔇 MUTE BUTTON
 // ================================
+
 const musicMuteBtn = document.getElementById("musicMuteBtn");
 
 musicMuteBtn.addEventListener("click", () => {
@@ -20905,15 +20960,41 @@ musicMuteBtn.addEventListener("click", () => {
 // ================================
 // 🔑 FIRST USER INTERACTION UNLOCK
 // ================================
+
 ["click", "keydown", "touchstart"].forEach(evt => {
-  document.addEventListener(
-    evt,
-    () => {
-      startGameMusic();
-    },
-    { once: true } // 🔥 only first interaction
-  );
+  document.addEventListener(evt, startGameMusic, { once: true });
 });
+
+// ================================
+// 🎼 MUSIC MENU (HOVER SELECT)
+// ================================
+
+const musicControl = document.getElementById("musicControl");
+const musicMenu = document.getElementById("musicMenu");
+
+// hover show / hide
+musicControl.addEventListener("mouseenter", () => {
+  musicMenu.classList.remove("hidden");
+});
+
+musicControl.addEventListener("mouseleave", () => {
+  musicMenu.classList.add("hidden");
+});
+
+// click to select track
+musicMenu.querySelectorAll("div").forEach(item => {
+  item.addEventListener("click", () => {
+    const src = item.dataset.src;
+    if (!src) return;
+
+    musicMuted = false;
+    musicMuteBtn.textContent = "🔊";
+
+    playMusic(src);
+    musicMenu.classList.add("hidden");
+  });
+});
+
 
 
 /* ================================
@@ -21266,13 +21347,13 @@ window.startCFC = function (mode = "easy") {
   // ⏱ difficulty = TIME ONLY
   if (mode === "easy") {
     cfcTime = 40;
-    cfcTarget = 16;
+    cfcTarget = 5;
   } else if (mode === "medium") {
-    cfcTime = 35;
-    cfcTarget = 18;
-  } else {
     cfcTime = 30;
-    cfcTarget = 20;
+    cfcTarget = 6;
+  } else {
+    cfcTime = 20;
+    cfcTarget = 5;
   }
 
   cfcKnight = {
@@ -21714,8 +21795,23 @@ function showCFCGameOver(win) {
 
 
 
-<!-- 🔊 Global Game Music Mute Button -->
-<div id="musicMuteBtn" title="Mute / Unmute">🔊</div>
+<!-- 🎵 Global Game Music Control -->
+<div id="musicControl">
+  <div id="musicMuteBtn" title="Mute / Unmute">🔊</div>
+
+  <div id="musicMenu" class="hidden">
+    <div data-src="./sounds/sound_track_1.mp3">🎶 Sound_Track_1</div>
+    <div data-src="./sounds/sound_track_2.mp3">🎶 Sound_Track_2</div>
+    <div data-src="./sounds/sound_track_3.mp3">🎶 Sound_Track_3</div>
+    <div data-src="./sounds/sound_track_4.mp3">🎶 sound_track_4</div>
+    <div data-src="./sounds/sound_track_5.mp3">🎶 Sound_Track_5</div>
+    <div data-src="./sounds/sound_track_6.mp3">🎶 Sound_Track_6</div>
+    <div data-src="./sounds/sound_track_7.mp3">🎶 sound_track_7</div>
+    <div data-src="./sounds/sound_track_8.mp3">🎶 Sound_Track_8</div>
+    <div data-src="./sounds/sound_track_9.mp3">🎶 Sound_Track_9</div>
+    <div data-src="./sounds/sound_track_10.mp3">🎶 Sound_Track_10</div>
+  </div>
+</div>
 
 
 
@@ -21736,9 +21832,6 @@ function showCFCGameOver(win) {
 
 </body>
 </html>
-
-
-
 
 
 
