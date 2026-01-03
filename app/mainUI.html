@@ -6271,10 +6271,55 @@ body:not(.student-view) #studentProgressCard {
 
 
 
+/* ================================
+📍 Board Coordinate Training – Board Skin
+(ISOLATED)
+================================ */
 
+#coordtrain-section .mini-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  aspect-ratio: 1 / 1;
+  border-radius: 1px;
+  overflow: hidden;
+  background: #3b2a1a;
+  margin-top: -15px;
+  
+}
 
+#coordtrain-section .square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
 
+/* ♟ CLASSIC BROWN BOARD */
+#coordtrain-section .square.light {
+  background: #f0d9b5;
+}
 
+#coordtrain-section .square.dark {
+  background: #b58863;
+}
+
+/* Hover feedback */
+#coordtrain-section .square:hover {
+  transform: scale(1.02);
+}
+
+/* Files (a–h) closer to board */
+#coordtrain-section .cfc-files {
+  grid-column: 2;
+  margin-top: 4px;   /* 🔥 reduce this */
+  padding-top: 0;
+}
+
+/* Board itself – remove bottom spacing */
+#coordtrain-section .mini-board {
+  margin-bottom: 0;  /* 🔥 important */
+}
 
 
 
@@ -6304,16 +6349,18 @@ body:not(.student-view) #studentProgressCard {
 </div>
 
 
-    
+     <button class="nav-btn" data-tab="coordtrain">📍 Board Coordinates</button>
     <button class="nav-btn" data-tab="piecePractice">
   🦖 Toy Hunt
+ 
+
 <button class="nav-btn" data-tab="memory">🧠 IQ Hunt</button>
 <button class="nav-btn" data-tab="color">🧪 Lab Hunt</button>
 <button class="nav-btn" data-tab="knightfog">
   🍎 Knight Fog Quest
 </button>
 <button class="nav-btn" data-tab="knightdefense">
-  👑🛡️ Defend The King
+  👑 Defend The King
 </button>
 <button class="nav-btn" data-tab="knightpath">🐴 Knight Hunt</button>
 <button class="nav-btn" data-tab="knightmonster">🐴 vs 👹</button>
@@ -7478,6 +7525,55 @@ body:not(.student-view) #studentProgressCard {
   </div>
 </section>
 
+<section id="coordtrain-section" class="section hidden">
+  <h2>📍 Board Coordinate Training</h2>
+
+  <!-- MENU -->
+  <div class="card" id="ctMenu">
+    <h3>Find the Square!</h3>
+    <p>
+      A square name will flash briefly.<br />
+      Click the correct square on the board.
+    </p>
+
+    <button class="btn-primary" onclick="startCT()">▶ Start</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="ctGame" class="hidden">
+    <div class="memory-top">
+      <div>🎯 Target: <span id="ctTarget">e4</span></div>
+      <div>⭐ Score: <span id="ctScore">0</span></div>
+      <div>❌ Miss: <span id="ctMiss">0</span></div>
+    </div>
+    <div style="margin-bottom: 10px; text-align: center;">
+  <button class="btn-secondary" id="ctToggleCoords" onclick="toggleCTCoords()">
+    👁 Hide Files & Ranks
+  </button>
+</div>
+
+
+    <div class="cfc-board-wrapper">
+      
+      <!-- RANKS -->
+      <div class="cfc-ranks">
+        <span>8</span><span>7</span><span>6</span><span>5</span>
+        <span>4</span><span>3</span><span>2</span><span>1</span>
+      </div>
+
+      <!-- BOARD -->
+      <div id="ctBoard" class="mini-board board-8"></div>
+
+      <!-- FILES -->
+      <div class="cfc-files">
+        <span>a</span><span>b</span><span>c</span><span>d</span>
+        <span>e</span><span>f</span><span>g</span><span>h</span>
+      </div>
+    </div>
+
+    <button class="btn-secondary" onclick="exitCT()">⬅ Exit</button>
+  </div>
+</section>
 
 
 
@@ -21563,6 +21659,160 @@ function showCFCGameOver(win) {
     exitCFC();
   };
 }
+
+
+// ================================
+// 📍 BOARD COORDINATE TRAINING
+// ================================
+
+const ctBoardEl = document.getElementById("ctBoard");
+const ctMenu = document.getElementById("ctMenu");
+const ctGame = document.getElementById("ctGame");
+
+const ctTargetEl = document.getElementById("ctTarget");
+const ctScoreEl = document.getElementById("ctScore");
+const ctMissEl = document.getElementById("ctMiss");
+
+let ctTarget = "";
+let ctScore = 0;
+let ctMiss = 0;
+
+// ================================
+// 🔊 COORD TRAINING SOUNDS (ISOLATED)
+// ================================
+
+function playCTCorrectSound() {
+  try {
+    const audio = new Audio("./sounds/next.mp3");
+    audio.volume = 0.8;
+    audio.play();
+  } catch (e) {}
+}
+
+function playCTWrongSound() {
+  try {
+    const audio = new Audio("./sounds/wrong.mp3");
+    audio.volume = 0.6;
+    audio.play();
+  } catch (e) {}
+}
+
+
+// START
+window.startCT = function () {
+  ctScore = 0;
+  ctMiss = 0;
+  ctScoreEl.textContent = "0";
+  ctMissEl.textContent = "0";
+
+  ctMenu.classList.add("hidden");
+  ctGame.classList.remove("hidden");
+
+  drawCTBoard();
+  nextCTTarget();
+};
+
+// EXIT
+window.exitCT = function () {
+  ctGame.classList.add("hidden");
+  ctMenu.classList.remove("hidden");
+};
+
+// DRAW BOARD
+function drawCTBoard() {
+  ctBoardEl.innerHTML = "";
+
+  for (let y = 7; y >= 0; y--) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+
+     const isLight = (x + y) % 2 === 1;
+
+      sq.className = "square " + (isLight ? "light" : "dark");
+
+      const file = String.fromCharCode(97 + x);
+      const rank = y + 1;
+      const coord = file + rank;
+
+      sq.dataset.coord = coord;
+
+      sq.onclick = () => handleCTClick(coord, sq);
+
+      ctBoardEl.appendChild(sq);
+    }
+  }
+}
+
+// TARGET
+function nextCTTarget() {
+  const file = String.fromCharCode(97 + Math.floor(Math.random() * 8));
+  const rank = Math.floor(Math.random() * 8) + 1;
+  ctTarget = file + rank;
+
+  ctTargetEl.textContent = ctTarget;
+
+  // 🔥 flash effect
+  ctTargetEl.style.opacity = "0";
+  setTimeout(() => (ctTargetEl.style.opacity = "1"), 100);
+}
+
+// CLICK
+function handleCTClick(coord, sq) {
+  if (coord === ctTarget) {
+
+    playCTCorrectSound(); // 🔊 correct
+    ctScore++;
+    ctScoreEl.textContent = ctScore;
+
+    sq.style.boxShadow = "inset 0 0 0 4px #51cf66";
+
+    setTimeout(() => {
+      sq.style.boxShadow = "";
+      nextCTTarget();
+    }, 300);
+  } else {
+
+     playCTWrongSound(); // 🔊 wrong
+    ctMiss++;
+    ctMissEl.textContent = ctMiss;
+
+    sq.style.boxShadow = "inset 0 0 0 4px #ff6b6b";
+    setTimeout(() => (sq.style.boxShadow = ""), 300);
+  }
+}
+
+// ================================
+// 👁 TOGGLE FILES & RANKS (ISOLATED)
+// ================================
+
+let ctCoordsVisible = true;
+
+window.toggleCTCoords = function () {
+  ctCoordsVisible = !ctCoordsVisible;
+
+  const ranks = document.querySelector("#coordtrain-section .cfc-ranks");
+  const files = document.querySelector("#coordtrain-section .cfc-files");
+  const btn = document.getElementById("ctToggleCoords");
+
+  if (ctCoordsVisible) {
+    ranks.style.visibility = "visible";
+    files.style.visibility = "visible";
+    btn.textContent = "👀 Hide Files & Ranks";
+  } else {
+    ranks.style.visibility = "hidden";
+    files.style.visibility = "hidden";
+    btn.textContent = "🙈 Show Files & Ranks";
+  }
+};
+
+
+
+
+
+
+
+
+
 
 
 
