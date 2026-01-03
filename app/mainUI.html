@@ -6324,6 +6324,81 @@ body:not(.student-view) #studentProgressCard {
 
 
 
+/* ======================================
+🧠 BOARD FREEZE – COORDINATES FIX
+====================================== */
+
+#boardfreeze-section .bf-board-wrapper {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  gap: 6px;
+  justify-content: center;
+  margin: 20px auto;
+}
+
+/* RANKS */
+#boardfreeze-section .bf-ranks {
+  display: grid;
+  grid-template-rows: repeat(8, 1fr);
+  font-size: 13px;
+  color: #ddd;
+  text-align: right;
+  padding-right: 2px;
+}
+
+/* FILES */
+#boardfreeze-section .bf-files {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  font-size: 13px;
+  color: #ddd;
+  text-align: center;
+  padding-top: 2px;
+}
+
+/* BOARD */
+#boardfreeze-section #bfBoard {
+  width: 560px;
+  height: 560px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* SQUARES */
+#boardfreeze-section #bfBoard .square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* COLORS (REAL CHESS ORIENTATION) */
+#boardfreeze-section #bfBoard .light {
+  background: #f0d9b5;
+}
+#boardfreeze-section #bfBoard .dark {
+  background: #b58863;
+}
+
+/* PIECES */
+#boardfreeze-section #bfBoard img {
+  width: 80%;
+  height: 80%;
+  pointer-events: none;
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6350,11 +6425,14 @@ body:not(.student-view) #studentProgressCard {
 
 
      <button class="nav-btn" data-tab="coordtrain">📍 Board Coordinates</button>
+     
+
     <button class="nav-btn" data-tab="piecePractice">
   🦖 Toy Hunt
  
 
 <button class="nav-btn" data-tab="memory">🧠 IQ Hunt</button>
+<button class="nav-btn" data-tab="boardfreeze">❓ Guess Materials</button>
 <button class="nav-btn" data-tab="color">🧪 Lab Hunt</button>
 <button class="nav-btn" data-tab="knightfog">
   🍎 Knight Fog Quest
@@ -7575,6 +7653,61 @@ body:not(.student-view) #studentProgressCard {
   </div>
 </section>
 
+<section id="boardfreeze-section" class="section hidden">
+  <h2>🎯 Guess Materials</h2>
+
+  <!-- MENU -->
+  <div class="card" id="bfMenu">
+    <h3>Snapshot Challenge</h3>
+    <p>
+      Board flashes for 5 seconds.<br>
+      Remember & answer the question.
+    </p>
+
+    <button class="btn-primary" onclick="startBF()">▶ Start</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="bfGame" class="hidden">
+
+    <div class="memory-top">
+      <div>❓ Question: <span id="bfQuestion">–</span></div>
+      <div>⭐ Score: <span id="bfScore">0</span></div>
+    </div>
+
+    <div class="bf-board-wrapper">
+
+  <!-- RANKS -->
+  <div class="bf-ranks">
+    <span>8</span><span>7</span><span>6</span><span>5</span>
+    <span>4</span><span>3</span><span>2</span><span>1</span>
+  </div>
+
+  <!-- BOARD -->
+  <div id="bfBoard"></div>
+
+  <!-- FILES -->
+  <div class="bf-files">
+    <span>a</span><span>b</span><span>c</span><span>d</span>
+    <span>e</span><span>f</span><span>g</span><span>h</span>
+  </div>
+
+</div>
+
+
+    <div style="margin-top:16px; text-align:center;">
+      <button class="btn-secondary" onclick="bfMinus()">−</button>
+      <span id="bfAnswer" style="font-size:24px; margin:0 16px;">0</span>
+      <button class="btn-secondary" onclick="bfPlus()">+</button>
+    </div>
+
+    <div style="margin-top:12px; text-align:center;">
+      <button class="btn-primary" onclick="bfSubmit()">Submit</button>
+    </div>
+
+    <button class="btn-secondary" style="margin-top:14px;" onclick="exitBF()">⬅ Exit</button>
+  </div>
+</section>
 
 
 
@@ -21806,6 +21939,180 @@ window.toggleCTCoords = function () {
 };
 
 
+// ======================================
+// 🧠 BOARD FREEZE — AUTO QUESTION ENGINE
+// FULLY ISOLATED (FIXED)
+// ======================================
+
+// ---------- CONFIG ----------
+const BF_FLASH_TIME = 5000; // ms
+
+const BF_PIECES = [
+  { type: "pawn",   color: "white", img: "./assets/pieces/wP.png" },
+  { type: "rook",   color: "white", img: "./assets/pieces/wR.png" },
+  { type: "knight", color: "white", img: "./assets/pieces/wN.png" },
+  { type: "bishop", color: "white", img: "./assets/pieces/wB.png" },
+  { type: "queen",  color: "white", img: "./assets/pieces/wQ.png" },
+  { type: "king",   color: "white", img: "./assets/pieces/wK.png" },
+
+  { type: "pawn",   color: "black", img: "./assets/pieces/bP.png" },
+  { type: "rook",   color: "black", img: "./assets/pieces/bR.png" },
+  { type: "knight", color: "black", img: "./assets/pieces/bN.png" },
+  { type: "bishop", color: "black", img: "./assets/pieces/bB.png" },
+  { type: "queen",  color: "black", img: "./assets/pieces/bQ.png" },
+  { type: "king",   color: "black", img: "./assets/pieces/bK.png" }
+];
+
+// ---------- STATE ----------
+let bfPieces = [];
+let bfCorrectAnswer = 0;
+let bfUserAnswer = 0;
+let bfScore = 0;
+
+// ---------- DOM (SAFE INIT) ----------
+const bfBoard = document.getElementById("bfBoard");
+const bfQuestionEl = document.getElementById("bfQuestion");
+const bfAnswerEl = document.getElementById("bfAnswer");
+const bfScoreEl = document.getElementById("bfScore");
+const bfMenu = document.getElementById("bfMenu");
+const bfGame = document.getElementById("bfGame");
+
+// ---------- QUESTION BANK ----------
+const BF_QUESTIONS = [
+  () => countBy(p => p.type === "rook", "How many rooks?"),
+  () => countBy(p => p.type === "bishop", "How many bishops?"),
+  () => countBy(p => p.type === "queen", "How many queens?"),
+  () => countBy(p => p.type === "knight", "How many knights?"),
+  () => countBy(p => p.type === "pawn", "How many pawns?"),
+
+  () => countBy(p => p.color === "white", "How many white pieces?"),
+  () => countBy(p => p.color === "black", "How many black pieces?"),
+
+  () => countBy(p => p.type === "pawn" && p.color === "white", "How many white pawns?"),
+  () => countBy(p => p.type === "pawn" && p.color === "black", "How many black pawns?"),
+
+  () => countBy(p => p.type === "rook" && p.color === "white", "How many white rooks?"),
+  () => countBy(p => p.type === "rook" && p.color === "black", "How many black rooks?"),
+
+  () => countBy(p => p.type === "bishop" && p.color === "white", "How many white bishops?"),
+  () => countBy(p => p.type === "bishop" && p.color === "black", "How many black bishops?"),
+
+  () => countBy(p => p.type === "queen" && p.color === "white", "How many white queens?"),
+  () => countBy(p => p.type === "queen" && p.color === "black", "How many black queens?"),
+
+  () => countBy(p => p.type === "king", "How many kings?"),
+  () => countBy(p => p.type === "king" && p.color === "white", "How many white kings?"),
+  () => countBy(p => p.type === "king" && p.color === "black", "How many black kings?"),
+
+  () => countBy(p => isDarkSquare(p.x, p.y), "How many pieces on dark squares?"),
+  () => countBy(p => !isDarkSquare(p.x, p.y), "How many pieces on light squares?"),
+
+  () => countBy(p => p.type === "pawn" || p.type === "rook", "How many pawns + rooks?"),
+  () => countBy(p => p.type === "bishop" || p.type === "knight", "How many bishops + knights?"),
+
+  () => countBy(() => true, "How many total pieces?")
+];
+
+// ---------- HELPERS ----------
+function isDarkSquare(x, y) {
+  return (x + y) % 2 === 1;
+}
+
+function countBy(filterFn, questionText) {
+  bfCorrectAnswer = bfPieces.filter(filterFn).length;
+  bfQuestionEl.textContent = questionText;
+}
+
+// ---------- GAME FLOW ----------
+window.startBF = function () {
+  if (!bfBoard) return;
+
+  bfMenu.classList.add("hidden");
+  bfGame.classList.remove("hidden");
+
+  bfScore = 0;
+  bfScoreEl.textContent = "0";
+
+  nextBFRound();
+};
+
+window.exitBF = function () {
+  bfGame.classList.add("hidden");
+  bfMenu.classList.remove("hidden");
+};
+
+// ---------- ROUND ----------
+function nextBFRound() {
+  bfBoard.innerHTML = "";
+  bfUserAnswer = 0;
+  bfAnswerEl.textContent = "0";
+  bfPieces = [];
+
+  const pieceCount = 8 + Math.floor(Math.random() * 8);
+
+  while (bfPieces.length < pieceCount) {
+    const x = Math.floor(Math.random() * 8);
+    const y = Math.floor(Math.random() * 8);
+    if (bfPieces.some(p => p.x === x && p.y === y)) continue;
+
+    const piece = BF_PIECES[Math.floor(Math.random() * BF_PIECES.length)];
+    bfPieces.push({ ...piece, x, y });
+  }
+
+  const q = BF_QUESTIONS[Math.floor(Math.random() * BF_QUESTIONS.length)];
+  q();
+
+  drawBF(true);
+  setTimeout(() => drawBF(false), BF_FLASH_TIME);
+}
+
+// ---------- DRAW ----------
+function drawBF(show) {
+  bfBoard.innerHTML = "";
+
+  for (let y = 7; y >= 0; y--) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+      sq.className = `square ${(x + y) % 2 === 0 ? "dark" : "light"}`;
+
+
+      if (show) {
+        const p = bfPieces.find(o => o.x === x && o.y === y);
+        if (p) {
+          const img = document.createElement("img");
+          img.src = p.img;
+          img.style.width = "80%";
+          img.style.pointerEvents = "none";
+          sq.appendChild(img);
+        }
+      }
+      bfBoard.appendChild(sq);
+    }
+  }
+}
+
+// ---------- ANSWER CONTROLS ----------
+window.bfPlus = function () {
+  bfUserAnswer++;
+  bfAnswerEl.textContent = bfUserAnswer;
+};
+
+window.bfMinus = function () {
+  if (bfUserAnswer > 0) bfUserAnswer--;
+  bfAnswerEl.textContent = bfUserAnswer;
+};
+
+window.bfSubmit = function () {
+  if (bfUserAnswer === bfCorrectAnswer) {
+    bfScore++;
+    bfScoreEl.textContent = bfScore;
+    playNextSound?.();
+  } else {
+    playWrongSound?.();
+  }
+  setTimeout(nextBFRound, 600);
+};
+
 
 
 
@@ -22082,7 +22389,6 @@ window.toggleCTCoords = function () {
 
 </body>
 </html>
-
 
 
 
