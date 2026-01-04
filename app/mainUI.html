@@ -6434,6 +6434,141 @@ body:not(.student-view) #studentProgressCard {
 
 
 
+/* ============================= */
+/* 🧭 KNIGHT GPS BOARD LAYOUT */
+/* ============================= */
+
+.kg-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 14px;
+}
+
+/* ranks + board */
+.kg-board-grid {
+  display: grid;
+  grid-template-columns: 32px auto;
+  align-items: center;
+}
+
+/* BOARD */
+#kgBoard {
+  display: grid;
+  grid-template-columns: repeat(8, 80px);
+  grid-template-rows: repeat(8, 80px);
+  border: 2px solid #ffd700;
+  box-shadow: 0 0 28px rgba(255, 215, 0, 0.4);
+  margin-top: -70px;
+}
+
+/* RANKS */
+.kg-ranks {
+  display: grid;
+  grid-template-rows: repeat(8, 80px);
+  font-size: 13px;
+  color: #aaa;
+  text-align: center;
+  margin-right: 6px;
+
+  /* 👇 key fixes */
+  align-items: flex-start;
+  padding-top: 6px;
+}
+
+
+/* FILES */
+.kg-files {
+  display: grid;
+  grid-template-columns: repeat(8, 80px);
+  font-size: 13px;
+  color: #aaa;
+  text-align: center;
+  margin-top: -30px;
+}
+
+/* SQUARES */
+.kg-square {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* COLORS */
+.kg-light { background: #f0d9b5; }
+.kg-dark  { background: #b58863; }
+
+/* 🎯 Target — emoji only, no square color */
+.kg-target {
+  background: transparent !important;
+  position: relative;
+}
+
+/* 🎯 Target overlay — NO square color */
+.kg-target {
+  position: relative;
+}
+
+.kg-target span {
+  position: absolute;
+  font-size: 34px;
+  z-index: 5;
+  filter: drop-shadow(0 0 6px rgba(0,255,204,0.8));
+}
+
+.kg-target::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(0, 255, 204, 0.7) 18%,
+    rgba(0, 255, 204, 0.35) 28%,
+    transparent 45%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+
+
+/* ♞ Knight */
+.kg-square img {
+  width: 68px;
+  height: 68px;
+  pointer-events: none;
+  transform: translateY(-2px);
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45));
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6487,6 +6622,8 @@ body:not(.student-view) #studentProgressCard {
 <button class="nav-btn" data-tab="knightescape">🏰 Escape</button>
 <button class="nav-btn" data-tab="knightspeed">🐴 Speed Run</button>
 <button class="nav-btn" data-tab="knightlava">🔥 Lava Knight</button>
+<button class="nav-btn" data-tab="knightgps">🧭 Knight GPS</button>
+
 <button class="nav-btn" data-tab="kingmath">
   👑 Chess Math Journey
 </button>
@@ -7751,6 +7888,54 @@ body:not(.student-view) #studentProgressCard {
   </div>
 </section>
 
+<section id="knightgps-section" class="section hidden">
+  <h2>🧭 Knight GPS</h2>
+
+  <!-- MENU -->
+  <div class="card" id="kgMenu">
+    <h3>Reach the Target</h3>
+    <p>
+      Move the knight using legal moves.<br>
+      Barriers block your path.<br>
+      Reach 🎯 using minimum fuel ⛽
+    </p>
+
+    <button class="btn-primary" onclick="startKG()">▶ Start</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="kgGame" class="hidden">
+
+    <div class="memory-top">
+      <div>⛽ Fuel: <span id="kgFuel">10</span></div>
+      <div>🎯 Target: <span id="kgTarget">–</span></div>
+    </div>
+
+    <div class="kg-center">
+  <div class="kg-board-grid">
+
+    <!-- RANKS -->
+    <div class="kg-ranks">
+      <span>8</span><span>7</span><span>6</span><span>5</span>
+      <span>4</span><span>3</span><span>2</span><span>1</span>
+    </div>
+
+    <!-- BOARD -->
+    <div id="kgBoard"></div>
+
+  </div>
+
+  <!-- FILES -->
+  <div class="kg-files">
+    <span>a</span><span>b</span><span>c</span><span>d</span>
+    <span>e</span><span>f</span><span>g</span><span>h</span>
+  </div>
+</div>
+
+
+    <button class="btn-secondary" style="margin-top:14px;" onclick="exitKG()">⬅ Exit</button>
+  </div>
+</section>
 
 
 
@@ -22160,6 +22345,245 @@ window.bfSubmit = function () {
 
 
 
+/* ============================= */
+/* 🧭 KNIGHT GPS — FREE ROAM MODE */
+/* ============================= */
+
+const kgBoard = document.getElementById("kgBoard");
+const kgFuelEl = document.getElementById("kgFuel");
+const kgTargetEl = document.getElementById("kgTarget");
+
+let kgKnight = { x: 0, y: 7 };
+let kgTarget = { x: 7, y: 0 };
+let kgFuel = 6;
+let kgLevel = 1;
+
+const knightsMoves = [
+  [1,2],[2,1],[-1,2],[-2,1],
+  [1,-2],[2,-1],[-1,-2],[-2,-1]
+];
+
+/* ============================= */
+/* 🚀 GAME FLOW */
+/* ============================= */
+
+
+/* ============================= */
+/* 🔊 KNIGHT GPS SOUNDS (ISOLATED) */
+/* ============================= */
+
+function playKGMoveSound() {
+  try {
+    const audio = new Audio("./sounds/move.mp3");
+    audio.volume = 0.7;
+    audio.play();
+  } catch (e) {}
+}
+
+function playKGSuccessSound() {
+  try {
+    const audio = new Audio("./sounds/next.mp3");
+    audio.volume = 0.8;
+    audio.play();
+  } catch (e) {}
+}
+
+function playKGCompleteSound() {
+  try {
+    const audio = new Audio("./sounds/complete.mp3");
+    audio.volume = 0.8;
+    audio.play();
+  } catch (e) {}
+}
+
+
+
+
+function startKG() {
+  document.getElementById("kgMenu").classList.add("hidden");
+  document.getElementById("kgGame").classList.remove("hidden");
+
+  kgLevel = 1;
+  nextKGLevel();
+}
+
+function exitKG() {
+  document.getElementById("kgGame").classList.add("hidden");
+  document.getElementById("kgMenu").classList.remove("hidden");
+}
+
+window.startKG = startKG;
+window.exitKG = exitKG;
+
+/* ============================= */
+/* 🔁 LEVEL SYSTEM */
+/* ============================= */
+
+function nextKGLevel() {
+  kgFuel = 6;                 // ✅ FIXED MOVES
+  kgKnight = { x: 0, y: 7 };  // a1
+
+  kgTarget = randomTargetSquare();
+
+  kgFuelEl.textContent = kgFuel;
+  kgTargetEl.textContent =
+    `${String.fromCharCode(97 + kgTarget.x)}${8 - kgTarget.y}`;
+
+  drawKGBoard();
+}
+
+/* ============================= */
+/* 🎲 RANDOM TARGET */
+/* ============================= */
+
+function randomTargetSquare() {
+  let sq;
+  do {
+    sq = {
+      x: Math.floor(Math.random() * 8),
+      y: Math.floor(Math.random() * 8)
+    };
+  } while (
+    sq.x === kgKnight.x && sq.y === kgKnight.y
+  );
+  return sq;
+}
+
+/* ============================= */
+/* 🎨 DRAW BOARD */
+/* ============================= */
+
+function drawKGBoard() {
+  kgBoard.innerHTML = "";
+
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+
+      const sq = document.createElement("div");
+      sq.className = "kg-square " + ((x + y) % 2 ? "kg-dark" : "kg-light");
+
+      // 🎯 target (FREE of square color)
+if (x === kgTarget.x && y === kgTarget.y) {
+  sq.style.background = "transparent"; // ✅ KILLS dark square
+  sq.classList.add("kg-target");
+
+  const target = document.createElement("span");
+  target.textContent = "🎯";
+  sq.appendChild(target);
+}
+
+
+
+      // ♞ knight
+      if (x === kgKnight.x && y === kgKnight.y) {
+        const img = document.createElement("img");
+        img.src = "assets/pieces/wN.png";
+        img.draggable = false;
+        sq.appendChild(img);
+      }
+
+      sq.onclick = () => handleKGMove(x, y);
+      kgBoard.appendChild(sq);
+    }
+  }
+}
+
+/* ============================= */
+/* ♞ MOVE LOGIC */
+/* ============================= */
+
+function handleKGMove(x, y) {
+  if (kgFuel <= 0) return;
+
+  const legal = knightsMoves.some(
+    ([dx, dy]) => kgKnight.x + dx === x && kgKnight.y + dy === y
+  );
+
+  if (!legal) return;
+  // 🔊 play move sound ONLY on valid move
+  playKGMoveSound();
+
+  kgKnight = { x, y };
+  kgFuel--;
+  kgFuelEl.textContent = kgFuel;
+
+  // 🎉 SUCCESS
+  if (x === kgTarget.x && y === kgTarget.y) {
+    kgLevel++;
+    playKGSuccessSound();
+    setTimeout(nextKGLevel, 400);
+    return;
+  }
+
+  // ❌ FAIL
+  if (kgFuel === 0) {
+  playKGCompleteSound();     // 🔊 game over sound
+  showKGGameOverModal();     // 🪟 floating modal
+  return;
+}
+
+  drawKGBoard();
+}
+
+
+/* ============================= */
+/* 🪟 KNIGHT GPS — GAME OVER MODAL */
+/* ============================= */
+
+function showKGGameOverModal() {
+  try {
+    const modal = document.getElementById("floatingModal");
+    const title = document.getElementById("modalTitle");
+    const body = document.getElementById("modalBody");
+    const okBtn = document.getElementById("modalOkBtn");
+
+    if (!modal || !title || !body || !okBtn) return;
+
+    // content (isolated to Knight GPS)
+    title.textContent = "⛽ Game Over";
+    body.innerHTML = `
+      <p style="margin-bottom:10px;">
+        You ran out of moves.
+      </p>
+      <p style="font-size:14px; opacity:0.85;">
+        Try to reach the target within <b>6 knight moves</b>.
+      </p>
+    `;
+
+    // reset old handlers safely
+    okBtn.onclick = null;
+
+    // Knight GPS specific action
+    okBtn.onclick = () => {
+      modal.classList.add("hidden");
+      exitKG(); // return to Knight GPS menu only
+    };
+
+    // show modal
+    modal.classList.remove("hidden");
+  } catch (e) {}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -22431,7 +22855,6 @@ window.bfSubmit = function () {
 
 </body>
 </html>
-
 
 
 
