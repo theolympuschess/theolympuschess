@@ -6547,13 +6547,146 @@ body:not(.student-view) #studentProgressCard {
 
 
 
+/* Fixed container should stretch */
+.mini-score-fixed {
+  position: fixed;
+  left: 12px;
+  top: 110px;
+  bottom: 20px;          /* 🔥 THIS is the key */
+  z-index: 50;
+  display: flex;
+}
+
+/* Panel fills full height */
+.mini-score-panel {
+  width: 260px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #161a33, #0f1328);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,215,0,0.15),
+    0 10px 30px rgba(0,0,0,0.4);
+}
 
 
 
+#miniScoreList {
+  flex: 1;                /* fills remaining space */
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* smooth scrollbar (optional but sexy) */
+#miniScoreList::-webkit-scrollbar {
+  width: 6px;
+}
+#miniScoreList::-webkit-scrollbar-thumb {
+  background: rgba(255,215,0,0.35);
+  border-radius: 6px;
+}
 
 
 
+/* ================================
+   🏆 MINI SCORE – FIXED & SHORT
+================================ */
 
+/* Fixed position, but NOT full height */
+.mini-score-fixed {
+  position: fixed;
+  left: 12px;
+  top: 110px;        /* below navbar */
+  z-index: 50;
+}
+
+/* Compact panel height (matches main card visually) */
+.mini-score-panel {
+  width: 260px;
+  max-height: 650px;     /* 🔥 THIS controls red-line height */
+  display: flex;
+  flex-direction: column;
+
+  background: linear-gradient(180deg, #161a33, #0f1328);
+  border-radius: 16px;
+  padding: 16px;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,215,0,0.15),
+    0 10px 30px rgba(0,0,0,0.4);
+}
+
+/* Title stays fixed */
+.mini-score-panel h3 {
+  color: #ffd700;
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Scroll only scores, not whole panel */
+#miniScoreList {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+/* Score row */
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.score-row span:first-child {
+  color: #a9b7ff;
+}
+
+.score-row span:last-child {
+  color: #00ffcc;
+  font-weight: 700;
+}
+
+/* Muted text */
+.muted {
+  color: #777;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+/* Smooth scrollbar */
+#miniScoreList::-webkit-scrollbar {
+  width: 6px;
+}
+#miniScoreList::-webkit-scrollbar-thumb {
+  background: rgba(255,215,0,0.35);
+  border-radius: 6px;
+}
+
+
+.mini-score-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.game-name {
+  opacity: 0.9;
+}
+
+.game-score {
+  color: #ffd700;
+  font-weight: 700;
+}
 
 
 
@@ -6592,6 +6725,21 @@ body:not(.student-view) #studentProgressCard {
 </head>
 
 <body>
+
+
+<!-- 🏆 FIXED MINI GAME SCORES (LEFT) -->
+<div class="mini-score-fixed">
+  <div class="mini-score-panel">
+    <h3>🏆 My Best Scores</h3>
+    <div id="miniScoreList">
+      <p class="muted">Loading scores...</p>
+    </div>
+  </div>
+</div>
+
+
+
+
   <!-- NAVBAR -->
   <div id="topNavbar" class="navbar">
 
@@ -7591,7 +7739,8 @@ body:not(.student-view) #studentProgressCard {
     <div class="memory-top">
       <div>🎯 Task: <span id="kfqTask">Find 🍎</span></div>
       <div>⭐ Moves: <span id="kfqMoves">0</span></div>
-      <div>🍎 Found: <span id="kfqFound">0</span>/15</div>
+      <div>🍎 Found: <span id="kfqFound">0 / 8</span></div>
+
       <div>⏱ Time: <span id="kfqTime">0</span>s</div>
     </div>
 
@@ -7620,13 +7769,13 @@ body:not(.student-view) #studentProgressCard {
 
     <div class="knd-modes">
       <button class="knd-mode easy" onclick="startKND('easy')">
-        🟢 Easy<br><span>5 Monsters</span>
+        🟢 Easy<br><span>3 Monsters</span>
       </button>
       <button class="knd-mode medium" onclick="startKND('medium')">
-        🟡 Medium<br><span>6 Monsters</span>
+        🟡 Medium<br><span>4 Monsters</span>
       </button>
       <button class="knd-mode hard" onclick="startKND('hard')">
-        🔥 Hard<br><span>7 Monsters</span>
+        🔥 Hard<br><span>5 Monsters</span>
       </button>
     </div>
   </div>
@@ -8533,6 +8682,121 @@ body:not(.student-view) #studentProgressCard {
     let quizChess = new Chess();
 let currentQuizSolution = null;
 let currentOptions = [];
+
+
+
+async function saveMiniGameScore(gameKey, newScore) {
+  if (!currentProfile) return;
+
+  const { data: existing } = await supabase
+    .from("minigame_high_scores")
+    .select("score")
+    .eq("student_id", currentProfile.id)
+    .eq("game_key", gameKey)
+    .maybeSingle();
+
+  if (!existing || newScore > existing.score) {
+    const { error } = await supabase
+      .from("minigame_high_scores")
+      .upsert(
+        {
+          student_id: currentProfile.id,
+          game_key: gameKey,
+          score: newScore
+        },
+        {
+          onConflict: "student_id,game_key"
+        }
+      );
+
+    if (error) {
+      console.error("❌ Upsert failed:", error);
+    } else {
+      console.log("✅ High score updated:", gameKey, newScore);
+      // 🏆 UPDATE LEFT PANEL IMMEDIATELY
+      loadMyBestScores();
+    }
+  }
+}
+
+
+async function loadMyBestScores() {
+  const list = document.getElementById("miniScoreList");
+  if (!list || !currentProfile) return;
+
+  list.innerHTML = `<p class="muted">Loading scores...</p>`;
+
+  const { data, error } = await supabase
+    .from("minigame_high_scores")
+    .select("game_key, score")
+    .eq("student_id", currentProfile.id)
+    .order("game_key");
+
+  if (error) {
+    console.error("❌ Score load error", error);
+    list.innerHTML = `<p class="muted">Failed to load</p>`;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    list.innerHTML = `<p class="muted">No scores yet</p>`;
+    return;
+  }
+
+  list.innerHTML = "";
+
+  data.forEach(row => {
+    const div = document.createElement("div");
+    div.className = "mini-score-row";
+    div.innerHTML = `
+      <span class="game-name">${formatGameName(row.game_key)}</span>
+      <span class="game-score">${row.score}</span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function formatGameName(key) {
+  const map = {
+    memory: "🧠 IQ Hunt",
+    boardfreeze: "❓ Guess Materials",
+    color: "🧪 Lab Hunt",
+    knightfog: "🍎 Knight Fog Quest",
+    knightdefense: "👑 Defend The King",
+    knightpath: "🐴 Knight Hunt",
+    knightmonster: "🐴 vs 👹",
+    knightescape: "🏰 Escape",
+    knightspeed: "⚡ Speed Run",
+    knightlava: "🔥 Lava Knight",
+    knightgps: "🧭 Knight GPS",
+    kingmath: "👑 Chess Math",
+    colorchaos: "🎨 Rainbow Mania",
+    flashqueen: "👸 Find The Queen",
+    pathfinder: "👸 Reach Home",
+    puzzlerush: "⚡ Puzzle Rush",
+    quiz: "⚽ Quiz",
+    coordtrain: "📍 Board Coordinates"
+  };
+
+  return map[key] || key;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // ===============================
 // ♟ STOCKFISH ENGINE (CLASSIC JS)
@@ -11415,6 +11679,9 @@ document.addEventListener("click", (e) => {
 
         currentProfile = profile;
 
+        // 🏆 Load Best Scores (AFTER profile is ready)
+loadMyBestScores();
+
         // 🔐 PER-STUDENT BADGE STORAGE
 BADGE_STORAGE_KEY = `unlocked_badges_${currentProfile.id}`;
 loadUnlockedBadges();
@@ -12282,6 +12549,9 @@ function endQuiz(reason) {
   stopQuizTimer();
   quizActive = false;
 
+  // 🏆 SAVE BEST SCORE (Quiz)
+  saveMiniGameScore("quiz", quizScore);
+
   // 🎯 modal content
   document.getElementById("quizResultTitle").textContent = "Quiz Finished";
   document.getElementById("quizResultText").textContent =
@@ -12291,10 +12561,11 @@ function endQuiz(reason) {
 
   playQuizSound("party");
 
-  // reset score
+  // 🔁 reset score AFTER saving
   quizScore = 0;
   updateScoreUI();
 }
+
 
 
 
@@ -13415,6 +13686,9 @@ function endPuzzleRush(reason) {
   clearInterval(prTimerInterval);
   prTimerInterval = null;
 
+  // 🏆 SAVE BEST SCORE (Puzzle Rush)
+  saveMiniGameScore("puzzlerush", prScore);
+
   // 🔊 Puzzle Rush complete sound
   playPRSound("prCompleteSound", 1.0);
 
@@ -14213,7 +14487,11 @@ function hidePuzzleRushResult() {
     // ============================================
     // ASSIGNMENTS
     // ============================================
+
+    
+
     async function loadAssignments() {
+    
   const listEl = document.getElementById('assignmentsList');
   listEl.innerHTML = '<div class="loading">Loading assignments...</div>';
 
@@ -16312,6 +16590,8 @@ function endMemoryGame() {
     `,
     () => {
       exitMemory();
+      saveMiniGameScore("memory", score);
+
     }
   );
 }
@@ -18727,6 +19007,9 @@ if (x === qpHome.x && y === qpHome.y) {
   if (pfLives <= 0) {
     pfPhase = "over";
 
+    // 🏆 SAVE BEST SCORE (Queen Memory Path)
+  saveMiniGameScore("pathfinder", pfScore);
+
     playPartySound(); // 🎉 PLAY SOUND HERE
 
     showPfModal(
@@ -19151,6 +19434,8 @@ const FlashQueen = {
 
       if (this.state.lives <= 0) {
       stopFQTimer();     // ✅ STOP TIMER
+      // 🏆 SAVE BEST SCORE (Flash Queen)
+  saveMiniGameScore("flashqueen", this.state.score);
         playPartySound();
 
         showFloatingModal("Game Over", `Score: ${this.state.score}`);
@@ -19280,6 +19565,9 @@ window.startKP = function (mode) {
 // EXIT GAME
 // ================================
 window.exitKP = function () {
+  // 🏆 SAVE BEST SCORE (Knight Flash Path)
+  const finalScore = Math.max(0, kpLevel - 1);
+  saveMiniGameScore("knightpath", finalScore);
   document.getElementById("kpGame").classList.add("hidden");
   document.getElementById("kpMenu").classList.remove("hidden");
 };
@@ -19667,8 +19955,12 @@ sq.appendChild(coord);
 
 window.exitLabMixer = function () {
 
+  // 🏆 SAVE BEST SCORE (Lab Mixer)
+  saveMiniGameScore("color", Math.max(0, lmRound - 1));
+
   document.getElementById("lmGame").classList.add("hidden");
   document.getElementById("lmMenu").classList.remove("hidden");
+  
 }
 
 
@@ -19951,6 +20243,9 @@ sq.appendChild(coord);
 
 function showKVMGameOver(turns) {
    playKVMGameOverSound(); // 🎉 PLAY SOUND ON GAME OVER
+      // 🏆 SAVE BEST SCORE (Knight vs Monster)
+   saveMiniGameScore("knightmonster", turns);
+
   const modal = document.getElementById("floatingModal");
   const title = document.getElementById("modalTitle");
   const body = document.getElementById("modalBody");
@@ -20242,6 +20537,9 @@ if (kemKnight.x === x && kemKnight.y === y) {
 // ================================
 function showKEMGameOver() {
   playKVMGameOverSound?.();
+    // 🏆 SAVE BEST SCORE (Knight Escape Maze)
+  saveMiniGameScore("knightescape", kemLevel);
+
 
   const modal = document.getElementById("floatingModal");
   const title = document.getElementById("modalTitle");
@@ -20496,6 +20794,9 @@ function showKSRGameOver(hitBomb = false) {
   ksrRunning = false;
   stopKSRTimer();
   playKVMGameOverSound?.();
+    // 🏆 SAVE BEST SCORE (Knight Speed Run)
+  saveMiniGameScore("knightspeed", ksrScore);
+
 
   const modal = document.getElementById("floatingModal");
   const title = document.getElementById("modalTitle");
@@ -20716,6 +21017,9 @@ function endKLFGame() {
   klfAlive = false;
   drawKLFBoard();
 
+  // 🏆 SAVE BEST SCORE (Knight Lava Floor)
+  saveMiniGameScore("knightlava", klfTurns);
+
   // 🔊 game over sound
   playKLFGameOverSound();
 
@@ -20785,7 +21089,7 @@ const kfqFoundEl = document.getElementById("kfqFound");
 const kfqTaskEl = document.getElementById("kfqTask");
 
 const KfqSize = 10;
-const KfqTargets = 15;
+const KfqTargets = 8;
 
 window.startKFQTimed = function (seconds) {
   kfqTimedMode = true;
@@ -20798,6 +21102,8 @@ window.startKFQTimed = function (seconds) {
   kfqMoves = 0;
   kfqFound = 0;
   kfqActive = true;
+  kfqFoundEl.textContent = `0 / ${KfqTargets}`;
+
 
   spawnKFQItems();
   nextKFQTask();
@@ -20839,6 +21145,8 @@ window.startKFQ = function () {
   kfqKnight = randKFQ();
   kfqMoves = 0;
   kfqFound = 0;
+  kfqFoundEl.textContent = `0 / ${KfqTargets}`;
+
   kfqActive = true;
 
   spawnKFQItems();
@@ -20959,7 +21267,8 @@ function handleKFQClick(x, y) {
   playKFQNextSound(); // 🔊 apple collect sound
 
   kfqFound++;
-  kfqFoundEl.textContent = kfqFound;
+  kfqFoundEl.textContent = `${kfqFound} / ${KfqTargets}`;
+
 
   kfqItems = kfqItems.filter(i => i !== hit);
   nextKFQTask();
@@ -21028,6 +21337,8 @@ function drawKFQBoard() {
 
 function showKFQGameOver(reason) {
   kfqActive = false;
+  // 🏆 SAVE BEST SCORE (Knight Fog Quest)
+  saveMiniGameScore("knightfog", kfqFound);
   playKFQCompleteSound(); // 🔊 GAME OVER SOUND
 
   const modal = document.getElementById("floatingModal");
@@ -21049,6 +21360,7 @@ function showKFQGameOver(reason) {
   okBtn.onclick = () => {
     modal.classList.add("hidden");
     exitKFQ();
+    
   };
 }
 
@@ -21081,9 +21393,9 @@ window.startKND = function (mode) {
   kndKnight = { x: 5, y: 4 };
 
  const count =
-  mode === "easy"   ? 5 :
-  mode === "medium" ? 6:
-                      7;//hard
+  mode === "easy"   ? 3:
+  mode === "medium" ? 4:
+                      5;//hard
 
 
   kndMonsters = [];
@@ -21259,6 +21571,8 @@ playKNDKnightMoveSound();
     kndLeftEl.textContent = kndMonsters.length;
 
     if (kndMonsters.length === 0) {
+      // 🏆 SAVE BEST SCORE (King Defense)
+  saveMiniGameScore("knightdefense", kndTotalMonsters);
   showKNDModal("Victory!", "🎉 All monsters defeated!");
   return;
 }
@@ -21311,6 +21625,7 @@ function drawKNDBoard() {
 // ================================
 function showKNDGameOver(msg) {
   showKNDModal("Game Over", msg);
+  
 
 }
 
@@ -21515,6 +21830,9 @@ window.startKM = function (level) {
 
 window.exitKM = function () {
   stopKMTimer();
+
+  // 🏆 SAVE BEST SCORE (King Math Journey)
+  saveMiniGameScore("kingmath", kmSteps);
 
   document.getElementById("kmGame").classList.add("hidden");
   document.getElementById("kmMenu").classList.remove("hidden");
@@ -21995,6 +22313,9 @@ function drawCFCBoard() {
 // ================================
 function showCFCGameOver(win) {
   playCFCCompleteSound();
+    // 🏆 SAVE BEST SCORE (Color Flip Chaos)
+  saveMiniGameScore("colorchaos", cfcScore);
+
 
   clearInterval(cfcTimer);
   clearInterval(cfcColorInterval);
@@ -22074,6 +22395,8 @@ window.startCT = function () {
 
 // EXIT
 window.exitCT = function () {
+  // 🏆 SAVE BEST SCORE (Board Coordinate Training)
+  saveMiniGameScore("coordtrain", ctScore);
   ctGame.classList.add("hidden");
   ctMenu.classList.remove("hidden");
 };
@@ -22264,8 +22587,11 @@ window.startBF = function () {
 };
 
 window.exitBF = function () {
+  // 🏆 SAVE BEST SCORE (Board Freeze)
+  saveMiniGameScore("boardfreeze", bfScore);
   bfGame.classList.add("hidden");
   bfMenu.classList.remove("hidden");
+  
 };
 
 // ---------- ROUND ----------
@@ -22338,6 +22664,7 @@ window.bfSubmit = function () {
     playWrongSound?.();
   }
   setTimeout(nextBFRound, 600);
+  
 };
 
 
@@ -22538,6 +22865,9 @@ function showKGGameOverModal() {
     const okBtn = document.getElementById("modalOkBtn");
 
     if (!modal || !title || !body || !okBtn) return;
+
+    // 🏆 SAVE BEST SCORE (Knight GPS)
+    saveMiniGameScore("knightgps", Math.max(0, kgLevel - 1));
 
     // content (isolated to Knight GPS)
     title.textContent = "⛽ Game Over";
@@ -22855,8 +23185,6 @@ function showKGGameOverModal() {
 
 </body>
 </html>
-
-
 
 
 
