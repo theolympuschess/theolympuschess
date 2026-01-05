@@ -6689,6 +6689,7 @@ body:not(.student-view) #studentProgressCard {
 }
 
 
+
 @media (max-width: 1366px) {
 
   .mini-score-panel {
@@ -6700,16 +6701,11 @@ body:not(.student-view) #studentProgressCard {
   .main-content,
   .section,
   .container {
-    margin-left: 90px !important;
+    margin-left: 100px !important;
   }
 }
 
 
-
-
-
-
-/* Laptop screens only */
 @media (max-width: 1440px) {
   .analysis-board,
   .main-content,
@@ -6727,6 +6723,76 @@ body:not(.student-view) #studentProgressCard {
     transform-origin: top center;
   }
 }
+
+
+
+
+
+
+.user-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.user-info {
+  background: transparent;
+  border: none;
+  color: #ffd700;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 🔥 dropdown box (detached from navbar flow) */
+.user-dropdown {
+  position: fixed;              /* 🔑 KEY CHANGE */
+  width: 220px;
+
+  background: #15182e;
+  border: 1px solid rgba(255,215,0,0.25);
+  border-radius: 12px;
+  padding: 10px;
+
+  z-index: 99999;               /* above navbar */
+  box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+}
+
+/* hidden state */
+.user-dropdown.hidden {
+  display: none;
+}
+
+/* sections */
+.dropdown-section {
+  margin-bottom: 10px;
+}
+
+.dropdown-section strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #ffd700;
+  font-size: 0.85rem;
+}
+
+/* buttons */
+.dropdown-section button {
+  width: 100%;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+
+  background: #222654;
+  color: white;
+  border: none;
+  border-radius: 8px;
+
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdown-section button:hover {
+  background: #2f347a;
+}
+
+
 
 
 
@@ -6772,6 +6838,10 @@ body:not(.student-view) #studentProgressCard {
     </div>
   </div>
 </div>
+
+
+
+
 
 
 
@@ -6830,7 +6900,36 @@ body:not(.student-view) #studentProgressCard {
     <button class="nav-btn" data-tab="assignments">📚 Assignments</button>
     <button class="nav-btn" data-tab="attempts" id="attemptsTab" style="display: none;">📊 Attempts</button>
     <button class="nav-btn" data-tab="students" id="adminTab" style="display: none;">👨‍🎓 Admin</button>
-    <span class="user-info" id="userInfo"></span>
+    <div class="user-menu">
+  <button id="userMenuBtn" class="user-info">
+    <span id="userInfo">admin • admin</span> ▾
+  </button>
+
+  <div id="userDropdown" class="user-dropdown hidden">
+
+    <!-- ♟ Piece Theme -->
+    <div class="dropdown-section">
+  <strong>♟ Piece Theme</strong>
+
+  <button onclick="setPieceTheme('merida')">Merida (Lichess)</button>
+  <button onclick="setPieceTheme('alpha')">Alpha</button>
+  <button onclick="setPieceTheme('cburnett')">Classic</button>
+  <button onclick="setPieceTheme('pirouetti')">Pirouetti</button>
+  <button onclick="setPieceTheme('chessnut')">Chessnut</button>
+  <button onclick="setPieceTheme('pixel')">Pixel</button>
+  
+  <button onclick="setPieceTheme('cardinal')">Cardinal</button>
+  
+  <button onclick="setPieceTheme('fantasy')">Fantasy</button>
+  <button onclick="setPieceTheme('spatial')">Spatial</button>
+</div>
+
+
+    
+
+  </div>
+</div>
+
     <button class="btn-logout" id="logoutBtn">Logout</button>
   </div>
 
@@ -8719,6 +8818,11 @@ body:not(.student-view) #studentProgressCard {
 let currentQuizSolution = null;
 let currentOptions = [];
 
+let currentPieceTheme =
+  localStorage.getItem("pieceTheme") || "merida";
+
+
+
 
 
 async function saveMiniGameScore(gameKey, newScore) {
@@ -8879,16 +8983,18 @@ function initEditorBoard() {
   editorChess = new Chess(); // empty logic holder
 
   editorBoard = Chessboard("editorBoard", {
-    position: "start",
-    draggable: true,
-    sparePieces: true,   // 🔥 IMPORTANT (lichess-style)
-    dropOffBoard: "trash", // allow deleting pieces
-    pieceTheme:
-      "https://lichess1.org/assets/piece/merida/{piece}.svg",
+  position: "start",
+  draggable: true,
+  sparePieces: true,
+  dropOffBoard: "trash",
+  pieceTheme:
+    `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`,
+  onDrop: onEditorDrop
+});
 
-    onDrop: onEditorDrop
 
-  });
+  
+
 
   syncEditorFEN();
 }
@@ -9333,11 +9439,12 @@ function initQuizBoard() {
     position: "start",
     draggable: false,
     pieceTheme:
-      "https://lichess1.org/assets/piece/merida/{piece}.svg"
+      `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`
   });
 
-  console.log("🧩 Quiz board initialized (with pieces)");
+  console.log("🧩 Quiz board initialized (with themed pieces)");
 }
+
 
 
 
@@ -9969,7 +10076,7 @@ function initPuzzleRushBoard() {
     position: "start",
     draggable: true,
     pieceTheme:
-      "https://lichess1.org/assets/piece/merida/{piece}.svg",
+       `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`,
 
     // 🔒 LOCK FREE PLAY
     onDragStart: (source, piece) => {
@@ -12251,14 +12358,16 @@ if (tab === 'computer') {
   setTimeout(initVsComputerBoard, 0);
 }
 
-if (tab === "study") {
-  loadStudyDropdown();
-}
+if (tab === 'study') {
+  // init board (ONLY once, function handles guard)
+  initStudyBoard();
 
-if (tab === "study") {
+  // study UI + logic
+  loadStudyDropdown();
   initStudyEngine();
   analyzeStudyPosition();
 }
+
 
 if (tab !== "study" && studyEngine) {
   studyEngine.postMessage("stop");
@@ -12625,7 +12734,7 @@ function endQuiz(reason) {
         onDragStart: onDragStart,
         onDrop: onDrop,
         onSnapEnd: onSnapEnd,
-        pieceTheme: "https://lichess1.org/assets/piece/merida/{piece}.svg",
+        pieceTheme: `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`
       };
 
       board = Chessboard('chessboard', cfg);
@@ -13437,7 +13546,8 @@ function initVsComputerBoard() {
   vsBoard = Chessboard("computerBoard", {
     position: "start",
     draggable: true,
-    pieceTheme: "https://lichess1.org/assets/piece/merida/{piece}.svg",
+    pieceTheme: `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`,
+
 
     onDragStart: (source, piece) => {
   // block if game over
@@ -17122,13 +17232,19 @@ function appendInlineVariation(san, absoluteIndex, fen) {
 window.studyDrawingsByFen = {};
 studyChess = new Chess();
 
-studyBoard = Chessboard("studyBoard", {
-  position: "start",
-  draggable: true,
-  showNotation: false,
-  pieceTheme: "https://lichess1.org/assets/piece/merida/{piece}.svg",
-  onDrop: onStudyDrop
-});
+function initStudyBoard() {
+  studyChess = new Chess();
+
+  studyBoard = Chessboard("studyBoard", {
+    position: "start",
+    draggable: true,
+    showNotation: false,
+    pieceTheme:
+      `https://lichess1.org/assets/piece/${currentPieceTheme}/{piece}.svg`,
+    onDrop: onStudyDrop
+  });
+}
+
 
 // ================================
 // STUDY DRAW INIT (PASTE HERE)
@@ -22939,6 +23055,134 @@ function showKGGameOverModal() {
 
 
 
+(() => {
+  const btn = document.getElementById("userMenuBtn");
+  const dropdown = document.getElementById("userDropdown");
+
+  if (!btn || !dropdown) return;
+
+  // move dropdown to body (escape navbar collapse)
+  document.body.appendChild(dropdown);
+
+  let hoverInside = false;
+
+  function openDropdown() {
+    const rect = btn.getBoundingClientRect();
+    dropdown.style.top = rect.bottom + 8 + "px";
+    dropdown.style.right = window.innerWidth - rect.right + "px";
+    dropdown.classList.remove("hidden");
+  }
+
+  function closeDropdown() {
+    if (!hoverInside) {
+      dropdown.classList.add("hidden");
+    }
+  }
+
+  // 🖱️ OPEN ON HOVER
+  btn.addEventListener("mouseenter", () => {
+    hoverInside = true;
+    openDropdown();
+  });
+
+  dropdown.addEventListener("mouseenter", () => {
+    hoverInside = true;
+  });
+
+  // 🖱️ CLOSE ONLY WHEN CURSOR LEAVES BOTH
+  btn.addEventListener("mouseleave", () => {
+    hoverInside = false;
+    setTimeout(closeDropdown, 120);
+  });
+
+  dropdown.addEventListener("mouseleave", () => {
+    hoverInside = false;
+    setTimeout(closeDropdown, 120);
+  });
+
+  // 📱 MOBILE TAP SUPPORT
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openDropdown();
+  });
+
+  // ❌ DO NOT auto-close on document click
+})();
+
+
+
+
+
+
+
+
+window.setPieceTheme = function (theme) {
+  currentPieceTheme = theme;
+  localStorage.setItem("pieceTheme", theme);
+
+  // ===== EDITOR =====
+  if (editorBoard) {
+    const fen = editorChess.fen();
+    document.getElementById("editorBoard").innerHTML = "";
+    editorBoard = null;
+    initEditorBoard();
+    editorChess.load(fen);
+    editorBoard.position(fen);
+  }
+
+  // ===== ANALYSIS =====
+  if (board) {
+    const fen = chess.fen();
+    document.getElementById("chessboard").innerHTML = "";
+    board = null;
+    initChessboard();
+    chess.load(fen);
+    board.position(fen);
+  }
+
+  // ===== QUIZ =====
+  if (quizBoard) {
+    const fen = quizChess.fen();
+    document.getElementById("quizBoard").innerHTML = "";
+    quizBoard = null;
+    initQuizBoard();
+    quizChess.load(fen);
+    quizBoard.position(fen);
+  }
+
+  // ===== PUZZLE RUSH =====
+  if (prBoard) {
+    const fen = prChess.fen();
+    document.getElementById("puzzleRushBoard").innerHTML = "";
+    prBoard = null;
+    initPuzzleRushBoard();
+    prChess.load(fen);
+    prBoard.position(fen);
+  }
+
+  // ===== VS COMPUTER =====
+  if (vsBoard) {
+    const fen = vsChess.fen();
+    document.getElementById("computerBoard").innerHTML = "";
+    vsBoard = null;
+    initVsComputerBoard();
+    vsChess.load(fen);
+    vsBoard.position(fen);
+  }
+
+  // ===== STUDY (OPTIONAL) =====
+  if (typeof initStudyBoard === "function" && studyBoard) {
+    const fen = studyChess.fen();
+    document.getElementById("studyBoard").innerHTML = "";
+    studyBoard = null;
+    initStudyBoard();
+    studyChess.load(fen);
+    studyBoard.position(fen);
+  }
+};
+
+
+
 
 
 
@@ -23221,22 +23465,6 @@ function showKGGameOverModal() {
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
