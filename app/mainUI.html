@@ -6804,23 +6804,6 @@ body:not(.student-view) #studentProgressCard {
 
 
 
-.volume-section {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.volume-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.volume-row input[type="range"] {
-  flex: 1;
-  cursor: pointer;
-}
 
 
 
@@ -6949,26 +6932,6 @@ body:not(.student-view) #studentProgressCard {
   <button onclick="setPieceTheme('fantasy')">Fantasy</button>
   <button onclick="setPieceTheme('spatial')">Spatial</button>
 </div>
-
-<!-- 🔊 Volume Control -->
-<div class="dropdown-section volume-section">
-  <strong>🔊 Volume</strong>
-
-  <div class="volume-row">
-    
-    <input
-      type="range"
-      id="globalVolume"
-      min="0"
-      max="1"
-      step="0.01"
-      value="0.6"
-      oninput="setGlobalVolume(this.value)"
-    />
-    
-  </div>
-</div>
-
 
 
     
@@ -23315,74 +23278,6 @@ function getPieceThemePath(theme) {
 
 
 
-/* ======================================
-   🔊 TRUE GLOBAL SOUND CONTROLLER — OLYMPUS
-   (Controls ALL sounds, no exception)
-====================================== */
-
-(function () {
-  // 🌍 Load global volume
-  let GLOBAL_VOLUME = parseFloat(localStorage.getItem("GLOBAL_VOLUME"));
-  if (isNaN(GLOBAL_VOLUME)) GLOBAL_VOLUME = 0.6;
-
-  // 🎯 Keep reference of all audios
-  const _Audio = window.Audio;
-  const activeAudios = new Set();
-
-  // 🧠 OVERRIDE Audio()
-  window.Audio = function (...args) {
-    const audio = new _Audio(...args);
-
-    audio.volume = GLOBAL_VOLUME;
-    activeAudios.add(audio);
-
-    audio.addEventListener("ended", () => {
-      activeAudios.delete(audio);
-    });
-
-    audio.addEventListener("pause", () => {
-      if (audio.currentTime === 0) {
-        activeAudios.delete(audio);
-      }
-    });
-
-    return audio;
-  };
-
-  // 🔊 SET GLOBAL VOLUME
-  window.setGlobalVolume = function (v) {
-    GLOBAL_VOLUME = Math.min(1, Math.max(0, parseFloat(v)));
-    localStorage.setItem("GLOBAL_VOLUME", GLOBAL_VOLUME);
-
-    activeAudios.forEach(a => {
-      a.volume = GLOBAL_VOLUME;
-    });
-  };
-
-  // 🔊 GET GLOBAL VOLUME
-  window.getGlobalVolume = () => GLOBAL_VOLUME;
-
-  // 🎵 SAFE PLAY FUNCTION (recommended)
-  window.playSound = function (src, opts = {}) {
-    const audio = new Audio(src);
-    audio.loop = !!opts.loop;
-
-    if (opts.rate) audio.playbackRate = opts.rate;
-
-    audio.play().catch(() => {});
-    return audio;
-  };
-
-  // 🔇 STOP EVERYTHING
-  window.stopAllSounds = function () {
-    activeAudios.forEach(a => {
-      a.pause();
-      a.currentTime = 0;
-    });
-    activeAudios.clear();
-  };
-
-})();
 
 
 
