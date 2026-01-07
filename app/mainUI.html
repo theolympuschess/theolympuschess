@@ -9150,19 +9150,26 @@ document
   // ✅ load FEN safely after board is visible
   setTimeout(() => {
     if (board && chess) {
-      chess.load(fen);
-      board.position(fen, false);
+  // 🔥 HARD RESET engine (critical for castling)
+  chess.reset();
 
-      // 🔥 sync engine / UI
-moveHistory = [];
+  // 🔥 Load normalized FEN
+  const safeFen = normalizeEditorFEN(fen);
+  chess.load(safeFen);
 
-if (typeof renderMoveList === "function") {
-  renderMoveList();
+  // 🔥 Force board sync
+  board.position(safeFen, false);
+
+  // 🔄 reset UI state
+  moveHistory = [];
+
+  if (typeof renderMoveList === "function") {
+    renderMoveList();
+  }
+
+  stopEngine();
 }
 
-stopEngine();
-
-    }
   }, 120);
 });
 
@@ -23609,6 +23616,7 @@ function getPieceThemePath(theme) {
 
 </body>
 </html>
+
 
 
 
