@@ -9074,24 +9074,63 @@ function onEditorDrop(source, target, piece) {
 function syncEditorFEN() {
   if (!editorBoard) return;
 
-  // 🔥 WAIT for Chessboard.js to finish updating
   setTimeout(() => {
     const boardFen = editorBoard.fen();
     const turn = document.getElementById("editorTurn").value;
 
+    // ==============================
+    // 🔒 CASTLING VALIDATION (FULL)
+    // ==============================
+
+    // ---- WHITE ----
+    const wKing = editorChess.get("e1");
+    const wRookH = editorChess.get("h1");
+    const wRookA = editorChess.get("a1");
+
+    if (!wKing || wKing.type !== "k" || wKing.color !== "w") {
+      castleWK.checked = false;
+      castleWQ.checked = false;
+    }
+    if (!wRookH || wRookH.type !== "r" || wRookH.color !== "w") {
+      castleWK.checked = false;
+    }
+    if (!wRookA || wRookA.type !== "r" || wRookA.color !== "w") {
+      castleWQ.checked = false;
+    }
+
+    // ---- BLACK ----
+    const bKing = editorChess.get("e8");
+    const bRookH = editorChess.get("h8");
+    const bRookA = editorChess.get("a8");
+
+    if (!bKing || bKing.type !== "k" || bKing.color !== "b") {
+      castleBK.checked = false;
+      castleBQ.checked = false;
+    }
+    if (!bRookH || bRookH.type !== "r" || bRookH.color !== "b") {
+      castleBK.checked = false;
+    }
+    if (!bRookA || bRookA.type !== "r" || bRookA.color !== "b") {
+      castleBQ.checked = false;
+    }
+
+    // ==============================
+    // 🔧 BUILD CASTLING STRING
+    // ==============================
     let castling = "";
 
-    if (document.getElementById("castleWK").checked) castling += "K";
-    if (document.getElementById("castleWQ").checked) castling += "Q";
-    if (document.getElementById("castleBK").checked) castling += "k";
-    if (document.getElementById("castleBQ").checked) castling += "q";
+    if (castleWK.checked) castling += "K";
+    if (castleWQ.checked) castling += "Q";
+    if (castleBK.checked) castling += "k";
+    if (castleBQ.checked) castling += "q";
 
-    if (castling === "") castling = "-";
+    if (!castling) castling = "-";
 
     const fullFen = `${boardFen} ${turn} ${castling} - 0 1`;
     document.getElementById("editorFEN").value = fullFen;
   }, 0);
 }
+
 
 
 
@@ -9117,6 +9156,12 @@ function normalizeEditorFEN(fen) {
 
 document.getElementById("editorTurn").addEventListener("change", () => {
   syncEditorFEN();
+});
+
+   // 🔒 Castling checkbox change → re-sync FEN
+["castleWK", "castleWQ", "castleBK", "castleBQ"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", syncEditorFEN);
 });
 
 
@@ -23616,6 +23661,7 @@ function getPieceThemePath(theme) {
 
 </body>
 </html>
+
 
 
 
