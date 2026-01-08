@@ -7243,6 +7243,44 @@ Knight / Bishop / Piece Practice
 
 
 
+/* =====================================================
+📱 MOBILE — PREVENT PAGE ZOOM / RECENTER ON BOARD
+===================================================== */
+@media (max-width: 768px) {
+
+  #chessboard,
+  .chessboard,
+  .practice-board {
+    touch-action: none !important;     /* disables pinch zoom */
+    overscroll-behavior: none;
+  }
+
+  /* Lock board container position */
+  .analysis-board,
+  .board-wrapper,
+  .mini-game {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -9808,12 +9846,10 @@ if (tab === "board") {
     if (!board) {
       initChessboard(); // create board when visible
     } else {
-      if (!window.matchMedia("(max-width: 768px)").matches) {
   board.resize();
+  board.position(chess.fen(), false);
 }
 
-      board.position(chess.fen(), false);
-    }
   }, 0);
 }
 
@@ -13260,7 +13296,7 @@ function endQuiz(reason) {
 }
 
 
-const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
 
 
 
@@ -13293,19 +13329,7 @@ const isMobile = window.matchMedia("(max-width: 768px)").matches;
 
       board = Chessboard('chessboard', cfg);
 
-      /* ===============================
-     🔒 MOBILE RESIZE LOCK (PUT HERE)
-     =============================== */
-  if (board && typeof board.resize === 'function') {
-  const originalResize = board.resize;
-
-  board.resize = function () {
-    const isMobileNow = window.matchMedia("(max-width: 768px)").matches;
-    if (!isMobileNow) {
-      originalResize.call(board);
-    }
-  };
-}
+      
 
 
 
@@ -13317,15 +13341,9 @@ const isMobile = window.matchMedia("(max-width: 768px)").matches;
       initDrawingSystem();
       
       window.addEventListener('resize', () => {
-  if (!window.matchMedia("(max-width: 768px)").matches &&
-      board && typeof board.resize === 'function') {
-    board.resize();
-  }
-
-  if (chess) {
-    loadDrawingsForPosition(chess.fen());
-  }
+  if (board && typeof board.resize === 'function') board.resize();
 });
+
 
 
 
@@ -23835,6 +23853,50 @@ document.addEventListener(
   },
   { passive: false }
 );
+
+
+
+
+
+
+
+// 🔒 MOBILE — BLOCK PINCH ZOOM ON CHESS BOARDS
+document.addEventListener(
+  'gesturestart',
+  function (e) {
+    if (e.target.closest('#chessboard, .practice-board, .chessboard')) {
+      e.preventDefault();
+    }
+  },
+  { passive: false }
+);
+
+document.addEventListener(
+  'touchmove',
+  function (e) {
+    if (
+      e.scale !== undefined &&
+      e.scale !== 1 &&
+      e.target.closest('#chessboard, .practice-board, .chessboard')
+    ) {
+      e.preventDefault();
+    }
+  },
+  { passive: false }
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
