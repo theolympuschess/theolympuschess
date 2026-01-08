@@ -7342,6 +7342,16 @@ Does NOT affect other games
 
 
 
+/* 📱 Tap-Tap highlights */
+.square-selected {
+  outline: 3px solid #ffd700;
+  outline-offset: -3px;
+}
+
+.square-legal {
+  box-shadow: inset 0 0 0 4px rgba(0, 255, 0, 0.45);
+  border-radius: 6px;
+}
 
 
 
@@ -23976,6 +23986,74 @@ document.addEventListener(
 
 
 
+/* =====================================================
+📱 MOBILE TAP–TAP MOVE SYSTEM (SAFE)
+===================================================== */
+
+const isMobile = window.matchMedia("(max-width: 768px)").matches;
+let selectedSquare = null;
+
+if (isMobile) {
+  console.log("📱 Mobile Tap-Tap Mode Enabled");
+
+  // Disable drag ONLY on mobile
+  board.draggable = false;
+
+  document.querySelectorAll("#chessboard .square-55d63").forEach(squareEl => {
+    squareEl.addEventListener("click", () => {
+      const square = squareEl.dataset.square;
+
+      // 1️⃣ First tap — select piece
+      if (!selectedSquare) {
+        const piece = editorChess.get(square);
+        if (!piece) return;
+
+        selectedSquare = square;
+        clearHighlights();
+        highlightSquare(square);
+        highlightLegalMoves(square);
+        return;
+      }
+
+      // 2️⃣ Second tap — attempt move
+      const move = editorChess.move({
+        from: selectedSquare,
+        to: square,
+        promotion: "q"
+      });
+
+      clearHighlights();
+
+      if (move) {
+        board.position(editorChess.fen());
+
+        // 📳 Haptic feedback (if supported)
+        if (navigator.vibrate) navigator.vibrate(40);
+      }
+
+      selectedSquare = null;
+    });
+  });
+}
+
+/* ---------- Helpers ---------- */
+function clearHighlights() {
+  document.querySelectorAll(".square-selected, .square-legal")
+    .forEach(el => el.classList.remove("square-selected", "square-legal"));
+}
+
+function highlightSquare(square) {
+  const el = document.querySelector(`[data-square='${square}']`);
+  if (el) el.classList.add("square-selected");
+}
+
+function highlightLegalMoves(square) {
+  editorChess.moves({ square, verbose: true })
+    .forEach(m => {
+      const el = document.querySelector(`[data-square='${m.to}']`);
+      if (el) el.classList.add("square-legal");
+    });
+}
 
 
 
@@ -24259,3 +24337,4 @@ document.addEventListener(
 
 </body>
 </html>
+
