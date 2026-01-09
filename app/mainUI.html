@@ -7527,6 +7527,48 @@ Does NOT affect other games
 
 
 
+.student-rating-box {
+  background: linear-gradient(135deg, #1c1f35, #2a2d4a);
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.student-rating-box .main-rating {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.student-rating-box .tier {
+  font-size: 0.85rem;
+  color: #9ae6ff;
+}
+
+.student-rating-box .rating-breakdown {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #ddd;
+  display: flex;
+  justify-content: space-between;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16654,16 +16696,46 @@ window.closeStudentModal = function () {
 };
 
 
+function calculateRatings(profile) {
+  const puzzleRating = profile.puzzle_current_score || 0;
+  const quizRating   = profile.quiz_current_score || 0;
+  const gameRating   = profile.game_current_score || 0;
+
+  const olympusRating =
+    Math.round((puzzleRating + quizRating + gameRating) / 3 / 10) * 10;
+
+  return {
+    puzzleRating,
+    quizRating,
+    gameRating,
+    olympusRating,
+    tier: getOlympusTier(olympusRating)
+  };
+}
+
+
+
+
+
+
 
 
 async function loadStudentFullDetails(studentId) {
   try {
     // 1️⃣ Profile
     const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("username, active, created_at")
-      .eq("id", studentId)
-      .single();
+  .from("profiles")
+  .select(`
+    username,
+    active,
+    created_at,
+    puzzle_current_score,
+    quiz_current_score,
+    game_current_score
+  `)
+  .eq("id", studentId)
+  .single();
+
 
     if (profileError) throw profileError;
 
@@ -17850,17 +17922,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 function renderStudentModal(profile, attempts) {
+  const ratings = calculateRatings(profile); // ✅ ADD THIS
+
   const total = attempts.length;
   const correct = attempts.filter(a => a.is_correct).length;
   const incorrect = total - correct;
   const totalTime = attempts.reduce((s, a) => s + (a.time_spent || 0), 0);
-    const unlockedAchievements = getUnlockedAchievementCount(profile.id);
+
+  const unlockedAchievements = getUnlockedAchievementCount(profile.id);
   const totalAchievements =
     Array.isArray(window.STUDENT_BADGES) ? STUDENT_BADGES.length : 0;
 
-
   let html = `
     <div style="text-align:left;">
+
+      <!-- 🏆 RATING BLOCK (NEW) -->
+      <div class="student-rating-box">
+        <div class="main-rating">
+          <strong>ELO ${ratings.olympusRating}</strong>
+          <span class="tier">${ratings.tier}</span>
+        </div>
+
+        <div class="rating-breakdown">
+          ⚡ Puzzle: <b>${ratings.puzzleRating}</b>
+          🎯 Quiz: <b>${ratings.quizRating}</b>
+          🎮 Game: <b>${ratings.gameRating}</b>
+        </div>
+      </div>
+
+      <hr>
+
       <p><strong>Status:</strong> ${profile.active ? "✅ Active" : "❌ Inactive"}</p>
       <p><strong>Joined:</strong> ${new Date(profile.created_at).toLocaleDateString()}</p>
 
@@ -17870,11 +17961,11 @@ function renderStudentModal(profile, attempts) {
       <p><strong>Correct:</strong> ${correct}</p>
       <p><strong>Incorrect:</strong> ${incorrect}</p>
       <p><strong>Total time spent:</strong> ${formatTime(totalTime)}</p>
-            <p>
+
+      <p>
         <strong>🏅 Achievements unlocked:</strong>
         ${unlockedAchievements} / ${totalAchievements}
       </p>
-
 
       <hr>
 
@@ -17901,6 +17992,7 @@ function renderStudentModal(profile, attempts) {
 
   document.getElementById("studentModalBody").innerHTML = html;
 }
+
 
 
 // 🌿 Study move tree (flat for now)
@@ -24647,6 +24739,7 @@ document.addEventListener(
 
 </body>
 </html>
+
 
 
 
