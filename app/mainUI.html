@@ -16736,6 +16736,8 @@ async function loadStudentFullDetails(studentId) {
   .eq("id", studentId)
   .single();
 
+  
+
 
     if (profileError) throw profileError;
 
@@ -16755,7 +16757,18 @@ async function loadStudentFullDetails(studentId) {
 
     if (attemptsError) throw attemptsError;
 
-    renderStudentModal(profile, attempts || []);
+    // 3️⃣ Mini-game highscores
+const { data: miniScores, error: miniError } = await supabase
+  .from("minigame_high_scores")
+  .select("game_key, score")
+  .eq("student_id", studentId)
+  .order("score", { ascending: false });
+
+if (miniError) throw miniError;
+
+
+    // ✅ FINAL RENDER
+    renderStudentModal(profile, attempts || [], miniScores || []);
   } catch (err) {
     console.error(err);
     document.getElementById("studentModalBody").innerHTML =
@@ -17921,7 +17934,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-function renderStudentModal(profile, attempts) {
+function renderStudentModal(profile, attempts, miniScores = []) {
+
   const ratings = calculateRatings(profile); // ✅ ADD THIS
 
   const total = attempts.length;
@@ -17932,6 +17946,29 @@ function renderStudentModal(profile, attempts) {
   const unlockedAchievements = getUnlockedAchievementCount(profile.id);
   const totalAchievements =
     Array.isArray(window.STUDENT_BADGES) ? STUDENT_BADGES.length : 0;
+
+    let miniGameHTML = `
+  <h4>🎮 Mini-Game Best Scores</h4>
+`;
+
+if (miniScores.length === 0) {
+  miniGameHTML += `<p style="opacity:.7;">No mini-game scores yet.</p>`;
+} else {
+  miniScores.forEach(row => {
+    miniGameHTML += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        padding:6px 0;
+        border-bottom:1px dashed rgba(255,255,255,0.08);
+      ">
+        <span>${formatGameName(row.game_key)}</span>
+        <strong>${row.score}</strong>
+      </div>
+    `;
+  });
+}
+
 
   let html = `
     <div style="text-align:left;">
@@ -17968,6 +18005,12 @@ function renderStudentModal(profile, attempts) {
       </p>
 
       <hr>
+
+      ${miniGameHTML}
+
+<hr>
+
+      
 
       <h4>📚 Assignment History</h4>
   `;
