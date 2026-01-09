@@ -7557,6 +7557,25 @@ Does NOT affect other games
 
 
 
+.tap-selected {
+  outline: 3px solid #ffd700;
+  box-shadow: inset 0 0 0 3px #ffd700;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11032,6 +11051,10 @@ document.getElementById("exitPuzzleRush").onclick = () => {
   puzzleRushMode = null;
 };
 
+const isTouchDevice = () =>
+  window.matchMedia("(pointer: coarse)").matches;
+
+
 let puzzleRushMode = null;
 
 async function startPuzzleRush(mode) {
@@ -11129,10 +11152,16 @@ let currentPuzzle = null;
 let puzzleSideToMove = "w"; // default
 let puzzleSolved = false;
 let prMaxLives = 0; // ✅ ADD THIS
+let tapSourceSquare = null;
+
 
 
 
 function initPuzzleRushBoard() {
+  if (isTouchDevice()) {
+  enableTapToMove();
+}
+
   if (prBoard) return;
 
   prChess = new Chess();
@@ -11212,6 +11241,87 @@ function initPuzzleRushBoard() {
 
 let puzzleRushStartSound = new Audio("sounds/puzzle-rush-start.mp3");
 puzzleRushStartSound.volume = 0.9;
+
+
+function enableTapToMove() {
+  const boardEl = document.getElementById("puzzleRushBoard");
+
+  boardEl.addEventListener("click", (e) => {
+    const squareEl = e.target.closest(".square-55d63"); // chessboard.js square class
+    if (!squareEl) return;
+
+    const square = squareEl.getAttribute("data-square");
+    if (!square) return;
+
+    // 🚫 puzzle locks
+    if (!currentPuzzle || puzzleSolved) return;
+
+    // FIRST TAP — select piece
+    if (!tapSourceSquare) {
+      const piece = prChess.get(square);
+      if (!piece) return;
+
+      // allow only puzzle side
+      if (
+        (puzzleSideToMove === "w" && piece.color === "b") ||
+        (puzzleSideToMove === "b" && piece.color === "w")
+      ) {
+        return;
+      }
+
+      tapSourceSquare = square;
+      squareEl.classList.add("tap-selected");
+      return;
+    }
+
+    // SECOND TAP — attempt move
+    const move = prChess.move({
+      from: tapSourceSquare,
+      to: square,
+      promotion: "q"
+    });
+
+    // cleanup UI
+    document
+      .querySelectorAll(".tap-selected")
+      .forEach(el => el.classList.remove("tap-selected"));
+
+    tapSourceSquare = null;
+
+    if (!move) {
+      prBoard.position(prChess.fen());
+      return;
+    }
+
+    // 🔊 same logic as onDrop
+    playPRSound("prCheckSound", 0.5);
+
+    const played = move.san.replace(/[+#?!]/g, "");
+    const expected = currentPuzzle.solution.replace(/[+#?!]/g, "");
+
+    if (played === expected) {
+      puzzleSolved = true;
+      prScore++;
+      playPRSound("prNextSound", 0.9);
+      updatePuzzleRushUI();
+      setTimeout(loadTestPuzzle, 500);
+      return;
+    }
+
+    // ❌ wrong move
+    prChess.undo();
+    prBoard.position(prChess.fen());
+
+    prLivesLeft--;
+    playPRSound("prWrongSound", 0.8);
+    updatePuzzleRushUI();
+
+    if (prLivesLeft <= 0) {
+      endPuzzleRush("💀 No lives left!");
+    }
+  });
+}
+
 
 
 
@@ -24808,7 +24918,6 @@ document.addEventListener(
 
 </body>
 </html>
-
 
 
 
