@@ -24865,6 +24865,143 @@ y += 30;
 
 
 
+// 🔒 Global tier (already used by report PDF)
+
+
+/* =========================================================
+   📜 CERTIFICATE PDF — FINAL VERSION (WITH ELO)
+   ========================================================= */
+window.generateStudentCertificatePDF = function () {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("landscape", "mm", "a4");
+
+  const logoImg = document.getElementById("academyLogo");
+
+  /* ================= STUDENT NAME ================= */
+  const studentName = document
+    .getElementById("studentModalTitle")
+    .innerText
+    .replace("— Full Details", "")
+    .replace(/[^\x00-\x7F]/g, "")
+    .trim()
+    .toUpperCase();
+
+  /* ================= EXTRACT ELO ================= */
+  let eloRating = "N/A";
+  const bodyText = document
+    .getElementById("studentModalBody")
+    .innerText
+    .replace(/[^\x00-\x7F]/g, "");
+
+  const eloMatch = bodyText.match(/ELO\s+(\d+)/i);
+  if (eloMatch) {
+    eloRating = eloMatch[1];
+  }
+
+  /* ================= META ================= */
+  const tier = currentStudentTier || "STUDENT";
+  const today = new Date().toLocaleDateString();
+  const year = new Date().getFullYear();
+
+  /* ================= BORDER ================= */
+  pdf.setLineWidth(1.2);
+  pdf.rect(10, 10, 277, 190);
+
+  pdf.setLineWidth(0.4);
+  pdf.rect(14, 14, 269, 182);
+
+  /* ================= LOGO ================= */
+  if (logoImg && logoImg.src) {
+    pdf.addImage(logoImg, "PNG", 135, 20, 30, 30);
+  }
+
+  /* ================= HEADER ================= */
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(26);
+  pdf.text("THE OLYMPUS CHESS ACADEMY", 148, 65, { align: "center" });
+
+  pdf.setFontSize(14);
+  pdf.setFont("times", "normal");
+  pdf.text("CERTIFICATE OF ACHIEVEMENT", 148, 76, { align: "center" });
+
+  /* ================= BODY ================= */
+  pdf.setFontSize(16);
+  pdf.text("This is proudly presented to", 148, 95, { align: "center" });
+
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(30);
+  pdf.text(studentName, 148, 112, { align: "center" });
+
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(16);
+  pdf.text(
+    "for demonstrating dedication, discipline, and excellence in chess training",
+    148,
+    128,
+    { align: "center" }
+  );
+
+  /* ================= TIER + ELO ================= */
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(18);
+  pdf.text(`Achievement Tier: ${tier}`, 148, 142, { align: "center" });
+
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(16);
+  pdf.text(`ELO Rating: ${eloRating}`, 148, 152, { align: "center" });
+
+  /* ================= SIGNATURE ================= */
+  pdf.setLineWidth(0.5);
+  pdf.line(60, 168, 130, 168);
+  pdf.text("Coach: Tirtha Sarkar", 60, 176);
+
+  pdf.line(170, 168, 240, 168);
+  pdf.text(`Date: ${today}`, 170, 176);
+
+  /* ================= FOOTER ================= */
+  pdf.setFontSize(10);
+  pdf.setTextColor(120);
+  pdf.text(
+    `© ${year} The Olympus Chess Academy. All rights reserved.`,
+    148,
+    188,
+    { align: "center" }
+  );
+
+  /* ================= SAVE ================= */
+  pdf.save(`${studentName}_Olympus_Certificate.pdf`);
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -25037,6 +25174,11 @@ y += 30;
   >
     🖨️ Print PDF
   </button>
+
+  <button onclick="generateStudentCertificatePDF()" class="btn-secondary">
+  📜 Certificate
+</button>
+
 
   <button
     class="btn-secondary"
