@@ -17976,6 +17976,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function renderStudentModal(profile, attempts, miniScores = []) {
 
   const ratings = calculateRatings(profile); // ✅ ADD THIS
+  currentStudentTier = ratings.tier || "N/A";
+
 
   const total = attempts.length;
   const correct = attempts.filter(a => a.is_correct).length;
@@ -24639,6 +24641,224 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+document.getElementById("printStudentBtn").addEventListener("click", () => {
+  generateStudentPDF();
+});
+
+let currentStudentTier = "N/A";
+
+
+function generateStudentPDF() {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "mm", "a4");
+
+  const logoImg = document.getElementById("academyLogo");
+
+  // ===== CLEAN TEXT =====
+  const title = document
+    .getElementById("studentModalTitle")
+    .innerText
+    .replace(/[^\x00-\x7F]/g, "");
+
+  const rawText = document
+    .getElementById("studentModalBody")
+    .innerText
+    .replace(/[^\x00-\x7F]/g, "");
+
+  const lines = rawText
+    .split("\n")
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  let y = 20;
+
+  /* ================= HEADER ================= */
+  if (logoImg && logoImg.src) {
+    pdf.addImage(logoImg, "PNG", 15, y - 8, 20, 20);
+  }
+
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(20);
+  pdf.text("THE OLYMPUS CHESS ACADEMY", 40, y);
+
+  pdf.setFontSize(12);
+  pdf.setFont("courier", "normal");
+  pdf.text("Official Student Performance Report", 40, y + 8);
+
+  y += 26;
+
+  /* ================= STUDENT NAME ================= */
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(16);
+  pdf.text(title.toUpperCase(), 15, y);
+
+  y += 6;
+  pdf.setLineWidth(0.6);
+  pdf.line(15, y, 195, y);
+  y += 10;
+
+  /* ================= STUDENT SUMMARY ================= */
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(14);
+  pdf.text("STUDENT SUMMARY", 15, y);
+  y += 8;
+
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(12);
+
+  lines.forEach(l => {
+    if (
+      l.startsWith("ELO") ||
+      l.startsWith("Status") ||
+      l.startsWith("Joined") ||
+      l.startsWith("Total assignments") ||
+      l.startsWith("Correct") ||
+      l.startsWith("Incorrect") ||
+      l.startsWith("Total time")
+    ) {
+      pdf.text(l, 18, y);
+      y += 7;
+    }
+  });
+
+  y += 6;
+
+  /* ================= RATING TIER ================= */
+  
+
+  /* ================= RATING TIER ================= */
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.rect(15, y, 180, 18);
+pdf.text("RATING TIER", 18, y + 7);
+
+pdf.setFont("courier", "normal");
+pdf.text(currentStudentTier, 18, y + 14);
+
+y += 30;
+
+
+  /* ================= MINI-GAME SCORES ================= */
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(14);
+  pdf.text("MINI-GAME BEST SCORES", 15, y);
+  y += 8;
+
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(12);
+
+  let inMiniGame = false;
+
+  lines.forEach(l => {
+    if (l.includes("Mini-Game")) {
+      inMiniGame = true;
+      return;
+    }
+    if (inMiniGame && l.includes("Assignment")) {
+      inMiniGame = false;
+    }
+    if (inMiniGame) {
+      pdf.text(l, 18, y);
+      y += 7;
+    }
+  });
+
+  y += 10;
+
+  /* ================= ASSIGNMENT HISTORY ================= */
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(14);
+  pdf.text("ASSIGNMENT HISTORY", 15, y);
+  y += 8;
+
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(12);
+
+  let currentAssignment = "";
+
+  lines.forEach(l => {
+    if (
+      !l.startsWith("Submitted") &&
+      !l.startsWith("Time") &&
+      !l.startsWith("Attempts") &&
+      !l.startsWith("Correct") &&
+      !l.startsWith("Incorrect") &&
+      !l.startsWith("Mini") &&
+      !l.startsWith("Achievement")
+    ) {
+      currentAssignment = l;
+    }
+
+    if (currentAssignment && !l.startsWith("Submitted")) return;
+
+    if (l.startsWith("Submitted")) {
+      if (y > 270) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      pdf.setFont("courier", "bold");
+      pdf.text(currentAssignment, 18, y);
+      y += 6;
+
+      pdf.setFont("courier", "normal");
+      pdf.text(l, 22, y);
+      y += 6;
+    }
+
+    if (l.startsWith("Time")) {
+      pdf.text(l, 22, y);
+      y += 8;
+    }
+  });
+
+  y += 10;
+
+  /* ================= COACH REMARKS ================= */
+  if (y > 235) {
+    pdf.addPage();
+    y = 20;
+  }
+
+  pdf.setFont("courier", "bold");
+  pdf.setFontSize(14);
+  pdf.text("COACH REMARKS", 15, y);
+  y += 6;
+
+  pdf.rect(15, y, 180, 28);
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(11);
+  pdf.text(
+    "Excellent consistency and accuracy. Continue focusing on calculation depth and endgame conversion. We wish you all the very best!",
+    18,
+    y + 10,
+    { maxWidth: 170 }
+  );
+
+  y += 38;
+
+  /* ================= SIGNATURE & DATE ================= */
+  const today = new Date().toLocaleDateString();
+
+  pdf.setLineWidth(0.4);
+  pdf.line(15, y, 80, y);
+  pdf.text("Coach: Tirtha Sarkar (Trainer & Mentor)", 15, y + 6);
+
+  pdf.line(120, y, 195, y);
+  pdf.text(`Date: ${today}`, 120, y + 6);
+
+  pdf.setFontSize(10);
+  pdf.setTextColor(120);
+  pdf.text(
+  `© ${new Date().getFullYear()} The Olympus Chess Academy Official report. All rights reserved.`,
+  15,
+  287
+);
+
+
+  /* ================= SAVE ================= */
+  pdf.save(`${title.replace(/\s+/g, "_")}_Olympus_Official_Report.pdf`);
+}
 
 
 
@@ -24810,8 +25030,23 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
 
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeStudentModal()">Close</button>
-    </div>
+  <button
+    id="printStudentBtn"
+    class="btn-secondary"
+    type="button"
+  >
+    🖨️ Print PDF
+  </button>
+
+  <button
+    class="btn-secondary"
+    onclick="closeStudentModal()"
+    type="button"
+  >
+    Close
+  </button>
+</div>
+
   </div>
 </div>
 
@@ -24910,8 +25145,14 @@ document.addEventListener("DOMContentLoaded", () => {
   © 2026 <span class="footer-brand">The Olympus Chess Academy</span>. All rights reserved.
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+
 </body>
+<img id="academyLogo" src="favicons.png" style="display:none;" />
+
 </html>
+
 
 
 
