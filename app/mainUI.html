@@ -9564,6 +9564,19 @@ Submit solution</button>
 </div>
 
 
+               <div id="adminPgnUploader" class="admin-pgn-box">
+  <h3>📥 Upload PGN TO DB</h3>
+
+  <input type="file" id="pgnFileInput" accept=".pgn" hidden />
+
+  <button id="uploadPgnBtn" class="btn btn-success">
+    Import PGN
+  </button>
+
+  <p id="pgnStatus"></p>
+</div>
+
+
               </div>
               <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-success" onclick="addStudent()">Add student</button>
@@ -24522,7 +24535,98 @@ document.addEventListener(
 
 
 
+const DIFFICULTY = 1;
+const THEME = "mate_in_1";
 
+document.addEventListener("DOMContentLoaded", () => {
+
+  const pgnFileInput = document.getElementById("pgnFileInput");
+  const uploadPgnBtn = document.getElementById("uploadPgnBtn");
+  const statusEl = document.getElementById("pgnStatus");
+
+  if (!pgnFileInput || !uploadPgnBtn || !statusEl) {
+    console.error("❌ PGN uploader elements not found");
+    return;
+  }
+
+  /* --------------------------------------------------
+     1️⃣ Button click → open computer file chooser
+  -------------------------------------------------- */
+  uploadPgnBtn.addEventListener("click", () => {
+    pgnFileInput.click();
+  });
+
+  /* --------------------------------------------------
+     2️⃣ File selected → parse & upload
+  -------------------------------------------------- */
+  pgnFileInput.addEventListener("change", async () => {
+    const file = pgnFileInput.files[0];
+    if (!file) return;
+
+    statusEl.textContent = "⏳ Reading PGN...";
+    uploadPgnBtn.disabled = true;
+
+    try {
+      const text = await file.text();
+
+      const rows = [];
+      const blocks = text.split(/\n(?=\[Event )/i);
+
+      for (const block of blocks) {
+        try {
+          // Extract FEN
+          const fenMatch = block.match(/\[FEN\s+"([^"]+)"\]/i);
+          if (!fenMatch) continue;
+
+          const fen = fenMatch[1].trim();
+          const side = fen.split(" ")[1]; // w / b
+
+          // Extract first move after 1.
+          const moveMatch = block.match(/\b1\.\s*([A-Za-z0-9=+#]+)/);
+          if (!moveMatch) continue;
+
+          const solution = moveMatch[1]; // keep # for mate
+
+          rows.push({
+            fen,
+            solution,
+            side_to_move: side,
+            difficulty: DIFFICULTY,
+            theme: THEME,
+            is_active: true
+          });
+
+        } catch {
+          // skip broken PGN block
+        }
+      }
+
+      if (rows.length === 0) {
+        throw new Error("No valid Mate-in-1 puzzles found");
+      }
+
+      statusEl.textContent = `📦 Found ${rows.length} puzzles. Uploading...`;
+
+      const { error } = await supabase
+        .from("puzzle_rush_mate1")
+        .insert(rows);
+
+      if (error) throw error;
+
+      statusEl.textContent = `✅ Successfully uploaded ${rows.length} puzzles`;
+
+      // reset input so same file can be uploaded again if needed
+      pgnFileInput.value = "";
+
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "❌ Error: " + err.message;
+    } finally {
+      uploadPgnBtn.disabled = false;
+    }
+  });
+
+});
 
 
 
@@ -24808,6 +24912,7 @@ document.addEventListener(
 
 </body>
 </html>
+
 
 
 
