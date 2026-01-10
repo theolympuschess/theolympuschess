@@ -7563,6 +7563,203 @@ Does NOT affect other games
 
 
 
+/* =====================================
+📊 OLYMPUS RATING PROGRESS BAR — PREMIUM
+===================================== */
+
+.rating-progress {
+  width: 140px;
+  height: 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.18),
+    rgba(255,255,255,0.08)
+  );
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+  position: relative;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+}
+
+/* 🔥 Animated fill */
+.rating-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(
+    90deg,
+    #ffcc00,
+    #ff9f00,
+    #ffd700
+  );
+  background-size: 200% 100%;
+  border-radius: 999px;
+  animation: progressShimmer 2.2s linear infinite;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 0 6px rgba(255, 215, 0, 0.7),
+    0 0 14px rgba(255, 170, 0, 0.5);
+}
+
+/* ✨ shimmer animation */
+@keyframes progressShimmer {
+  from { background-position: 0% 0; }
+  to   { background-position: 200% 0; }
+}
+
+/* 📈 Progress text */
+.rating-progress-text {
+  margin-top: 4px;
+  font-size: 0.85rem;          /* 🔥 bigger */
+  font-weight: 700;            /* 🔥 bolder */
+  color: #ffd700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+
+/* =====================================
+📱 MOBILE
+===================================== */
+@media (max-width: 480px) {
+  .rating-progress {
+    width: 100px;
+    height: 6px;
+  }
+
+  .rating-progress-text {
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+}
+
+/* =====================================
+📱 TABLET
+===================================== */
+@media (max-width: 900px) {
+  .rating-progress {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* =====================================
+💻 LAPTOP & DESKTOP
+===================================== */
+@media (min-width: 1024px) {
+  .rating-progress {
+    width: 160px;
+    height: 8px;
+  }
+
+  .rating-progress-text {
+    font-size: 0.9rem;
+  }
+}
+
+
+
+
+
+/* ===============================
+🎯 RATING PROGRESS – TIGHT ALIGN
+=============================== */
+
+.rating-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;                 /* 🔥 controls bar ↔ text distance */
+  margin-left: 10px;        /* 🔥 distance from ELO text */
+}
+
+.rating-progress {
+  width: 90px;              /* 🔥 smaller = tighter */
+  height: 6px;
+  margin: 0;                /* ❗ remove default spacing */
+}
+
+.rating-progress-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ffd700;
+}
+
+@media (max-width: 480px) {
+  .rating-progress-wrap {
+    justify-content: center;
+    margin-left: 0;
+    gap: 6px;
+  }
+
+  .rating-progress {
+    width: 70px;
+  }
+
+  .rating-progress-text {
+    font-size: 0.65rem;
+  }
+}
+
+
+@media (max-width: 900px) {
+  .rating-progress-wrap {
+    justify-content: center;
+    margin-left: 0;
+  }
+}
+
+
+
+/* ===============================
+🔒 LOCK RATING CENTER FONT SIZES
+=============================== */
+
+.rating-center .rating-main {
+  font-size: 1.7rem !important;
+  font-weight: 800;
+}
+
+.rating-center .rating-tier {
+  font-size: 0.9rem !important;
+  font-weight: 600;
+}
+
+.rating-progress-text {
+  font-size: 0.8rem !important;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+
+
+@media (max-width: 480px) {
+  .rating-center .rating-main {
+    font-size: 1.4rem !important;
+  }
+
+  .rating-center .rating-tier {
+    font-size: 0.75rem !important;
+  }
+
+  .rating-progress-text {
+    font-size: 0.7rem !important;
+  }
+}
+
+
+@media (max-width: 900px) {
+  .rating-center .rating-main {
+    font-size: 1.55rem !important;
+  }
+
+  .rating-progress-text {
+    font-size: 0.75rem !important;
+  }
+}
+
+
+
+
 
 
 
@@ -7721,9 +7918,19 @@ Does NOT affect other games
   <!-- CENTER -->
   <div class="rating-center">
   <span class="rating-elo">Elo</span>
-  <span class="rating-main" id="olympusRating">180</span>
-  <span class="rating-tier" id="ratingTier">Beginner</span>
+  <span class="rating-main" id="olympusRating">1490</span>
+  <span class="rating-tier" id="ratingTier">Rook</span>
+
+  <!-- Progress grouped with rating -->
+  <div class="rating-progress-wrap">
+    <div class="rating-progress">
+      <div class="rating-progress-fill" id="ratingProgressFill"></div>
+    </div>
+    <span class="rating-progress-text" id="ratingProgressText"></span>
+  </div>
 </div>
+
+
 
 
   <!-- RIGHT -->
@@ -9664,10 +9871,8 @@ let currentPieceTheme =
 async function saveMiniGameScore(gameKey, newScore) {
   if (!currentProfile) return;
 
-  // 🆕 ADD XP FOR MINI-GAMES (EXCEPT QUIZ & PUZZLERUSH)
-  if (gameKey !== "quiz" && gameKey !== "puzzlerush") {
-    applyMiniGameRating(newScore);
-  }
+  // ❌ games that should NOT affect mini-game rating
+  const NON_RATING_GAMES = ["quiz", "puzzlerush", "knightmonster"];
 
   const { data: existing } = await supabase
     .from("minigame_high_scores")
@@ -9676,6 +9881,32 @@ async function saveMiniGameScore(gameKey, newScore) {
     .eq("game_key", gameKey)
     .maybeSingle();
 
+  let ratingToAdd = 0;
+
+  // 🟢 1️⃣ Effort reward (always, very small)
+  if (!NON_RATING_GAMES.includes(gameKey)) {
+    ratingToAdd += 1; // 👈 motivation point
+  }
+
+  // 🟢 2️⃣ Improvement reward (only if better)
+  if (existing && newScore > existing.score) {
+    const improvement = newScore - existing.score;
+
+    // improvement-based bonus (uses your /2 logic)
+    ratingToAdd += Math.floor(improvement / 2);
+  }
+
+  // 🟢 3️⃣ First time play bonus
+  if (!existing) {
+    ratingToAdd += Math.floor(newScore / 2);
+  }
+
+  // 🚫 absolute safety
+  if (ratingToAdd > 0 && !NON_RATING_GAMES.includes(gameKey)) {
+    applyMiniGameRating(ratingToAdd);
+  }
+
+  // 🏆 Save best score ONLY if improved or first time
   if (!existing || newScore > existing.score) {
     const { error } = await supabase
       .from("minigame_high_scores")
@@ -9685,20 +9916,17 @@ async function saveMiniGameScore(gameKey, newScore) {
           game_key: gameKey,
           score: newScore
         },
-        {
-          onConflict: "student_id,game_key"
-        }
+        { onConflict: "student_id,game_key" }
       );
 
     if (error) {
       console.error("❌ Upsert failed:", error);
-    } else {
-      console.log("✅ High score updated:", gameKey, newScore);
-      // 🏆 UPDATE LEFT PANEL IMMEDIATELY
-      loadMyBestScores();
     }
   }
+
+  loadMyBestScores();
 }
+
 
 
 async function loadMyBestScores() {
@@ -9764,19 +9992,16 @@ function formatGameName(key) {
 
 
 async function applyPuzzleRushRating(prScore) {
-  if (!currentProfile) return;
+  if (!currentProfile || prScore <= 0) return;
 
-  // 🎯 rating points from this run (UPDATED)
-  const ratingGain = prScore * 5;   // ✅ changed from *10 to *5
+  // 🎯 Puzzle Rush rating = raw score (no multiplier)
+  const ratingGain = prScore;
 
-  // 🔁 cumulative add
   currentProfile.puzzle_current_score =
     (currentProfile.puzzle_current_score || 0) + ratingGain;
 
-  // 🔥 instant UI update
   updateRatingsFromProfile(currentProfile);
 
-  // 🔒 persist to database
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -9785,24 +10010,23 @@ async function applyPuzzleRushRating(prScore) {
     .eq("id", currentProfile.id);
 
   if (error) {
-    console.error("❌ Failed to update cumulative puzzle rating", error);
+    console.error("❌ Failed to update puzzle rush rating", error);
   }
 }
 
+
+
 async function applyQuizRating(quizScore) {
-  if (!currentProfile) return;
+  if (!currentProfile || quizScore <= 0) return;
 
-  // 🎯 rating points from this quiz run
-  const ratingGain = quizScore * 5;
+  // 🎯 Quiz rating = raw score (no multiplier)
+  const ratingGain = quizScore;
 
-  // 🔁 cumulative add
   currentProfile.quiz_current_score =
     (currentProfile.quiz_current_score || 0) + ratingGain;
 
-  // 🔥 instant UI update
   updateRatingsFromProfile(currentProfile);
 
-  // 🔒 persist to database
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -9816,19 +10040,25 @@ async function applyQuizRating(quizScore) {
 }
 
 
+
+
 async function applyMiniGameRating(score) {
   if (!currentProfile || score <= 0) return;
 
-  const ratingGain = score * 5;
+  // ✅ HARD ANTI-FARMING RULE (1/2 FACTOR)
+  // 40 → 20
+  // 15 → 7
+  // 13 → 6
+  const ratingGain = Math.floor(score / 2);
 
-  // 🔁 cumulative add
+  // 🚫 block useless farming
+  if (ratingGain <= 0) return;
+
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + ratingGain;
 
-  // 🔥 instant UI update
   updateRatingsFromProfile(currentProfile);
 
-  // 🔒 persist to database
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -9849,17 +10079,31 @@ async function applyMiniGameRating(score) {
 
 
 
+
 function updateRatingsFromProfile(profile) {
   if (!profile) return;
 
-  // ✅ already cumulative rating points
-  const puzzleRating = profile.puzzle_current_score;
-  const quizRating   = profile.quiz_current_score;
-  const gameRating   = profile.game_current_score;
+  const puzzleRating = profile.puzzle_current_score || 0;
+  const quizRating   = profile.quiz_current_score || 0;
+  const gameRating   = profile.game_current_score || 0;
 
-  const olympusRating =
-    Math.round((puzzleRating + quizRating + gameRating) / 3 / 10) * 10;
+  // 🔢 Raw hidden average
+  const rawAverage = (puzzleRating + quizRating + gameRating) / 3;
 
+  // 🏆 Displayed rating (10-point boundary)
+  const olympusRating = Math.round(rawAverage / 10) * 10;
+
+  // 🎯 Progress toward NEXT rating
+  const prevStep = olympusRating;
+  const nextStep = olympusRating + 10;
+
+  let progress =
+    ((rawAverage - prevStep) / (nextStep - prevStep)) * 100;
+
+  // Clamp safely
+  progress = Math.max(0, Math.min(progress, 100));
+
+  // UI setters
   const set = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
@@ -9870,7 +10114,17 @@ function updateRatingsFromProfile(profile) {
   set("gameRating", gameRating);
   set("olympusRating", olympusRating);
   set("ratingTier", getOlympusTier(olympusRating));
+
+  // Progress UI
+  const fill = document.getElementById("ratingProgressFill");
+  const text = document.getElementById("ratingProgressText");
+
+  if (fill) fill.style.width = `${progress}%`;
+  if (text) text.textContent = `${Math.round(progress)}% to ${nextStep}`;
 }
+
+
+
 
 
 
@@ -25296,6 +25550,7 @@ window.generateStudentCertificatePDF = function () {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
