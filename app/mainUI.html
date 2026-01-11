@@ -8126,15 +8126,15 @@ Does NOT affect other games
     <ul>
   <li>⚡ <strong>Puzzle Rush</strong><br>
     • Every run gives rating<br>
-    • Rating gained = ⌊score ÷ 3⌋<br>
-    • <3 Score = 0 Rating<br>
+    • Rating gained = ⌊score ÷ 2⌋<br>
+    • <2 Score = 0 Rating <br>
     • Higher score = more rating
   </li>
 
   <li>🎯 <strong>Quiz</strong><br>
     • Every attempt gives rating<br>
-    • Rating gained = ⌊score ÷ 3⌋<br>
-    • <3 Score = 0 Rating<br>
+    • Rating gained = ⌊score ÷ 2⌋<br>
+    • <2 Score = 0 Rating <br>
     • Accuracy matters more than speed
   </li>
 
@@ -10269,7 +10269,7 @@ function showRatingDelta(delta) {
 async function applyPuzzleRushRating(prScore) {
   if (!currentProfile || prScore <= 0) return;
 
-  // 🔻 CUT DOWN: 1/5 factor
+  // 🔻 CUT DOWN: 1/6 factor
   const ratingGain = Math.floor(prScore / 3);
 
   if (ratingGain <= 0) return;
@@ -10296,10 +10296,12 @@ async function applyPuzzleRushRating(prScore) {
 
 
 
+
+
 async function applyQuizRating(quizScore) {
   if (!currentProfile || quizScore <= 0) return;
 
-  // 🔻 CUT DOWN: 1/5 factor
+  // 🔻 CUT DOWN: 1/6 factor
   const ratingGain = Math.floor(quizScore / 3);
 
   if (ratingGain <= 0) return;
@@ -10327,37 +10329,51 @@ async function applyQuizRating(quizScore) {
 
 
 
+
+
 async function applyMiniGameRating(score) {
   if (!currentProfile || score <= 0) return;
 
-  // ✅ HARD ANTI-FARMING RULE (1/2 FACTOR)
-  // 40 → 20
-  // 15 → 7
-  // 13 → 6
-  const ratingGain = Math.floor(score / 2);
+  const DAILY_CAP = 10;
 
-  // 🚫 block useless farming
-  if (ratingGain <= 0) return;
+  const usedToday = getMiniGameUsedToday();
+  if (usedToday >= DAILY_CAP) return;
 
+  let ratingGain = Math.ceil(score / 6);
+
+  ratingGain = Math.max(1, Math.min(ratingGain, DAILY_CAP - usedToday));
+
+  // update profile rating (this IS saved in Supabase)
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
-
-  // ✅ ADD HERE 👇
   showRatingDelta(ratingGain);
 
-  const { error } = await supabase
+  // store daily usage locally
+  setMiniGameUsedToday(usedToday + ratingGain);
+
+  // persist only real rating
+  await supabase
     .from("profiles")
     .update({
       game_current_score: currentProfile.game_current_score
     })
     .eq("id", currentProfile.id);
-
-  if (error) {
-    console.error("❌ Failed to update mini-game rating", error);
-  }
 }
+
+
+function getMiniGameUsedToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  return Number(localStorage.getItem(`mg_used_${today}`) || 0);
+}
+
+function setMiniGameUsedToday(val) {
+  const today = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(`mg_used_${today}`, val);
+}
+
+
 
 
 async function applyAssignmentRating() {
@@ -17328,6 +17344,7 @@ function calculateRatings(profile) {
     tier: getOlympusTier(olympusRating)
   };
 }
+
 
 
 
@@ -25892,11 +25909,6 @@ if (infoBtn && infoPopup) {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
-
-
-
 
 
 
