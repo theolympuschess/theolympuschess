@@ -7871,6 +7871,58 @@ Does NOT affect other games
 
 
 
+/* ⭐ Rating Delta Indicator */
+.rating-delta {
+  margin-left: 6px;
+  font-size: 1rem;
+  font-weight: 800;
+
+  opacity: 0;
+  transform: translateY(8px);
+
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+
+  pointer-events: none;
+}
+
+/* Positive gain */
+.rating-delta.positive {
+  color: #4cff7a; /* bright green */
+}
+
+/* No gain */
+.rating-delta.zero {
+  color: #aaa;
+}
+
+/* Visible state */
+.rating-delta.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Fade-out state */
+.rating-delta.hide {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .rating-delta {
+    font-size: 1rem;
+  }
+}
+
+
+
+
+
+
+
+
 
 
 
@@ -8037,6 +8089,8 @@ Does NOT affect other games
   <!-- CENTER -->
   <div class="rating-center">
   <span class="rating-elo">Elo</span>
+  <span class="rating-delta" id="ratingDelta"></span>
+
   <span class="rating-main" id="olympusRating">1490</span>
   <span class="rating-tier" id="ratingTier">Rook</span>
 
@@ -8100,6 +8154,7 @@ Does NOT affect other games
   • Example: <strong>60% to 1500</strong> means you are <br>
   60% close to reaching 1500 ELO
 </p>
+
   </div>
 </div>
 
@@ -10171,6 +10226,43 @@ function formatGameName(key) {
 }
 
 
+function showRatingDelta(delta) {
+  const el = document.getElementById("ratingDelta");
+  if (!el) return;
+
+  el.className = "rating-delta";
+
+  if (delta > 0) {
+    el.textContent = `+${delta}`;
+    el.classList.add("positive");
+  } else {
+    el.textContent = "0";
+    el.classList.add("zero");
+  }
+
+  // SHOW
+  requestAnimationFrame(() => {
+    el.classList.add("show");
+  });
+
+  // HOLD (VISIBLE)
+  setTimeout(() => {
+    el.classList.remove("show");
+    el.classList.add("hide");
+  }, 5000); // 👈 stays clearly visible
+
+  // CLEANUP
+  setTimeout(() => {
+    el.className = "rating-delta";
+    el.textContent = "";
+  }, 3800);
+}
+
+
+
+
+
+
 async function applyPuzzleRushRating(prScore) {
   if (!currentProfile || prScore <= 0) return;
 
@@ -10183,6 +10275,9 @@ async function applyPuzzleRushRating(prScore) {
     (currentProfile.puzzle_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
+
+  // ✅ ADD HERE 👇
+  showRatingDelta(ratingGain);
 
   const { error } = await supabase
     .from("profiles")
@@ -10211,6 +10306,9 @@ async function applyQuizRating(quizScore) {
     (currentProfile.quiz_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
+
+  // ✅ ADD HERE 👇
+  showRatingDelta(ratingGain);
 
   const { error } = await supabase
     .from("profiles")
@@ -10245,6 +10343,9 @@ async function applyMiniGameRating(score) {
 
   updateRatingsFromProfile(currentProfile);
 
+  // ✅ ADD HERE 👇
+  showRatingDelta(ratingGain);
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -10258,14 +10359,18 @@ async function applyMiniGameRating(score) {
 }
 
 
-async function applyAssignmentCompletionRating() {
+async function applyAssignmentRating() {
   if (!currentProfile) return;
 
-  // 🟢 Flat +1 rating for completing assignment
+  const ratingGain = 1;
+
   currentProfile.game_current_score =
-    (currentProfile.game_current_score || 0) + 1;
+    (currentProfile.game_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
+
+  // ✅ visual feedback for kids
+  showRatingDelta(ratingGain);
 
   const { error } = await supabase
     .from("profiles")
@@ -10275,9 +10380,10 @@ async function applyAssignmentCompletionRating() {
     .eq("id", currentProfile.id);
 
   if (error) {
-    console.error("❌ Failed to apply assignment completion rating", error);
+    console.error("❌ Failed to apply assignment rating", error);
   }
 }
+
 
 
 
@@ -14538,34 +14644,37 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
     
 
-// ========================================
-// 🔁 BULK PUZZLE COMPLETION CHECK (ADD HERE)
-// ========================================
-if (currentAssignment?.is_bulk && assignmentCursor >= expectedMoves.length) {
-  // 🎯 PUZZLE COMPLETED
+// ================================
+// 🔁 BULK PUZZLE COMPLETION CHECK
+// ================================
+if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
+
   bulkIndex++;
 
   if (bulkIndex < bulkPuzzles.length) {
     setTimeout(() => {
-      playSound('next');
+      playSound("next");
       loadCurrentBulkPuzzle();
     }, 800);
   } else {
-    playSound('complete');
-    // 🎉 ALL PUZZLES DONE
+    playSound("complete");
+
+    // 🏁 ALL PUZZLES DONE
     showStatus(
       "🎉 All puzzles completed! Submit your assignment.",
       "success"
     );
 
-   // 🏆 +1 rating for completing assignment
-applyAssignmentCompletionRating();
-   
+    // 🏆 +1 rating for completing assignment (ONLY ONCE)
+    applyAssignmentRating();
+
+    // Show submit button
     document.getElementById("submitBtn").style.display = "block";
   }
 
-  return; // ⛔ VERY IMPORTANT: stop further execution
+  return; // ⛔ VERY IMPORTANT
 }
+
 
 
     // Auto-play opponent's reply if exists
@@ -25781,10 +25890,6 @@ if (infoBtn && infoPopup) {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
-
-
 
 
 
