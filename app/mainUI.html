@@ -8070,26 +8070,36 @@ Does NOT affect other games
     <p><strong>Olympus Rating</strong> is calculated from 3 areas:</p>
 
     <ul>
-      <li>⚡ <strong>Puzzle Rush</strong><br>
-        • Every run gives rating<br>
-        • Higher score = more rating
-      </li>
+  <li>⚡ <strong>Puzzle Rush</strong><br>
+    • Every run gives rating<br>
+    • Rating gained = ⌊score ÷ 2⌋<br>
+    • Higher score = more rating
+  </li>
 
-      <li>🎯 <strong>Quiz</strong><br>
-        • Every attempt gives rating<br>
-        • Accuracy matters more than speed
-      </li>
+  <li>🎯 <strong>Quiz</strong><br>
+    • Every attempt gives rating<br>
+    • Rating gained = ⌊score ÷ 2⌋<br>
+    • Accuracy matters more than speed
+  </li>
 
-      <li>🎮 <strong>Mini-Games</strong><br>
-        • Small reward for every attempt<br>
-        • Bonus for improving high score<br>
-        • Anti-farming protection enabled
-      </li>
-    </ul>
+  <li>🎮 <strong>Mini-Games</strong><br>
+    • +1 rating for every attempt (effort reward)<br>
+    • Bonus rating for improving high score<br>
+    • Anti-farming protection enabled
+  </li>
 
-    <p class="rating-note">
-      📈 Progress bar shows <strong>next ELO rating level</strong>.
-    </p>
+  <li>🧩 <strong>Assignments</strong><br>
+    • Completing all puzzles gives <strong>+1 rating</strong><br>
+    • Reward is given only once per assignment
+  </li>
+</ul>
+
+
+  📊 <strong>Rating Progress Bar</strong><br>
+  • Shows how close you are to the <strong>next ELO</strong><br>
+  • Example: <strong>60% to 1500</strong> means you are <br>
+  60% close to reaching 1500 ELO
+</p>
   </div>
 </div>
 
@@ -10248,6 +10258,26 @@ async function applyMiniGameRating(score) {
 }
 
 
+async function applyAssignmentCompletionRating() {
+  if (!currentProfile) return;
+
+  // 🟢 Flat +1 rating for completing assignment
+  currentProfile.game_current_score =
+    (currentProfile.game_current_score || 0) + 1;
+
+  updateRatingsFromProfile(currentProfile);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      game_current_score: currentProfile.game_current_score
+    })
+    .eq("id", currentProfile.id);
+
+  if (error) {
+    console.error("❌ Failed to apply assignment completion rating", error);
+  }
+}
 
 
 
@@ -14527,6 +14557,10 @@ if (currentAssignment?.is_bulk && assignmentCursor >= expectedMoves.length) {
       "🎉 All puzzles completed! Submit your assignment.",
       "success"
     );
+
+   // 🏆 +1 rating for completing assignment
+applyAssignmentCompletionRating();
+   
     document.getElementById("submitBtn").style.display = "block";
   }
 
@@ -25747,6 +25781,7 @@ if (infoBtn && infoPopup) {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
