@@ -22351,9 +22351,9 @@ let lmWaitingForClick = false;
 const LM_COLORS = ["red", "green", "blue", "yellow", "orange", "violet"];
 
 const LM_DIFFICULTY = {
-  easy:   { squares: 4,  flashOn: 210, flashOff: 130 },
-  medium: { squares: 6,  flashOn: 190, flashOff: 100 },
-  hard:   { squares: 8,  flashOn: 170, flashOff: 80 }
+  easy:   { squares: 4,  flashOn: 180, flashOff: 110 },
+  medium: { squares: 6,  flashOn: 150, flashOff: 90 },
+  hard:   { squares: 8,  flashOn: 130, flashOff: 70 }
 };
 
 window.startLabMixer = function (mode) {
@@ -22448,7 +22448,7 @@ document.getElementById("lmTarget").textContent = lmTargetColor.toUpperCase();
 }
 
 
-function flashLabColors(i) {
+function flashLabColors(i = 0) {
   if (i >= lmMap.length) {
     lmWaitingForClick = true;
     return;
@@ -22461,15 +22461,23 @@ function flashLabColors(i) {
   const overlay = sq.querySelector(".lm-overlay");
   const { flashOn, flashOff } = LM_DIFFICULTY[lmMode];
 
-  overlay.className = `lm-overlay lm-${color} show`;
-  playLabFlashSound(); // 🔊 flash sound (isolated)
+  // 🛑 Prevent re-flashing same square
+  if (overlay.dataset.flashed === "1") {
+    flashLabColors(i + 1);
+    return;
+  }
 
+  overlay.dataset.flashed = "1"; // mark as flashed
+
+  overlay.className = `lm-overlay lm-${color} show`;
+  playLabFlashSound();
 
   setTimeout(() => {
     overlay.className = "lm-overlay";
     setTimeout(() => flashLabColors(i + 1), flashOff);
   }, flashOn);
 }
+
 
 
 
@@ -22519,6 +22527,11 @@ if (roundEl) {
 function drawLabBoard() {
   const board = document.getElementById("lmBoard");
   board.innerHTML = "";
+ lmMap.forEach(p => {
+  const el = document.querySelector(`#lmBoard [data-pos="${p.x}-${p.y}"] .lm-overlay`);
+  if (el) delete el.dataset.flashed;
+});
+
 
   for (let y = 7; y >= 0; y--) {
     for (let x = 0; x < 8; x++) {
@@ -26512,6 +26525,7 @@ if (infoBtn && infoPopup) {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
