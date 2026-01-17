@@ -29391,15 +29391,20 @@ function enableMobileBoardFlip() {
 // ===============================
 // 📱 MOBILE TAP TO MOVE SYSTEM
 // ===============================
+let mobileTapBound = false;
+
 function enableMobileTapMove() {
   if (window.innerWidth > 768) return;
+  if (mobileTapBound) return; // 🛑 bind once only
 
   const boardEl = document.getElementById("chessboard");
   if (!boardEl) return;
 
-  let selectedSquare = null;
+  mobileTapBound = true;
 
-  // Clear highlight
+  let selectedSquare = null;
+  let touchStartedOnSquare = false;
+
   function clearSelection() {
     document
       .querySelectorAll(".tap-selected")
@@ -29407,18 +29412,26 @@ function enableMobileTapMove() {
     selectedSquare = null;
   }
 
-  // Convert element to square (e4, d5 etc)
-  function getSquareFromElement(el) {
-    const squareEl = el.closest(".square-55d63");
-    return squareEl?.getAttribute("data-square");
+  function getSquareEl(el) {
+    return el.closest(".square-55d63");
   }
 
+  // Track where the touch started
+  boardEl.addEventListener("touchstart", e => {
+    touchStartedOnSquare = !!getSquareEl(e.target);
+  }, { passive: true });
+
   boardEl.addEventListener("touchend", e => {
-    const target = e.target;
-    const square = getSquareFromElement(target);
+    // ✅ Only allow tap-move if touch BOTH started AND ended on a square
+    if (!touchStartedOnSquare) return;
+
+    const squareEl = getSquareEl(e.target);
+    if (!squareEl) return;
+
+    const square = squareEl.getAttribute("data-square");
     if (!square) return;
 
-    // 🟢 First tap = select piece
+    // 🟢 First tap = select
     if (!selectedSquare) {
       const piece = chess.get(square);
       if (!piece) return;
@@ -29432,16 +29445,13 @@ function enableMobileTapMove() {
       }
 
       selectedSquare = square;
-      target
-        .closest(".square-55d63")
-        ?.classList.add("tap-selected");
+      squareEl.classList.add("tap-selected");
       return;
     }
 
-    // 🔵 Second tap = try move
+    // 🔵 Second tap = move
     let move;
 
-    // Promotion handling
     if (isPromotionMove(selectedSquare, square)) {
       showPromotionDialog(selectedSquare, square);
       clearSelection();
@@ -29458,7 +29468,7 @@ function enableMobileTapMove() {
       return;
     }
 
-    // 🔊 Sound system
+    // 🔊 Sounds
     if (move.flags.includes("k") || move.flags.includes("q")) {
       playSound("castle");
     } else if (move.san.includes("+")) {
@@ -29469,7 +29479,7 @@ function enableMobileTapMove() {
       playSound("move");
     }
 
-    // Update board + UI
+    // 🔄 Update board + UI
     board.position(chess.fen());
     updatePGNViewer();
     renderNotation();
@@ -29479,6 +29489,7 @@ function enableMobileTapMove() {
     clearSelection();
   }, { passive: true });
 }
+
 
 
 
@@ -29794,6 +29805,7 @@ function enableMobileTapMove() {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
