@@ -9882,6 +9882,15 @@ body.student-view .nav-btn[data-tab="study"] {
 }
 
 
+/* ===========================
+   📱 PUZZLE RUSH TAP MOVE
+   =========================== */
+@media (max-width: 768px) {
+  .pr-tap-selected {
+    box-shadow: 0 0 0 3px #ffcc00 inset;
+    border-radius: 6px;
+  }
+}
 
 
 
@@ -14075,6 +14084,8 @@ function initPuzzleRushBoard() {
     promotion: "q"
   });
 
+     
+
   if (!move) return "snapback";
 
   // 🔊 every move = check sound (mate attempt)
@@ -14116,6 +14127,8 @@ function initPuzzleRushBoard() {
 
 
   });
+ // 📱 ENABLE TAP MODE — HERE, ONCE
+  enablePuzzleRushTapMove();
 }
 
 let puzzleRushStartSound = new Audio("sounds/puzzle-rush-start.mp3");
@@ -29520,6 +29533,79 @@ pgnCursor++;
 
 
 
+// ===============================
+// 📱 PUZZLE RUSH TAP TO MOVE
+// ===============================
+let prTapBound = false;
+
+function enablePuzzleRushTapMove() {
+  if (window.innerWidth > 768) return;
+  if (prTapBound) return;
+
+  const boardEl = document.getElementById("puzzleRushBoard");
+  if (!boardEl) return;
+
+  prTapBound = true;
+
+  let selectedSquare = null;
+  let touchStartedOnSquare = false;
+
+  function clearSelection() {
+    document
+      .querySelectorAll(".pr-tap-selected")
+      .forEach(el => el.classList.remove("pr-tap-selected"));
+    selectedSquare = null;
+  }
+
+  function getSquareEl(el) {
+    return el.closest(".square-55d63");
+  }
+
+  // Track touch origin
+  boardEl.addEventListener("touchstart", e => {
+    touchStartedOnSquare = !!getSquareEl(e.target);
+  }, { passive: true });
+
+  boardEl.addEventListener("touchend", e => {
+    if (!touchStartedOnSquare) return;
+
+    const squareEl = getSquareEl(e.target);
+    if (!squareEl) return;
+
+    const square = squareEl.getAttribute("data-square");
+    if (!square) return;
+
+    // 🟢 First tap = select
+    if (!selectedSquare) {
+      const piece = prChess.get(square);
+      if (!piece) return;
+
+      // Enforce puzzle side to move
+      if (
+        (puzzleSideToMove === "w" && piece.color !== "w") ||
+        (puzzleSideToMove === "b" && piece.color !== "b")
+      ) {
+        return;
+      }
+
+      selectedSquare = square;
+      squareEl.classList.add("pr-tap-selected");
+      return;
+    }
+
+    // 🔵 Second tap = move (USE PUZZLE LOGIC)
+    const result = prBoard._config.onDrop(
+      selectedSquare,
+      square
+    );
+
+    // 🧲 Force visual sync (tap doesn't trigger snap)
+    prBoard.position(prChess.fen());
+
+    clearSelection();
+    return result;
+  }, { passive: true });
+}
 
 
 
@@ -29832,6 +29918,7 @@ pgnCursor++;
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
