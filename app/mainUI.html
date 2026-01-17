@@ -29391,19 +29391,15 @@ function enableMobileBoardFlip() {
 // ===============================
 // 📱 MOBILE TAP TO MOVE SYSTEM
 // ===============================
-let mobileTapMoveEnabled = false;
-
 function enableMobileTapMove() {
   if (window.innerWidth > 768) return;
-  if (mobileTapMoveEnabled) return; // 🛑 Prevent double binding
 
   const boardEl = document.getElementById("chessboard");
   if (!boardEl) return;
 
-  mobileTapMoveEnabled = true;
-
   let selectedSquare = null;
 
+  // Clear highlight
   function clearSelection() {
     document
       .querySelectorAll(".tap-selected")
@@ -29411,22 +29407,23 @@ function enableMobileTapMove() {
     selectedSquare = null;
   }
 
+  // Convert element to square (e4, d5 etc)
+  function getSquareFromElement(el) {
+    const squareEl = el.closest(".square-55d63");
+    return squareEl?.getAttribute("data-square");
+  }
+
   boardEl.addEventListener("touchend", e => {
-    // ✅ Only act if a board square was touched
-    const squareEl = e.target.closest(".square-55d63");
-    if (!squareEl) return;
-
-    // 🛑 Do NOT interfere with navigation / UI
-    e.stopPropagation();
-
-    const square = squareEl.getAttribute("data-square");
+    const target = e.target;
+    const square = getSquareFromElement(target);
     if (!square) return;
 
-    // 🟢 First tap = select
+    // 🟢 First tap = select piece
     if (!selectedSquare) {
       const piece = chess.get(square);
       if (!piece) return;
 
+      // Enforce turn
       if (
         (chess.turn() === "w" && piece.color !== "w") ||
         (chess.turn() === "b" && piece.color !== "b")
@@ -29435,13 +29432,16 @@ function enableMobileTapMove() {
       }
 
       selectedSquare = square;
-      squareEl.classList.add("tap-selected");
+      target
+        .closest(".square-55d63")
+        ?.classList.add("tap-selected");
       return;
     }
 
-    // 🔵 Second tap = move
+    // 🔵 Second tap = try move
     let move;
 
+    // Promotion handling
     if (isPromotionMove(selectedSquare, square)) {
       showPromotionDialog(selectedSquare, square);
       clearSelection();
@@ -29458,7 +29458,7 @@ function enableMobileTapMove() {
       return;
     }
 
-    // 🔊 Sounds
+    // 🔊 Sound system
     if (move.flags.includes("k") || move.flags.includes("q")) {
       playSound("castle");
     } else if (move.san.includes("+")) {
@@ -29469,18 +29469,15 @@ function enableMobileTapMove() {
       playSound("move");
     }
 
-    // 🔄 IMPORTANT: Do NOT use board.position for PGN mode
-    if (!isNavigationMode) {
-      board.position(chess.fen());
-    }
-
+    // Update board + UI
+    board.position(chess.fen());
     updatePGNViewer();
     renderNotation();
     updateNavigationButtons();
     checkGameEnd();
 
     clearSelection();
-  }, { passive: false });
+  }, { passive: true });
 }
 
 
@@ -29797,6 +29794,7 @@ function enableMobileTapMove() {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
