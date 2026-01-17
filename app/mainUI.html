@@ -29339,22 +29339,38 @@ function enableMobileBoardFlip() {
 
   let startY = 0;
   let startX = 0;
-  const SWIPE_THRESHOLD = 60;
+  let isDraggingPiece = false;
 
+  const SWIPE_THRESHOLD = 80; // higher = safer
+
+  // 🧲 Detect piece drag
   boardEl.addEventListener("touchstart", e => {
     const t = e.touches[0];
     startY = t.clientY;
     startX = t.clientX;
+
+    // If touching a piece, assume drag
+    isDraggingPiece = !!e.target.closest(".piece-417db");
   }, { passive: true });
 
   boardEl.addEventListener("touchend", e => {
+    // ❌ Block flip if piece was dragged
+    if (isDraggingPiece) {
+      isDraggingPiece = false;
+      return;
+    }
+
     const t = e.changedTouches[0];
     const deltaY = t.clientY - startY;
     const deltaX = t.clientX - startX;
 
+    // Ignore sideways
     if (Math.abs(deltaY) < Math.abs(deltaX)) return;
+
+    // Require strong vertical intent
     if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
 
+    // 🔄 Flip board
     if (board) {
       board.flip();
       boardOrientation =
@@ -29685,6 +29701,7 @@ function enableMobileBoardFlip() {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
