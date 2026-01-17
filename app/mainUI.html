@@ -9872,6 +9872,14 @@ body.student-view .nav-btn[data-tab="study"] {
 
 
 
+/* ===========================
+   📱 MOBILE SWIPE FLIP
+   =========================== */
+@media (max-width: 768px) {
+  #chessboard {
+    touch-action: none;
+  }
+}
 
 
 
@@ -16744,6 +16752,8 @@ function endQuiz(reason) {
       
 
       board = Chessboard('chessboard', cfg);
+     // 📱 Enable mobile swipe flip
+enableMobileBoardFlip();
 
       
 
@@ -29321,6 +29331,43 @@ window.addEventListener("load", movePgnNavForMobile);
 
 
 
+function enableMobileBoardFlip() {
+  if (window.innerWidth > 768) return;
+
+  const boardEl = document.getElementById("chessboard");
+  if (!boardEl) return;
+
+  let startY = 0;
+  let startX = 0;
+  const SWIPE_THRESHOLD = 60;
+
+  boardEl.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    startY = t.clientY;
+    startX = t.clientX;
+  }, { passive: true });
+
+  boardEl.addEventListener("touchend", e => {
+    const t = e.changedTouches[0];
+    const deltaY = t.clientY - startY;
+    const deltaX = t.clientX - startX;
+
+    if (Math.abs(deltaY) < Math.abs(deltaX)) return;
+    if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
+
+    if (board) {
+      board.flip();
+      boardOrientation =
+        boardOrientation === "white" ? "black" : "white";
+
+      if (chess) {
+        loadDrawingsForPosition(chess.fen());
+      }
+
+      playSound("move");
+    }
+  }, { passive: true });
+}
 
 
 
@@ -29638,6 +29685,7 @@ window.addEventListener("load", movePgnNavForMobile);
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
