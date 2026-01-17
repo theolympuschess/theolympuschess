@@ -14047,6 +14047,55 @@ let puzzleSideToMove = "w"; // default
 let puzzleSolved = false;
 let prMaxLives = 0; // ✅ ADD THIS
 
+   // ===============================
+// ⚡ PUZZLE RUSH MOVE HANDLER
+// (used by drag AND tap)
+// ===============================
+function handlePuzzleRushMove(source, target) {
+  if (!currentPuzzle || puzzleSolved) return "snapback";
+
+  const move = prChess.move({
+    from: source,
+    to: target,
+    promotion: "q"
+  });
+
+  if (!move) return "snapback";
+
+  // 🔊 every move = check sound (mate attempt)
+  playPRSound("prCheckSound", 0.5);
+
+  const played = move.san.replace(/[+#?!]/g, "");
+  const expected = currentPuzzle.solution.replace(/[+#?!]/g, "");
+
+  // ✅ CORRECT
+  if (played === expected) {
+    puzzleSolved = true;
+    prScore++;
+
+    // 🔊 correct puzzle solved
+    playPRSound("prNextSound", 0.9);
+    updatePuzzleRushUI();
+    setTimeout(loadTestPuzzle, 500);
+    return;
+  }
+
+  // ❌ WRONG MOVE
+  prChess.undo();
+  prBoard.position(prChess.fen());
+
+  prLivesLeft--;
+  playPRSound("prWrongSound", 0.8);
+  updatePuzzleRushUI();
+
+  if (prLivesLeft <= 0) {
+    endPuzzleRush("💀 No lives left!");
+  }
+
+  return "snapback";
+}
+
+
 
 
 function initPuzzleRushBoard() {
@@ -14075,55 +14124,10 @@ function initPuzzleRushBoard() {
       return true;
     },
 
-    onDrop: (source, target) => {
-  if (!currentPuzzle || puzzleSolved) return "snapback";
-
-  const move = prChess.move({
-    from: source,
-    to: target,
-    promotion: "q"
-  });
-
-     
-
-  if (!move) return "snapback";
-
-  // 🔊 every move = check sound (mate attempt)
-  playPRSound("prCheckSound", 0.5);
-
-  const played = move.san.replace(/[+#?!]/g, "");
-  const expected = currentPuzzle.solution.replace(/[+#?!]/g, "");
-
-  // ✅ CORRECT (CHECKMATE)
-  if (played === expected) {
-    puzzleSolved = true;
-    prScore++;
-
-    // 🔊 correct puzzle solved
-    playPRSound("prNextSound", 0.9);
-
-    updatePuzzleRushUI();
-    setTimeout(loadTestPuzzle, 500);
-    return;
-  }
-
-  // ❌ WRONG MOVE
-  prChess.undo();
-  prBoard.position(prChess.fen());
-
-  prLivesLeft--;
-
-  // 🔊 wrong move
-  playPRSound("prWrongSound", 0.8);
-
-  updatePuzzleRushUI();
-
-  if (prLivesLeft <= 0) {
-    endPuzzleRush("💀 No lives left!");
-  }
-
-  return "snapback";
+   onDrop: (source, target) => {
+  return handlePuzzleRushMove(source, target);
 }
+
 
 
   });
@@ -29561,7 +29565,6 @@ function enablePuzzleRushTapMove() {
     return el.closest(".square-55d63");
   }
 
-  // Track touch origin
   boardEl.addEventListener("touchstart", e => {
     touchStartedOnSquare = !!getSquareEl(e.target);
   }, { passive: true });
@@ -29580,7 +29583,7 @@ function enablePuzzleRushTapMove() {
       const piece = prChess.get(square);
       if (!piece) return;
 
-      // Enforce puzzle side to move
+      // Enforce puzzle side
       if (
         (puzzleSideToMove === "w" && piece.color !== "w") ||
         (puzzleSideToMove === "b" && piece.color !== "b")
@@ -29593,19 +29596,20 @@ function enablePuzzleRushTapMove() {
       return;
     }
 
-    // 🔵 Second tap = move (USE PUZZLE LOGIC)
-    const result = prBoard._config.onDrop(
+    // 🔵 Second tap = move
+    const result = handlePuzzleRushMove(
       selectedSquare,
       square
     );
 
-    // 🧲 Force visual sync (tap doesn't trigger snap)
+    // 🧲 Visual sync (tap doesn't trigger snap)
     prBoard.position(prChess.fen());
 
     clearSelection();
     return result;
   }, { passive: true });
 }
+
 
 
 
@@ -29918,6 +29922,7 @@ function enablePuzzleRushTapMove() {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
