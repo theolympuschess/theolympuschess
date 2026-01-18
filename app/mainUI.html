@@ -9894,6 +9894,114 @@ body.student-view .nav-btn[data-tab="study"] {
 
 
 
+/* DRAW CANVAS */
+#drawCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5000;
+  pointer-events: auto;
+}
+
+/* TOOLBOX */
+.draw-toolbox {
+  position: fixed;
+  top: 120px;
+  right: 40px;
+  width: 160px;
+  background: #0d111c;
+  border: 2px solid red;
+  border-radius: 8px;
+  z-index: 6000;
+  font-family: Arial, sans-serif;
+}
+
+.hidden {
+  display: none;
+}
+
+.toolbox-header {
+  background: #ff0000;
+  color: white;
+  padding: 6px;
+  cursor: move;
+  text-align: center;
+  font-weight: bold;
+}
+
+.toolbox-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolbox-body select,
+.toolbox-body input,
+.toolbox-body button {
+  width: 100%;
+  padding: 4px;
+  background: #111;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
+/* DESKTOP ONLY */
+@media (max-width: 900px) {
+  #drawToolbox,
+  #drawCanvas {
+    display: none !important;
+  }
+}
+
+
+
+
+.toolbox-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Collapsed look */
+.draw-collapsed {
+  width: 140px;
+}
+
+.draw-collapsed .toolbox-body {
+  display: none;
+}
+
+
+
+#previewCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4999;
+  pointer-events: none;
+}
+
+
+
+.student-view #drawToolbox {
+  display: none !important;
+}
+
+.student-view #drawCanvas,
+.student-view #previewCanvas {
+  display: none !important;
+}
+
+
+
+
+
+
+
 
 
 
@@ -9917,6 +10025,39 @@ body.student-view .nav-btn[data-tab="study"] {
 
   </style>
 </head>
+
+
+<!-- Floating Drawing Toolbox -->
+<div id="drawToolbox" class="draw-toolbox hidden">
+ <div class="toolbox-header" id="toolboxHeader">
+  <span id="toolboxTitle">✏️ Draw Tools</span>
+</div>
+
+
+
+
+  <div class="toolbox-body">
+    <input type="color" id="drawColor" value="#ff0000">
+
+    <select id="drawMode">
+      <option value="pen">Free Draw</option>
+      <option value="line">Line</option>
+      <option value="arrow">Arrow</option>
+      <option value="circle">Circle</option>
+      <option value="cross">Cross</option>
+      <option value="erase">Eraser</option>
+    </select>
+
+    <input type="range" id="drawSize" min="2" max="20" value="4">
+
+    <button id="clearCanvas">Clear</button>
+  </div>
+</div>
+
+<canvas id="drawCanvas"></canvas>
+<canvas id="previewCanvas"></canvas>
+
+
 
 
 
@@ -29617,6 +29758,331 @@ function enablePuzzleRushTapMove() {
 
 
 
+const toolbox = document.getElementById("drawToolbox");
+const canvas = document.getElementById("drawCanvas");
+const ctx = canvas.getContext("2d");
+
+const colorPicker = document.getElementById("drawColor");
+const sizeSlider = document.getElementById("drawSize");
+const modeSelect = document.getElementById("drawMode");
+const clearBtn = document.getElementById("clearCanvas");
+
+let drawing = false;
+let startX, startY;
+
+// Resize canvas
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// Tab detection
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+
+   if (tab === "study" || tab === "board" || tab === "editor") {
+
+      toolbox.classList.remove("hidden");
+      canvas.style.display = "block";
+    } else {
+      toolbox.classList.add("hidden");
+      canvas.style.display = "none";
+    }
+  });
+});
+
+// Drawing
+canvas.addEventListener("mousedown", e => {
+  if (!document.body.classList.contains("admin-view")) return;
+
+
+
+  drawing = true;
+  startX = e.clientX;
+  startY = e.clientY;
+});
+
+canvas.addEventListener("mouseup", e => {
+  if (!drawing) return;
+  drawing = false;
+
+  // Clear preview layer when shape is finalized
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+  const x = e.clientX;
+  const y = e.clientY;
+
+  ctx.strokeStyle = colorPicker.value;
+  ctx.lineWidth = sizeSlider.value;
+  ctx.lineCap = "round";
+
+  const mode = modeSelect.value;
+
+  ctx.beginPath();
+
+  if (mode === "pen" || mode === "erase") {
+    return;
+  }
+
+if (mode === "line") {
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(x, y);
+}
+
+if (mode === "arrow") {
+  drawArrowPro(startX, startY, x, y);
+}
+
+
+  if (mode === "circle") {
+    const radius = Math.hypot(x - startX, y - startY);
+    ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+  }
+
+  if (mode === "cross") {
+    ctx.moveTo(startX - 15, startY - 15);
+    ctx.lineTo(startX + 15, startY + 15);
+    ctx.moveTo(startX + 15, startY - 15);
+    ctx.lineTo(startX - 15, startY + 15);
+  }
+
+  ctx.stroke();
+});
+
+canvas.addEventListener("mousemove", e => {
+  if (!drawing) return;
+
+  const mode = modeSelect.value;
+
+  // Clear preview layer
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+  if (mode === "pen" || mode === "erase") {
+    ctx.strokeStyle = mode === "erase" ? "#000000" : colorPicker.value;
+    ctx.lineWidth = sizeSlider.value;
+    ctx.lineCap = "round";
+
+    ctx.lineTo(e.clientX, e.clientY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX, e.clientY);
+    return;
+  }
+
+  // LIVE PREVIEW FOR SHAPES
+  const x = e.clientX;
+  const y = e.clientY;
+
+  previewCtx.strokeStyle = colorPicker.value;
+  previewCtx.lineWidth = sizeSlider.value;
+  previewCtx.setLineDash([6, 4]); // dashed preview
+  previewCtx.lineCap = "round";
+
+  previewCtx.beginPath();
+
+  if (mode === "circle") {
+    const radius = Math.hypot(x - startX, y - startY);
+    previewCtx.arc(startX, startY, radius, 0, Math.PI * 2);
+  }
+
+  if (mode === "line") {
+    previewCtx.moveTo(startX, startY);
+    previewCtx.lineTo(x, y);
+  }
+
+  if (mode === "arrow") {
+    drawArrowPreview(startX, startY, x, y);
+  }
+
+  if (mode === "cross") {
+    previewCtx.moveTo(startX - 15, startY - 15);
+    previewCtx.lineTo(startX + 15, startY + 15);
+    previewCtx.moveTo(startX + 15, startY - 15);
+    previewCtx.lineTo(startX - 15, startY + 15);
+  }
+
+  previewCtx.stroke();
+  previewCtx.setLineDash([]);
+});
+
+
+// Clear
+clearBtn.addEventListener("click", () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+// Drag toolbox
+let drag = false;
+let offsetX, offsetY;
+
+document.querySelector(".toolbox-header").addEventListener("mousedown", e => {
+  drag = true;
+  offsetX = e.clientX - toolbox.offsetLeft;
+  offsetY = e.clientY - toolbox.offsetTop;
+});
+
+document.addEventListener("mousemove", e => {
+  if (!drag) return;
+  toolbox.style.left = e.clientX - offsetX + "px";
+  toolbox.style.top = e.clientY - offsetY + "px";
+});
+
+document.addEventListener("mouseup", () => {
+  drag = false;
+});
+
+function drawArrowPreview(fromX, fromY, toX, toY) {
+  const headLength = 15 + parseInt(sizeSlider.value || 4);
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+
+  previewCtx.beginPath();
+  previewCtx.moveTo(fromX, fromY);
+  previewCtx.lineTo(toX, toY);
+
+  previewCtx.moveTo(toX, toY);
+  previewCtx.lineTo(
+    toX - headLength * Math.cos(angle - Math.PI / 6),
+    toY - headLength * Math.sin(angle - Math.PI / 6)
+  );
+  previewCtx.moveTo(toX, toY);
+  previewCtx.lineTo(
+    toX - headLength * Math.cos(angle + Math.PI / 6),
+    toY - headLength * Math.sin(angle + Math.PI / 6)
+  );
+  previewCtx.stroke();
+}
+
+
+
+function drawArrowPro(fromX, fromY, toX, toY) {
+
+  const headLength = 15 + parseInt(sizeSlider.value); // arrow head size
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+
+  // Main line
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+
+  // Arrow head
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle - Math.PI / 6),
+    toY - headLength * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle + Math.PI / 6),
+    toY - headLength * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+}
+
+
+const previewCanvas = document.getElementById("previewCanvas");
+const previewCtx = previewCanvas.getContext("2d");
+
+function resizePreview() {
+  previewCanvas.width = window.innerWidth;
+  previewCanvas.height = window.innerHeight;
+}
+resizePreview();
+window.addEventListener("resize", resizePreview);
+
+
+
+// Detect active tab on load
+function checkInitialTab() {
+  const activeBtn = document.querySelector(".nav-btn.active");
+  if (!activeBtn) return;
+
+  const tab = activeBtn.dataset.tab;
+
+  if (tab === "study" || tab === "board" || tab === "editor") {
+    toolbox.classList.remove("hidden");
+    canvas.style.display = "block";
+  } else {
+    toolbox.classList.add("hidden");
+    canvas.style.display = "none";
+  }
+}
+
+// Run on load
+window.addEventListener("load", checkInitialTab);
+
+
+
+
+
+
+const toolboxHeader = document.getElementById("toolboxHeader");
+const toolboxTitle = document.getElementById("toolboxTitle");
+
+let drawEnabled = true;
+
+function updateToolboxUI() {
+  if (drawEnabled) {
+    toolbox.classList.remove("draw-collapsed");
+
+    // SHOW canvas
+    canvas.style.display = "block";
+
+    toolboxTitle.textContent = "✏️ Draw Tools";
+  } else {
+    toolbox.classList.add("draw-collapsed");
+
+    // HIDE canvas completely
+    canvas.style.display = "none";
+
+    toolboxTitle.textContent = "✏️ Open Tools";
+  }
+}
+
+// Toggle when clicking header
+toolboxHeader.addEventListener("click", () => {
+  drawEnabled = !drawEnabled;
+  updateToolboxUI();
+});
+
+// Init state
+updateToolboxUI();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29922,30 +30388,3 @@ function enablePuzzleRushTapMove() {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
