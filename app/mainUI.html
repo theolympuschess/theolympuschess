@@ -31084,6 +31084,8 @@ let mpGameOver = false
 let mpTapSource = null
 let localFlip = false
 let rematchHandled = false
+let lastPgn = ""
+
 
 
 
@@ -31091,12 +31093,7 @@ let rematchHandled = false
    LIVE MATCH SOUNDS (ISOLATED)
 ================================ */
 
-const mpSounds = {
-  move: new Audio('sounds/move.mp3'),
-  capture: new Audio('sounds/capture.mp3'),
-  castle: new Audio('sounds/castle.mp3'),
-  check: new Audio('sounds/check.mp3')
-}
+
 
 // Mobile unlock
 let mpAudioUnlocked = false
@@ -31110,6 +31107,33 @@ document.addEventListener('pointerdown', () => {
   })
   mpAudioUnlocked = true
 }, { once: true })
+
+const mpSounds = {
+  move: new Audio("sounds/move.mp3"),
+  capture: new Audio("sounds/capture.mp3"),
+  castle: new Audio("sounds/castle.mp3"),
+  check: new Audio("sounds/check.mp3")
+}
+
+function mpPlayMoveSoundFromPGN(pgn) {
+  if (!pgn) return
+
+  const moves = pgn.trim().split(/\s+/)
+  const last = moves[moves.length - 1]
+  if (!last) return
+
+  let sound = "move"
+
+  if (last.includes("x")) sound = "capture"
+  if (last === "O-O" || last === "O-O-O") sound = "castle"
+  if (last.includes("+") || last.includes("#")) sound = "check"
+
+  const audio = mpSounds[sound]
+  if (!audio) return
+
+  audio.currentTime = 0
+  audio.play().catch(() => {})
+}
 
 
 const mpSideSelect = document.getElementById('mpSide')
@@ -32021,6 +32045,27 @@ updateMpPlayerLabels()
 }
 
 
+function mpPlayRemoteSoundFromPGN(newPgn, oldPgn) {
+  if (!newPgn || newPgn === oldPgn) return
+
+  const oldMoves = (oldPgn || "").trim().split(/\s+/)
+  const newMoves = newPgn.trim().split(/\s+/)
+
+  const last = newMoves[newMoves.length - 1]
+  if (!last) return
+
+  let sound = "move"
+
+  if (last.includes("x")) sound = "capture"
+  if (last === "O-O" || last === "O-O-O") sound = "castle"
+  if (last.includes("+") || last.includes("#")) sound = "check"
+
+  const audio = mpSounds[sound]
+  if (!audio) return
+
+  audio.currentTime = 0
+  audio.play().catch(() => {})
+}
 
 /* ===============================
    REALTIME SYNC
@@ -32061,7 +32106,12 @@ if (row.rematch_request === false) {
 }
 
 
-        mpMovesBox.textContent = row.pgn || ''
+mpPlayRemoteSoundFromPGN(row.pgn, lastPgn)
+lastPgn = row.pgn
+
+
+mpMovesBox.textContent = row.pgn || ''
+
 
 
         // Server is the boss
