@@ -31143,6 +31143,62 @@ const mpRoomCode = document.getElementById('mpRoomCode')
 
 
 /* ===============================
+   MOBILE TAP SYSTEM (ISOLATED)
+================================ */
+
+document.addEventListener('pointerdown', e => {
+  // Only for Live Match board
+  const boardRoot = document.getElementById('mpBoard')
+  if (!boardRoot || !boardRoot.contains(e.target)) return
+
+  // Find square
+  const squareEl = e.target.closest('[data-square]')
+  if (!squareEl) return
+
+  const square = squareEl.dataset.square
+  if (!square) return
+
+  // ❌ Game guards
+  if (mpGameOver) return
+  if (moveLock) return
+  if (serverTurn !== mySide) return
+
+  // ===============================
+  // FIRST TAP = SELECT
+  // ===============================
+  if (!mpTapSource) {
+    const piece = mpChess.get(square)
+
+    if (!piece) return
+
+    // Must be your piece
+    if (
+      (mySide === 'w' && piece.color !== 'w') ||
+      (mySide === 'b' && piece.color !== 'b')
+    ) {
+      return
+    }
+
+    mpTapSource = square
+    highlightMpSquare(square)
+    return
+  }
+
+  // ===============================
+  // SECOND TAP = MOVE
+  // ===============================
+  const from = mpTapSource
+  const to = square
+
+  clearMpHighlights()
+  mpTapSource = null
+
+  onLiveMatchDrop(from, to)
+})
+
+
+
+/* ===============================
    NAV FIX (PREVENT BLANK APP)
 ================================ */
 document.getElementById('navLiveMatch').onclick = () => {
@@ -31487,58 +31543,17 @@ function stopClock() {
   }
 }
 
-function enableMpTapMove() {
-  const boardEl = document.getElementById('mpBoard')
-  if (!boardEl) return
 
-  boardEl.addEventListener('click', e => {
-    const squareEl = e.target.closest('.square-55d63')
-    if (!squareEl) return
-
-    const square = squareEl.dataset.square
-    if (!square) return
-
-    // First tap = select piece
-    if (!mpTapSource) {
-      const piece = mpChess.get(square)
-
-      // ❌ Must be your piece
-      if (!piece) return
-      if (
-        (mySide === 'w' && piece.color !== 'w') ||
-        (mySide === 'b' && piece.color !== 'b')
-      ) {
-        return
-      }
-
-      // ❌ Must be your turn
-      if (serverTurn !== mySide) return
-
-      mpTapSource = square
-      highlightMpSquare(square)
-      return
-    }
-
-    // Second tap = attempt move
-    const from = mpTapSource
-    const to = square
-
-    clearMpHighlights()
-    mpTapSource = null
-
-    // Reuse your real move handler
-    onLiveMatchDrop(from, to)
-  })
-}
 
 function highlightMpSquare(square) {
   clearMpHighlights()
-  const el = document.querySelector(`#mpBoard .square-${square}`)
+  const el = document.querySelector(`#mpBoard [data-square="${square}"]`)
   if (el) {
     el.style.boxShadow = 'inset 0 0 0 3px rgba(0,150,255,0.8)'
     el.setAttribute('data-mp-select', '1')
   }
 }
+
 
 function clearMpHighlights() {
   document
@@ -31583,7 +31598,7 @@ function initLiveMatchBoard() {
   })
 
   // 📱 Enable mobile tap system
-  enableMpTapMove()
+
 }
 
 /* ===============================
@@ -31788,6 +31803,10 @@ async function mpRejoinRoomById(id) {
   rematchHandled = false
   lastFen = null
   mpMovesBox.textContent = ''
+    // 🔥 Clear mobile tap state
+  mpTapSource = null
+  clearMpHighlights()
+
 
   // Fetch fresh server state
   const { data, error } = await supabase
