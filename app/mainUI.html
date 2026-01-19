@@ -31087,6 +31087,29 @@ let rematchHandled = false
 
 
 
+/* ===============================
+   LIVE MATCH SOUNDS (ISOLATED)
+================================ */
+
+const mpSounds = {
+  move: new Audio('sounds/move.mp3'),
+  capture: new Audio('sounds/capture.mp3'),
+  castle: new Audio('sounds/castle.mp3'),
+  check: new Audio('sounds/check.mp3')
+}
+
+// Mobile unlock
+let mpAudioUnlocked = false
+document.addEventListener('pointerdown', () => {
+  if (mpAudioUnlocked) return
+  Object.values(mpSounds).forEach(a => {
+    a.volume = 0.7
+    a.play().catch(() => {})
+    a.pause()
+    a.currentTime = 0
+  })
+  mpAudioUnlocked = true
+}, { once: true })
 
 
 const mpSideSelect = document.getElementById('mpSide')
@@ -31229,6 +31252,23 @@ function mpApplyPOV() {
 /* ===============================
    HELPERS
 ================================ */
+
+function mpPlayMoveSound(move) {
+  if (!move) return
+
+  try {
+    if (move.flags.includes('k') || move.flags.includes('q')) {
+      mpSounds.castle.play()
+    } else if (move.captured) {
+      mpSounds.capture.play()
+    } else if (mpChess.in_check()) {
+      mpSounds.check.play()
+    } else {
+      mpSounds.move.play()
+    }
+  } catch {}
+}
+
 
 function mpClearSession() {
   localStorage.removeItem('mp_session')
@@ -31669,7 +31709,12 @@ function onLiveMatchDrop(source, target) {
   moveLock = true
 
   // Apply move locally
-  mpChess.move({ from: source, to: target, promotion: 'q' })
+  // Apply move locally + get move object
+const move = mpChess.move({ from: source, to: target, promotion: 'q' })
+
+// 🔊 Play sound
+mpPlayMoveSound(move)
+
 
   // Fire async server sync
   mpAfterMove()
@@ -31732,11 +31777,14 @@ window.mpCompletePromotion = function(piece) {
   mpPendingPromotion = null
 
   // 🔥 Apply move locally
-  mpChess.move({
-    from: source,
-    to: target,
-    promotion: piece
-  })
+const move = mpChess.move({
+  from: source,
+  to: target,
+  promotion: piece
+})
+
+// 🔊 Play sound
+mpPlayMoveSound(move)
 
   moveLock = true
 
@@ -32046,16 +32094,28 @@ if (!row.draw_request && mpDrawBtn.disabled) {
        const before = mpChess.fen()
 
 if (row.fen !== lastFen) {
+  const historyBefore = mpChess.history({ verbose: true })
+
   mpChess.load(row.fen)
   lastFen = row.fen
 
+  const historyAfter = mpChess.history({ verbose: true })
+  const lastMove = historyAfter[historyAfter.length - 1]
+
+  if (
+    lastMove &&
+    historyAfter.length === historyBefore.length + 1
+  ) {
+    mpPlayMoveSound(lastMove)
+  }
+
   if (mpBoard) {
-    // Smooth animation for normal moves
     mpBoard.position(row.fen, true)
   }
-  // 🔓 Unlock moves ONLY after server confirms board update
+
   moveLock = false
 }
+
 
 /* ===============================
    DRAW RESULT
@@ -32588,5 +32648,3 @@ window.addEventListener('load', async () => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
