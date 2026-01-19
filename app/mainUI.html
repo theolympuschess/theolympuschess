@@ -13585,6 +13585,33 @@ function calculateRatingProgress(profile) {
 }
 
 
+let liveMatchXPGranted = false
+
+async function grantLiveMatchXPIfWinner(row) {
+  if (!currentProfile) return
+  if (liveMatchXPGranted) return
+  if (row.status !== "finished") return
+  if (row.winner !== mySide) return
+
+  liveMatchXPGranted = true
+
+  const XP = 10
+
+  currentProfile.game_current_score =
+    (currentProfile.game_current_score || 0) + XP
+
+  updateRatingsFromProfile(currentProfile)
+  showRatingDelta(XP)
+
+  await supabase
+    .from("profiles")
+    .update({
+      game_current_score: currentProfile.game_current_score
+    })
+    .eq("id", currentProfile.id)
+
+  console.log("🏆 Live Match XP granted:", XP)
+}
 
 
 
@@ -31388,6 +31415,8 @@ mpFlipBtn.onclick = () => {
 
 
 async function mpHardResetRoom(newSide = null, keepTime = false) {
+  liveMatchXPGranted = false
+
   if (!roomId) return
 
   stopClock()
@@ -31450,6 +31479,8 @@ mpResignBtn.onclick = async () => {
   mpGameOver = true
   stopClock()
 
+  const winner = mySide === 'w' ? 'b' : 'w'
+
   mpShowModal('Game Over', '🏳 You resigned. Opponent wins.')
 
   await supabase
@@ -31457,13 +31488,13 @@ mpResignBtn.onclick = async () => {
     .update({
       status: 'finished',
       resigned_by: mySide,
+      winner, // 🔥 THIS IS THE KEY
       updated_at: new Date().toISOString()
     })
     .eq('id', roomId)
-    
-mpClearSession()
-}
 
+  mpClearSession()
+}
 // REMATCH (FLIP COLORS)
 mpRematchBtn.onclick = async () => {
   if (!roomId) return
@@ -31587,19 +31618,32 @@ function startClock() {
       .eq('id', roomId)
 
     // ⛳ FLAG FALL — FIRE ONCE
-    if (newTime <= 0 && !mpGameOver) {
-      mpGameOver = true
-      stopClock()
+   // ⛳ FLAG FALL — SERVER AUTHORITATIVE
+if (newTime <= 0 && !mpGameOver) {
+  mpGameOver = true
+  stopClock()
 
-    mpShowModal(
-  'Game Over',
-  serverTurn === mySide
-    ? '⛔ Time up! You lost on time.'
-    : '🎉 Opponent ran out of time!, You won!'
-)
-mpClearSession()
+  const winner = serverTurn === 'w' ? 'b' : 'w'
 
-    }
+  await supabase
+    .from('live_match_rooms')
+    .update({
+      status: 'finished',
+      winner,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', roomId)
+
+  mpShowModal(
+    'Game Over',
+    winner === mySide
+      ? '🎉 Opponent ran out of time! You won!'
+      : '⛔ Time up! You lost on time.'
+  )
+
+  mpClearSession()
+}
+
   }, 1000)
 }
 
@@ -31862,6 +31906,8 @@ async function syncMoveToServer() {
 
 
 async function mpRejoinRoomById(id) {
+  liveMatchXPGranted = false
+
   // Stop everything
   stopClock()
 
@@ -31939,6 +31985,8 @@ mpBoard.position(data.fen, false)
 ================================ */
 
 mpCreateBtn.onclick = async () => {
+  liveMatchXPGranted = false
+
   const [base, inc] = mpTime.value.split('|').map(Number)
   const code = genRoomCode()
 
@@ -31991,6 +32039,8 @@ updateMpPlayerLabels()
 ================================ */
 
 mpJoinBtn.onclick = async () => {
+  liveMatchXPGranted = false
+
   const code = mpJoinCode.value.trim().toUpperCase()
   if (!code) return
 
@@ -32066,6 +32116,9 @@ function subscribeRoom() {
       payload => {
         const row = payload.new
         if (!row || !row.fen) return
+        // 🏆 XP HOOK — fires for ALL win types (mate, resign, time)
+grantLiveMatchXPIfWinner(row)
+
 
         // 🔒 Reconnect safety — always trust server
 serverTurn = row.turn
@@ -32199,6 +32252,7 @@ if (
   }
 mpClearSession()
 
+
   return
 }
 
@@ -32220,6 +32274,7 @@ if (
     mpShowModal('Defeat', '💀 You were CHECKMATED.')
   }
 mpClearSession()
+
 
   return
 }
@@ -32685,4 +32740,5 @@ window.addEventListener('load', async () => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
