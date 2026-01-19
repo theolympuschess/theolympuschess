@@ -32045,27 +32045,6 @@ updateMpPlayerLabels()
 }
 
 
-function mpPlayRemoteSoundFromPGN(newPgn, oldPgn) {
-  if (!newPgn || newPgn === oldPgn) return
-
-  const oldMoves = (oldPgn || "").trim().split(/\s+/)
-  const newMoves = newPgn.trim().split(/\s+/)
-
-  const last = newMoves[newMoves.length - 1]
-  if (!last) return
-
-  let sound = "move"
-
-  if (last.includes("x")) sound = "capture"
-  if (last === "O-O" || last === "O-O-O") sound = "castle"
-  if (last.includes("+") || last.includes("#")) sound = "check"
-
-  const audio = mpSounds[sound]
-  if (!audio) return
-
-  audio.currentTime = 0
-  audio.play().catch(() => {})
-}
 
 /* ===============================
    REALTIME SYNC
@@ -32106,9 +32085,10 @@ if (row.rematch_request === false) {
 }
 
 
-mpPlayRemoteSoundFromPGN(row.pgn, lastPgn)
-lastPgn = row.pgn
-
+        if (row.pgn && row.pgn !== lastPgn) {
+  mpPlayMoveSoundFromPGN(row.pgn)
+  lastPgn = row.pgn
+}
 
 mpMovesBox.textContent = row.pgn || ''
 
