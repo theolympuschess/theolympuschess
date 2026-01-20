@@ -10951,7 +10951,7 @@ body.student-view .nav-btn[data-tab="study"] {
     • Higher score = more XP
   </li>
 
-      <li>🔴 <strong>Live Match</strong><br>
+  <li>🔴 <strong>Live Match</strong><br>
     • Every win gives +6XP!<br>
     • Loose = 0 XP<br>
     • Draw = 0 XP <br>
@@ -22492,6 +22492,12 @@ window.studyDrawingsByFen = {};
 studyChess = new Chess();
 
 function initStudyBoard() {
+  initStudyCoordinates(
+  document.getElementById("studyBoardWrapper"),
+  studyBoard,
+  () => studyBoardFlipped
+)
+
   studyChess = new Chess();
 
   studyBoard = Chessboard("studyBoard", {
@@ -22502,6 +22508,83 @@ function initStudyBoard() {
     onDrop: onStudyDrop
   });
 }
+
+
+// ===============================
+// ♟️ STUDY COORDINATES SYSTEM
+// ===============================
+function initStudyCoordinates(wrapper, board, getFlipped) {
+  const fileBar = document.createElement("div");
+  const rankBar = document.createElement("div");
+
+  fileBar.style.cssText = `
+    position:absolute;
+    bottom:-22px;
+    left:0;
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    pointer-events:none;
+    font-size:12px;
+    color:#ddd;
+    font-family:monospace;
+    user-select:none;
+  `;
+
+  rankBar.style.cssText = `
+    position:absolute;
+    top:0;
+    left:-22px;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    pointer-events:none;
+    font-size:15px;
+    color:#ddd;
+    font-family:monospace;
+    user-select:none;
+  `;
+
+  wrapper.style.position = "relative";
+  wrapper.appendChild(fileBar);
+  wrapper.appendChild(rankBar);
+
+  function render() {
+    fileBar.innerHTML = "";
+    rankBar.innerHTML = "";
+
+    const flipped = getFlipped();
+
+    const files = flipped
+      ? ["h","g","f","e","d","c","b","a"]
+      : ["a","b","c","d","e","f","g","h"];
+
+    const ranks = flipped
+      ? ["1","2","3","4","5","6","7","8"]
+      : ["8","7","6","5","4","3","2","1"];
+
+    files.forEach(f => {
+      const el = document.createElement("div");
+      el.textContent = f;
+      fileBar.appendChild(el);
+    });
+
+    ranks.forEach(r => {
+      const el = document.createElement("div");
+      el.textContent = r;
+      rankBar.appendChild(el);
+    });
+  }
+
+  // 🔄 Responsive updates
+  window.addEventListener("resize", render);
+  document.addEventListener("studyBoardFlipped", render);
+
+  render();
+}
+
+
 
 
 // ================================
@@ -22578,7 +22661,9 @@ document.addEventListener("keydown", (e) => {
     studyBoardFlipped = !studyBoardFlipped;
     studyBoard.orientation(
       studyBoardFlipped ? "black" : "white"
+      
     );
+document.dispatchEvent(new Event("studyBoardFlipped"));
 
     console.log("🔄 Study board flipped:", studyBoardFlipped);
   }
@@ -32747,6 +32832,5 @@ window.addEventListener('load', async () => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
