@@ -31332,6 +31332,8 @@ let localFlip = false
 let rematchHandled = false
 let lastPgn = ""
 let mpLastArrow = null
+let mpLastTapTime = 0
+
 
 
 
@@ -31454,6 +31456,10 @@ document.addEventListener('pointerdown', e => {
   if (!squareEl) return
 
   const square = squareEl.dataset.square
+  const now = performance.now()
+if (now - mpLastTapTime < 60) return // prevent double-fire lag
+mpLastTapTime = now
+
   if (!square) return
 
   // ❌ Game guards
@@ -31491,7 +31497,8 @@ document.addEventListener('pointerdown', e => {
   clearMpHighlights()
   mpTapSource = null
 
-  onLiveMatchDrop(from, to)
+  mpInstantMove(from, to)
+
 })
 
 
@@ -31523,6 +31530,32 @@ function mpApplyPOV() {
 /* ===============================
    HELPERS
 ================================ */
+
+function mpInstantMove(from, to, promotion = 'q') {
+  // Apply instantly on board for zero lag feel
+  const move = mpChess.move({ from, to, promotion })
+  if (!move) return false
+
+  if (mpBoard) {
+    mpBoard.position(mpChess.fen(), false) // NO animation = instant
+  }
+
+  // Sound + arrow
+  mpPlayMoveSound(move)
+  mpClearArrow()
+
+  // Lock + sync async
+  moveLock = true
+  mpAfterMove()
+
+  return true
+}
+
+
+
+
+
+
 function mpGetLastMoveFromPGN(pgn) {
   if (!pgn) return null
 
