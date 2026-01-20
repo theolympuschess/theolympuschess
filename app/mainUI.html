@@ -11281,8 +11281,8 @@ body.student-view .nav-btn[data-tab="study"] {
       <li><b>Create Game:</b> Select your side & time, then click <b>Create Room</b></li>
       <li><b>Join Game:</b> Enter Room Code and click <b>Join</b></li>
       <li><b>Moves:</b> Drag or tap pieces to move</li>
-      <li><b>Rematch:</b> Create new room and send copy the code</li>
-      <li><b>Reset:</b> Clears the match and lets you start fresh</li>
+      <li><b>Rematch:</b> Create new room only after the current game finish</li>
+      <li><b>IMPORTANT!:</b> Crate new room is not allowed while in live Game else app will crash</li>
       <li><b>Premove:</b> NO PREMOVE ALLOWED</li>
     </ul>
 
@@ -31520,6 +31520,56 @@ function mpApplyPOV() {
    HELPERS
 ================================ */
 
+
+
+function mpEndAndUnlock() {
+  // Stop everything
+  stopClock()
+
+  // Leave realtime room
+  if (channel) {
+    supabase.removeChannel(channel)
+    channel = null
+  }
+
+  // Reset core state
+  roomId = null
+  mpGameOver = true
+  moveLock = false
+  mpTapSource = null
+  localFlip = false
+  rematchHandled = false
+  lastFen = null
+  lastPgn = ""
+
+  // Reset chess engine
+  mpChess = new Chess()
+
+  // Reset board
+  if (mpBoard) {
+    mpBoard.position(mpChess.fen(), false)
+    mpBoard.orientation('white')
+  }
+
+  // Reset UI
+  mpMovesBox.textContent = ""
+  mpRoomCode.textContent = ""
+  mpJoinCode.value = ""
+
+  mpRematchBtn.disabled = false
+  mpRematchBtn.textContent = "Rematch"
+
+  mpDrawBtn.disabled = false
+  mpDrawBtn.textContent = "🤝 Draw"
+
+  mpClearSession()
+}
+
+
+
+
+
+
 function mpPlayMoveSound(move) {
   if (!move) return
 
@@ -31710,6 +31760,8 @@ mpResignBtn.onclick = async () => {
     .eq('id', roomId)
 
   mpClearSession()
+  mpEndAndUnlock()
+
 }
 // REMATCH (FLIP COLORS)
 mpRematchBtn.onclick = async () => {
@@ -31858,6 +31910,8 @@ if (newTime <= 0 && !mpGameOver) {
   )
 
   mpClearSession()
+  mpEndAndUnlock()
+
 }
 
   }, 1000)
@@ -32034,6 +32088,8 @@ async function mpAfterMove() {
 
     mpShowModal('Checkmate!', '♟️ You delivered CHECKMATE!')
     mpClearSession()
+    mpEndAndUnlock()
+
 
     return
   }
@@ -32435,6 +32491,8 @@ if (
   stopClock()
   mpShowModal('Draw', '🤝 Game ended in a draw')
   mpClearSession()
+  mpEndAndUnlock()
+
   
   return
 }
@@ -32467,6 +32525,8 @@ if (
     mpShowModal('Victory', '🎉 Opponent resigned. You win!')
   }
 mpClearSession()
+mpEndAndUnlock()
+
 
 
   return
@@ -32490,6 +32550,8 @@ if (
     mpShowModal('Defeat', '💀 You were CHECKMATED.')
   }
 mpClearSession()
+mpEndAndUnlock()
+
 
 
   return
