@@ -10782,6 +10782,9 @@ body.student-view .nav-btn[data-tab="study"] {
 }
 
 
+#mpBoard {
+  position: relative;
+}
 
 
 
@@ -31328,6 +31331,7 @@ let mpTapSource = null
 let localFlip = false
 let rematchHandled = false
 let lastPgn = ""
+let mpLastArrow = null
 
 
 
@@ -31519,6 +31523,124 @@ function mpApplyPOV() {
 /* ===============================
    HELPERS
 ================================ */
+function mpGetLastMoveFromPGN(pgn) {
+  if (!pgn) return null
+
+  const parts = pgn.trim().split(/\s+/)
+  let san = parts[parts.length - 1]
+
+  // Remove move numbers
+  if (san.includes(".")) return null
+
+  try {
+    const temp = new Chess()
+    temp.load_pgn(pgn)
+
+    const h = temp.history({ verbose: true })
+    return h[h.length - 1]
+  } catch {
+    return null
+  }
+}
+
+
+
+
+
+
+
+function mpClearArrow() {
+  const old = document.getElementById("mpArrowLayer")
+  if (old) old.remove()
+}
+
+function mpDrawArrow(from, to) {
+  const board = document.getElementById("mpBoard")
+  if (!board || !mpBoard) return
+
+  // Find real chess grid (inside Chessboard.js)
+  const grid = board.querySelector(".board-b72b1")
+  if (!grid) return
+
+  // Remove old arrow
+  mpClearArrow()
+
+  // Square center helper
+  function squareCenter(sq) {
+    const files = ["a","b","c","d","e","f","g","h"]
+    const size = grid.clientWidth / 8
+
+    const file = files.indexOf(sq[0])
+    const rank = parseInt(sq[1], 10) - 1
+
+    let x = file * size + size / 2
+    let y = (7 - rank) * size + size / 2
+
+    // Respect board flip
+    if (mpBoard.orientation() === "black") {
+      x = grid.clientWidth - x
+      y = grid.clientHeight - y
+    }
+
+    return { x, y }
+  }
+
+  const start = squareCenter(from)
+  const end = squareCenter(to)
+
+  // SVG overlay
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+  svg.setAttribute("id", "mpArrowLayer")
+  svg.setAttribute("viewBox", `0 0 ${grid.clientWidth} ${grid.clientHeight}`)
+  svg.style.position = "absolute"
+  svg.style.top = "0"
+  svg.style.left = "0"
+  svg.style.width = grid.clientWidth + "px"
+  svg.style.height = grid.clientHeight + "px"
+  svg.style.pointerEvents = "none"
+  svg.style.zIndex = "20"
+
+  // Arrowhead marker
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs")
+
+  const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker")
+  marker.setAttribute("id", "mpArrowHead")
+  marker.setAttribute("markerUnits", "strokeWidth")
+  marker.setAttribute("markerWidth", "4")
+  marker.setAttribute("markerHeight", "4")
+  marker.setAttribute("viewBox", "0 0 10 10")
+  marker.setAttribute("refX", "9")
+  marker.setAttribute("refY", "5")
+  marker.setAttribute("orient", "auto")
+
+  const arrowShape = document.createElementNS("http://www.w3.org/2000/svg", "path")
+  arrowShape.setAttribute("d", "M 0 0 L 10 5 L 0 10 L 3 5 Z")
+  arrowShape.setAttribute("fill", "rgba(0,255,136,0.25)")
+
+  marker.appendChild(arrowShape)
+  defs.appendChild(marker)
+  svg.appendChild(defs)
+
+  // Line
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
+  line.setAttribute("x1", start.x)
+  line.setAttribute("y1", start.y)
+  line.setAttribute("x2", end.x)
+  line.setAttribute("y2", end.y)
+  line.setAttribute("stroke", "rgba(0,255,136,0.25)")
+  line.setAttribute("stroke-width", "3")
+  line.setAttribute("stroke-linecap", "round")
+  line.setAttribute("marker-end", "url(#mpArrowHead)")
+
+  svg.appendChild(line)
+
+  // Attach to grid, not wrapper
+  grid.style.position = "relative"
+  grid.appendChild(svg)
+}
+
+
+
 
 
 
@@ -32052,6 +32174,8 @@ const move = mpChess.move({ from: source, to: target, promotion: 'q' })
 
 // 🔊 Play sound
 mpPlayMoveSound(move)
+mpClearArrow()
+
 
 
   // Fire async server sync
@@ -32453,22 +32577,16 @@ if (!row.draw_request && mpDrawBtn.disabled) {
   mpDrawBtn.textContent = '🤝 Draw'
 }
 
-       const before = mpChess.fen()
-
-if (row.fen !== lastFen) {
-  const historyBefore = mpChess.history({ verbose: true })
-
+       if (row.fen !== lastFen) {
   mpChess.load(row.fen)
   lastFen = row.fen
 
-  const historyAfter = mpChess.history({ verbose: true })
-  const lastMove = historyAfter[historyAfter.length - 1]
+  const lastMove = mpGetLastMoveFromPGN(row.pgn)
 
-  if (
-    lastMove &&
-    historyAfter.length === historyBefore.length + 1
-  ) {
+  // 🔊 Play sound for opponent
+  if (lastMove && row.turn === mySide) {
     mpPlayMoveSound(lastMove)
+    mpDrawArrow(lastMove.from, lastMove.to)
   }
 
   if (mpBoard) {
@@ -33047,5 +33165,6 @@ if (mpHowToBtn && mpHowToModal) {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
