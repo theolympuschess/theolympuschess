@@ -10891,6 +10891,186 @@ margin-top:4px;
 
 
 
+/* ===============================
+ FLOATING CHAT UI
+=============================== */
+
+#chatBubble {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #ffd700;
+  color: #000;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9999;
+}
+
+#chatWindow {
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  width: 300px;
+  height: 420px;
+  background: #1c1f35;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+}
+
+.chat-hidden {
+  display: none;
+}
+
+#chatHeader {
+  padding: 10px;
+  background: #2a2d4a;
+  display: flex;
+  justify-content: space-between;
+  cursor: move;
+  border-radius: 14px 14px 0 0;
+}
+
+#chatTabs {
+  display: flex;
+}
+
+.chat-tab {
+  flex: 1;
+  padding: 6px;
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.chat-tab.active {
+  color: #ffd700;
+  border-bottom: 2px solid #ffd700;
+}
+
+#chatContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+#chatMessages div {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+#chatInputBox {
+  display: flex;
+  padding: 6px;
+  gap: 6px;
+}
+
+#chatInput {
+  flex: 1;
+  padding: 6px;
+  border-radius: 6px;
+  border: none;
+}
+
+#chatSend {
+  background: #ffd700;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#chatUsers div {
+  padding: 6px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+}
+
+
+#chatBubble {
+  pointer-events: auto;
+}
+
+
+/* === CHAT SAFETY & MOBILE === */
+
+#chatBubble {
+  z-index: 100000 !important;
+  touch-action: manipulation;
+}
+
+#chatWindow {
+  z-index: 99999 !important;
+  touch-action: none;
+}
+
+@media (max-width: 768px) {
+  #chatWindow {
+    width: 92vw;
+    height: 60vh;
+    right: 4vw;
+    bottom: 80px;
+  }
+}
+
+
+
+.chat-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+
+  background: #ff2d2d;
+  color: #fff;
+
+  font-size: 16px;        /* 🔥 bigger number */
+  font-weight: 700;      /* 🔥 bold */
+
+  min-width: 22px;       /* 🔥 wider */
+  height: 22px;
+
+  padding: 0 7px;
+  border-radius: 11px;   /* perfect circle */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  line-height: 1;
+  box-shadow: 0 0 0 2px #ffd700; /* 🔥 golden ring */
+  pointer-events: none;
+}
+
+
+.hidden {
+  display: none;
+}
+
+#chatBubble {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+}
+
+#chatBubble .chat-badge {
+  top: 0;
+  right: 0;
+}
+
+
+
+
+
+
 
 
 
@@ -33119,6 +33299,481 @@ mpLoadArchive()
 
 
 
+/* ==================================================
+ FLOATING CHAT — SUPABASE FINAL (profiles-based)
+================================================== */
+
+
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  initChat()
+})
+
+let unreadBroadcast = 0
+let unreadPrivate = 0
+const userCache = {}   // { userId: username }
+
+
+const bubbleBadge = document.getElementById('chatBubbleBadge')
+const broadcastBadge = document.getElementById('broadcastBadge')
+const usersBadge = document.getElementById('usersBadge')
+
+
+
+function updateBadges() {
+  const total = unreadBroadcast + unreadPrivate
+
+  // Bubble badge
+  if (total > 0) {
+    bubbleBadge.textContent = total
+    bubbleBadge.classList.remove('hidden')
+  } else {
+    bubbleBadge.classList.add('hidden')
+  }
+
+  // Broadcast badge
+  if (unreadBroadcast > 0) {
+    broadcastBadge.textContent = unreadBroadcast
+    broadcastBadge.classList.remove('hidden')
+  } else {
+    broadcastBadge.classList.add('hidden')
+  }
+
+  // Users badge
+  if (unreadPrivate > 0) {
+    usersBadge.textContent = unreadPrivate
+    usersBadge.classList.remove('hidden')
+  } else {
+    usersBadge.classList.add('hidden')
+  }
+}
+
+
+async function initChat() {
+
+  /* ===============================
+     DOM ELEMENTS
+  =============================== */
+  const bubble = document.getElementById('chatBubble')
+  const chat = document.getElementById('chatWindow')
+  const minimize = document.getElementById('chatMinimize')
+  const sendBtn = document.getElementById('chatSend')
+  const input = document.getElementById('chatInput')
+  const messagesBox = document.getElementById('chatMessages')
+  const usersBox = document.getElementById('chatUsers')
+  const tabs = document.querySelectorAll('.chat-tab')
+
+  if (!bubble || !chat) return
+
+  /* ===============================
+     AUTH USER
+  =============================== */
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  let currentMode = 'global'      // global | private
+  let activeReceiver = null
+  const broadcastCache = []
+const privateCache = {}
+
+async function preloadUsers() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username')
+
+  if (error || !data) return
+
+  data.forEach(p => {
+    userCache[p.id] = p.username
+  })
+}
+
+const isAdmin = async () => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  return data?.role === 'admin'
+}
+
+
+  /* ===============================
+     ADMIN CHAT ENABLE CHECK
+  =============================== */
+  async function isChatEnabled() {
+    const { data } = await supabase
+      .from('chat_settings')
+      .select('chat_enabled')
+      .eq('id', 1)
+      .single()
+
+    return data?.chat_enabled === true
+  }
+
+  /* ===============================
+     TOGGLE CHAT
+  =============================== */
+  function toggleChat() {
+    chat.classList.toggle('chat-hidden')
+    chat.style.display = chat.classList.contains('chat-hidden') ? 'none' : 'flex'
+  }
+
+  bubble.onclick = (e) => {
+    e.stopPropagation()
+    toggleChat()
+  }
+
+  minimize.onclick = (e) => {
+    e.stopPropagation()
+    chat.classList.add('chat-hidden')
+    chat.style.display = 'none'
+  }
+
+  /* ===============================
+     TAB SWITCHING
+  =============================== */
+tabs.forEach(tab => {
+  tab.onclick = () => {
+    tabs.forEach(t => t.classList.remove('active'))
+    tab.classList.add('active')
+
+    if (tab.dataset.tab === 'users') {
+      currentMode = 'private'
+      activeReceiver = null
+
+      unreadPrivate = 0
+      updateBadges()
+
+      usersBox.classList.remove('chat-hidden')
+      messagesBox.classList.add('chat-hidden')
+
+      loadUsers()
+    } else {
+      currentMode = 'global'
+      activeReceiver = null
+
+      unreadBroadcast = 0
+      updateBadges()
+
+      usersBox.classList.add('chat-hidden')
+      messagesBox.classList.remove('chat-hidden')
+
+      renderMessages(broadcastCache)
+    }
+  }
+})
+
+  /* ===============================
+     LOAD USERS (FROM PROFILES)
+  =============================== */
+async function loadUsers() {
+  usersBox.innerHTML = ''
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, role')
+    .eq('active', true)
+    .order('username')
+
+  if (error) {
+    usersBox.textContent = 'Failed to load users'
+    return
+  }
+
+  data.forEach(p => {
+    if (p.id === user.id) return
+
+    const div = document.createElement('div')
+    div.textContent = p.username
+
+    if (p.role === 'admin') {
+      div.style.fontWeight = 'bold'
+      div.textContent += ' (Admin)'
+    }
+
+    div.onclick = () => {
+      activeReceiver = p.id
+      usersBox.classList.add('chat-hidden')
+      messagesBox.classList.remove('chat-hidden')
+
+      if (privateCache[p.id]) {
+        renderMessages(privateCache[p.id])
+      } else {
+        loadPrivateChat()
+      }
+    }
+
+    usersBox.appendChild(div)
+  })
+}
+
+  /* ===============================
+     LOAD BROADCAST
+  =============================== */
+async function loadBroadcast() {
+  const { data } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .is('receiver_id', null)
+    .eq('deleted', false)   // 👈 IMPORTANT
+    .order('created_at', { ascending: true })
+
+  broadcastCache.length = 0
+  if (Array.isArray(data)) {
+    data.forEach(m => broadcastCache.push(m))
+  }
+
+  renderMessages(broadcastCache)
+}
+
+
+
+  /* ===============================
+     LOAD PRIVATE CHAT
+  =============================== */
+async function loadPrivateChat() {
+  if (!activeReceiver) return
+
+  const { data } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .or(
+      `and(sender_id.eq.${user.id},receiver_id.eq.${activeReceiver}),
+       and(sender_id.eq.${activeReceiver},receiver_id.eq.${user.id})`
+    )
+    .order('created_at', { ascending: true })
+
+ privateCache[activeReceiver] = Array.isArray(data) ? data : []
+renderMessages(privateCache[activeReceiver])
+
+}
+
+
+  /* ===============================
+     SEND MESSAGE
+  =============================== */
+  sendBtn.onclick = async () => {
+    const text = input.value.trim()
+    if (!text) return
+
+    const enabled = await isChatEnabled()
+    if (!enabled) {
+      alert('Chat disabled by admin')
+      return
+    }
+
+    await supabase.from('chat_messages').insert({
+      sender_id: user.id,
+      receiver_id: currentMode === 'private' ? activeReceiver : null,
+      message: text
+    })
+
+    input.value = ''
+  }
+
+  // ===============================
+// ENTER KEY SEND (ISOLATED)
+// ===============================
+input.addEventListener('keydown', (e) => {
+  // Enter = send
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    sendBtn.click()
+  }
+})
+
+
+  /* ===============================
+     REALTIME
+  =============================== */
+supabase
+  .channel('olympus-chat')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'chat_messages'
+  }, payload => {
+
+    /* ===============================
+       SOFT DELETE (ADMIN)
+    =============================== */
+    if (payload.eventType === 'UPDATE' && payload.new?.deleted === true) {
+      const idx = broadcastCache.findIndex(m => m.id === payload.new.id)
+      if (idx !== -1) {
+        broadcastCache.splice(idx, 1)
+        if (currentMode === 'global') {
+          renderMessages(broadcastCache)
+        }
+      }
+      return
+    }
+
+    if (payload.eventType !== 'INSERT') return
+
+    const msg = payload.new
+    const isMine = msg.sender_id === user.id
+
+    /* ===============================
+       BROADCAST
+    =============================== */
+    if (msg.receiver_id === null) {
+      broadcastCache.push(msg)
+
+      if (currentMode === 'global' && !chat.classList.contains('chat-hidden')) {
+        renderMessages(broadcastCache)
+      } else if (!isMine) {
+        unreadBroadcast++
+        updateBadges()
+      }
+      return
+    }
+
+    /* ===============================
+       PRIVATE
+    =============================== */
+    const other =
+      msg.sender_id === user.id ? msg.receiver_id : msg.sender_id
+
+    if (!privateCache[other]) privateCache[other] = []
+    privateCache[other].push(msg)
+
+    if (
+      currentMode === 'private' &&
+      activeReceiver === other &&
+      !chat.classList.contains('chat-hidden')
+    ) {
+      renderMessages(privateCache[other])
+    } else if (!isMine) {
+      unreadPrivate++
+      updateBadges()
+    }
+  })
+  .subscribe()
+
+
+
+
+
+  /* ===============================
+     RENDER MESSAGE
+  =============================== */
+async function renderMessages(list) {
+  messagesBox.innerHTML = ''
+
+  if (!Array.isArray(list)) return
+
+  const admin = await isAdmin()
+
+  list.forEach(msg => {
+    const row = document.createElement('div')
+    row.style.display = 'flex'
+    row.style.alignItems = 'center'
+    row.style.justifyContent = 'space-between'
+    row.style.gap = '8px'
+
+    const text = document.createElement('div')
+    text.style.flex = '1'
+
+    // BROADCAST
+    if (msg.receiver_id === null) {
+      const name = userCache?.[msg.sender_id] || 'Unknown'
+      text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
+    } 
+    // PRIVATE
+    else {
+      text.textContent = msg.message
+    }
+
+    row.appendChild(text)
+
+    // 🗑️ ADMIN DELETE ICON (BROADCAST ONLY)
+    if (admin && msg.receiver_id === null) {
+      const del = document.createElement('span')
+      del.textContent = '🗑️'
+      del.style.cursor = 'pointer'
+      del.style.opacity = '0.6'
+      del.title = 'Delete message'
+
+      del.onclick = async () => {
+        const ok = confirm('Delete this message?')
+        if (!ok) return
+
+        await supabase
+          .from('chat_messages')
+          .update({ deleted: true })
+          .eq('id', msg.id)
+
+        // remove locally
+        const idx = broadcastCache.findIndex(m => m.id === msg.id)
+        if (idx !== -1) broadcastCache.splice(idx, 1)
+
+        renderMessages(broadcastCache)
+      }
+
+      row.appendChild(del)
+    }
+
+    messagesBox.appendChild(row)
+  })
+
+  messagesBox.scrollTop = messagesBox.scrollHeight
+}
+
+
+
+  /* ===============================
+     INITIAL LOAD
+  =============================== */
+  chat.classList.add('chat-hidden')
+  chat.style.display = 'none'
+  await preloadUsers()
+loadBroadcast()
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -33475,9 +34130,55 @@ mpLoadArchive()
 
 
 
-<footer class="app-footer">
-  © 2026 <span class="footer-brand">The Olympus Chess Academy</span>. All rights reserved.
-</footer>
+
+
+
+
+<!-- ===============================
+ FLOATING CHAT SYSTEM
+=============================== -->
+
+<div id="chatBubble">
+  💬
+  <span id="chatBubbleBadge" class="chat-badge hidden">0</span>
+</div>
+
+
+<div id="chatWindow" class="chat-hidden">
+  <div id="chatHeader">
+    <span>💬 Olympus Chat</span>
+    <button id="chatMinimize">–</button>
+  </div>
+
+  <div id="chatTabs">
+    <button class="chat-tab active" data-tab="global">
+  Broadcast <span id="broadcastBadge" class="chat-badge hidden">0</span>
+</button>
+
+<button class="chat-tab" data-tab="users">
+  Users <span id="usersBadge" class="chat-badge hidden">0</span>
+</button>
+
+  </div>
+
+  <div id="chatContent">
+    <div id="chatMessages"></div>
+
+    <div id="chatUsers" class="chat-hidden"></div>
+  </div>
+
+  <div id="chatInputBox">
+    <input id="chatInput" placeholder="Type message…" />
+    <button id="chatSend">Send</button>
+  </div>
+</div>
+
+
+
+
+
+
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -33486,6 +34187,7 @@ mpLoadArchive()
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
