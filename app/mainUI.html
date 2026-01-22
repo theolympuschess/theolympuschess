@@ -11229,6 +11229,23 @@ body {
 
 
 
+.user-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.unread-badge {
+  background: #25D366;
+  color: #fff;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 20px;
+  text-align: center;
+  box-shadow: 0 0 6px rgba(37, 211, 102, 0.6);
+}
 
 
 
@@ -33582,6 +33599,8 @@ async function initChat() {
 
   let currentMode = 'global'      // global | private
   let activeReceiver = null
+  const userUnreadMap = {}   // { userId: count }
+
   const broadcastCache = []
 const privateCache = {}
 
@@ -33695,24 +33714,41 @@ async function loadUsers() {
     if (p.id === user.id) return
 
     const div = document.createElement('div')
-    div.textContent = p.username
+   const count = userUnreadMap[p.id] || 0
+div.classList.add('user-row')
 
-    if (p.role === 'admin') {
-      div.style.fontWeight = 'bold'
-      div.textContent += ' (Admin)'
-    }
+div.innerHTML = `
+  <span>${p.username}</span>
+  ${count > 0 ? `<span class="unread-badge">${count}</span>` : ''}
+`
 
-    div.onclick = () => {
-      activeReceiver = p.id
-      usersBox.classList.add('chat-hidden')
-      messagesBox.classList.remove('chat-hidden')
 
-      if (privateCache[p.id]) {
-        renderMessages(privateCache[p.id])
-      } else {
-        loadPrivateChat()
-      }
-    }
+
+   if (p.role === 'admin') {
+  div.style.fontWeight = 'bold'
+
+  const nameSpan = div.querySelector('span')
+  if (nameSpan) {
+    nameSpan.textContent += ' (Admin)'
+  }
+}
+
+ div.onclick = () => {
+  userUnreadMap[p.id] = 0
+
+  activeReceiver = p.id
+  usersBox.classList.add('chat-hidden')
+  messagesBox.classList.remove('chat-hidden')
+
+  if (privateCache[p.id]) {
+    renderMessages(privateCache[p.id])
+  } else {
+    loadPrivateChat()
+  }
+
+  loadUsers()
+}
+
 
     usersBox.appendChild(div)
   })
@@ -33855,11 +33891,14 @@ supabase
       !chat.classList.contains('chat-hidden')
     ) {
       renderMessages(privateCache[other])
-    } else if (!isMine) {
-      unreadPrivate++
-      updateBadges()
-      playMessageSound()   // 🔔 ALWAYS PLAY
-    }
+   } else if (!isMine) {
+  unreadPrivate++
+  userUnreadMap[other] = (userUnreadMap[other] || 0) + 1
+  updateBadges()
+  playMessageSound()
+  loadUsers()
+}
+
   })
   .subscribe()
 
