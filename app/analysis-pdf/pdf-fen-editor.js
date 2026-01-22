@@ -76,6 +76,7 @@ APP.close = function() {
   let fromCol = null
   let isDragging = false
   let didDrag = false
+  let copyMode = false
 
   const getSquare = e => {
     const rect = canvas.getBoundingClientRect()
@@ -110,6 +111,25 @@ APP.close = function() {
     draw()
   })
 
+  // RIGHT CLICK = CHANGE COLOR
+  canvas.addEventListener("contextmenu", e => {
+    e.preventDefault()
+
+    const sq = getSquare(e)
+    if (!sq) return
+
+    const { row, col } = sq
+    const p = board[row][col]
+    if (!p) return
+
+    board[row][col] =
+      p === p.toUpperCase()
+        ? p.toLowerCase()
+        : p.toUpperCase()
+
+    draw()
+  })
+
   // DRAG START
   canvas.addEventListener("mousedown", e => {
     const sq = getSquare(e)
@@ -124,6 +144,7 @@ APP.close = function() {
     fromCol = col
     isDragging = true
     didDrag = false
+    copyMode = e.ctrlKey === true
   })
 
   // TRACK DRAG
@@ -141,7 +162,11 @@ APP.close = function() {
 
     if (sq) {
       const { row, col } = sq
-      board[fromRow][fromCol] = null
+
+      if (!copyMode) {
+        board[fromRow][fromCol] = null
+      }
+
       board[row][col] = dragPiece
     }
 
@@ -149,12 +174,14 @@ APP.close = function() {
     fromRow = null
     fromCol = null
     isDragging = false
+    copyMode = false
 
     draw()
   })
 
   draw()
 }
+
 
 
 
@@ -268,3 +295,4 @@ function setupButtons() {
   }
 
 })()
+
