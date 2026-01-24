@@ -11307,8 +11307,18 @@ body {
 }
 
 
+.pawn-toggle-btn.active {
+  background: #ffd700;
+  color: #000;
+}
 
 
+/* ===============================
+   STUDY NOTATION TOGGLE
+================================ */
+.study-notation.hidden {
+  display: none !important;
+}
 
 
 
@@ -11679,6 +11689,7 @@ body {
 
 
 <div class="section" id="study-section">
+  
   <h2>📘 Study</h2>
 
   <div class="study-layout">
@@ -11705,6 +11716,21 @@ body {
   </div>
   
 </div>
+<button
+  id="pawnOnlyToggleBtn"
+  class="btn-secondary pawn-toggle-btn"
+  title="Toggle pawn structure view"
+>
+  ♟ King + Pawns
+</button>
+<button
+  id="toggleStudyNotationBtn"
+  class="btn-secondary"
+  title="Toggle notation"
+>
+  📝Hide/Show Notation
+</button>
+
 
 
       <div class="study-list" id="studyList">
@@ -23181,19 +23207,41 @@ function appendInlineVariation(san, absoluteIndex, fen) {
 
 
 
-
 // ===============================
 // ♟️ Init Study Board
 // ===============================
 window.studyDrawingsByFen = {};
 studyChess = new Chess();
+// ===============================
+// ♟️ STUDY PAWN VIEW STATE
+// ===============================
+let studyPawnViewActive = false;
+
+
+// ===============================
+// ♟️ STUDY PIECE THEME RESOLVER
+// ===============================
+function resolveStudyPieceTheme(piece) {
+  if (!piece) return "";
+
+  const basePath = getPieceThemePath(currentPieceTheme);
+  const type = piece[1].toLowerCase();
+
+  // Pawn + King view
+  if (studyPawnViewActive && !["p", "k"].includes(type)) {
+    return "";
+  }
+
+  return basePath.replace("{piece}", piece);
+}
+
 
 function initStudyBoard() {
   initStudyCoordinates(
-  document.getElementById("studyBoardWrapper"),
-  studyBoard,
-  () => studyBoardFlipped
-)
+    document.getElementById("studyBoardWrapper"),
+    studyBoard,
+    () => studyBoardFlipped
+  );
 
   studyChess = new Chess();
 
@@ -23201,10 +23249,48 @@ function initStudyBoard() {
     position: "start",
     draggable: true,
     showNotation: false,
-   pieceTheme: getPieceThemePath(currentPieceTheme),
+
+    // ✅ SAFE: render-only filter, no logic break
+    pieceTheme: resolveStudyPieceTheme,
+
     onDrop: onStudyDrop
   });
 }
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("pawnOnlyToggleBtn");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
+    if (!studyBoard || !studyChess) return;
+
+    studyPawnViewActive = !studyPawnViewActive;
+    btn.classList.toggle("active", studyPawnViewActive);
+
+    // 🔄 force re-render ONLY
+    studyBoard.position(studyChess.fen(), false);
+  });
+});
+
+// ===============================
+// ♟️ STUDY NOTATION TOGGLE
+// ===============================
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("toggleStudyNotationBtn");
+  const notationBox = document.querySelector(".study-notation");
+
+  if (!btn || !notationBox) return;
+
+  let notationVisible = true;
+
+  btn.addEventListener("click", () => {
+    notationVisible = !notationVisible;
+
+    notationBox.classList.toggle("hidden", !notationVisible);
+    btn.classList.toggle("active", !notationVisible);
+  });
+});
 
 
 // ===============================
@@ -34700,6 +34786,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
