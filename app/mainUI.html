@@ -11321,67 +11321,10 @@ body {
 }
 
 
-
-/* ===============================
-   WHATSAPP STYLE PRIVATE CHAT
-================================ */
-
-.chat-msg-row {
-  display: flex;
-  margin: 6px 0;
+#mainPawnToggleBtn.active {
+  background: #ffd700;
+  color: #000;
 }
-
-.chat-msg-left {
-  justify-content: flex-start;
-}
-
-.chat-msg-right {
-  justify-content: flex-end;
-}
-
-.chat-bubble {
-  max-width: 70%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.4;
-  word-wrap: break-word;
-}
-
-/* Other user */
-.chat-bubble.other {
-  background: #2a2f45;
-  color: #fff;
-  border-top-left-radius: 4px;
-}
-
-/* Mine */
-.chat-bubble.mine {
-  background: #1fa855;
-  color: #fff;
-  border-top-right-radius: 4px;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -13470,6 +13413,15 @@ body {
   <button class="analysis-subtab" data-tab="analysis-pdf">
     📄 PDF → PGN
   </button>
+<button
+  id="mainPawnToggleBtn"
+  class="analysis-subtab btn-secondary"
+  title="Show only Kings and Pawns"
+>
+  ♟ King + Pawns
+</button>
+
+
 </div>
 
 <div id="analysis-pdf" class="analysis-subtab-panel hidden">
@@ -18505,6 +18457,43 @@ function endQuiz(reason) {
 }
 
 
+        document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("mainPawnToggleBtn");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
+    if (!board || !chess) return;
+
+    mainPawnViewActive = !mainPawnViewActive;
+    btn.classList.toggle("active", mainPawnViewActive);
+
+    // 🔄 re-render only (NO logic change)
+    board.position(chess.fen(), false);
+  });
+});
+
+
+
+// ===============================
+// ♟️ MAIN BOARD PAWN VIEW STATE
+// ===============================
+let mainPawnViewActive = false;
+// ===============================
+// ♟️ MAIN BOARD PIECE THEME RESOLVER
+// ===============================
+function resolveMainPieceTheme(piece) {
+  if (!piece) return "";
+
+  const basePath = getPieceThemePath(currentPieceTheme);
+  const type = piece[1].toLowerCase();
+
+  // Pawn + King view
+  if (mainPawnViewActive && !["p", "k"].includes(type)) {
+    return "";
+  }
+
+  return basePath.replace("{piece}", piece);
+}
 
 
 
@@ -18529,10 +18518,11 @@ function endQuiz(reason) {
         onDragStart: onDragStart,
         onDrop: onDrop,
         onSnapEnd: onSnapEnd,
-        pieceTheme: getPieceThemePath(currentPieceTheme),
+        pieceTheme: resolveMainPieceTheme,
+
       };
 
-      
+
 
       
 
@@ -18606,6 +18596,8 @@ async function updateLiveClassStatus() {
   const text = document.getElementById('liveStatusText');
   const startBtn = document.getElementById('startLiveBtn');
   const endBtn = document.getElementById('endLiveBtn');
+
+
 
   if (isLive) {
   const activeSessionId = data[0].id;
@@ -34114,32 +34106,12 @@ supabase
   =============================== */
 async function renderMessages(list) {
   messagesBox.innerHTML = ''
+
   if (!Array.isArray(list)) return
 
   const admin = await isAdmin()
 
   list.forEach(msg => {
-    const isMine = msg.sender_id === user.id
-
-    /* ===============================
-       PRIVATE CHAT (WHATSAPP STYLE)
-    =============================== */
-    if (msg.receiver_id !== null) {
-      const row = document.createElement('div')
-      row.className = `chat-msg-row ${isMine ? 'chat-msg-right' : 'chat-msg-left'}`
-
-      const bubble = document.createElement('div')
-      bubble.className = `chat-bubble ${isMine ? 'mine' : 'other'}`
-      bubble.textContent = msg.message
-
-      row.appendChild(bubble)
-      messagesBox.appendChild(row)
-      return
-    }
-
-    /* ===============================
-       BROADCAST (UNCHANGED)
-    =============================== */
     const row = document.createElement('div')
     row.style.display = 'flex'
     row.style.alignItems = 'center'
@@ -34149,17 +34121,25 @@ async function renderMessages(list) {
     const text = document.createElement('div')
     text.style.flex = '1'
 
-    const name = userCache?.[msg.sender_id] || 'Unknown'
-    text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
+    // BROADCAST
+    if (msg.receiver_id === null) {
+      const name = userCache?.[msg.sender_id] || 'Unknown'
+      text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
+    } 
+    // PRIVATE
+    else {
+      text.textContent = msg.message
+    }
 
     row.appendChild(text)
 
-    // 🗑️ ADMIN DELETE (BROADCAST ONLY)
-    if (admin) {
+    // 🗑️ ADMIN DELETE ICON (BROADCAST ONLY)
+    if (admin && msg.receiver_id === null) {
       const del = document.createElement('span')
       del.textContent = '🗑️'
       del.style.cursor = 'pointer'
       del.style.opacity = '0.6'
+      del.title = 'Delete message'
 
       del.onclick = async () => {
         const ok = confirm('Delete this message?')
@@ -34170,6 +34150,7 @@ async function renderMessages(list) {
           .update({ deleted: true })
           .eq('id', msg.id)
 
+        // remove locally
         const idx = broadcastCache.findIndex(m => m.id === msg.id)
         if (idx !== -1) broadcastCache.splice(idx, 1)
 
@@ -34184,7 +34165,6 @@ async function renderMessages(list) {
 
   messagesBox.scrollTop = messagesBox.scrollHeight
 }
-
 
 
 
