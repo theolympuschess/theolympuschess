@@ -31558,20 +31558,24 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const tab = btn.dataset.tab;
 
-   if (tab === "study" || tab === "board" || tab === "editor") {
+    // 🔒 ALWAYS reset drawing on tab change
+    drawEnabled = false;
+    updateToolboxUI();
 
+    if (tab === "study" || tab === "board" || tab === "editor") {
       toolbox.classList.remove("hidden");
-      canvas.style.display = "block";
     } else {
       toolbox.classList.add("hidden");
-      canvas.style.display = "none";
     }
   });
 });
 
+
 // Drawing
 canvas.addEventListener("mousedown", e => {
+  if (!drawEnabled) return;
   if (!document.body.classList.contains("admin-view")) return;
+
 
 
 
@@ -31788,7 +31792,11 @@ function checkInitialTab() {
 }
 
 // Run on load
-window.addEventListener("load", checkInitialTab);
+window.addEventListener("load", () => {
+  drawEnabled = false;      // ⛔ force OFF
+  updateToolboxUI();       // apply UI state
+});
+
 
 
 
@@ -31798,7 +31806,8 @@ window.addEventListener("load", checkInitialTab);
 const toolboxHeader = document.getElementById("toolboxHeader");
 const toolboxTitle = document.getElementById("toolboxTitle");
 
-let drawEnabled = true;
+let drawEnabled = false; // ⛔ drawing OFF by default
+
 
 function updateToolboxUI() {
   if (drawEnabled) {
