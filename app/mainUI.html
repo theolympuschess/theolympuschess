@@ -11330,6 +11330,69 @@ body {
 
 
 
+/* ===============================
+   WHATSAPP STYLE PRIVATE CHAT
+================================ */
+
+.chat-msg-row {
+  display: flex;
+  margin: 6px 0;
+}
+
+.chat-msg-left {
+  justify-content: flex-start;
+}
+
+.chat-msg-right {
+  justify-content: flex-end;
+}
+
+.chat-bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+/* Other user */
+.chat-bubble.other {
+  background: #2a2f45;
+  color: #fff;
+  border-top-left-radius: 4px;
+}
+
+/* Mine */
+.chat-bubble.mine {
+  background: #1fa855;
+  color: #fff;
+  border-top-right-radius: 4px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34115,12 +34178,32 @@ supabase
   =============================== */
 async function renderMessages(list) {
   messagesBox.innerHTML = ''
-
   if (!Array.isArray(list)) return
 
   const admin = await isAdmin()
 
   list.forEach(msg => {
+    const isMine = msg.sender_id === user.id
+
+    /* ===============================
+       PRIVATE CHAT (WHATSAPP STYLE)
+    =============================== */
+    if (msg.receiver_id !== null) {
+      const row = document.createElement('div')
+      row.className = `chat-msg-row ${isMine ? 'chat-msg-right' : 'chat-msg-left'}`
+
+      const bubble = document.createElement('div')
+      bubble.className = `chat-bubble ${isMine ? 'mine' : 'other'}`
+      bubble.textContent = msg.message
+
+      row.appendChild(bubble)
+      messagesBox.appendChild(row)
+      return
+    }
+
+    /* ===============================
+       BROADCAST (UNCHANGED)
+    =============================== */
     const row = document.createElement('div')
     row.style.display = 'flex'
     row.style.alignItems = 'center'
@@ -34130,25 +34213,17 @@ async function renderMessages(list) {
     const text = document.createElement('div')
     text.style.flex = '1'
 
-    // BROADCAST
-    if (msg.receiver_id === null) {
-      const name = userCache?.[msg.sender_id] || 'Unknown'
-      text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
-    } 
-    // PRIVATE
-    else {
-      text.textContent = msg.message
-    }
+    const name = userCache?.[msg.sender_id] || 'Unknown'
+    text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
 
     row.appendChild(text)
 
-    // 🗑️ ADMIN DELETE ICON (BROADCAST ONLY)
-    if (admin && msg.receiver_id === null) {
+    // 🗑️ ADMIN DELETE (BROADCAST ONLY)
+    if (admin) {
       const del = document.createElement('span')
       del.textContent = '🗑️'
       del.style.cursor = 'pointer'
       del.style.opacity = '0.6'
-      del.title = 'Delete message'
 
       del.onclick = async () => {
         const ok = confirm('Delete this message?')
@@ -34159,7 +34234,6 @@ async function renderMessages(list) {
           .update({ deleted: true })
           .eq('id', msg.id)
 
-        // remove locally
         const idx = broadcastCache.findIndex(m => m.id === msg.id)
         if (idx !== -1) broadcastCache.splice(idx, 1)
 
@@ -34174,6 +34248,7 @@ async function renderMessages(list) {
 
   messagesBox.scrollTop = messagesBox.scrollHeight
 }
+
 
 
 
@@ -34848,6 +34923,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
