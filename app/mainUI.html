@@ -23497,6 +23497,24 @@ initStudyBoardDrawing(studyWrapper, studyBoardEl, studyDrawLayer);
 
 
 function onStudyDrop(source, target) {
+  if (!studyChess) return "snapback";
+
+  const piece = studyChess.get(source);
+
+  // 🔥 Detect promotion attempt
+  const isPromotion =
+    piece &&
+    piece.type === "p" &&
+    (
+      (piece.color === "w" && target[1] === "8") ||
+      (piece.color === "b" && target[1] === "1")
+    );
+
+  if (isPromotion) {
+    studyOpenPromotionModal(source, target);
+    return;
+  }
+
   const move = studyChess.move({
     from: source,
     to: target,
@@ -23505,19 +23523,17 @@ function onStudyDrop(source, target) {
 
   if (!move) return "snapback";
 
-  // 🔑 absolute move index (parent + 1)
   const absoluteIndex =
-  currentMoveIndex >= 0 ? currentMoveIndex + 1 : studyMoves.length;
-;
+    currentMoveIndex >= 0
+      ? currentMoveIndex + 1
+      : studyMoves.length;
 
-  // 🔥 store variation (optional, but useful later)
   studyMoves.push({
     san: move.san,
     absoluteIndex,
     fen: studyChess.fen()
   });
 
-  // 🔥 CREATE VARIATION NODE (PASS FEN!)
   appendInlineVariation(
     move.san,
     absoluteIndex,
@@ -23526,11 +23542,7 @@ function onStudyDrop(source, target) {
 
   studyBoard.position(studyChess.fen(), false);
 
-  console.log(
-    "♟️ Variation added at move:",
-    absoluteIndex,
-    move.san
-  );
+  console.log("♟️ Study move:", move.san);
 }
 
 
@@ -23567,6 +23579,90 @@ document.dispatchEvent(new Event("studyBoardFlipped"));
     console.log("🔄 Study board flipped:", studyBoardFlipped);
   }
 });
+
+
+// ===============================
+// ♟️ STUDY PROMOTION SYSTEM (ISOLATED)
+// ===============================
+
+let studyPromoPending = null;
+
+// Hook modal buttons without touching live match logic
+(function hookStudyPromotionButtons() {
+  const modal = document.getElementById("mpPromoModal");
+  if (!modal) return;
+
+  modal.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", e => {
+      if (!studyPromoPending) return;
+      e.stopPropagation();
+      studyCompletePromotion(btn.textContent);
+    });
+  });
+})();
+
+function studyOpenPromotionModal(source, target) {
+  studyPromoPending = { source, target };
+  document.getElementById("mpPromoModal")?.classList.remove("hidden");
+}
+
+function studyClosePromotionModal() {
+  document.getElementById("mpPromoModal")?.classList.add("hidden");
+  studyPromoPending = null;
+}
+
+function studyCompletePromotion(pieceSymbol) {
+  if (!studyPromoPending) return;
+
+  const map = {
+    "♕": "q",
+    "♖": "r",
+    "♗": "b",
+    "♘": "n"
+  };
+
+  const promo = map[pieceSymbol] || "q";
+  const { source, target } = studyPromoPending;
+
+  studyClosePromotionModal();
+  studyFinishMove(source, target, promo);
+}
+
+function studyFinishMove(source, target, promotion) {
+  const move = studyChess.move({
+    from: source,
+    to: target,
+    promotion
+  });
+
+  if (!move) {
+    studyBoard.position(studyChess.fen(), false);
+    return;
+  }
+
+  // 🔑 absolute move index
+  const absoluteIndex =
+    currentMoveIndex >= 0
+      ? currentMoveIndex + 1
+      : studyMoves.length;
+
+  studyMoves.push({
+    san: move.san,
+    absoluteIndex,
+    fen: studyChess.fen()
+  });
+
+  appendInlineVariation(
+    move.san,
+    absoluteIndex,
+    studyChess.fen()
+  );
+
+  studyBoard.position(studyChess.fen(), false);
+
+  console.log("♟️ Study promotion:", move.san);
+}
+
 
 
 
