@@ -33951,6 +33951,8 @@ async function initChat() {
   const messagesBox = document.getElementById('chatMessages')
   const usersBox = document.getElementById('chatUsers')
   const tabs = document.querySelectorAll('.chat-tab')
+  const contentBox = document.getElementById('chatContent') // 👈 SCROLL CONTAINER
+
 
   if (!bubble || !chat) return
 
@@ -34098,17 +34100,19 @@ div.innerHTML = `
 
  div.onclick = () => {
   userUnreadMap[p.id] = 0
+  markPrivateAsRead(p.id)   // 👈 HERE
 
   activeReceiver = p.id
   usersBox.classList.add('chat-hidden')
   messagesBox.classList.remove('chat-hidden')
 
-  if (privateCache[p.id]) {
-    renderMessages(privateCache[p.id])
-  } else {
-    loadPrivateChat()
-  }
+  if (Array.isArray(privateCache[p.id]) && privateCache[p.id].length > 0) {
+  renderMessages(privateCache[p.id])
+} else {
+  loadPrivateChat() // fallback to DB if cache empty or not ready
+}
 
+setTimeout(scrollToBottom, 50) // 👈 AUTO JUMP TO LATEST
   loadUsers()
 }
 
@@ -34157,6 +34161,42 @@ async function loadPrivateChat() {
 renderMessages(privateCache[activeReceiver])
 
 }
+
+async function markPrivateAsRead(otherUserId) {
+  await supabase
+    .from('chat_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('receiver_id', user.id)
+    .eq('sender_id', otherUserId)
+    .is('read_at', null)
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    contentBox.scrollTop = contentBox.scrollHeight
+  })
+}
+
+
+async function preloadUnreadCounts() {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('sender_id')
+    .eq('receiver_id', user.id)
+    .is('read_at', null)
+
+  if (error || !Array.isArray(data)) return
+
+  data.forEach(m => {
+    userUnreadMap[m.sender_id] =
+      (userUnreadMap[m.sender_id] || 0) + 1
+  })
+
+  unreadPrivate = Object.values(userUnreadMap).reduce((a, b) => a + b, 0)
+  updateBadges()
+}
+
+
 
 
   /* ===============================
@@ -34342,7 +34382,41 @@ async function renderMessages(list) {
     messagesBox.appendChild(row)
   })
 
-  messagesBox.scrollTop = messagesBox.scrollHeight
+  scrollToBottom()
+
+}
+
+async function preloadPrivateChats() {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .eq('deleted', false)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('[CHAT] Preload error:', error)
+    return
+  }
+
+  if (!Array.isArray(data)) return
+
+  data.forEach(msg => {
+    const other =
+      msg.sender_id === user.id
+        ? msg.receiver_id
+        : msg.sender_id
+
+    if (!other) return
+
+    if (!privateCache[other]) {
+      privateCache[other] = []
+    }
+
+    privateCache[other].push(msg)
+  })
+
+  console.log('[CHAT] Preloaded private chats:', Object.keys(privateCache))
 }
 
 
@@ -34354,7 +34428,10 @@ async function renderMessages(list) {
   chat.classList.add('chat-hidden')
   chat.style.display = 'none'
   await preloadUsers()
+await preloadPrivateChats()
+await preloadUnreadCounts() // 👈 PERSIST ALERTS
 loadBroadcast()
+
 
 }
 
@@ -35019,6 +35096,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
