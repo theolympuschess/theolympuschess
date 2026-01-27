@@ -11374,6 +11374,30 @@ body {
 
 
 
+.mp-fenbox input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  background: #111827;
+  border: 1px solid #374151;
+  color: white;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.mp-fenbox button {
+  width: 100%;
+  background: #7c3aed;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+}
+
+.mp-fenbox button:hover {
+  background: #6d28d9;
+}
 
 
 
@@ -11947,6 +11971,13 @@ body {
 
           <input id="mpJoinCode" placeholder="Enter Room Code">
           <button id="mpJoinBtn">Join</button>
+          <!-- CUSTOM FEN BOX -->
+<div class="mp-card mp-fenbox">
+  <label class="mp-label">♟ Custom FEN</label>
+  <input id="mpFenInput" placeholder="Paste FEN position here">
+  <button id="mpFenCreateBtn">Create From FEN</button>
+</div>
+
         </div>
 
         <!-- NOTATION -->
@@ -14726,6 +14757,7 @@ document.getElementById("copyFenBtn").addEventListener("click", () => {
     }, 1500);
   });
 });
+
 
 
 /* ================================
@@ -33529,6 +33561,102 @@ updateMpPlayerLabels()
   subscribeRoom()
 }
 
+const mpFenInput = document.getElementById('mpFenInput')
+const mpFenCreateBtn = document.getElementById('mpFenCreateBtn')
+
+mpFenCreateBtn.onclick = async () => {
+  const fen = mpFenInput.value.trim()
+  if (!fen) {
+    mpShowModal("Invalid FEN", "Please paste a FEN string first")
+    return
+  }
+
+  // ===============================
+  // VALIDATE FEN
+  // ===============================
+  const test = new Chess()
+  if (!test.load(fen)) {
+    mpShowModal("Invalid FEN", "This FEN position is not valid")
+    return
+  }
+
+  liveMatchXPGranted = false
+
+  const [base, inc] = mpTime.value.split('|').map(Number)
+  const code = genRoomCode()
+
+  // ===============================
+  // APPLY FEN LOCALLY FIRST
+  // ===============================
+  mpChess.load(fen)
+
+  serverTurn = fen.split(' ')[1] || 'w'
+  lastFen = fen
+  lastPgn = ''
+  moveLock = false
+  mpGameOver = false
+  mpTapSource = null
+  mpMovesBox.textContent = ''
+
+  if (mpBoard) {
+    mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
+    mpBoard.position(fen, false)
+  }
+
+  // ===============================
+  // CREATE SERVER ROOM
+  // ===============================
+  const { data, error } = await supabase
+    .from('live_match_rooms')
+    .insert({
+      room_code: code,
+      base_time: base,
+      increment: inc,
+
+      fen: fen,
+      pgn: '',
+      turn: serverTurn,
+
+      w_time: base,
+      b_time: base,
+
+      status: 'waiting',
+      creator_side: mpSideSelect.value,
+
+      white_id: mpSideSelect.value === 'w' ? 'host' : null,
+      black_id: mpSideSelect.value === 'b' ? 'host' : null,
+
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single()
+
+  if (error) {
+    mpShowModal("Server Error", error.message)
+    return
+  }
+
+  // ===============================
+  // FINALIZE CLIENT STATE
+  // ===============================
+  roomId = data.id
+  mySide = mpSideSelect.value
+
+  sessionStorage.setItem('mpRole', 'host')
+  sessionStorage.setItem('mpSide', mySide)
+  mpSaveSession()
+
+  updateMpPlayerLabels()
+  mpApplyPOV()
+
+  mpRoomCode.textContent = `Room Code: ${code} (copied)`
+  navigator.clipboard.writeText(code).catch(() => {})
+
+  setTimeout(initLiveMatchBoard, 100)
+  subscribeRoom()
+
+  mpShowModal("Custom Game Ready", "♟ Game created from FEN — waiting for opponent")
+}
 
 
 /* ===============================
