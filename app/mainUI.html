@@ -11402,6 +11402,19 @@ body {
 
 
 
+.move.active-main {
+  background: #2563eb;
+  color: white;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.move.active-variation {
+  background: #ca8a04;
+  color: black;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
 
 
 
@@ -22951,6 +22964,8 @@ if (miniScores.length === 0) {
 // 🌿 Study move tree (flat for now)
 const studyMoves = [];
 let currentMoveIndex = -1;
+let activeNotationNode = null; // { type: "main"|"variation", index }
+
 
 
 
@@ -22963,6 +22978,13 @@ const studyState = {
   baseMoveIndex: 0
 };
 
+function clearNotationHighlights() {
+  document
+    .querySelectorAll(".move.active-main, .move.active-variation")
+    .forEach(el => {
+      el.classList.remove("active-main", "active-variation");
+    });
+}
 
 
 // ===============================
@@ -23229,6 +23251,7 @@ function jumpToMove(index) {
   studyBoard.position(studyChess.fen(), false);
 }
 
+
 // ===============================
 // ⌨️ KEYBOARD NAV — MAINLINE ONLY
 // ===============================
@@ -23244,6 +23267,8 @@ document.addEventListener("keydown", (e) => {
     if (currentMoveIndex < studyMoves.length - 1) {
       currentMoveIndex++;
       jumpToMove(currentMoveIndex);
+highlightByIndex(currentMoveIndex);
+
     }
   }
 
@@ -23252,10 +23277,11 @@ document.addEventListener("keydown", (e) => {
     if (currentMoveIndex > -1) {
       currentMoveIndex--;
       jumpToMove(currentMoveIndex);
+highlightByIndex(currentMoveIndex);
+
     }
   }
 });
-
 
 
 
@@ -23290,10 +23316,12 @@ function renderStudyNotation(moves) {
       white.className = "move white";
       white.textContent = moves[i].san;
 
-      white.onclick = () => {
-        currentMoveIndex = i;
-        jumpToMove(i);
-      };
+     white.onclick = () => {
+  currentMoveIndex = i;
+  jumpToMove(i);
+  setActiveMainMove(white, i);
+};
+
       row.appendChild(white);
     }
 
@@ -23302,10 +23330,12 @@ function renderStudyNotation(moves) {
       black.className = "move black";
       black.textContent = moves[i + 1].san;
 
-      black.onclick = () => {
-        currentMoveIndex = i + 1;
-        jumpToMove(i + 1);
-      };
+    black.onclick = () => {
+  currentMoveIndex = i + 1;
+  jumpToMove(i + 1);
+  setActiveMainMove(black, i + 1);
+};
+
       row.appendChild(black);
     }
 
@@ -23315,8 +23345,22 @@ function renderStudyNotation(moves) {
 
 
 
+function setActiveMainMove(el, index) {
+  clearNotationHighlights();
+  el.classList.add("active-main");
+  activeNotationNode = { type: "main", index };
+}
 
 
+function highlightByIndex(index) {
+  clearNotationHighlights();
+
+  const moves = document.querySelectorAll(".notation-row .move");
+  const el = moves[index];
+  if (el) {
+    el.classList.add("active-main");
+  }
+}
 
 
 
@@ -23337,6 +23381,10 @@ function appendInlineVariation(san, absoluteIndex, fen) {
   varSpan.dataset.index = absoluteIndex;
 
   varSpan.addEventListener("click", () => {
+    clearNotationHighlights();
+varSpan.classList.add("active-variation");
+activeNotationNode = { type: "variation", index: absoluteIndex };
+
     // 1️⃣ FULL RESET
     studyChess.reset();
 
