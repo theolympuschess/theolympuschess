@@ -10627,11 +10627,11 @@ body.student-view .nav-btn[data-tab="study"] {
 
 @media (min-width: 1024px) {
   .mp-opponent {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
   .mp-you {
-    margin-top: 30px;
+    margin-top: 24px;
   }
 }
 
@@ -10643,7 +10643,6 @@ body.student-view .nav-btn[data-tab="study"] {
     margin-top: 6px!important;
   }
 }
-
 
 @media (max-width: 768px) {
   #mpBoard {
@@ -11449,9 +11448,47 @@ body {
 
 
 
+.study-search {
+  width: 260px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a2f55;
+  background: #10142a;
+  color: #fff;
+  outline: none;
+}
+
+.study-search::placeholder {
+  color: #888;
+}
+
+.study-search:focus {
+  border-color: #4fa3ff;
+}
 
 
+#studySelect {
+  max-height: 240px;
+  overflow-y: auto;
+}
 
+#studySelect::-webkit-scrollbar {
+  width: 8px;
+}
+
+#studySelect::-webkit-scrollbar-track {
+  background: #10142a;
+  border-radius: 8px;
+}
+
+#studySelect::-webkit-scrollbar-thumb {
+  background: #4fa3ff;
+  border-radius: 8px;
+}
+
+#studySelect::-webkit-scrollbar-thumb:hover {
+  background: #78b8ff;
+}
 
 
 
@@ -11826,6 +11863,13 @@ body {
 <div class="section" id="study-section">
   
   <h2>📘 Study</h2>
+  <input
+  type="text"
+  id="studySearchBox"
+  placeholder="🔍 Search PGN..."
+  class="study-search"
+/>
+
 
   <div class="study-layout">
 
@@ -23541,6 +23585,54 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.classList.toggle("active", !notationVisible);
   });
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const searchBox = document.getElementById("studySearchBox");
+  const studySelect = document.getElementById("studySelect");
+
+  if (!searchBox || !studySelect) return;
+
+  let searchTimeout = null;
+
+  async function searchPGN(query) {
+    if (!query.trim()) {
+      studySelect.innerHTML = `<option value="">Study</option>`;
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("bulk_pgn_library")
+      .select("id, title")
+      .ilike("title", `%${query}%`)
+      .order("title", { ascending: true }); // clean sorted list
+
+    if (error) {
+      console.error("❌ PGN search error:", error);
+      return;
+    }
+
+    studySelect.innerHTML = `<option value="">Results</option>`;
+
+    data.forEach(row => {
+      const opt = document.createElement("option");
+      opt.value = row.id;
+      opt.textContent = row.title;
+      studySelect.appendChild(opt);
+    });
+  }
+
+  searchBox.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+
+    searchTimeout = setTimeout(() => {
+      searchPGN(searchBox.value);
+    }, 250); // debounce for performance
+  });
+});
+
+
+
+
 
 
 // ===============================
@@ -35326,12 +35418,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
-
-
-
-
 
 
 
