@@ -36125,9 +36125,12 @@ function enableBattleTapMove() {
   const boardEl = document.getElementById("puzzleBattleBoard");
   if (!boardEl) return;
 
+  const TAP_THRESHOLD = 8; // px — adjust if needed (6–12 sweet spot)
+  let startX = 0;
+  let startY = 0;
+
   const getSquareFromPoint = (clientX, clientY) => {
     const rect = boardEl.getBoundingClientRect();
-
     const size = Math.min(rect.width, rect.height);
     const squareSize = size / 8;
 
@@ -36138,10 +36141,8 @@ function enableBattleTapMove() {
 
     const fileIndex = Math.floor(x / squareSize);
     const rankIndex = Math.floor(y / squareSize);
-
     const files = "abcdefgh";
 
-    // Adjust for board orientation
     const isWhite = battleBoard.orientation() === "white";
 
     const file = isWhite
@@ -36155,16 +36156,22 @@ function enableBattleTapMove() {
     return file + rank;
   };
 
-  const handler = e => {
-    let point;
+  boardEl.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+  }, { passive: true });
 
-    if (e.touches && e.touches.length) {
-      point = e.touches[0];
-    } else {
-      point = e;
-    }
+  boardEl.addEventListener("touchend", e => {
+    const t = e.changedTouches[0];
 
-    const square = getSquareFromPoint(point.clientX, point.clientY);
+    const dx = Math.abs(t.clientX - startX);
+    const dy = Math.abs(t.clientY - startY);
+
+    // If finger moved too much, it was a drag — ignore
+    if (dx > TAP_THRESHOLD || dy > TAP_THRESHOLD) return;
+
+    const square = getSquareFromPoint(t.clientX, t.clientY);
     if (!square) return;
 
     // FIRST TAP — select
@@ -36188,11 +36195,33 @@ function enableBattleTapMove() {
     handleBattleMove(battleTapSource, square);
     clearBattleHighlights();
     battleTapSource = null;
-  };
+  });
 
-  boardEl.addEventListener("touchstart", handler, { passive: true });
-  boardEl.addEventListener("click", handler);
+  // Desktop fallback
+  boardEl.addEventListener("click", e => {
+    const square = getSquareFromPoint(e.clientX, e.clientY);
+    if (!square) return;
+
+    if (!battleTapSource) {
+      const piece = battleChess.get(square);
+      if (!piece) return;
+
+      if (
+        (battleSideToMove === "w" && piece.color !== "w") ||
+        (battleSideToMove === "b" && piece.color !== "b")
+      ) return;
+
+      battleTapSource = square;
+      highlightBattleSquare(square);
+      return;
+    }
+
+    handleBattleMove(battleTapSource, square);
+    clearBattleHighlights();
+    battleTapSource = null;
+  });
 }
+
 
 
 
@@ -36825,6 +36854,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
