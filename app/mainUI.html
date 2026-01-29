@@ -36125,22 +36125,53 @@ function enableBattleTapMove() {
   const boardEl = document.getElementById("puzzleBattleBoard");
   if (!boardEl) return;
 
-  // Touch + click safe
-  const handler = e => {
-    const squareEl = e.target.closest(".square-55d63");
-    if (!squareEl) return;
+  const getSquareFromPoint = (clientX, clientY) => {
+    const rect = boardEl.getBoundingClientRect();
 
-    // Extract square from class list instead of dataset
-    const classes = Array.from(squareEl.classList);
-    const square = classes.find(c => /^[a-h][1-8]$/.test(c));
+    const size = Math.min(rect.width, rect.height);
+    const squareSize = size / 8;
+
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+
+    if (x < 0 || y < 0 || x > size || y > size) return null;
+
+    const fileIndex = Math.floor(x / squareSize);
+    const rankIndex = Math.floor(y / squareSize);
+
+    const files = "abcdefgh";
+
+    // Adjust for board orientation
+    const isWhite = battleBoard.orientation() === "white";
+
+    const file = isWhite
+      ? files[fileIndex]
+      : files[7 - fileIndex];
+
+    const rank = isWhite
+      ? 8 - rankIndex
+      : rankIndex + 1;
+
+    return file + rank;
+  };
+
+  const handler = e => {
+    let point;
+
+    if (e.touches && e.touches.length) {
+      point = e.touches[0];
+    } else {
+      point = e;
+    }
+
+    const square = getSquareFromPoint(point.clientX, point.clientY);
     if (!square) return;
 
-    // If no source selected — pick piece
+    // FIRST TAP — select
     if (!battleTapSource) {
       const piece = battleChess.get(square);
       if (!piece) return;
 
-      // Enforce side to move
       if (
         (battleSideToMove === "w" && piece.color !== "w") ||
         (battleSideToMove === "b" && piece.color !== "b")
@@ -36153,16 +36184,16 @@ function enableBattleTapMove() {
       return;
     }
 
-    // Second tap = try move
+    // SECOND TAP — move
     handleBattleMove(battleTapSource, square);
     clearBattleHighlights();
     battleTapSource = null;
   };
 
-  // Attach both for mobile reliability
-  boardEl.addEventListener("click", handler);
   boardEl.addEventListener("touchstart", handler, { passive: true });
+  boardEl.addEventListener("click", handler);
 }
+
 
 
 
@@ -36794,6 +36825,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
