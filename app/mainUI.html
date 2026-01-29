@@ -36125,16 +36125,19 @@ function enableBattleTapMove() {
   const boardEl = document.getElementById("puzzleBattleBoard");
   if (!boardEl) return;
 
-  boardEl.addEventListener("click", e => {
+  // Touch + click safe
+  const handler = e => {
     const squareEl = e.target.closest(".square-55d63");
     if (!squareEl) return;
 
-    const square = squareEl.dataset.square;
+    // Extract square from class list instead of dataset
+    const classes = Array.from(squareEl.classList);
+    const square = classes.find(c => /^[a-h][1-8]$/.test(c));
+    if (!square) return;
 
     // If no source selected — pick piece
     if (!battleTapSource) {
       const piece = battleChess.get(square);
-
       if (!piece) return;
 
       // Enforce side to move
@@ -36154,8 +36157,13 @@ function enableBattleTapMove() {
     handleBattleMove(battleTapSource, square);
     clearBattleHighlights();
     battleTapSource = null;
-  });
+  };
+
+  // Attach both for mobile reliability
+  boardEl.addEventListener("click", handler);
+  boardEl.addEventListener("touchstart", handler, { passive: true });
 }
+
 
 
 function highlightBattleSquare(square) {
@@ -36786,6 +36794,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
