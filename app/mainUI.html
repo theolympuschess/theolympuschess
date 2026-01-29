@@ -35536,6 +35536,9 @@ let battleSolved = false;
 let battleSideToMove = "w";
 let battleStarted = false;
 let battleStartAt = null;
+let battleTargetScore = null; // Score to beat
+let battleWinnerDeclared = false;
+
 
 
 
@@ -35864,16 +35867,17 @@ function startBattleTimer() {
     const elapsed = Math.floor((Date.now() - battleStartAt) / 1000);
     battleTimeLeft = Math.max(180 - elapsed, 0);
 
-    if (battleTimeLeft <= 0) {
-      clearInterval(battleTimer);
-      battleTimer = null;
-      timerEl.textContent = "00:00";
+if (battleTimeLeft <= 0) {
+  clearInterval(battleTimer);
+  battleTimer = null;
+  timerEl.textContent = "00:00";
 
-      if (!battleXPGranted) {
-        declareBattleWinner(currentUser.id);
-      }
-      return;
-    }
+  if (!battleWinnerDeclared) {
+    decideWinnerByScore();
+  }
+  return;
+}
+
 
     const minutes = Math.floor(battleTimeLeft / 60);
     const seconds = battleTimeLeft % 60;
@@ -35884,8 +35888,30 @@ function startBattleTimer() {
   }, 250); // smoother sync
 }
 
+async function decideWinnerByScore() {
+  const { data } = await supabase
+    .from("puzzle_battle_players")
+    .select("player_id,score")
+    .eq("room_id", battleRoom.id);
+
+  if (!data || data.length < 2) return;
+
+  const you = data.find(p => String(p.player_id) === String(currentUser.id));
+  const opp = data.find(p => String(p.player_id) !== String(currentUser.id));
+
+  if (!you || !opp) return;
+
+  if (you.score > opp.score) {
+    declareBattleWinner("you");
+  } else {
+    declareBattleWinner("opponent");
+  }
+}
+
 
 async function updateBattleScore(correct) {
+  if (battleWinnerDeclared) return;
+
   const { data } = await supabase
     .from("puzzle_battle_players")
     .select("*")
@@ -35893,27 +35919,49 @@ async function updateBattleScore(correct) {
     .eq("player_id", currentUser.id)
     .single();
 
+  if (!data) return;
+
   const newLives = correct ? data.lives : data.lives - 1;
   const newScore = correct ? data.score + 1 : data.score;
 
-  const updates = {
-    lives: newLives,
-    score: newScore
-  };
-
   await supabase
     .from("puzzle_battle_players")
-    .update(updates)
+    .update({
+      lives: newLives,
+      score: newScore
+    })
     .eq("id", data.id);
 
-  // ❤️ FORCE LOCAL UI
+  // ❤️ Local UI
   renderBattleLives(newLives);
 
-  // 💀 CHECK DEATH LOCALLY
-  if (newLives <= 0) {
-    declareBattleWinner(currentUser.id);
+  // 💀 If YOU died — set target score
+  if (newLives <= 0 && battleTargetScore === null) {
+    battleTargetScore = newScore;
+    showBattleTarget();
   }
+
+  // 🏆 If target exists and YOU crossed it — WIN
+if (
+  battleTargetScore !== null &&
+  newScore > battleTargetScore &&
+  !battleWinnerDeclared
+) {
+  declareBattleWinner("you");
 }
+
+}
+
+function showBattleTarget() {
+  const el = document.getElementById("battleStatus");
+  if (!el) return;
+
+  el.textContent =
+    "🎯 Target set! must score " +
+    (battleTargetScore + 1) +
+    " to win!";
+}
+
 
 function copyToClipboard(text) {
   if (navigator.clipboard && window.isSecureContext) {
@@ -35955,16 +36003,22 @@ function syncBattleHUD(playerData) {
 
   // 🏆 Winner check
 // 🏆 Winner check + XP sync
-if (playerData.lives <= 0 && !battleXPGranted) {
-  const loserId = playerData.player_id;
-  const youWon = String(loserId) !== String(currentUser.id);
-
-  if (youWon) {
-    grantPuzzleBattleXP();
-  }
-
-  declareBattleWinner(loserId);
+// 💀 Opponent died — set target
+if (playerData.lives <= 0 && battleTargetScore === null) {
+  battleTargetScore = playerData.score;
+  showBattleTarget();
 }
+
+// 🏆 Opponent crossed target — YOU LOSE
+if (
+  battleTargetScore !== null &&
+  playerData.score > battleTargetScore &&
+  !battleWinnerDeclared
+) {
+  declareBattleWinner("opponent");
+}
+
+
 
 
 
@@ -36018,27 +36072,18 @@ if (playerData.lives <= 0 && !battleXPGranted) {
 
 
 // 🏆 Declare winner
-async function declareBattleWinner(loserId) {
-  
+async function declareBattleWinner(winner) {
+  if (battleWinnerDeclared) return;
+  battleWinnerDeclared = true;
+
   const resultBox = document.getElementById("battleResult");
   const text = document.getElementById("battleWinnerText");
 
-  const youWon = String(loserId) !== String(currentUser.id);
-  // Only winner gets best score entry
-if (youWon) {
-  const finalScore = Number(
-    document.getElementById("youStreak")?.textContent || 0
-  );
+  const youWon = winner === "you";
 
-  saveMiniGameScore("puzzlebattle", finalScore);
-}
-  const winnerText = youWon ? "You Win!" : "Opponent Wins!";
-
-  // 🖥️ ALWAYS render UI
-  text.textContent = winnerText;
+  text.textContent = youWon ? "You Win!" : "Opponent Wins!";
   resultBox.classList.remove("hidden");
 
-  // 🛑 Stop battle clock safely
   if (battleTimer) {
     clearInterval(battleTimer);
     battleTimer = null;
@@ -36047,18 +36092,19 @@ if (youWon) {
   battleStarted = false;
   battleSolved = true;
 
-  // 🏆 XP — ONCE ONLY
+  // 🏆 XP
   if (youWon && !battleXPGranted) {
     battleXPGranted = true;
     grantPuzzleBattleXP();
   }
 
-  // 🔒 Close room once
+  // 🔒 Close room
   await supabase
     .from("puzzle_battle_rooms")
     .update({ status: "finished" })
     .eq("id", battleRoom.id);
 }
+
 
 
 
@@ -36854,6 +36900,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
