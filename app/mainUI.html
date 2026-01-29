@@ -15113,8 +15113,9 @@ async function grantPuzzleBattleXP() {
   if (!currentProfile) return;
   if (battleXPGranted) return;
 
-  const XP = 5;
   battleXPGranted = true;
+
+  const XP = 5;
 
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + XP;
@@ -15131,6 +15132,7 @@ async function grantPuzzleBattleXP() {
 
   console.log("🏆 Puzzle Battle XP granted:", XP);
 }
+
 
 
 
@@ -35483,6 +35485,9 @@ function initPuzzleBattleBoard() {
     pieceTheme: getPieceThemePath(currentPieceTheme),
 
     onDragStart: (source, piece) => {
+      if (battleYouFrozen) return false;
+
+
     if (!battleCurrentPuzzle) return false;
 
       if (puzzleSolved) return false;
@@ -35538,9 +35543,26 @@ let battleStarted = false;
 let battleStartAt = null;
 let battleTargetScore = null; // Score to beat
 let battleWinnerDeclared = false;
+let battleYouFrozen = false;
 
 
 
+function freezeBattleBoard() {
+  if (battleYouFrozen) return;
+
+  battleYouFrozen = true;
+
+  if (battleBoard) {
+    battleBoard.draggable = false;
+  }
+
+  const boardEl = document.getElementById("puzzleBattleBoard");
+  if (boardEl) {
+    boardEl.classList.add("battle-frozen");
+  }
+
+  console.log("🧊 YOUR board frozen (you lost all lives)");
+}
 
 
 
@@ -35674,6 +35696,7 @@ if (battleChess.turn() !== battleCurrentPuzzle.side) {
 
 
 function handleBattleMove(source, target) {
+  if (battleYouFrozen) return "snapback";   // 🧊 STEP 1
   if (!battleCurrentPuzzle || battleSolved) return "snapback";
 
   const move = battleChess.move({
@@ -35937,6 +35960,7 @@ async function updateBattleScore(correct) {
 
   // 💀 If YOU died — set target score
   if (newLives <= 0 && battleTargetScore === null) {
+    freezeBattleBoard();   // 🧊 YOU died — freeze YOU
     battleTargetScore = newScore;
     showBattleTarget();
   }
@@ -36092,18 +36116,20 @@ async function declareBattleWinner(winner) {
   battleStarted = false;
   battleSolved = true;
 
-  // 🏆 XP
-  if (youWon && !battleXPGranted) {
-    battleXPGranted = true;
-    grantPuzzleBattleXP();
+  // 🏆 XP — ONLY FOR WINNER
+  if (youWon) {
+    await grantPuzzleBattleXP();
   }
 
-  // 🔒 Close room
-  await supabase
-    .from("puzzle_battle_rooms")
-    .update({ status: "finished" })
-    .eq("id", battleRoom.id);
+  // 🔒 Close room ONCE
+  if (battleRole === "player1") {
+    await supabase
+      .from("puzzle_battle_rooms")
+      .update({ status: "finished" })
+      .eq("id", battleRoom.id);
+  }
 }
+
 
 
 
@@ -36209,6 +36235,7 @@ function enableBattleTapMove() {
   }, { passive: true });
 
   boardEl.addEventListener("touchend", e => {
+    if (battleYouFrozen) return;   // 🧊 STEP 2 (touch)
     const t = e.changedTouches[0];
 
     const dx = Math.abs(t.clientX - startX);
@@ -36245,6 +36272,7 @@ function enableBattleTapMove() {
 
   // Desktop fallback
   boardEl.addEventListener("click", e => {
+    if (battleYouFrozen) return;   // 🧊 STEP 3 (click)
     const square = getSquareFromPoint(e.clientX, e.clientY);
     if (!square) return;
 
@@ -36900,6 +36928,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
