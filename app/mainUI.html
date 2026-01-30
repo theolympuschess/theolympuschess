@@ -15140,7 +15140,59 @@ async function grantPuzzleBattleXP() {
 
 }
 
+// ===============================
+// 🤖 VS COMPUTER XP REWARD
+// ===============================
+let vsComputerXPGranted = false;
 
+
+async function grantVsComputerXP() {
+  if (!currentProfile) return;
+  if (vsComputerXPGranted) return;
+
+  vsComputerXPGranted = true;
+
+  const XP = 10;
+
+  currentProfile.game_current_score =
+    (currentProfile.game_current_score || 0) + XP;
+
+  updateRatingsFromProfile(currentProfile);
+  showRatingDelta(XP);
+
+  await supabase
+    .from("profiles")
+    .update({
+      game_current_score: currentProfile.game_current_score
+    })
+    .eq("id", currentProfile.id);
+
+  console.log("🤖 VS Computer WIN XP granted:", XP);
+}
+
+async function grantVsComputerDrawXP() {
+  if (!currentProfile) return;
+  if (vsComputerXPGranted) return;
+
+  vsComputerXPGranted = true;
+
+  const XP = 5;
+
+  currentProfile.game_current_score =
+    (currentProfile.game_current_score || 0) + XP;
+
+  updateRatingsFromProfile(currentProfile);
+  showRatingDelta(XP);
+
+  await supabase
+    .from("profiles")
+    .update({
+      game_current_score: currentProfile.game_current_score
+    })
+    .eq("id", currentProfile.id);
+
+  console.log("🤝 VS Computer DRAW XP granted:", XP);
+}
 
 
 
@@ -16389,17 +16441,27 @@ function checkVsGameEnd() {
   clearInterval(clockInterval);
 
   if (vsChess.in_checkmate()) {
-    const winner =
-      vsChess.turn() === "w" ? "Black wins!" : "White wins!";
+    const winnerColor =
+      vsChess.turn() === "w" ? "black" : "white";
 
     showVsResult(
-      winner,
-      winner.startsWith("White") ? "white" : "black"
+      winnerColor === "white" ? "White wins!" : "Black wins!",
+      winnerColor
     );
+
+    // 🏆 WIN → 10 XP
+    if (winnerColor === vsPlayerColor) {
+      grantVsComputerXP();
+    }
+
   } else {
+    // 🤝 DRAW → 5 XP
     showVsResult("Draw!", "draw");
+    grantVsComputerDrawXP();
   }
 }
+
+
 
 document.getElementById("resignBtn")?.addEventListener("click", () => {
   if (gameOver) return;
@@ -20148,6 +20210,7 @@ function updateClockUI() {
 let vsPendingPromotion = null; // { from, to }
 
 
+
 function initVsComputerBoard() {
   if (vsBoard) return; // prevent re-init
 
@@ -20411,6 +20474,8 @@ function playBotCaptureSound() {
 
 
 function resetVsComputerGame() {
+  vsComputerXPGranted = false; // 🔁 RESET XP FLAG
+
   clearVsResult();
   console.log("🔄 Hard reset VS Computer");
 
