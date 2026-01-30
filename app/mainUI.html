@@ -11925,6 +11925,17 @@ body {
   box-shadow: inset 0 0 0 3px gold;
 }
 
+.vs-result-card.win {
+  border: 2px solid #2ecc71;
+}
+
+.vs-result-card.draw {
+  border: 2px solid #f1c40f;
+}
+
+.vs-result-card.lose {
+  border: 2px solid #e74c3c;
+}
 
 
 
@@ -12168,15 +12179,15 @@ body {
   </div>
 
   <div class="rating-info-body">
-    <p><strong>Olympus Rating</strong> is calculated from 6 areas:</p>
+    <p><strong>Olympus Rating</strong> is calculated from 7 areas:</p>
 
     <ul>
-    <li>🤖 <strong>Play vs Bot</strong><br>
+  <li>🤖 <strong>Play vs Bot</strong><br>
     • Every win = 10XP<br>
     • Every draw = 5XP<br>
     • More win = More XP
   </li>
-     
+
   <li>⚡ <strong>Puzzle Rush</strong><br>
     • Every run gives XP<br>
     • XP gained = ⌊score ÷ 2⌋<br>
@@ -16440,6 +16451,47 @@ function clearVsResult() {
   el.classList.add("hidden");
 }
 
+// ===============================
+// 🤖 VS COMPUTER RESULT MODAL
+// ===============================
+function showVsBotResultModal(type) {
+  const modal = document.getElementById("vsResultModal");
+  const title = document.getElementById("vsResultTitle");
+  const body  = document.getElementById("vsResultBody");
+  const btn   = document.getElementById("vsResultOkBtn");
+  const card  = modal.querySelector(".vs-result-card");
+
+  if (!modal) return;
+
+  // reset styles
+  card.classList.remove("win", "draw", "lose");
+
+  if (type === "win") {
+    title.textContent = "🏆 You Win!";
+    body.textContent  = "Fantastic play! You defeated Olympus AI +10XP! 💪";
+    card.classList.add("win");
+  }
+
+  if (type === "draw") {
+    title.textContent = "🤝 Draw!";
+    body.textContent  = "Great fight! You held your ground +5XP! 👏";
+    card.classList.add("draw");
+  }
+
+  if (type === "lose") {
+    title.textContent = "💥 You Lost";
+    body.textContent  = "Don’t worry — every game makes you stronger 💡";
+    card.classList.add("lose");
+  }
+
+  modal.classList.remove("hidden");
+
+  btn.onclick = () => {
+    modal.classList.add("hidden");
+  };
+}
+
+
 function checkVsGameEnd() {
   if (!vsChess.game_over()) return;
 
@@ -16450,22 +16502,22 @@ function checkVsGameEnd() {
     const winnerColor =
       vsChess.turn() === "w" ? "black" : "white";
 
-    showVsResult(
-      winnerColor === "white" ? "White wins!" : "Black wins!",
-      winnerColor
-    );
-
-    // 🏆 WIN → 10 XP
     if (winnerColor === vsPlayerColor) {
+      // 🏆 PLAYER WIN
+      showVsBotResultModal("win");
       grantVsComputerXP();
+    } else {
+      // 💥 PLAYER LOSE
+      showVsBotResultModal("lose");
     }
 
   } else {
-    // 🤝 DRAW → 5 XP
-    showVsResult("Draw!", "draw");
+    // 🤝 DRAW
+    showVsBotResultModal("draw");
     grantVsComputerDrawXP();
   }
 }
+
 
 
 
@@ -36641,6 +36693,18 @@ const BattleModal = (() => {
   </div>
 </div>
 
+<!-- ===============================
+ 🤖 VS COMPUTER RESULT MODAL (ISOLATED)
+================================ -->
+<div id="vsResultModal" class="modal-overlay hidden">
+  <div class="modal-card vs-result-card">
+    <h3 id="vsResultTitle">Result</h3>
+    <p id="vsResultBody">Message</p>
+    <button id="vsResultOkBtn" class="btn-success">Continue</button>
+  </div>
+</div>
+
+
 <!-- Floating Modal -->
 <div id="floatingModal" class="modal-overlay hidden">
   <div class="modal-card">
@@ -37185,7 +37249,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
