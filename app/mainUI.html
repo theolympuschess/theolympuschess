@@ -12112,6 +12112,137 @@ body {
 }
 
 
+/* ===============================
+   VS SUB TABS (ISOLATED)
+================================ */
+
+.vs-subtabs {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 16px;
+}
+
+.vs-subtab {
+  background: #1b2140;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #ccc;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.vs-subtab.active {
+  background: #00eaff;
+  color: #000;
+  font-weight: 600;
+}
+
+.vs-tab-content {
+  display: none;
+}
+
+.vs-tab-content.active {
+  display: block;
+}
+
+
+
+
+/* ===============================
+   VS BOT — HISTORY GRID (ISOLATED)
+================================ */
+
+#vs-tab-history {
+  padding: 12px;
+}
+
+.vs-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.vs-history-card {
+  background: linear-gradient(180deg, #12172b, #0d1222);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.vs-history-card:hover {
+  transform: translateY(-3px);
+}
+
+.vs-history-board {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 6px;
+}
+
+.vs-history-meta {
+  font-size: 0.75rem;
+  text-align: center;
+  color: #ccc;
+}
+
+
+
+/* ===============================
+   ♟ VS BOT REPLAY MODAL
+================================ */
+
+.vs-replay-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+}
+
+.vs-replay-modal.hidden {
+  display: none;
+}
+
+.vs-replay-card {
+  width: 360px;
+  background: linear-gradient(180deg,#12172b,#0d1222);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+
+.vs-replay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.vs-replay-board {
+  width: 320px;
+  margin: 0 auto 10px;
+}
+
+.vs-replay-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.vs-replay-actions {
+  display: flex;
+  justify-content: center;
+}
+
+
 
 
 
@@ -13133,9 +13264,16 @@ body {
     🏆 Win +10 XP <span class="sep">|</span> 🤝 Draw +5 XP
   </span>
 </h2>
+<!-- 🔹 VS SUB TABS -->
+<div class="vs-subtabs">
+  <button class="vs-subtab active" data-tab="play">▶️ Play</button>
+  <button class="vs-subtab" data-tab="history">📚 Game History</button>
+</div>
+
 
   <div id="vsGameResult" class="vs-result hidden"></div>
 
+<div class="vs-tab-content active" id="vs-tab-play">
 
   <!-- board + clock + controls will go here -->
 <div class="card" style="margin-top:16px;">
@@ -13234,7 +13372,7 @@ body {
     <h4>🤖 Select your BOT</h4>
     <select id="engineSelect">
       <option value="ares">Ares Blaster</option>
-      <option value="athena">OlyBot</option>
+      <option value="Oly">OlyBot</option>
     </select>
 
     <h4>🎯 Difficulty</h4>
@@ -13276,10 +13414,16 @@ body {
 </div>
 
 
-
+</div>
 
 
 </div>
+<div class="vs-tab-content" id="vs-tab-history">
+  <div class="vs-history-grid" id="vsHistoryGrid">
+    <!-- mini boards injected here -->
+  </div>
+</div>
+
 
 
 <div class="section" id="puzzlerush-section">
@@ -16236,7 +16380,7 @@ voice: "bot/voices/ares.mp3"
 
   },
 
-  athena: {
+  Oly: {
     name: "Olybot",
     image: "bots/ultra.png",
     gibberish: [
@@ -16638,25 +16782,7 @@ function showVsResult(text, type) {
   el.className = `vs-result ${type}`;
 }
 
-function endGameWhiteWins(reason = "resign") {
-  gameOver = true;
 
-  // Stop further moves
-  if (computerBoard) {
-    computerBoard.draggable = false;
-  }
-
-  // Show result banner
-  const resultBox = document.createElement("div");
-  resultBox.className = "vs-result white";
-  resultBox.textContent = "🏆 You played well!";
-  document.querySelector("#computer-section").prepend(resultBox);
-
-  // 🔊 play random loser sound
-  playRandomLoserSound();
-
-  console.log("GAME OVER:", reason);
-}
 
 
 function clearVsResult() {
@@ -16768,28 +16894,67 @@ function checkVsGameEnd() {
       // 🏆 PLAYER WIN
       showVsBotResultModal("win");
       grantVsComputerXP();
+
+      // ✅ SAVE GAME (WIN)
+      saveVsBotGame({
+        result: "win",
+        pgn: vsChess.pgn()
+      });
+
     } else {
       // 💥 PLAYER LOSE
       showVsBotResultModal("lose");
+      // 🔊 play loser sound
+  playRandomLoserSound();
+
+      // ✅ SAVE GAME (LOSS)
+      saveVsBotGame({
+        result: "loss",
+        pgn: vsChess.pgn()
+      });
     }
 
   } else {
     // 🤝 DRAW
     showVsBotResultModal("draw");
     grantVsComputerDrawXP();
+
+    // ✅ SAVE GAME (DRAW)
+    saveVsBotGame({
+      result: "draw",
+      pgn: vsChess.pgn()
+    });
   }
 }
 
 
 
 
+
 document.getElementById("resignBtn")?.addEventListener("click", () => {
-  if (gameOver) return;
+  if (!vsGameActive) return;
 
-  
+  // ⛔ hard stop the game
+  vsGameActive = false;
+  clearInterval(clockInterval);
 
-  endGameWhiteWins("resign");
+  // ❌ block further moves
+  if (vsBoard) {
+    vsBoard.draggable = false;
+  }
+
+  // 💥 treat resign as LOSS
+  showVsBotResultModal("lose");
+  // 🔊 play loser sound
+  playRandomLoserSound();
+
+  // 💾 save resigned game
+  saveVsBotGame({
+    result: "loss",
+    pgn: vsChess.pgn()
+  });
 });
+
 
 
 document.getElementById("studentDetailsModal").addEventListener("click", (e) => {
@@ -22771,13 +22936,46 @@ if (miniError) throw miniError;
 
 
     // ✅ FINAL RENDER
-    renderStudentModal(profile, attempts || [], miniScores || []);
+   const vsBotSummary = await loadVsBotSummary(studentId);
+
+renderStudentModal(
+  profile,
+  attempts || [],
+  miniScores || [],
+  vsBotSummary
+);
+
   } catch (err) {
     console.error(err);
     document.getElementById("studentModalBody").innerHTML =
       `<p style="color:#ff6b6b;">Failed to load student data</p>`;
   }
 }
+
+// ===============================
+// 🤖 VS BOT RESULT SUMMARY (ISOLATED)
+// ===============================
+async function loadVsBotSummary(studentId) {
+  const { data, error } = await supabase
+    .from("vs_bot_games")
+    .select("result")
+    .eq("student_id", studentId);
+
+  if (error || !data) {
+    return { win: 0, draw: 0, loss: 0 };
+  }
+
+  const summary = { win: 0, draw: 0, loss: 0 };
+
+  data.forEach(row => {
+    if (row.result === "win") summary.win++;
+    if (row.result === "draw") summary.draw++;
+    if (row.result === "loss") summary.loss++;
+  });
+
+  return summary;
+}
+
 
 function getUnlockedAchievementCount(studentId) {
   try {
@@ -23961,7 +24159,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-function renderStudentModal(profile, attempts, miniScores = []) {
+function renderStudentModal(profile, attempts, miniScores, vsBotSummary) {
+
 
   const ratings = calculateRatings(profile); // ✅ ADD THIS
 
@@ -24007,6 +24206,14 @@ if (miniScores.length === 0) {
     `;
   });
 }
+const botStatsHTML = `
+  <h4>🤖 VS Bot Results</h4>
+  <p>
+    🏆 Wins: <strong>${vsBotSummary.win}</strong> |
+    🤝 Draws: <strong>${vsBotSummary.draw}</strong> |
+    💥 Losses: <strong>${vsBotSummary.loss}</strong>
+  </p>
+`;
 
 
   let html = `
@@ -24046,10 +24253,11 @@ if (miniScores.length === 0) {
       <hr>
 
       ${miniGameHTML}
+      
 
 <hr>
-
-      
+${botStatsHTML}
+  <hr>    
 
       <h4>📚 Assignment History</h4>
   `;
@@ -31159,6 +31367,8 @@ y += 30;
 
   y += 10;
 
+  
+
   /* ================= ASSIGNMENT HISTORY ================= */
   pdf.setFont("courier", "bold");
   pdf.setFontSize(14);
@@ -31207,6 +31417,29 @@ y += 30;
   });
 
   y += 10;
+
+  /* ================= VS BOT RESULTS ================= */
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.text("VS BOT RESULTS", 15, y);
+y += 8;
+
+pdf.setFont("courier", "normal");
+pdf.setFontSize(12);
+
+// Extract VS Bot stats from modal text
+let botLine = lines.find(l => l.includes("Wins:") && l.includes("Losses"));
+
+if (botLine) {
+  pdf.text(botLine, 18, y);
+  y += 8;
+} else {
+  pdf.text("No VS Bot games played yet.", 18, y);
+  y += 8;
+}
+
+y += 6;
+
 
   /* ================= COACH REMARKS ================= */
   if (y > 235) {
@@ -31292,6 +31525,18 @@ window.generateStudentCertificatePDF = function () {
     eloRating = eloMatch[1];
   }
 
+  /* ================= EXTRACT VS BOT RESULTS ================= */
+let vsBotSummary = "No VS Bot games recorded";
+
+const vsMatch = bodyText.match(
+  /Wins:\s*(\d+)\s*\|\s*Draws:\s*(\d+)\s*\|\s*Losses:\s*(\d+)/i
+);
+
+if (vsMatch) {
+  vsBotSummary = `VS Bot — Wins: ${vsMatch[1]}, Draws: ${vsMatch[2]}, Losses: ${vsMatch[3]}`;
+}
+
+
   /* ================= META ================= */
   const tier = currentStudentTier || "STUDENT";
   const today = new Date().toLocaleDateString();
@@ -31343,6 +31588,11 @@ window.generateStudentCertificatePDF = function () {
   pdf.setFont("times", "normal");
   pdf.setFontSize(16);
   pdf.text(`ELO Rating: ${eloRating}`, 148, 152, { align: "center" });
+
+  pdf.setFont("times", "normal");
+pdf.setFontSize(14);
+pdf.text(vsBotSummary, 148, 160, { align: "center" });
+
 
   /* ================= SIGNATURE ================= */
   pdf.setLineWidth(0.5);
@@ -36947,6 +37197,223 @@ document.addEventListener("click", (e) => {
 
 
 
+document.querySelectorAll(".vs-subtab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".vs-subtab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".vs-tab-content").forEach(t => t.classList.remove("active"));
+
+    btn.classList.add("active");
+    document.getElementById("vs-tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+
+
+async function loadVsBotHistory() {
+  const { data, error } = await supabase
+    .from("vs_bot_games")
+    .select("id, pgn, result, student_name, bot_name, difficulty, created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const grid = document.getElementById("vsHistoryGrid");
+  grid.innerHTML = "";
+
+  data.forEach(game => {
+    // ♟️ Build final position from PGN
+    const replayChess = new Chess();
+    replayChess.load_pgn(game.pgn);
+    const finalFen = replayChess.fen();
+
+    const card = document.createElement("div");
+    card.className = "vs-history-card";
+
+    card.innerHTML = `
+      <div class="vs-mini-board" id="mini-${game.id}"></div>
+
+      <div class="vs-history-meta">
+        <div class="vs-history-player">${game.student_name}</div>
+        <div class="vs-history-bot">
+          vs ${game.bot_name} (${game.difficulty})
+        </div>
+        <div class="vs-history-result ${game.result}">
+          ${game.result.toUpperCase()}
+        </div>
+      </div>
+    `;
+
+    card.onclick = () => openVsReplay(game.pgn);
+
+    grid.appendChild(card);
+
+    Chessboard(`mini-${game.id}`, {
+      position: finalFen,               // ✅ FINAL POSITION
+      pieceTheme: getPieceThemePath(currentPieceTheme),
+      draggable: false,
+      showNotation: false
+    });
+  });
+}
+
+
+// ===============================
+// VS BOT HISTORY — ISOLATED MODULE
+// ===============================
+
+(async function VSBotHistory() {
+  const grid = document.getElementById("vsHistoryGrid");
+  if (!grid) return;
+
+  // 🔒 READ-ONLY FETCH
+  const { data, error } = await supabase
+    .from("vs_bot_games")
+    .select("id, student_name, bot_name, difficulty, result, pgn")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error || !data) {
+    console.warn("VS history load failed");
+    return;
+  }
+
+  data.forEach(game => {
+    const card = document.createElement("div");
+    card.className = "vs-history-card";
+
+    const boardDiv = document.createElement("div");
+    boardDiv.className = "vs-history-board";
+    boardDiv.id = `mini-${game.id}`;
+
+    const meta = document.createElement("div");
+    meta.className = "vs-history-meta";
+    meta.innerHTML = `
+      ${game.student_name}<br>
+      vs ${game.bot_name}<br>
+      <b>${game.result}</b>
+    `;
+
+    card.appendChild(boardDiv);
+    card.appendChild(meta);
+    grid.appendChild(card);
+
+    // ♟️ MINI BOARD (STATIC)
+    Chessboard(boardDiv.id, {
+      position: "start",
+      draggable: false,
+      showNotation: false
+    });
+
+    // 🧠 CLICK → OPEN REPLAY (NEXT STEP)
+    card.onclick = () => {
+      openVsReplay(game);
+    };
+  });
+})();
+
+
+document.querySelector('[data-tab="history"]').addEventListener("click", loadVsBotHistory);
+
+
+
+
+
+
+
+// ===============================
+// ♟ VS BOT REPLAY LOGIC (ISOLATED)
+// ===============================
+
+let vsReplayBoard = null;
+let vsReplayChess = null;
+let vsReplayMoves = [];
+let vsReplayIndex = 0;
+let vsReplayPGN = "";
+
+function openVsReplay(pgn) {
+  vsReplayPGN = pgn;
+  vsReplayChess = new Chess();
+  vsReplayChess.load_pgn(pgn);
+
+  vsReplayMoves = vsReplayChess.history({ verbose: true });
+  vsReplayIndex = 0;
+
+  vsReplayChess.reset();
+
+  if (!vsReplayBoard) {
+    vsReplayBoard = Chessboard("vsReplayBoard", {
+      position: "start",
+      draggable: false,
+      showNotation: false,
+       pieceTheme: getPieceThemePath(currentPieceTheme) // 🔥 REQUIRED
+    });
+  } else {
+    vsReplayBoard.position("start");
+  }
+
+  updateVsReplayUI();
+  document.getElementById("vsReplayModal").classList.remove("hidden");
+}
+
+function updateVsReplayUI() {
+  const counter = document.getElementById("vsMoveCounter");
+  counter.textContent = `${vsReplayIndex} / ${vsReplayMoves.length}`;
+  vsReplayBoard.position(vsReplayChess.fen());
+}
+
+// ▶ Next
+document.getElementById("vsNextMove").onclick = () => {
+  if (vsReplayIndex >= vsReplayMoves.length) return;
+  vsReplayChess.move(vsReplayMoves[vsReplayIndex]);
+  vsReplayIndex++;
+  updateVsReplayUI();
+};
+
+// ◀ Prev
+document.getElementById("vsPrevMove").onclick = () => {
+  if (vsReplayIndex <= 0) return;
+  vsReplayChess.undo();
+  vsReplayIndex--;
+  updateVsReplayUI();
+};
+
+// ❌ Close
+document.getElementById("closeVsReplay").onclick = () => {
+  document.getElementById("vsReplayModal").classList.add("hidden");
+};
+
+// 📋 Copy PGN
+document.getElementById("vsCopyReplayPGN").onclick = async () => {
+  await navigator.clipboard.writeText(vsReplayPGN);
+};
+
+
+async function saveVsBotGame({ result, pgn }) {
+  if (!currentProfile) return;
+
+  const payload = {
+    student_id: currentProfile.id,
+    student_name: currentProfile.username, // ✅ REQUIRED
+    bot_name: document.getElementById("engineSelect")?.value || "Ares Blaster",
+    difficulty: parseInt(document.getElementById("engineLevel")?.value || 0),
+    result,
+    pgn
+  };
+
+  const { error } = await supabase
+    .from("vs_bot_games")
+    .insert(payload);
+
+  if (error) {
+    console.error("❌ Failed to save vs bot game:", error);
+  }
+}
+
+
 
 
 
@@ -37352,6 +37819,29 @@ document.addEventListener("click", (e) => {
 
 
 
+<!-- ♟ VS BOT REPLAY MODAL -->
+<div id="vsReplayModal" class="vs-replay-modal hidden">
+  <div class="vs-replay-card">
+
+    <div class="vs-replay-header">
+      <span>♟ Game Replay</span>
+      <button id="closeVsReplay" class="btn-danger">✕</button>
+    </div>
+
+    <div id="vsReplayBoard" class="vs-replay-board"></div>
+
+    <div class="vs-replay-controls">
+      <button id="vsPrevMove" class="btn-secondary">◀ Prev</button>
+      <span id="vsMoveCounter">0 / 0</span>
+      <button id="vsNextMove" class="btn-secondary">Next ▶</button>
+    </div>
+
+    <div class="vs-replay-actions">
+      <button id="vsCopyReplayPGN" class="btn-secondary">📋 Copy PGN</button>
+    </div>
+
+  </div>
+</div>
 
 
 
@@ -37546,7 +38036,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
