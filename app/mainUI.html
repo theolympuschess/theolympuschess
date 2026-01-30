@@ -20729,6 +20729,8 @@ function initVsComputerBoard() {
 },
 
 
+
+
     onDrop: (source, target) => {
 
   // 🔁 Detect promotion square BEFORE move
@@ -20757,9 +20759,16 @@ function initVsComputerBoard() {
 
   
   afterVsPlayerMove(move);
+},
+
+// ✅ FIX CASTLING ROOK STUCK ISSUE (PASTE HERE)
+onSnapEnd: () => {
+  vsBoard.position(vsChess.fen());
 }
 
+
   });
+  
 }
 
 window.completeVsPromotion = function (piece) {
@@ -20787,10 +20796,14 @@ window.completeVsPromotion = function (piece) {
 
 
 function afterVsPlayerMove(move) {
+  if (!move) return;
 
-  checkVsGameEnd();
+  // ✅ 1. IMMEDIATE board sync (FIXES CASTLING ROOK ISSUE)
+ 
+
+  // ✅ 2. UI updates
   updateVsMoveList();
-
+  checkVsGameEnd();
 
   // 🔊 PLAYER SOUND
   if (move.flags.includes("k") || move.flags.includes("q")) {
@@ -20803,40 +20816,29 @@ function afterVsPlayerMove(move) {
     playSound("move");
   }
 
-  // 🤖 BOT REACTION
-  const studentMoved =
-    (vsPlayerColor === "white" && move.color === "w") ||
-    (vsPlayerColor === "black" && move.color === "b");
-
-  if (studentMoved) {
-    if (vsChess.in_check()) {
-      botReact("check");
-      playBotCheckSounds();
-    } else if (move.captured) {
-      botReact("capture");
-      playBotCaptureSounds();
-    }
+  // 🤖 BOT REACTION (visual/sound only)
+  if (vsChess.in_check()) {
+    botReact("check");
+    playBotCheckSounds();
+  } else if (move.captured) {
+    botReact("capture");
+    playBotCaptureSounds();
   }
 
-  // 🤖 ENGINE MOVE
+  // 🛑 STOP white clock
+  clearInterval(clockInterval);
+
+  // 🤖 3. SEND POSITION + GO (THIS IS THE CORRECT PLACE)
   if (vsEngine && vsEngineConfig && vsGameActive) {
     vsEngine.postMessage(`position fen ${vsChess.fen()}`);
     vsEngine.postMessage(
       `go depth ${vsEngineConfig.depth} movetime ${vsEngineConfig.time}`
     );
-
-    engineThinking = true;
-    clearInterval(clockInterval);
-
-    clockInterval = setInterval(() => {
-      if (!vsGameActive) return;
-      if (blackTime > 0) {
-        blackTime--;
-        updateClockUI();
-      }
-    }, 1000);
+    
   }
+  
 }
+
 
 
 function initVsEngine() {
