@@ -15132,6 +15132,12 @@ async function grantPuzzleBattleXP() {
     .eq("id", currentProfile.id);
 
   console.log("🏆 Puzzle Battle XP granted:", XP);
+    // 🪟 MODAL — XP CONFIRM
+  BattleModal.show(
+    "✨ XP Earned",
+    "Your win has been recorded and XP added successfully!"
+  );
+
 }
 
 
@@ -35868,6 +35874,7 @@ if (row.status === "finished" && row.result) {
 
   if (row.result === "draw") {
     showBattleResultUI("Draw!");
+    
   } else if (row.winner_id === currentUser.id) {
     showBattleResultUI("You Win!");
   } else {
@@ -36002,6 +36009,12 @@ async function declareBattleDraw() {
   }
 
   showBattleResultUI("Draw!");
+  // 🪟 MODAL — DRAW RESULT
+BattleModal.show(
+  "🤝 It’s a Draw!",
+  "🌟 Both of you played great!"
+);
+
 }
 
 function showBattleResultUI(text) {
@@ -36216,6 +36229,14 @@ async function declareBattleWinner(winner) {
 
   // 🖥️ Show UI locally
   showBattleResultUI(youWon ? "You Win!" : "Opponent Wins!");
+    // 🪟 MODAL — MATCH RESULT
+  BattleModal.show(
+    "⚔️ Battle Finished",
+    youWon
+      ? "🌟 Awesome job! You played brilliantly!"
+       : "💪 Great effort! Keep practicing!"
+  );
+
 
   // 🏆 XP — ONLY FOR WINNER
   if (youWon) {
@@ -36452,6 +36473,39 @@ function playBattleWrongSound() {
 }
 
 
+// ===============================
+// 🪟 BATTLE MODAL CONTROLLER (ISOLATED FOR YOUR HTML)
+// ===============================
+const BattleModal = (() => {
+  const overlay = document.getElementById("floatingModal");
+  const title = document.getElementById("modalTitle");
+  const body = document.getElementById("modalBody");
+  const btn = document.getElementById("modalOkBtn");
+
+  if (!overlay || !title || !body || !btn) {
+    console.warn("⚠️ BattleModal DOM not found");
+    return { show: () => {} };
+  }
+
+  let locked = false; // prevents double-fire
+
+  const show = (t, m) => {
+    if (locked) return;
+    locked = true;
+
+    title.textContent = t;
+    body.textContent = m;
+
+    overlay.classList.remove("hidden");
+
+    btn.onclick = () => {
+      overlay.classList.add("hidden");
+      locked = false;
+    };
+  };
+
+  return { show };
+})();
 
 
 
