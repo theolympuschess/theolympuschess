@@ -20142,6 +20142,10 @@ function updateClockUI() {
 }
 
 
+// ===============================
+// VS COMPUTER PROMOTION STATE
+// ===============================
+let vsPendingPromotion = null; // { from, to }
 
 
 function initVsComputerBoard() {
@@ -20178,89 +20182,112 @@ function initVsComputerBoard() {
 
 
     onDrop: (source, target) => {
-      const move = vsChess.move({
-        from: source,
-        to: target,
-        promotion: "q"
-        
-      });
-      
 
-      if (!move) return "snapback";
-      // ✅ CHECK GAME END IMMEDIATELY
-      
-  checkVsGameEnd();
-      
-      
-      // 🔊 PLAYER MOVE SOUND
-if (move.flags.includes('k') || move.flags.includes('q')) {
-  playSound('castle');
-} else if (move.san.includes('+')) {
-  playSound('check');
-} else if (move.captured) {
-  playSound('capture');
-} else {
-  playSound('move');
-}
-// 🤖 BOT REACTION (TEXT ONLY, NO SOUND)
-const studentMoved =
-  (vsPlayerColor === "white" && move.color === "w") ||
-  (vsPlayerColor === "black" && move.color === "b");
-  if (studentMoved) {
-  // 🔊 PRIORITY: CHECK > CAPTURE
-  if (vsChess.in_check()) {
-    botReact("check");        // existing gibberish
-    playBotCheckSounds();     // ✅ ADD THIS
-  } else if (move.captured) {
-    botReact("capture");     // existing gibberish
-    playBotCaptureSounds();   // ✅ ADD THIS
+  // 🔁 Detect promotion square BEFORE move
+  const piece = vsChess.get(source);
+  const isPromotion =
+    piece &&
+    piece.type === "p" &&
+    ((piece.color === "w" && target[1] === "8") ||
+     (piece.color === "b" && target[1] === "1"));
+
+  // 🛑 HOLD MOVE → SHOW VS PROMOTION MODAL
+  if (isPromotion) {
+    vsPendingPromotion = { from: source, to: target };
+    document.getElementById("vsPromotionModal").classList.remove("hidden");
+    return;
   }
+
+  // ✅ NORMAL MOVE
+  const move = vsChess.move({
+    from: source,
+    to: target,
+    promotion: "q"
+  });
+
+  if (!move) return "snapback";
+
+  
+  afterVsPlayerMove(move);
 }
 
-
-
-
-      // engine move will come later (STEP 4)
-
-      // 🤖 engine turn
-if (vsEngine && vsEngineConfig) {
-  vsEngine.postMessage(`position fen ${vsChess.fen()}`);
-  vsEngine.postMessage(
-    `go depth ${vsEngineConfig.depth} movetime ${vsEngineConfig.time}`
-  );
-  // 🧠 ENGINE TURN → START BLACK CLOCK (GUARANTEED)
-engineThinking = true;
-
-clearInterval(clockInterval);
-clockInterval = setInterval(() => {
-  if (!vsGameActive) return;
-
-  if (blackTime > 0) {
-    blackTime--;
-    updateClockUI();
-  }
-}, 1000);
-
-
-  // ⏱ START BLACK CLOCK (ENGINE THINKING)
-  clearInterval(clockInterval);
-  engineThinking = true;
-
-  clockInterval = setInterval(() => {
-    if (!vsGameActive) return;
-
-    if (blackTime > 0) {
-      blackTime--;
-      updateClockUI();
-    }
-  }, 1000);
-}
-
-
-
-    }
   });
 }
+
+window.completeVsPromotion = function (piece) {
+  if (!vsPendingPromotion) return;
+
+  const { from, to } = vsPendingPromotion;
+
+  const move = vsChess.move({
+    from,
+    to,
+    promotion: piece
+  });
+
+  vsPendingPromotion = null;
+  document.getElementById("vsPromotionModal").classList.add("hidden");
+
+  if (!move) {
+    vsBoard.position(vsChess.fen());
+    return;
+  }
+
+  vsBoard.position(vsChess.fen());
+  afterVsPlayerMove(move);
+};
+
+
+function afterVsPlayerMove(move) {
+
+  checkVsGameEnd();
+
+  // 🔊 PLAYER SOUND
+  if (move.flags.includes("k") || move.flags.includes("q")) {
+    playSound("castle");
+  } else if (move.san.includes("+")) {
+    playSound("check");
+  } else if (move.captured) {
+    playSound("capture");
+  } else {
+    playSound("move");
+  }
+
+  // 🤖 BOT REACTION
+  const studentMoved =
+    (vsPlayerColor === "white" && move.color === "w") ||
+    (vsPlayerColor === "black" && move.color === "b");
+
+  if (studentMoved) {
+    if (vsChess.in_check()) {
+      botReact("check");
+      playBotCheckSounds();
+    } else if (move.captured) {
+      botReact("capture");
+      playBotCaptureSounds();
+    }
+  }
+
+  // 🤖 ENGINE MOVE
+  if (vsEngine && vsEngineConfig && vsGameActive) {
+    vsEngine.postMessage(`position fen ${vsChess.fen()}`);
+    vsEngine.postMessage(
+      `go depth ${vsEngineConfig.depth} movetime ${vsEngineConfig.time}`
+    );
+
+    engineThinking = true;
+    clearInterval(clockInterval);
+
+    clockInterval = setInterval(() => {
+      if (!vsGameActive) return;
+      if (blackTime > 0) {
+        blackTime--;
+        updateClockUI();
+      }
+    }, 1000);
+  }
+}
+
 
 function initVsEngine() {
   if (vsEngine) return;
@@ -36561,6 +36588,17 @@ const BattleModal = (() => {
     <button onclick="completePromotion('n')">♘</button>
   </div>
 </div>
+
+<!-- VS COMPUTER PROMOTION MODAL (ISOLATED) -->
+<div id="vsPromotionModal" class="promotion-modal hidden">
+  <div class="promotion-box">
+    <button onclick="completeVsPromotion('q')">♕</button>
+    <button onclick="completeVsPromotion('r')">♖</button>
+    <button onclick="completeVsPromotion('b')">♗</button>
+    <button onclick="completeVsPromotion('n')">♘</button>
+  </div>
+</div>
+
 
 <!-- Attempt Details Modal -->
 <div id="attemptDetailsModal" class="modal-overlay hidden">
