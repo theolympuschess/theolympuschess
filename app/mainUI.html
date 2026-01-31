@@ -12244,6 +12244,25 @@ body {
 
 
 
+/* ===============================
+   USER ONLINE STATUS DOT
+=============================== */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-dot.online {
+  background: #2ecc71; /* green */
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.8);
+}
+
+.status-dot.offline {
+  background: #7f8c8d; /* grey */
+}
 
 
 
@@ -35749,6 +35768,11 @@ document.addEventListener('DOMContentLoaded', () => {
 let unreadBroadcast = 0
 let unreadPrivate = 0
 const userCache = {}   // { userId: username }
+// ===============================
+// ONLINE PRESENCE STATE
+// ===============================
+const onlineUsers = new Set() // userIds currently online
+
 
 
 const bubbleBadge = document.getElementById('chatBubbleBadge')
@@ -35820,6 +35844,49 @@ async function initChat() {
   =============================== */
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
+
+// ===============================
+// SUPABASE REALTIME PRESENCE (FIXED)
+// ===============================
+const presenceChannel = supabase.channel('online-users', {
+  config: {
+    presence: {
+      key: user.id
+    }
+  }
+})
+
+function refreshOnlineUsers() {
+  const state = presenceChannel.presenceState()
+
+  onlineUsers.clear()
+
+  Object.values(state).forEach(list => {
+    list.forEach(p => {
+      onlineUsers.add(p.user_id)
+    })
+  })
+
+  loadUsers() // always re-render
+}
+
+// 🔁 Presence events
+presenceChannel.on('presence', { event: 'sync' }, refreshOnlineUsers)
+presenceChannel.on('presence', { event: 'join' }, refreshOnlineUsers)
+presenceChannel.on('presence', { event: 'leave' }, refreshOnlineUsers)
+
+// ✅ SUBSCRIBE FIRST, THEN TRACK
+await presenceChannel.subscribe(status => {
+  if (status === 'SUBSCRIBED') {
+    presenceChannel.track({
+      user_id: user.id,
+      ts: Date.now()
+    })
+  }
+})
+
+
+
 
   let currentMode = 'global'      // global | private
   let activeReceiver = null
@@ -35941,10 +36008,16 @@ async function loadUsers() {
    const count = userUnreadMap[p.id] || 0
 div.classList.add('user-row')
 
+const isOnline = onlineUsers.has(p.id)
+
 div.innerHTML = `
-  <span>${p.username}</span>
+  <span class="user-name">
+    <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>
+    ${p.username}
+  </span>
   ${count > 0 ? `<span class="unread-badge">${count}</span>` : ''}
 `
+
 
 
 
