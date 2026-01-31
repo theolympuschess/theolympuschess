@@ -22940,12 +22940,14 @@ if (miniError) throw miniError;
 
     // ✅ FINAL RENDER
    const vsBotSummary = await loadVsBotSummary(studentId);
+   const liveMatchSummary = await loadLiveMatchSummary(studentId);
 
 renderStudentModal(
   profile,
   attempts || [],
   miniScores || [],
-  vsBotSummary
+  vsBotSummary,
+  liveMatchSummary
 );
 
   } catch (err) {
@@ -22978,6 +22980,96 @@ async function loadVsBotSummary(studentId) {
 
   return summary;
 }
+
+// ===============================
+// ♟️ LIVE MATCH SUMMARY (PVP)
+// ===============================
+// ===============================
+// ♟️ LIVE MATCH SUMMARY (ID + NAME FALLBACK)
+// ===============================
+// ===============================
+// ♟️ LIVE MATCH SUMMARY (ID BASED)
+// ===============================
+// ===============================
+// ♟️ LIVE MATCH SUMMARY (ID + DEBUG + FALLBACK)
+// ===============================
+async function loadLiveMatchSummary(studentId) {
+  try {
+    console.log("🔍 Summary check studentId:", studentId);
+
+    // Get username for fallback
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", studentId)
+      .single();
+
+    const username = profile?.username?.toLowerCase();
+    console.log("🔍 Username fallback:", username);
+
+    const { data, error } = await supabase
+      .from("live_match_archive")
+      .select("winner, white_id, black_id, white_name, black_name");
+
+    if (error || !data) {
+      console.warn("❌ Archive read failed", error);
+      return { total: 0, win: 0, draw: 0, loss: 0 };
+    }
+
+    const summary = {
+      total: 0,
+      win: 0,
+      draw: 0,
+      loss: 0
+    };
+
+    data.forEach(game => {
+      let isPlayer = false;
+      let studentSide = null;
+
+      // ID match (preferred)
+      if (game.white_id === studentId) {
+        isPlayer = true;
+        studentSide = "w";
+      } else if (game.black_id === studentId) {
+        isPlayer = true;
+        studentSide = "b";
+      }
+
+      // Name fallback
+      if (!isPlayer && username) {
+        if (game.white_name?.toLowerCase() === username) {
+          isPlayer = true;
+          studentSide = "w";
+        } else if (game.black_name?.toLowerCase() === username) {
+          isPlayer = true;
+          studentSide = "b";
+        }
+      }
+
+      if (!isPlayer) return;
+
+      summary.total++;
+
+      if (game.winner === "draw") {
+        summary.draw++;
+      } else if (game.winner === studentSide) {
+        summary.win++;
+      } else {
+        summary.loss++;
+      }
+    });
+
+    console.log("📊 Live match summary result:", summary);
+    return summary;
+  } catch (e) {
+    console.warn("Live match summary crash:", e.message);
+    return { total: 0, win: 0, draw: 0, loss: 0 };
+  }
+}
+
+
+
 
 
 function getUnlockedAchievementCount(studentId) {
@@ -24162,7 +24254,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-function renderStudentModal(profile, attempts, miniScores, vsBotSummary) {
+function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary) {
+
 
 
   const ratings = calculateRatings(profile); // ✅ ADD THIS
@@ -24217,6 +24310,15 @@ const botStatsHTML = `
     💥 Losses: <strong>${vsBotSummary.loss}</strong>
   </p>
 `;
+const liveMatchHTML = `
+  <h4>♟️ Live Match Results</h4>
+  <p>
+    🕹️ Total: <strong>${liveMatchSummary.total}</strong> |
+    🏆 Wins: <strong>${liveMatchSummary.win}</strong> |
+    🤝 Draws: <strong>${liveMatchSummary.draw}</strong> |
+    ❌ Losses: <strong>${liveMatchSummary.loss}</strong>
+  </p>
+`;
 
 
   let html = `
@@ -24260,7 +24362,10 @@ const botStatsHTML = `
 
 <hr>
 ${botStatsHTML}
-  <hr>    
+<hr>
+${liveMatchHTML}
+<hr>
+    
 
       <h4>📚 Assignment History</h4>
   `;
@@ -31443,6 +31548,50 @@ if (botLine) {
 
 y += 6;
 
+/* ================= LIVE MATCH RESULTS ================= */
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.text("LIVE MATCH RESULTS", 15, y);
+y += 8;
+
+pdf.setFont("courier", "normal");
+pdf.setFontSize(12);
+
+// Find Live Match section range in modal text
+const liveIndex = lines.findIndex(l =>
+  l.toUpperCase().includes("LIVE MATCH RESULTS")
+);
+
+const nextSectionIndex = lines.findIndex(
+  (l, i) => i > liveIndex && l.toUpperCase().includes("ASSIGNMENT HISTORY")
+);
+
+// Extract only the Live Match lines
+const liveLines =
+  liveIndex !== -1
+    ? lines.slice(
+        liveIndex + 1,
+        nextSectionIndex !== -1 ? nextSectionIndex : liveIndex + 5
+      )
+    : [];
+
+// Print cleanly
+if (liveLines.length) {
+  liveLines.forEach(l => {
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
+    }
+    pdf.text(l, 18, y);
+    y += 7;
+  });
+} else {
+  pdf.text("No live matches played yet.", 18, y);
+  y += 8;
+}
+
+y += 10;
+
 
   /* ================= COACH REMARKS ================= */
   if (y > 235) {
@@ -31590,11 +31739,9 @@ if (vsMatch) {
 
   pdf.setFont("times", "normal");
   pdf.setFontSize(16);
-  pdf.text(`ELO Rating: ${eloRating}`, 148, 152, { align: "center" });
+  pdf.text(`Olympus ELO Rating: ${eloRating}`, 148, 152, { align: "center" });
 
-  pdf.setFont("times", "normal");
-pdf.setFontSize(14);
-pdf.text(vsBotSummary, 148, 160, { align: "center" });
+
 
 
   /* ================= SIGNATURE ================= */
@@ -34319,26 +34466,68 @@ mpFlipBtn.onclick = () => {
 
 async function mpArchiveSaveGame() {
   try {
-    if (!roomId || !lastFen) return
+    console.log("📦 Archive called", { roomId, lastFen });
 
-    const white = mpWhiteName
-const black = mpBlackName
+    if (!lastFen) {
+      console.warn("❌ Archive aborted: no lastFen");
+      return;
+    }
 
+    // 1️⃣ BASE INSERT — NEVER FAILS
+    const basePayload = {
+      room_code: mpRoomCode.textContent || roomId || "unknown",
+      white_name: mpWhiteName,
+      black_name: mpBlackName,
+      pgn: lastPgn || "",
+      final_fen: lastFen,
+      winner: mySide // "w" | "b" | "draw"
+    };
 
-    await supabase
-      .from('live_match_archive')
-      .insert({
-        room_code: mpRoomCode.textContent || roomId, // human or fallback
-        white_name: white,
-        black_name: black,
-        pgn: lastPgn || '',
-        final_fen: lastFen,
-        winner: mySide
+    const { data: inserted, error: insertError } = await supabase
+      .from("live_match_archive")
+      .insert(basePayload)
+      .select("id")
+      .single();
+
+    if (insertError || !inserted) {
+      console.error("❌ BASE ARCHIVE INSERT FAILED:", insertError);
+      return;
+    }
+
+    console.log("✅ Archive base saved:", inserted.id);
+
+    // 2️⃣ TRY TO ENRICH WITH IDS (NON-FATAL)
+    if (!roomId) return;
+
+    const { data: room, error: roomError } = await supabase
+      .from("live_match_rooms")
+      .select("white_id, black_id, fen")
+      .eq("id", roomId)
+      .single();
+
+    console.log("📥 Room fetch:", { room, roomError });
+
+    if (!room) return;
+
+    const { error: updateError } = await supabase
+      .from("live_match_archive")
+      .update({
+        white_id: room.white_id || null,
+        black_id: room.black_id || null,
+        start_fen: room.fen || null
       })
+      .eq("id", inserted.id);
+
+    if (updateError) {
+      console.warn("⚠️ Archive enrich failed:", updateError);
+    } else {
+      console.log("🔗 Archive enriched with IDs");
+    }
   } catch (e) {
-    console.warn('Archive save skipped:', e.message)
+    console.error("💥 Archive crash:", e.message);
   }
 }
+
 
 
 async function mpLoadArchive() {
@@ -38065,7 +38254,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
