@@ -33738,6 +33738,9 @@ async function loadGameLeaderboard(gameKey) {
 
 let mpChess = new Chess()
 let mpBoard = null
+let mpWhiteName = 'White'
+let mpBlackName = 'Black'
+
 let mySide = null
 let roomId = null
 let channel = null
@@ -34318,8 +34321,9 @@ async function mpArchiveSaveGame() {
   try {
     if (!roomId || !lastFen) return
 
-    const white = document.getElementById('mpYouName')?.textContent || 'White'
-    const black = document.getElementById('mpOppName')?.textContent || 'Black'
+    const white = mpWhiteName
+const black = mpBlackName
+
 
     await supabase
       .from('live_match_archive')
@@ -34968,8 +34972,10 @@ mpBoard.position(data.fen, false)
 mpCreateBtn.onclick = async () => {
   liveMatchXPGranted = false
 
+  const myName = currentProfile?.username || 'Player'
+
   const [base, inc] = mpTime.value.split('|').map(Number)
-  const code = genRoomCode()
+  const code = genRoomCode()   // ✅ MUST be before supabase call
 
   const { data, error } = await supabase
     .from('live_match_rooms')
@@ -34982,8 +34988,12 @@ mpCreateBtn.onclick = async () => {
       b_time: base,
       status: 'waiting',
       creator_side: mpSideSelect.value,
-    white_id: mpSideSelect.value === 'w' ? 'host' : null,
-    black_id: mpSideSelect.value === 'b' ? 'host' : null
+
+      white_id: mpSideSelect.value === 'w' ? 'host' : null,
+      black_id: mpSideSelect.value === 'b' ? 'host' : null,
+
+      white_name: mpSideSelect.value === 'w' ? myName : null,
+      black_name: mpSideSelect.value === 'b' ? myName : null
     })
     .select()
     .single()
@@ -35021,7 +35031,7 @@ updateMpPlayerLabels()
 
 mpJoinBtn.onclick = async () => {
   liveMatchXPGranted = false
-
+const myName = currentProfile?.username || 'Player'
   const code = mpJoinCode.value.trim().toUpperCase()
   if (!code) return
 
@@ -35057,14 +35067,21 @@ updateMpPlayerLabels()
 
   mpChess.load(data.fen)
 
-  await supabase
-    .from('live_match_rooms')
-    .update({
-      status: 'playing',
-       white_id: mySide === 'w' ? 'student' : data.white_id,
-    black_id: mySide === 'b' ? 'student' : data.black_id
-    })
-    .eq('id', roomId)
+  
+
+await supabase
+  .from('live_match_rooms')
+  .update({
+    status: 'playing',
+
+    white_id: mySide === 'w' ? 'student' : data.white_id,
+    black_id: mySide === 'b' ? 'student' : data.black_id,
+
+    white_name: mySide === 'w' ? myName : data.white_name,
+    black_name: mySide === 'b' ? myName : data.black_name
+  })
+  .eq('id', roomId)
+
 
 
     lastFen = mpChess.fen()
@@ -35120,28 +35137,35 @@ mpFenCreateBtn.onclick = async () => {
   // ===============================
   // CREATE SERVER ROOM
   // ===============================
+  const myName = currentProfile?.username || 'Player'
+
   const { data, error } = await supabase
     .from('live_match_rooms')
     .insert({
-      room_code: code,
-      base_time: base,
-      increment: inc,
+  room_code: code,
+  base_time: base,
+  increment: inc,
 
-      fen: fen,
-      pgn: '',
-      turn: serverTurn,
+  fen: fen,
+  pgn: '',
+  turn: serverTurn,
 
-      w_time: base,
-      b_time: base,
+  w_time: base,
+  b_time: base,
 
-      status: 'waiting',
-      creator_side: mpSideSelect.value,
+  status: 'waiting',
+  creator_side: mpSideSelect.value,
 
-      white_id: mpSideSelect.value === 'w' ? 'host' : null,
-      black_id: mpSideSelect.value === 'b' ? 'host' : null,
+  white_id: mpSideSelect.value === 'w' ? 'host' : null,
+  black_id: mpSideSelect.value === 'b' ? 'host' : null,
 
-      updated_at: new Date().toISOString()
-    })
+  // ✅ THIS IS THE FIX
+  white_name: mpSideSelect.value === 'w' ? myName : null,
+  black_name: mpSideSelect.value === 'b' ? myName : null,
+
+  updated_at: new Date().toISOString()
+})
+
     .select()
     .single()
 
@@ -35192,6 +35216,10 @@ function subscribeRoom() {
       },
       payload => {
         const row = payload.new
+        // 🔒 authoritative player names from server
+mpWhiteName = row.white_name || 'White'
+mpBlackName = row.black_name || 'Black'
+
         if (!row || !row.fen) return
         // 🏆 XP HOOK — fires for ALL win types (mate, resign, time)
 grantLiveMatchXPIfWinner(row)
@@ -38039,6 +38067,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
