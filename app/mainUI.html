@@ -12284,6 +12284,16 @@ body {
 
 
 
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -12900,6 +12910,8 @@ body {
   <div class="mp-subtabs">
     <button id="mpTabLive" class="mp-subtab active">♟ Live</button>
     <button id="mpTabArchive" class="mp-subtab">📚 All Games</button>
+    <button id="mpTabWatch" class="mp-subtab">👁 Watch Live</button>
+
   </div>
 
   <!-- ================= LIVE PANEL ================= -->
@@ -13031,10 +13043,17 @@ body {
       </div>
 
     </div>
+    
   </div>
+  
 
 </div>
 
+<div id="mpWatchPanel" style="display:none;">
+  <div id="mpWatchGrid" class="mp-archive-grid">
+    Loading live games...
+  </div>
+</div>
 
 
 
@@ -37728,13 +37747,155 @@ async function saveVsBotGame({ result, pgn }) {
 
 
 
+mpTabWatch.onclick = () => {
+  const isOpen = mpWatchPanel.style.display === 'block'
+
+  // 🔴 reset all tabs
+  mpTabWatch.classList.remove('active')
+  mpTabLive.classList.remove('active')
+  mpTabArchive.classList.remove('active')
+
+  mpLivePanel.style.display = 'none'
+  mpArchivePanel.style.display = 'none'
+  mpWatchPanel.style.display = 'none'
+
+  // 🟢 toggle watch panel
+  if (!isOpen) {
+    mpTabWatch.classList.add('active')
+    mpWatchPanel.style.display = 'block'
+    mpLoadLiveSpectatorGames()
+  }
+}
 
 
 
 
+async function mpLoadLiveSpectatorGames() {
+  const grid = document.getElementById('mpWatchGrid')
+
+  // 🔥 HARD RESET FIRST (KEY FIX)
+  mpClearSpectatorState()
+
+  const fiveMinutesAgo = new Date(
+  Date.now() - 5 * 60 * 1000
+).toISOString()
+
+const { data, error } = await supabase
+  .from('live_match_rooms')
+  .select(`
+    id,
+    fen,
+    white_name,
+    black_name,
+    updated_at
+  `)
+  .eq('status', 'playing')
+  .gte('updated_at', fiveMinutesAgo) // 🔥 KEY LINE
+  .order('updated_at', { ascending: false })
+
+
+  // 🚫 NO LIVE GAMES
+  if (error || !data || data.length === 0) {
+    grid.innerHTML = `
+      <div style="opacity:0.6; padding:12px">
+        No live games running right now
+      </div>
+    `
+    return
+  }
+
+  // ✅ BUILD LIVE CARDS ONLY
+  data.forEach(room => {
+    const card = document.createElement('div')
+    card.className = 'mp-archive-card'
+
+    const boardDiv = document.createElement('div')
+    boardDiv.style.height = '120px'
+
+    const names = document.createElement('div')
+    names.className = 'mp-archive-names'
+    names.textContent =
+      `${room.white_name || 'White'} vs ${room.black_name || 'Black'}`
+
+    card.appendChild(boardDiv)
+    card.appendChild(names)
+    grid.appendChild(card)
+
+    Chessboard(boardDiv, {
+      position: room.fen,
+      draggable: false,
+      pieceTheme: getPieceThemePath(currentPieceTheme)
+    })
+
+    card.onclick = () => mpOpenSpectator(room.id)
+  })
+}
 
 
 
+
+let spectatorChannel = null
+let spectatorBoard = null
+
+function mpOpenSpectator(roomId) {
+ mpClearSpectatorState()   // 🔥 PREVENT OLD GAME BLEED
+  mpShowModal('Spectating', '👁 Watching live game')
+
+  if (!spectatorBoard) {
+    spectatorBoard = Chessboard('mpBoard', {
+      position: 'start',
+      draggable: false,
+      pieceTheme: getPieceThemePath(currentPieceTheme)
+    })
+  }
+
+  if (spectatorChannel) {
+    supabase.removeChannel(spectatorChannel)
+  }
+
+  spectatorChannel = supabase
+    .channel(`spectator-${roomId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'live_match_rooms',
+        filter: `id=eq.${roomId}`
+      },
+      payload => {
+        const row = payload.new
+        if (!row?.fen) return
+
+        spectatorBoard.position(row.fen, true)
+        mpMovesBox.textContent = row.pgn || ''
+      }
+    )
+    .subscribe()
+}
+
+
+function mpClearSpectatorState() {
+  // Clear grid
+  const grid = document.getElementById('mpWatchGrid')
+  if (grid) grid.innerHTML = ''
+
+  // Stop realtime
+  if (spectatorChannel) {
+    supabase.removeChannel(spectatorChannel)
+    spectatorChannel = null
+  }
+
+  // Clear spectator board
+  if (spectatorBoard) {
+    spectatorBoard.position('start', false)
+  }
+
+  // Clear moves
+  if (mpMovesBox) {
+    mpMovesBox.textContent = ''
+  }
+}
 
 
 
