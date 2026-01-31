@@ -35833,6 +35833,8 @@ async function initChat() {
   const input = document.getElementById('chatInput')
   const messagesBox = document.getElementById('chatMessages')
   const usersBox = document.getElementById('chatUsers')
+  const chatHeaderTitle = document.getElementById('chatHeaderTitle')
+
   const tabs = document.querySelectorAll('.chat-tab')
   const contentBox = document.getElementById('chatContent') // 👈 SCROLL CONTAINER
 
@@ -35855,6 +35857,15 @@ const presenceChannel = supabase.channel('online-users', {
     }
   }
 })
+
+function setChatTitle(username = null) {
+  if (!chatHeaderTitle) return
+
+  chatHeaderTitle.textContent = username
+    ? `💬 Olympus Chat — ${username}`
+    : '💬 Olympus Chat'
+}
+
 
 function refreshOnlineUsers() {
   const state = presenceChannel.presenceState()
@@ -35958,6 +35969,10 @@ tabs.forEach(tab => {
     tabs.forEach(t => t.classList.remove('active'))
     tab.classList.add('active')
 
+    // 🔁 RESET HEADER TITLE
+    setChatTitle(null)
+
+
     if (tab.dataset.tab === 'users') {
       currentMode = 'private'
       activeReceiver = null
@@ -36035,6 +36050,8 @@ div.innerHTML = `
   markPrivateAsRead(p.id)   // 👈 HERE
 
   activeReceiver = p.id
+  setChatTitle(p.username)
+
   usersBox.classList.add('chat-hidden')
   messagesBox.classList.remove('chat-hidden')
 
@@ -38154,9 +38171,10 @@ async function saveVsBotGame({ result, pgn }) {
 
 <div id="chatWindow" class="chat-hidden">
   <div id="chatHeader">
-    <span>💬 Olympus Chat</span>
-    <button id="chatMinimize">–</button>
-  </div>
+  <span id="chatHeaderTitle">💬 Olympus Chat</span>
+  <button id="chatMinimize">–</button>
+</div>
+
 
   <div id="chatTabs">
     <button class="chat-tab active" data-tab="global">
@@ -38332,7 +38350,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
