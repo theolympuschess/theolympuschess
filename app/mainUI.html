@@ -37913,7 +37913,7 @@ watchGridChannels.forEach(ch => supabase.removeChannel(ch));
 watchGridChannels = [];
 
   const grid = document.getElementById('mpWatchGrid')
-  mpClearSpectatorState()
+  
 const gridLastFen = {}
 
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
@@ -37964,66 +37964,117 @@ const allGames = [
   ...(botGames || []).map(g => ({ ...g, type: 'bot' }))
 ].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
+// 🧹 STEP 6: REMOVE FINISHED GAMES FROM UI (PIN-POINT LOCATION)
+const activeIds = new Set(allGames.map(g => g.id));
 
+Object.keys(liveBoards).forEach(id => {
+  if (!activeIds.has(id)) {
 
-  if (allGames.length === 0) {
-    grid.innerHTML = `<div style="opacity:.6;padding:12px">No live games running right now</div>`
-    return
+    // stop realtime channel
+    if (liveChannels[id]) {
+      supabase.removeChannel(liveChannels[id]);
+    }
+
+    // remove DOM card
+    liveCards[id]?.remove();
+
+    // cleanup memory
+    delete liveBoards[id];
+    delete liveChannels[id];
+    delete liveLastFen[id];
+    delete liveCards[id];
   }
+});
+
+
+// 🧹 HANDLE "NO LIVE GAMES" MESSAGE CORRECTLY
+const emptyMsgId = 'mpNoLiveMsg';
+
+// remove old message if exists
+const oldMsg = document.getElementById(emptyMsgId);
+if (oldMsg) oldMsg.remove();
+
+if (allGames.length === 0) {
+  const msg = document.createElement('div');
+  msg.id = emptyMsgId;
+  msg.style.opacity = '.6';
+  msg.style.padding = '12px';
+  msg.textContent = 'No live games running right now';
+  grid.appendChild(msg);
+  return;
+}
+
+
+  
 
   allGames.forEach(game => {
-    const card = document.createElement('div')
-    card.className = 'mp-archive-card'
+    // 🚫 STEP 3: PREVENT DUPLICATE BOARD CREATION
+if (liveBoards[game.id]) {
+  return; // board already exists → DO NOTHING
+}
 
-    const boardDiv = document.createElement('div')
-    boardDiv.className = 'mp-watch-board'
+    // 🔹 CREATE CARD ONCE
+const card = document.createElement('div');
+card.className = 'mp-archive-card';
+card.id = `live-card-${game.id}`;
 
-    const names = document.createElement('div')
-    names.className = 'mp-archive-names'
+const boardDiv = document.createElement('div');
+boardDiv.className = 'mp-watch-board';
 
-    names.textContent =
-      game.type === 'pvp'
-        ? `${game.white_name} vs ${game.black_name}`
-        : `${game.student_name} vs ${game.bot_name} (BOT)`
+const names = document.createElement('div');
+names.className = 'mp-archive-names';
+names.textContent =
+  game.type === 'pvp'
+    ? `${game.white_name} vs ${game.black_name}`
+    : `${game.student_name} vs ${game.bot_name} (BOT)`;
 
-    card.appendChild(boardDiv)
-    card.appendChild(names)
-    grid.appendChild(card)
+card.appendChild(boardDiv);
+card.appendChild(names);
+grid.appendChild(card);
 
-    const board = Chessboard(boardDiv, {
-      position: game.fen,
-      draggable: false,
-      pieceTheme: getPieceThemePath(currentPieceTheme)
-    })
+// ♟ CREATE CHESSBOARD **ONCE**
+const board = Chessboard(boardDiv, {
+  position: game.fen,
+  draggable: false,
+  pieceTheme: getPieceThemePath(currentPieceTheme)
+});
+
+// 🔐 STORE REFERENCES
+liveBoards[game.id] = board;
+liveLastFen[game.id] = game.fen;
+liveCards[game.id] = card;
+
 // 🔐 remember initial position
 gridLastFen[game.id] = game.fen
 
     // 🔴 REALTIME UPDATE
-    const channel = supabase
-      .channel(`watch-${game.type}-${game.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: game.type === 'pvp'
-            ? 'live_match_rooms'
-            : 'vs_bot_live_games',
-          filter: `id=eq.${game.id}`
-        },
-      payload => {
-  const newFen = payload.new?.fen
-  if (!newFen) return
+    liveChannels[game.id] = supabase
+  .channel(`live-${game.type}-${game.id}`)
+  .on(
+    'postgres_changes',
+    {
+      event: 'UPDATE',
+      schema: 'public',
+      table: game.type === 'pvp'
+        ? 'live_match_rooms'
+        : 'vs_bot_live_games',
+      filter: `id=eq.${game.id}`
+    },
+    payload => {
+      const newFen = payload.new?.fen;
+      if (!newFen) return;
 
-  // 🚫 skip duplicate FEN
-  if (gridLastFen[game.id] === newFen) return
+      // 🚫 SAME POSITION → NO UPDATE
+      if (liveLastFen[game.id] === newFen) return;
 
-  gridLastFen[game.id] = newFen
-  board.position(newFen, true) // ✅ animated move
-}
+      liveLastFen[game.id] = newFen;
 
-      )
-      .subscribe()
+      // ✅ SMOOTH MOVE (NO FLASH)
+      liveBoards[game.id].position(newFen, true);
+    }
+  )
+  .subscribe();
+
       watchGridChannels.push(channel); // 🔥 REQUIRED
 
     card.onclick = () => {
@@ -38033,12 +38084,55 @@ gridLastFen[game.id] = game.fen
   })
 }
 
+function startLiveWatchAutoRefresh() {
+  // 🔒 avoid duplicate subscriptions
+  if (liveWatchAutoChannel) return;
+
+  liveWatchAutoChannel = supabase
+    .channel('live-watch-auto-refresh')
+
+    // 🟢 PVP games: insert / update / finish
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'live_match_rooms' },
+      () => {
+        if (mpWatchPanel.style.display === 'block') {
+          mpLoadLiveSpectatorGames();
+        }
+      }
+    )
+
+    // 🤖 BOT games: insert / update / finish
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'vs_bot_live_games' },
+      () => {
+        if (mpWatchPanel.style.display === 'block') {
+          mpLoadLiveSpectatorGames();
+        }
+      }
+    )
+    .subscribe();
+}
 
 
 
 
 let spectatorChannel = null
 let spectatorBoard = null
+// ===============================
+// 🔴 AUTO LIVE WATCH LISTENER
+// ===============================
+let liveWatchAutoChannel = null;
+// ===============================
+// 🔴 LIVE WATCH GLOBAL STATE
+// ===============================
+const liveBoards = {};      // gameId -> Chessboard instance
+const liveLastFen = {};     // gameId -> last fen
+const liveCards = {};      // gameId -> DOM card
+const liveChannels = {};   // gameId -> Supabase channel
+
+
 let watchGridChannels = [];
 
 let spectatorLastFen = null;
@@ -38121,6 +38215,13 @@ if (spectatorChannel) {
     mpMovesBox.textContent = ''
   }
 }
+
+
+// 🔥 START LIVE WATCH AUTO MODE (GLOBAL, ONCE)
+startLiveWatchAutoRefresh();
+
+
+
 
 
 
