@@ -12272,7 +12272,6 @@ body {
 }
 
 
-
 /* ===============================
    WATCH LIVE GRID (IMPORTANT)
 ================================ */
@@ -12283,6 +12282,7 @@ body {
   gap: 20px;
   width: 100%;
 }
+
 
 
 
@@ -12922,9 +12922,9 @@ body {
 
   <!-- SUB TABS -->
   <div class="mp-subtabs">
-    <button id="mpTabLive" class="mp-subtab active">♟ Live</button>
+    <button id="mpTabLive" class="mp-subtab active">♟ Create Game</button>
     <button id="mpTabArchive" class="mp-subtab">📚 All Games</button>
-    <button id="mpTabWatch" class="mp-subtab">👁 Watch Live</button>
+    <button id="mpTabWatch" class="mp-subtab">🟢 Watch Live</button>
 
   </div>
 
@@ -13070,6 +13070,7 @@ body {
   </div>
 
 </div>
+
 
 
 
@@ -16274,7 +16275,8 @@ function updateEnginePosition() {
 }
 
 
-document.getElementById("startVsComputer").addEventListener("click", () => {
+document.getElementById("startVsComputer").addEventListener("click", async () => {
+
   clearVsResult(); // 🔥 clear old "White wins / Black wins"
   initVsEngine();
   initVsComputerBoard();
@@ -16309,7 +16311,39 @@ document.getElementById("startVsComputer").addEventListener("click", () => {
   vsPlayerColor = playerColor;
 
   // reset game
-  vsChess.reset();
+  // reset game
+vsChess.reset();
+
+// 🧹 FORCE-FINISH ANY OLD BOT LIVE GAMES (🔥 PUT IT HERE)
+// 🧹 FINISH ONLY THIS STUDENT'S OLD BOT GAME (SAFE)
+await supabase
+  .from('vs_bot_live_games')
+  .update({ status: 'finished' })
+  .eq('student_id', currentProfile.id)
+  .eq('status', 'playing');
+
+
+// 🔴 CREATE NEW BOT LIVE GAME
+const { data, error } = await supabase
+  .from('vs_bot_live_games')
+  .insert({
+    student_id: currentProfile.id,
+    student_name: currentProfile.username,
+    bot_name: document.getElementById("engineSelect")?.value || "Ares Blaster",
+    difficulty: parseInt(document.getElementById("engineLevel")?.value || 0),
+    fen: vsChess.fen(),
+    pgn: '',
+    status: 'playing',
+    updated_at: new Date().toISOString()
+  })
+  .select()
+  .single();
+
+if (!error && data) {
+  vsBotLiveGameId = data.id;
+}
+
+
 
   // set board orientation
   vsBoard.orientation(playerColor);
@@ -16403,6 +16437,8 @@ let quizActive = false;
 let vsChess = null;
 let vsBoard = null;
 let vsGameActive = false;
+
+
 let whiteTime = 0;
 let blackTime = 0;
 let clockInterval = null;
@@ -16772,6 +16808,7 @@ document.getElementById("takeBackBtn").addEventListener("click", () => {
 
   // ♟ sync board
   vsBoard.position(vsChess.fen());
+  
 
   // ▶️ restart correct clock
   if (vsPlayerColor === "white") {
@@ -16797,6 +16834,9 @@ document.addEventListener("click", () => {
 // 🤖 VS COMPUTER ENGINE
 // ===============================
 let vsEngine = null;
+window.vsBotLiveGameId = null;
+ // 🔴 REQUIRED FOR LIVE SPECTATOR
+
 let vsEngineConfig = null;
 // ⏱ BOT MOVE DELAY (3 seconds)
 const BOT_MOVE_DELAY = 2000;
@@ -16934,7 +16974,7 @@ document.getElementById("clearVsPGN")?.addEventListener("click", () => {
 });
 
 
-function checkVsGameEnd() {
+async function checkVsGameEnd() {
   if (!vsChess.game_over()) return;
 
   vsGameActive = false;
@@ -16950,7 +16990,7 @@ function checkVsGameEnd() {
       grantVsComputerXP();
 
       // ✅ SAVE GAME (WIN)
-      saveVsBotGame({
+      await saveVsBotGame({
         result: "win",
         pgn: vsChess.pgn()
       });
@@ -16958,11 +16998,10 @@ function checkVsGameEnd() {
     } else {
       // 💥 PLAYER LOSE
       showVsBotResultModal("lose");
-      // 🔊 play loser sound
-  playRandomLoserSound();
+      playRandomLoserSound();
 
       // ✅ SAVE GAME (LOSS)
-      saveVsBotGame({
+      await saveVsBotGame({
         result: "loss",
         pgn: vsChess.pgn()
       });
@@ -16974,10 +17013,21 @@ function checkVsGameEnd() {
     grantVsComputerDrawXP();
 
     // ✅ SAVE GAME (DRAW)
-    saveVsBotGame({
+    await saveVsBotGame({
       result: "draw",
       pgn: vsChess.pgn()
     });
+  }
+
+  // 🧹 REMOVE FROM LIVE SPECTATOR TAB (CRITICAL)
+ if (window.vsBotLiveGameId) {
+    const finishedId = vsBotLiveGameId; // 🔒 freeze id
+  vsBotLiveGameId = null;       
+    await supabase
+      .from('vs_bot_live_games')
+      .update({ status: 'finished' })
+      .eq('id', vsBotLiveGameId);
+     
   }
 }
 
@@ -20819,6 +20869,7 @@ function initVsComputerBoard() {
 // ✅ FIX CASTLING ROOK STUCK ISSUE (PASTE HERE)
 onSnapEnd: () => {
   vsBoard.position(vsChess.fen());
+  
 }
 
 
@@ -20850,7 +20901,8 @@ window.completeVsPromotion = function (piece) {
 };
 
 
-function afterVsPlayerMove(move) {
+async function afterVsPlayerMove(move) {
+
   if (!move) return;
 
   // ✅ 1. IMMEDIATE board sync (FIXES CASTLING ROOK ISSUE)
@@ -20882,6 +20934,20 @@ function afterVsPlayerMove(move) {
 
   // 🛑 STOP white clock
   clearInterval(clockInterval);
+  // 🔴 LIVE UPDATE — PLAYER MOVE (FOR SPECTATOR)
+// 🔴 LIVE UPDATE — PLAYER MOVE (CRITICAL)
+if (vsBotLiveGameId) {
+  await supabase
+    .from('vs_bot_live_games')
+    .update({
+      fen: vsChess.fen(),        // 🔥 FULL FEN
+      pgn: vsChess.pgn(),        // 🔥 PGN AFTER PLAYER MOVE
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', vsBotLiveGameId);
+}
+
+
 
   // 🤖 3. SEND POSITION + GO (THIS IS THE CORRECT PLACE)
   if (vsEngine && vsEngineConfig && vsGameActive) {
@@ -20980,6 +21046,21 @@ else {
 
   // ✅ SYNC BOARD
   vsBoard.position(vsChess.fen());
+  // 🔴 LIVE UPDATE — ENGINE MOVE (FOR SPECTATOR)
+// 🔴 LIVE UPDATE — ENGINE MOVE (DELAYED FOR SPECTATOR ANIMATION)
+if (window.vsBotLiveGameId) {
+  setTimeout(async () => {
+    await supabase
+      .from('vs_bot_live_games')
+      .update({
+        fen: vsChess.fen(),
+        pgn: vsChess.pgn(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', vsBotLiveGameId);
+  }, 400); // 🔥 300–500ms is ideal
+}
+
   checkVsGameEnd();
   updateVsMoveList();
 
@@ -21019,7 +21100,7 @@ function playBotCaptureSound() {
 
 
 
-function resetVsComputerGame() {
+async function resetVsComputerGame() {
   vsComputerXPGranted = false; // 🔁 RESET XP FLAG
 
   clearVsResult();
@@ -21044,7 +21125,6 @@ function resetVsComputerGame() {
   }
   updateVsMoveList();
 
-
   // 4. Reset board UI
   if (vsBoard) {
     vsBoard.position("start", false);
@@ -21054,9 +21134,20 @@ function resetVsComputerGame() {
   document.getElementById("whiteClock").textContent = "05:00";
   document.getElementById("blackClock").textContent = "05:00";
 
-  // 6. Optional: visual feedback
+  // 🧹 6. REMOVE FROM LIVE SPECTATOR (CRITICAL)
+  if (window.vsBotLiveGameId) {
+    const finishedId = window.vsBotLiveGameId;
+    window.vsBotLiveGameId = null; // 🔥 clear immediately
+
+    await supabase
+      .from('vs_bot_live_games')
+      .update({ status: 'finished' })
+      .eq('id', finishedId);
+  }
+
   console.log("✅ VS Computer fully reset");
 }
+
 
 
 function updatePuzzleRushUI() {
@@ -21085,6 +21176,32 @@ function resetPuzzleRushState() {
   updatePuzzleRushUI();
 }
 
+async function createVsBotLiveGame() {
+  if (!currentProfile) return;
+
+  const { data, error } = await supabase
+    .from('vs_bot_live_games')
+    .insert({
+      student_id: currentProfile.id,
+      student_name: currentProfile.username,
+      bot_name: document.getElementById("engineSelect")?.value || "Ares Blaster",
+      difficulty: parseInt(document.getElementById("engineLevel")?.value || 0),
+      fen: vsChess.fen(),               // start position
+      pgn: '',
+      status: 'playing',
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("❌ Failed to create VS Bot live game", error);
+    return;
+  }
+
+  vsBotLiveGameId = data.id;
+  console.log("🟢 VS Bot live game created:", vsBotLiveGameId);
+}
 
 
 
@@ -37763,6 +37880,7 @@ async function saveVsBotGame({ result, pgn }) {
   }
 }
 
+window.DEBUG_BOT = true;
 
 
 mpTabWatch.onclick = () => {
@@ -37782,6 +37900,7 @@ mpTabWatch.onclick = () => {
     mpTabWatch.classList.add('active')
     mpWatchPanel.style.display = 'block'
     mpLoadLiveSpectatorGames()
+     
   }
 }
 
@@ -37789,135 +37908,195 @@ mpTabWatch.onclick = () => {
 
 
 async function mpLoadLiveSpectatorGames() {
+// 🔥 STOP ALL PREVIOUS GRID REALTIME CHANNELS
+watchGridChannels.forEach(ch => supabase.removeChannel(ch));
+watchGridChannels = [];
+
   const grid = document.getElementById('mpWatchGrid')
-
-  // 🔥 HARD RESET FIRST (KEY FIX)
   mpClearSpectatorState()
+const gridLastFen = {}
 
-  const fiveMinutesAgo = new Date(
-  Date.now() - 5 * 60 * 1000
-).toISOString()
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-const { data, error } = await supabase
-  .from('live_match_rooms')
-  .select(`
-    id,
-    fen,
-    white_name,
-    black_name,
-    updated_at
-  `)
-  .eq('status', 'playing')
-  .gte('updated_at', fiveMinutesAgo) // 🔥 KEY LINE
-  .order('updated_at', { ascending: false })
+  // 🔵 1. LOAD PVP LIVE GAMES
+  const { data: pvpGames } = await supabase
+    .from('live_match_rooms')
+    .select(`
+      id,
+      fen,
+      pgn,
+      white_name,
+      black_name,
+      updated_at
+    `)
+    .eq('status', 'playing')
+    .gte('updated_at', fiveMinutesAgo)
+
+  // 🟣 2. LOAD VS BOT LIVE GAMES
+  const { data: botGames } = await supabase
+    .from('vs_bot_live_games')
+    .select(`
+      id,
+      fen,
+      pgn,
+      student_name,
+      bot_name,
+      difficulty,
+      updated_at
+    `)
+    .eq('status', 'playing')
+    .gte('updated_at', fiveMinutesAgo)
+    // 🔍 DEBUG — HOW MANY BOT GAMES ARE LIVE
+console.log('🤖 LIVE BOT GAMES COUNT:', botGames?.length, botGames);
+
+// 🟣 KEEP ONLY ONE (LATEST) BOT LIVE GAME
+let latestBotGame = null;
+
+if (botGames && botGames.length > 0) {
+  latestBotGame = botGames.sort(
+    (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+  )[0];
+}
+
+// 🔵 MERGE PVP + SINGLE BOT GAME
+const allGames = [
+  ...(pvpGames || []).map(g => ({ ...g, type: 'pvp' })),
+  ...(botGames || []).map(g => ({ ...g, type: 'bot' }))
+].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
 
-  // 🚫 NO LIVE GAMES
-  if (error || !data || data.length === 0) {
-    grid.innerHTML = `
-      <div style="opacity:0.6; padding:12px">
-        No live games running right now
-      </div>
-    `
+
+  if (allGames.length === 0) {
+    grid.innerHTML = `<div style="opacity:.6;padding:12px">No live games running right now</div>`
     return
   }
 
-  // ✅ BUILD LIVE CARDS ONLY
-  data.forEach(room => {
+  allGames.forEach(game => {
     const card = document.createElement('div')
     card.className = 'mp-archive-card'
 
-   const boardDiv = document.createElement('div')
-boardDiv.className = 'mp-watch-board'
-
+    const boardDiv = document.createElement('div')
+    boardDiv.className = 'mp-watch-board'
 
     const names = document.createElement('div')
     names.className = 'mp-archive-names'
+
     names.textContent =
-      `${room.white_name || 'White'} vs ${room.black_name || 'Black'}`
+      game.type === 'pvp'
+        ? `${game.white_name} vs ${game.black_name}`
+        : `${game.student_name} vs ${game.bot_name} (BOT)`
 
     card.appendChild(boardDiv)
     card.appendChild(names)
     grid.appendChild(card)
 
-   const liveBoard = Chessboard(boardDiv, {
-  position: room.fen,
-  draggable: false,
-  pieceTheme: getPieceThemePath(currentPieceTheme)
-})
+    const board = Chessboard(boardDiv, {
+      position: game.fen,
+      draggable: false,
+      pieceTheme: getPieceThemePath(currentPieceTheme)
+    })
+// 🔐 remember initial position
+gridLastFen[game.id] = game.fen
 
-// 🔴 LIVE UPDATE SUBSCRIPTION FOR GRID BOARD
-const liveChannel = supabase
-  .channel(`watch-grid-${room.id}`)
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'live_match_rooms',
-      filter: `id=eq.${room.id}`
-    },
-    payload => {
-      const row = payload.new
-      if (!row?.fen) return
-      liveBoard.position(row.fen, true)
-    }
-  )
-  .subscribe()
+    // 🔴 REALTIME UPDATE
+    const channel = supabase
+      .channel(`watch-${game.type}-${game.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: game.type === 'pvp'
+            ? 'live_match_rooms'
+            : 'vs_bot_live_games',
+          filter: `id=eq.${game.id}`
+        },
+      payload => {
+  const newFen = payload.new?.fen
+  if (!newFen) return
 
-// 🔥 clean up when clicking card
-card.onclick = () => {
-  supabase.removeChannel(liveChannel)
-  mpOpenSpectator(room.id)
+  // 🚫 skip duplicate FEN
+  if (gridLastFen[game.id] === newFen) return
+
+  gridLastFen[game.id] = newFen
+  board.position(newFen, true) // ✅ animated move
 }
 
+      )
+      .subscribe()
+      watchGridChannels.push(channel); // 🔥 REQUIRED
 
-    card.onclick = () => mpOpenSpectator(room.id)
+    card.onclick = () => {
+      supabase.removeChannel(channel)
+      mpOpenSpectator(game.id, game.type)
+    }
   })
 }
 
 
 
 
+
 let spectatorChannel = null
 let spectatorBoard = null
+let watchGridChannels = [];
 
-function mpOpenSpectator(roomId) {
- mpClearSpectatorState()   // 🔥 PREVENT OLD GAME BLEED
-  mpShowModal('Spectating', '👁 Watching live game')
+let spectatorLastFen = null;
+
+async function mpOpenSpectator(roomId, type) {
+  mpClearSpectatorState();
+  mpShowModal('Spectating', '👁 Watching live game');
 
   if (!spectatorBoard) {
     spectatorBoard = Chessboard('mpBoard', {
       position: 'start',
       draggable: false,
       pieceTheme: getPieceThemePath(currentPieceTheme)
-    })
+    });
+  } else {
+    spectatorBoard.position('start', false);
   }
 
-  if (spectatorChannel) {
-    supabase.removeChannel(spectatorChannel)
+  // 🔥 FETCH CURRENT STATE FIRST (NO ANIMATION)
+  const table = type === 'pvp'
+    ? 'live_match_rooms'
+    : 'vs_bot_live_games';
+
+  const { data } = await supabase
+    .from(table)
+    .select('fen, pgn')
+    .eq('id', roomId)
+    .single();
+
+  if (data?.fen) {
+    spectatorLastFen = data.fen;
+    spectatorBoard.position(data.fen, false); // ⛔ NO animation
+    mpMovesBox.textContent = data.pgn || '';
   }
 
+  // 🔴 REALTIME SUBSCRIPTION (ANIMATED)
   spectatorChannel = supabase
-    .channel(`spectator-${roomId}`)
+    .channel(`spectator-${type}-${roomId}`)
     .on(
       'postgres_changes',
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'live_match_rooms',
+        table,
         filter: `id=eq.${roomId}`
       },
       payload => {
-        const row = payload.new
-        if (!row?.fen) return
+        const newFen = payload.new?.fen;
+        if (!newFen || newFen === spectatorLastFen) return;
 
-        spectatorBoard.position(row.fen, true)
-        mpMovesBox.textContent = row.pgn || ''
+        spectatorLastFen = newFen;
+        spectatorBoard.position(newFen, true); // ✅ animate
+        mpMovesBox.textContent = payload.new.pgn || '';
       }
     )
-    .subscribe()
+    .subscribe();
 }
+
 
 
 function mpClearSpectatorState() {
@@ -37926,10 +38105,11 @@ function mpClearSpectatorState() {
   if (grid) grid.innerHTML = ''
 
   // Stop realtime
-  if (spectatorChannel) {
-    supabase.removeChannel(spectatorChannel)
-    spectatorChannel = null
-  }
+if (spectatorChannel) {
+  supabase.removeChannel(spectatorChannel)
+  spectatorChannel = null
+}
+
 
   // Clear spectator board
   if (spectatorBoard) {
