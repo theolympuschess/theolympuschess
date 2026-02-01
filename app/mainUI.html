@@ -12266,6 +12266,10 @@ body {
 
 
 
+.mp-watch-board {
+  width: 280px;
+  height: 280px;
+}
 
 
 
@@ -34601,6 +34605,8 @@ const boardDiv = document.createElement('div')
 boardDiv.style.height = '120px'
 
 
+
+
 const names = document.createElement('div')
 names.className = 'mp-archive-names'
 names.textContent = `${g.white_name || 'White'} vs ${g.black_name || 'Black'}`
@@ -37809,8 +37815,9 @@ const { data, error } = await supabase
     const card = document.createElement('div')
     card.className = 'mp-archive-card'
 
-    const boardDiv = document.createElement('div')
-    boardDiv.style.height = '120px'
+   const boardDiv = document.createElement('div')
+boardDiv.className = 'mp-watch-board'
+
 
     const names = document.createElement('div')
     names.className = 'mp-archive-names'
@@ -37821,11 +37828,37 @@ const { data, error } = await supabase
     card.appendChild(names)
     grid.appendChild(card)
 
-    Chessboard(boardDiv, {
-      position: room.fen,
-      draggable: false,
-      pieceTheme: getPieceThemePath(currentPieceTheme)
-    })
+   const liveBoard = Chessboard(boardDiv, {
+  position: room.fen,
+  draggable: false,
+  pieceTheme: getPieceThemePath(currentPieceTheme)
+})
+
+// 🔴 LIVE UPDATE SUBSCRIPTION FOR GRID BOARD
+const liveChannel = supabase
+  .channel(`watch-grid-${room.id}`)
+  .on(
+    'postgres_changes',
+    {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'live_match_rooms',
+      filter: `id=eq.${room.id}`
+    },
+    payload => {
+      const row = payload.new
+      if (!row?.fen) return
+      liveBoard.position(row.fen, true)
+    }
+  )
+  .subscribe()
+
+// 🔥 clean up when clicking card
+card.onclick = () => {
+  supabase.removeChannel(liveChannel)
+  mpOpenSpectator(room.id)
+}
+
 
     card.onclick = () => mpOpenSpectator(room.id)
   })
