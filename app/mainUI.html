@@ -10419,6 +10419,8 @@ body.student-view .nav-btn[data-tab="study"] {
   border-radius: 8px;
 }
 
+
+
 /* MOBILE */
 @media (max-width: 768px) {
   .mp-layout {
@@ -12278,6 +12280,14 @@ body {
 
 
 
+
+
+
+
+
+
+
+
 /* =========================================
    📱 MOBILE FIX — PLAY VS OLYMPUS AI
    (LAYOUT ONLY — NO VISIBILITY CONTROL)
@@ -12449,9 +12459,6 @@ body {
 
 }
 
-
-
-
 @media (max-width: 768px) {
 
   /* 🔒 Lock main wrapper height */
@@ -12467,6 +12474,16 @@ body {
     margin-bottom: 16px !important;
   }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -13232,16 +13249,16 @@ body {
     </div>
     
   </div>
-  
-<div id="mpWatchPanel" style="display:none; width:100%;">
+  <div id="mpWatchPanel" style="display:none; width:100%;">
 
   <div id="mpWatchGrid" class="mp-watch-grid">
     <!-- live boards injected here -->
   </div>
 
 </div>
-</div>
 
+
+</div>
 
 
 
@@ -17147,6 +17164,26 @@ document.getElementById("clearVsPGN")?.addEventListener("click", () => {
 });
 
 
+
+async function finishVsBotLiveGame() {
+  if (!window.vsBotLiveGameId) return;
+
+  const finishedId = window.vsBotLiveGameId; // freeze ID
+  window.vsBotLiveGameId = null;              // clear immediately
+
+  try {
+    await supabase
+      .from('vs_bot_live_games')
+      .update({ status: 'finished' })
+      .eq('id', finishedId);
+  } catch (e) {
+    console.error("❌ Failed to finish VS Bot live game", e);
+  }
+}
+
+
+
+
 async function checkVsGameEnd() {
   if (!vsChess.game_over()) return;
 
@@ -17193,22 +17230,16 @@ async function checkVsGameEnd() {
   }
 
   // 🧹 REMOVE FROM LIVE SPECTATOR TAB (CRITICAL)
- if (window.vsBotLiveGameId) {
-    const finishedId = vsBotLiveGameId; // 🔒 freeze id
-  vsBotLiveGameId = null;       
-    await supabase
-      .from('vs_bot_live_games')
-      .update({ status: 'finished' })
-      .eq('id', vsBotLiveGameId);
-     
-  }
+// 🧹 REMOVE FROM LIVE SPECTATOR TAB (LICHESS-STYLE)
+await finishVsBotLiveGame();
+
 }
 
 
 
 
 
-document.getElementById("resignBtn")?.addEventListener("click", () => {
+document.getElementById("resignBtn")?.addEventListener("click", async () => {
   if (!vsGameActive) return;
 
   // ⛔ hard stop the game
@@ -17222,15 +17253,21 @@ document.getElementById("resignBtn")?.addEventListener("click", () => {
 
   // 💥 treat resign as LOSS
   showVsBotResultModal("lose");
-  // 🔊 play loser sound
   playRandomLoserSound();
 
   // 💾 save resigned game
-  saveVsBotGame({
+  await saveVsBotGame({
     result: "loss",
-    pgn: vsChess.pgn()
+    pgn: vsChess.pgn(),
+    resigned: true
   });
+
+  // 🔴 CRITICAL — remove from live spectator IMMEDIATELY
+  await finishVsBotLiveGame();
+
+  console.log("🏳️ Player resigned vs computer");
 });
+
 
 
 
@@ -21308,15 +21345,9 @@ async function resetVsComputerGame() {
   document.getElementById("blackClock").textContent = "05:00";
 
   // 🧹 6. REMOVE FROM LIVE SPECTATOR (CRITICAL)
-  if (window.vsBotLiveGameId) {
-    const finishedId = window.vsBotLiveGameId;
-    window.vsBotLiveGameId = null; // 🔥 clear immediately
+ // 🧹 REMOVE FROM LIVE SPECTATOR (CRITICAL)
+await finishVsBotLiveGame();
 
-    await supabase
-      .from('vs_bot_live_games')
-      .update({ status: 'finished' })
-      .eq('id', finishedId);
-  }
 
   console.log("✅ VS Computer fully reset");
 }
@@ -39011,8 +39042,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
