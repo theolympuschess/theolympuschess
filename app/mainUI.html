@@ -32040,40 +32040,58 @@ y += 30;
   let currentAssignment = "";
 
   lines.forEach(l => {
-    if (
-      !l.startsWith("Submitted") &&
-      !l.startsWith("Time") &&
-      !l.startsWith("Attempts") &&
-      !l.startsWith("Correct") &&
-      !l.startsWith("Incorrect") &&
-      !l.startsWith("Mini") &&
-      !l.startsWith("Achievement")
-    ) {
-      currentAssignment = l;
+
+  // 🟦 Assignment title
+  if (
+    !l.startsWith("Submitted") &&
+    !l.startsWith("Time") &&
+    !l.includes("Attempts:") &&
+    !l.includes("Correct") &&
+    !l.includes("Incorrect") &&
+    !l.includes("Mini") &&
+    !l.includes("Achievement") &&
+    !l.includes("VS BOT") &&
+    !l.includes("LIVE MATCH")
+  ) {
+    currentAssignment = l;
+    return;
+  }
+
+  // 🟩 Submitted line
+  if (l.startsWith("Submitted")) {
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
     }
 
-    if (currentAssignment && !l.startsWith("Submitted")) return;
+    pdf.setFont("courier", "bold");
+    pdf.text(currentAssignment, 18, y);
+    y += 6;
 
-    if (l.startsWith("Submitted")) {
+    pdf.setFont("courier", "normal");
+    pdf.text(l, 22, y);
+    y += 6;
+    return;
+  }
+
+  // 🟨 Time | Attempts | Status line
+  if (l.startsWith("Time")) {
+    const parts = l.split("|").map(p => p.trim());
+
+    parts.forEach(part => {
       if (y > 270) {
         pdf.addPage();
         y = 20;
       }
-
-      pdf.setFont("courier", "bold");
-      pdf.text(currentAssignment, 18, y);
+      pdf.text(part, 22, y);
       y += 6;
+    });
+    return;
+  }
 
-      pdf.setFont("courier", "normal");
-      pdf.text(l, 22, y);
-      y += 6;
-    }
+});
 
-    if (l.startsWith("Time")) {
-      pdf.text(l, 22, y);
-      y += 8;
-    }
-  });
+
 
   y += 10;
 
