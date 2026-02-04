@@ -12477,6 +12477,24 @@ body {
 
 
 
+.bulk-answer {
+  background: linear-gradient(180deg, #242748, #1f2240);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-left: 4px solid #444;
+  font-family: ui-monospace, monospace;
+}
+
+.bulk-answer.correct { border-left-color: #22c55e; }
+.bulk-answer.wrong   { border-left-color: #ef4444; }
+
+.bulk-answer .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #e5e7eb;
+}
 
 
 
@@ -17271,6 +17289,7 @@ document.getElementById("resignBtn")?.addEventListener("click", async () => {
 
 
 
+
 document.getElementById("studentDetailsModal").addEventListener("click", (e) => {
   if (e.target.id === "studentDetailsModal") {
     closeStudentModal();
@@ -17674,11 +17693,15 @@ function playAutoMoveIfNeeded() {
 
     // Assignment system variables
     let expectedMoves = [];
+    // ✅ ADD THIS LINE
+let bulkResults = [];
     let assignmentCursor = 0;
     let assignmentColor = "w";
     let attemptCount = 0;
     let bulkPuzzles = [];
     let bulkIndex = 0;
+   
+
     let pendingDeleteAssignmentId = null;
 
     let soundUnlocked = false;
@@ -20331,6 +20354,19 @@ if (!move) return "snapback";
 if (move.san !== expected.san) {
   attemptCount++;
 
+   // ✅ TRACK PER-PUZZLE ATTEMPTS
+   if (currentAssignment?.is_bulk) {
+    // ✅ CREATE ONLY ON FIRST TOUCH
+    if (!bulkResults[bulkIndex]) {
+      bulkResults[bulkIndex] = {
+        attempted: true,
+        correct: false,
+        attempts: 0
+      };
+    }
+
+    bulkResults[bulkIndex].attempts++;
+  }
   playSound('wrong');
 
   // ❌ No alerts
@@ -20398,6 +20434,18 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 // 🔁 BULK PUZZLE COMPLETION CHECK
 // ================================
 if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
+
+  // ✅ PRESERVE ATTEMPTS, JUST MARK CORRECT
+  if (!bulkResults[bulkIndex]) {
+    bulkResults[bulkIndex] = {
+      attempted: true,
+      attempts: 0
+    };
+  }
+
+  bulkResults[bulkIndex].correct = true;
+  bulkResults[bulkIndex].attempts =
+    bulkResults[bulkIndex].attempts || 1;
 
   bulkIndex++;
 
@@ -20599,12 +20647,19 @@ window.clearAllStudents = function () {
   moveHistory = [];
   pgnCursor = 0;
 
+  // ✅ RESET BULK TRACKING (ONLY FOR BULK)
+  if (currentAssignment?.is_bulk) {
+    bulkResults = [];
+    bulkIndex = 0;
+  }
+
   board.position(chess.fen());
 
   updatePGNViewer();
   renderNotation();
   updateNavigationButtons();
 }
+
 
 
     function checkGameEnd() {
@@ -23291,13 +23346,15 @@ async function loadStudentFullDetails(studentId) {
     const { data: attempts, error: attemptsError } = await supabase
       .from("attempts")
       .select(`
-        id,
-        submitted_at,
-        time_spent,
-        attempt_count,
-        is_correct,
-        assignments ( title )
-      `)
+  id,
+  submitted_at,
+  time_spent,
+  attempt_count,
+  is_correct,
+  bulk_answers,
+  assignments ( title )
+`)
+
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false });
 
@@ -24626,6 +24683,15 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+function getTotalAttemptsForAttempt(attempt) {
+  if (Array.isArray(attempt.bulk_answers)) {
+    return attempt.bulk_answers.reduce(
+      (sum, a) => sum + (a.attempts || 0),
+      0
+    );
+  }
+  return attempt.attempt_count || 1;
+}
 
 
 
@@ -24754,7 +24820,8 @@ ${liveMatchHTML}
           <strong>${a.assignments?.title || "Unknown"}</strong><br>
           Submitted: ${new Date(a.submitted_at).toLocaleString()}<br>
           Time: ${formatTime(a.time_spent || 0)} |
-          Attempts: ${a.attempt_count || 1} |
+         Attempts: ${getTotalAttemptsForAttempt(a)} |
+
           ${a.is_correct ? "✅ Correct" : "❌ Incorrect"}
         </div>
       `;
@@ -26655,6 +26722,8 @@ updateEngineVisibility();
   pgnCursor = 0;
   isNavigationMode = false;
   isPGNLoaded = false;
+ 
+
 
   // Render board
   board.position(chess.fen());
@@ -26690,21 +26759,53 @@ updateEngineVisibility();
   const pgn = chess.pgn();
   const timeSpent = elapsedTime;
   const isComplete = (expectedMoves.length === 0) || (assignmentCursor >= expectedMoves.length);
+    // ================================
+  // 📦 BUILD BULK ANSWERS (ISOLATED)
+  // ================================
+  let bulkAnswers = null;
+
+  if (currentAssignment.is_bulk && bulkPuzzles?.length) {
+    bulkAnswers = bulkPuzzles.map((p, i) => {
+     const result = bulkResults[i];
+
+const r = bulkResults[i];
+
+return {
+  index: i + 1,
+  fen: p.fen,
+  correct_move: p.moves.map(m => m.san).join(" "),
+  student_move: r?.attempted
+    ? p.moves.map(m => m.san).join(" ")
+    : null,
+  attempts: r?.attempts ?? 0,
+  result: r
+    ? (r.correct ? "correct" : "wrong")
+    : "skipped"
+};
+
+
+    });
+  }
+
   
   try {
     const { data, error } = await supabase
-      .from('attempts')
-      .insert([{
-        assignment_id: currentAssignment.id,
-        student_id: currentProfile.id,
-        pgn: pgn,
-        time_spent: timeSpent,
-        is_correct: isComplete,
-        attempt_count: attemptCount || 1,
-        submitted_at: new Date().toISOString()
-      }])
-      .select()
-      .single();
+  .from('attempts')
+  .insert([{
+    assignment_id: currentAssignment.id,
+    student_id: currentProfile.id,
+    pgn: pgn,
+    time_spent: timeSpent,
+    is_correct: isComplete,
+    attempt_count: attemptCount || 1,
+    submitted_at: new Date().toISOString(),
+
+    // ✅ FIXED LINE
+    bulk_answers: bulkAnswers
+  }])
+  .select()
+  .single();
+
 
     if (error) throw error;
 
@@ -27069,6 +27170,57 @@ function openGradeConfirm(title, message, onConfirm) {
 }
 
 
+function renderBulkAnswers(attempt) {
+  const panel = document.getElementById("bulkAnswersPanel");
+  const list  = document.getElementById("bulkAnswersList");
+
+  if (!attempt.bulk_answers || !attempt.bulk_answers.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  list.innerHTML = "";
+
+  attempt.bulk_answers.forEach(a => {
+    const div = document.createElement("div");
+    div.className = `bulk-answer ${a.result}`;
+
+    div.innerHTML = `
+  <div class="row">
+    <strong>#${a.index}</strong>
+    <span>
+      ${
+        a.result === "correct"
+          ? "✅ Correct"
+          : a.result === "wrong"
+          ? "❌ Wrong"
+          : "⚠️ Skipped"
+      }
+    </span>
+  </div>
+
+  <div class="row">
+    <span>Student:</span>
+    <span>${a.student_move || "-"}</span>
+  </div>
+
+  <div class="row">
+    <span>Expected:</span>
+    <span>${a.correct_move}</span>
+  </div>
+
+  <!-- ✅ ADD THIS -->
+  <div class="row">
+    <span>Attempts:</span>
+    <span>${a.attempts ?? 0}</span>
+  </div>
+`;
+
+
+    list.appendChild(div);
+  });
+}
 
 
 
@@ -27120,6 +27272,17 @@ function openGradeConfirm(title, message, onConfirm) {
       }
     }
 
+    function calculateTotalAttempts(attempt) {
+  if (!attempt.bulk_answers || !attempt.bulk_answers.length) {
+    return attempt.attempt_count || 1;
+  }
+
+  return attempt.bulk_answers.reduce((sum, a) => {
+    return sum + (a.attempts || 0);
+  }, 0);
+}
+
+
     window.viewAttempt = async function (attemptId) {
   try {
     const { data: attempt, error } = await supabase
@@ -27138,9 +27301,15 @@ function openGradeConfirm(title, message, onConfirm) {
       <p><strong>Student:</strong> ${attempt.profiles?.username || "Unknown"}</p>
       <p><strong>Submitted:</strong> ${new Date(attempt.submitted_at).toLocaleString()}</p>
       <p><strong>Total Time:</strong> ${formatTime(attempt.time_spent || 0)}</p>
-      <p><strong>Attempts:</strong> ${attempt.attempt_count}</p>
+    <p><strong>Attempts:</strong> ${calculateTotalAttempts(attempt)}</p>
+
       <p><strong>Status:</strong> ${attempt.is_correct ? "✅ Correct" : "❌ Incorrect"}</p>
       <hr>
+      <div id="bulkAnswersPanel" class="hidden">
+  <h4 style="margin-top:12px;color:#ffd700">Bulk PGN – Individual Answers</h4>
+  <div id="bulkAnswersList"></div>
+</div>
+
     `;
 
     // 🔁 BULK ASSIGNMENT DETAILS
@@ -27167,6 +27336,8 @@ function openGradeConfirm(title, message, onConfirm) {
       `Assignment: ${attempt.assignments?.title || "Unknown"}`,
       html
     );
+    // 🔽 NOW the DOM exists — safe to render
+renderBulkAnswers(attempt);
 
   } catch (err) {
     console.error(err);
