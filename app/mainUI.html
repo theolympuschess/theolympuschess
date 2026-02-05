@@ -12498,6 +12498,89 @@ body {
 
 
 
+/* ==============================
+   Welcome Modal (Animated)
+   ============================== */
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99998;
+
+  /* animation base */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s ease;
+}
+
+.welcome-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.welcome-card {
+  background: #1c1f35;
+  color: #ffffff;
+  padding: 26px 30px;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 14px 50px rgba(0,0,0,.55);
+
+  /* entrance animation */
+  transform: scale(.92) translateY(12px);
+  opacity: 0;
+  transition:
+    transform .4s cubic-bezier(.22,1,.36,1),
+    opacity .35s ease;
+}
+
+.welcome-overlay.active .welcome-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+.welcome-card h3 {
+  margin-bottom: 10px;
+  color: #ffd700;
+  font-size: 22px;
+}
+
+.welcome-card p {
+  margin-bottom: 22px;
+  line-height: 1.6;
+  font-size: 15px;
+  opacity: .95;
+}
+
+/* Button animation */
+.welcome-btn {
+  background: #ffd700;
+  color: #101225;
+  border: none;
+  padding: 10px 26px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform .15s ease,
+    box-shadow .15s ease,
+    background .15s ease;
+}
+
+.welcome-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255,215,0,.35);
+}
+
+.welcome-btn:active {
+  transform: scale(.97);
+}
 
 
 
@@ -38618,6 +38701,81 @@ startLiveWatchAutoRefresh();
 
 
 
+/* ==============================
+   Welcome Modal Controller
+   ============================== */
+(function () {
+
+  const modal = document.getElementById("welcomeModal");
+  const title = document.getElementById("welcomeTitle");
+  const body  = document.getElementById("welcomeBody");
+  const okBtn = document.getElementById("welcomeOkBtn");
+
+  if (!modal) return;
+
+  async function openWelcomeWithName() {
+    title.innerHTML = `
+  <div style="font-size:26px; font-weight:800; margin-bottom:6px">
+    Welcome
+  </div>
+  <div style="font-size:23px; font-weight:700; opacity:.95">
+    The Olympus Chess Academy
+  </div>
+`;
+
+
+
+    let studentName = "Student"; // fallback
+
+    try {
+      // 🔐 get logged-in user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 🎓 fetch profile name
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.username) {
+        studentName = profile.username;
+      }
+    } catch (err) {
+      console.warn("Welcome name fetch failed", err);
+    }
+
+    body.innerHTML = `
+  <div style="font-size:18px; font-weight:700; margin-bottom:14px">
+    Hi <span style="font-size:22px; font-weight:800">${studentName}</span> !
+  </div>
+
+  <div style="line-height:1.6; opacity:.95">
+    Train smart. Think deeper.<br>
+    Time is yours!
+  </div>
+`;
+
+
+    modal.classList.add("active");
+  }
+
+  function closeWelcome() {
+    modal.classList.remove("active");
+  }
+
+  okBtn.onclick = closeWelcome;
+
+  // 🚀 show once per session
+  if (!sessionStorage.getItem("welcome_shown")) {
+    openWelcomeWithName();
+    sessionStorage.setItem("welcome_shown", "1");
+  }
+
+})();
+
+
 
 
 
@@ -38671,6 +38829,19 @@ startLiveWatchAutoRefresh();
     <button id="modalOkBtn" class="btn-success">OK</button>
   </div>
 </div>
+
+<!-- ==============================
+     Welcome Student Modal
+     ============================== -->
+<div id="welcomeModal" class="welcome-overlay">
+
+  <div class="welcome-card">
+    <h3 id="welcomeTitle">Welcome</h3>
+    <p id="welcomeBody">Message</p>
+    <button id="welcomeOkBtn" class="welcome-btn">I'm ready!</button>
+  </div>
+</div>
+
 
 <!-- Promotion Modal -->
 <div id="promotionModal" class="promotion-modal hidden">
@@ -39231,6 +39402,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
