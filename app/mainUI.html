@@ -12584,6 +12584,111 @@ body {
 
 
 
+.mini-score-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 12px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mini-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #1c1f35;
+  border: 3px solid #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+}
+
+.mini-student-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mini-student-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffd700;
+  line-height: 1.1;
+}
+
+.mini-student-sub {
+  font-size: 15px;          /* ⬆ bigger */
+  font-weight: 700;         /* bold like a title */
+  color: #ffffff;           /* stronger contrast */
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+
+
+
+/* ================================
+   AVATAR PICKER (ISOLATED)
+================================ */
+
+.avatar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.avatar-box {
+  background: #1c1f35;
+  border-radius: 14px;
+  padding: 18px;
+  width: 360px;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(0,0,0,0.6);
+}
+
+.avatar-box h3 {
+  margin-bottom: 12px;
+  color: #ffd700;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.avatar-grid img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s, border 0.15s;
+}
+
+.avatar-grid img:hover {
+  transform: scale(1.1);
+  border-color: #ffd700;
+}
+
+.avatar-close {
+  background: #ffd700;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+
+
+
+
 
 
 
@@ -12640,13 +12745,22 @@ body {
 <body>
 
 
-<!-- 🏆 FIXED MINI GAME SCORES (LEFT) -->
 <div class="mini-score-fixed">
   <div class="mini-score-panel">
-    <h3>🏆 My Best Scores</h3>
+
+    <!-- STUDENT HEADER -->
+    <div class="mini-score-header">
+      <img id="miniStudentAvatar" class="mini-avatar" src="assets/avatar-default.png" />
+      <div class="mini-student-info">
+        
+        <div class="mini-student-sub">My Best Scores</div>
+      </div>
+    </div>
+
     <div id="miniScoreList">
       <p class="muted">Loading scores...</p>
     </div>
+
   </div>
 </div>
 
@@ -38777,6 +38891,90 @@ startLiveWatchAutoRefresh();
 
 
 
+/* ==================================================
+   STUDENT AVATAR PICKER (NO SUPABASE)
+================================================== */
+(function () {
+
+  const AVATAR_PATH = "assets/targets/";
+
+const AVATARS = [
+  "among.png",
+  "ball.png",
+  "bunny.png",
+  "burger.png",
+  "chocolate.png",
+  "cube.png",
+  "dino.png",
+  "dog.png",
+  "duck.png",
+  "ele.png",
+  "frog.png",
+  "giraffe.png",
+  "lorry.png",
+  "popcorn.png",
+  "robo.png",
+  "smoke.png",
+  "star.png",
+  "truck.png",
+  "unicorn.png",
+  "tweety.png",
+  "horn.png",
+  "pirate.png",
+  "hen.png",
+  "tiger.png"
+];
+
+
+  const avatarImg = document.getElementById("miniStudentAvatar");
+  const overlay = document.getElementById("avatarPickerOverlay");
+  const grid = document.querySelector(".avatar-grid");
+  const closeBtn = document.getElementById("closeAvatarPicker");
+
+  // Load saved avatar
+  const saved = localStorage.getItem("studentAvatar");
+  if (saved && avatarImg) {
+    avatarImg.src = saved;
+  }
+
+  // Open picker on avatar click
+  avatarImg.onclick = () => {
+    overlay.style.display = "flex";
+  };
+
+  // Build avatar grid
+  AVATARS.forEach(file => {
+    const img = document.createElement("img");
+    img.src = AVATAR_PATH + file;
+
+    img.onclick = () => {
+      avatarImg.src = img.src;
+      localStorage.setItem("studentAvatar", img.src);
+      overlay.style.display = "none";
+    };
+
+    grid.appendChild(img);
+  });
+
+  closeBtn.onclick = () => {
+    overlay.style.display = "none";
+  };
+
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -39251,6 +39449,18 @@ startLiveWatchAutoRefresh();
   </div>
 </div>
 
+<!-- AVATAR PICKER MODAL (ISOLATED) -->
+<div id="avatarPickerOverlay" class="avatar-overlay" style="display:none;">
+  <div class="avatar-box">
+    <h3>Choose Your Avatar</h3>
+
+    <div class="avatar-grid">
+      <!-- avatars injected by JS -->
+    </div>
+
+    <button id="closeAvatarPicker" class="avatar-close">Close</button>
+  </div>
+</div>
 
 <!-- ============================= -->
 <!-- GLOBAL FLOATING FEN EDITOR -->
