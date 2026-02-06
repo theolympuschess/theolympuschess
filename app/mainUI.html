@@ -12843,6 +12843,12 @@ body {
   text-shadow: 0 0 8px rgba(213,140,255,0.6);
 }
 
+/* 🟡 Assignments */
+#miniAssignments {
+  color: #ffd166; /* warm gold */
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
+
 
 /* ==============================
    🛑 MINI STATS OVERFLOW FIX
@@ -12913,8 +12919,61 @@ body {
 
 
 
+/* ==============================
+   📊 ADMIN MODAL – INLINE MINI STATS
+   ============================== */
+
+.student-mini-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;              /* space between stats */
+  flex-wrap: wrap;       /* safe on small screens */
+  margin: 10px 0;
+}
+
+/* Each stat becomes span-like */
+.student-mini-stats .mini-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+
+/* Label inline */
+.student-mini-stats .mini-stat-label {
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Value inline */
+.student-mini-stats .mini-stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 
 
+/* 🎯 Accuracy */
+.student-mini-stats .mini-stat:nth-child(1) .mini-stat-value {
+  color: #3dfb9a; /* neon green */
+  text-shadow: 0 0 8px rgba(61, 251, 154, 0.6);
+}
+
+/* ⏱ Avg Time */
+.student-mini-stats .mini-stat:nth-child(2) .mini-stat-value {
+  color: #4fc3ff; /* calm blue */
+  text-shadow: 0 0 8px rgba(79, 195, 255, 0.6);
+}
+
+/* 📚 Solved / Assignments */
+.student-mini-stats .mini-stat:nth-child(3) .mini-stat-value {
+  color: #ffd166; /* warm gold */
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
+}
 
 
 
@@ -12989,7 +13048,7 @@ body {
 
       <div class="mini-student-info">
         
-        <div class="mini-student-sub">🌎Global</div>
+        <div class="mini-student-sub">📊 Profile</div>
 
 <!-- MINI STATS -->
 <div id="miniStats" class="mini-stats">
@@ -13005,6 +13064,11 @@ body {
     <span class="mini-stat-label">Solved</span>
     <span id="miniSolved" class="mini-stat-value">--</span>
   </div>
+  <div class="mini-stat">
+  <span class="mini-stat-label">Assignments</span>
+  <span id="miniAssignments" class="mini-stat-value">--</span>
+</div>
+
 </div>
 
 
@@ -23730,8 +23794,6 @@ async function viewAssignmentDetailsForStudent(assignmentId) {
 
 
 
-// STUDENT PROGRESS FUNCTIONS END //
-
 
 
 function openStudentModal(studentId, username) {
@@ -25159,6 +25221,9 @@ function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMat
 
 
   const ratings = calculateRatings(profile); // ✅ ADD THIS
+  // 📊 GLOBAL MINI STATS (SAME AS STUDENT PANEL)
+const miniStats = calculateMiniStats(attempts);
+
 
   const progressData = calculateRatingProgress(profile);
 
@@ -25244,6 +25309,29 @@ const liveMatchHTML = `
       <p><strong>Joined:</strong> ${new Date(profile.created_at).toLocaleDateString()}</p>
 
       <hr>
+<h4 class="mini-stats-title">📊 Global Performance</h4>
+      <!-- 📊 GLOBAL PERFORMANCE -->
+<div class="student-mini-stats">
+  <div class="mini-stat">
+    <span class="mini-stat-label">Acc.</span>
+    <span class="mini-stat-value">${miniStats.accuracy}%</span>
+  </div>
+
+  <div class="mini-stat">
+    <span class="mini-stat-label">Time</span>
+    <span class="mini-stat-value">${miniStats.avgTime}s</span>
+  </div>
+
+ 
+
+  <div class="mini-stat">
+  <span class="mini-stat-label">Solved</span>
+  <span class="mini-stat-value">${miniStats.totalAssignments}</span>
+</div>
+
+</div>
+
+<hr>
 
       <p><strong>Total assignments:</strong> ${total}</p>
       <p><strong>Correct:</strong> ${correct}</p>
@@ -39236,6 +39324,50 @@ const AVATARS = [
 
 })();
 
+function calculateMiniStats(attempts) {
+  let totalPuzzles = 0;
+  let correctPuzzles = 0;
+  let totalTime = 0;
+
+  attempts.forEach(row => {
+    totalTime += row.time_spent || 0;
+
+    // 🟢 BULK ASSIGNMENT
+    if (Array.isArray(row.bulk_answers) && row.bulk_answers.length > 0) {
+      row.bulk_answers.forEach(puzzle => {
+        totalPuzzles++;
+        if (puzzle.correct === true) {
+          correctPuzzles++;
+        }
+      });
+      return;
+    }
+
+    // 🟡 FALLBACK
+    totalPuzzles++;
+    if (row.is_correct === true) {
+      correctPuzzles++;
+    }
+  });
+
+  const accuracy =
+    totalPuzzles > 0
+      ? Math.round((correctPuzzles / totalPuzzles) * 100)
+      : 0;
+
+  const avgTime =
+    attempts.length > 0
+      ? Math.round(totalTime / attempts.length)
+      : 0;
+
+  return {
+    accuracy,
+    avgTime,
+    solved: correctPuzzles,
+     totalAssignments: attempts.length   // ✅ NEW
+    
+  };
+}
 
 
 async function loadMiniStats() {
@@ -39250,48 +39382,18 @@ async function loadMiniStats() {
     document.getElementById("miniAccuracy").textContent = "--%";
     document.getElementById("miniAvgTime").textContent = "--s";
     document.getElementById("miniSolved").textContent = "--";
+     document.getElementById("miniAssignments").textContent = "--"; // ✅ add
     return;
   }
 
-  let totalPuzzles = 0;
-  let correctPuzzles = 0;
-  let totalTime = 0;
+  const stats = calculateMiniStats(data);
 
-  data.forEach(row => {
-    totalTime += row.time_spent || 0;
-
-    // 🟢 BULK ASSIGNMENT (new logic)
-    if (Array.isArray(row.bulk_answers) && row.bulk_answers.length > 0) {
-      row.bulk_answers.forEach(puzzle => {
-        totalPuzzles++;
-        if (puzzle.correct === true) {
-          correctPuzzles++;
-        }
-      });
-      return;
-    }
-
-    // 🟡 FALLBACK: non-bulk / old assignments
-    totalPuzzles++;                 // count as 1 puzzle
-    if (row.is_correct === true) {
-      correctPuzzles++;
-    }
-  });
-
-  const accuracy =
-    totalPuzzles > 0
-      ? Math.round((correctPuzzles / totalPuzzles) * 100)
-      : 0;
-
-  const avgTime =
-    data.length > 0
-      ? Math.round(totalTime / data.length)
-      : 0;
-
-  document.getElementById("miniAccuracy").textContent = accuracy + "%";
-  document.getElementById("miniAvgTime").textContent = avgTime + "s";
-  document.getElementById("miniSolved").textContent = correctPuzzles;
+  document.getElementById("miniAccuracy").textContent = stats.accuracy + "%";
+  document.getElementById("miniAvgTime").textContent = stats.avgTime + "s";
+  document.getElementById("miniSolved").textContent = stats.solved;
+   document.getElementById("miniAssignments").textContent = stats.totalAssignments; // ✅ add
 }
+
 
 
 
