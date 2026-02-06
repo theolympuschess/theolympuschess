@@ -12494,7 +12494,7 @@ body {
 .bulk-answer .row {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 17px;
   color: #e5e7eb;
 }
 
@@ -13021,6 +13021,98 @@ body {
 .mp-subtab {
   position: relative;
 }
+
+
+
+.bulk-mini-board {
+  width: 200px;
+  height: 200px; /* 🔥 REQUIRED */
+  min-height: 200px; /* 🔥 REQUIRED */
+  margin-top: 6px;
+  background: #1a1d33;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+
+
+/* ================================
+   BULK MINI BOARD NAVIGATION
+   ================================ */
+
+.bulk-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  user-select: none;
+}
+
+/* Buttons */
+.bulk-nav button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, #1c1f3a, #14162b);
+  color: #ffd700;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 2px 6px rgba(0,0,0,0.6);
+
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+
+/* Hover */
+.bulk-nav button:hover {
+  background: linear-gradient(180deg, #232762, #191d44);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 10px rgba(0,0,0,0.7);
+}
+
+/* Active click */
+.bulk-nav button:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.6);
+}
+
+/* Step counter */
+.bulk-nav span {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12px;
+  color: #cfd3ff;
+  opacity: 0.9;
+  letter-spacing: 0.5px;
+}
+
+/* Disabled state (optional via JS later) */
+.bulk-nav button.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+
+
+
+
 
 
 
@@ -27784,41 +27876,148 @@ function renderBulkAnswers(attempt) {
     div.className = `bulk-answer ${a.result}`;
 
     div.innerHTML = `
-  <div class="row">
-    <strong>#${a.index}</strong>
-    <span>
-      ${
-        a.result === "correct"
-          ? "✅ Correct"
-          : a.result === "wrong"
-          ? "❌ Wrong"
-          : "⚠️ Skipped"
-      }
-    </span>
-  </div>
+      <div class="row">
+        <strong>#${a.index}</strong>
+        <span>
+          ${
+            a.result === "correct"
+              ? "✅ Correct"
+              : a.result === "wrong"
+              ? "❌ Wrong"
+              : "⚠️ Skipped"
+          }
+        </span>
+      </div>
 
-  <div class="row">
-    <span>Student:</span>
-    <span>${a.student_move || "-"}</span>
-  </div>
+      <div class="row">
+        <span>Student:</span>
+        <span>${a.student_move || "-"}</span>
+      </div>
 
-  <div class="row">
-    <span>Expected:</span>
-    <span>${a.correct_move}</span>
-  </div>
+      <div class="row">
+        <span>Expected:</span>
+        <span>${a.correct_move}</span>
+      </div>
 
-  <!-- ✅ ADD THIS -->
-  <div class="row">
-    <span>Attempts:</span>
-    <span>${a.attempts ?? 0}</span>
-  </div>
-`;
+      <div class="row">
+        <span>Attempts:</span>
+        <span>${a.attempts ?? 0}</span>
+      </div>
 
+      <!-- ♟ MINI CHESS BOARD (ADDED) -->
+      <div class="row" style="justify-content:center; flex-direction:column">
+  <div class="bulk-mini-board" id="bulkBoard-${a.index}"></div>
+
+  <div class="bulk-nav">
+    <button onclick="bulkPrev(${a.index})">◀</button>
+    <span id="bulkStep-${a.index}">0 / 0</span>
+    <button onclick="bulkNext(${a.index})">▶</button>
+  </div>
+</div>
+
+    `;
 
     list.appendChild(div);
   });
+
+  // 🔥 INIT MINI BOARDS AFTER DOM EXISTS
+ // ✅ EXACT SPOT — DO NOT MOVE
+  setTimeout(() => {
+    initBulkBoards(null, attempt.bulk_answers);
+
+
+  }, 0);
 }
 
+
+
+
+
+// ================================
+// BULK MINI BOARD SYSTEM
+// ================================
+const bulkBoards = {};
+const bulkGames = {};
+const bulkMoves = {};
+const bulkSteps = {};
+
+function initBulkBoards(_, bulkAnswers) {
+  requestAnimationFrame(() => {
+
+    bulkAnswers.forEach(answer => {
+      const idx = answer.index;
+
+      const el = document.getElementById(`bulkBoard-${idx}`);
+      if (!el) {
+        console.warn("Missing bulkBoard element:", idx);
+        return;
+      }
+
+      if (!answer.fen) {
+        console.warn("Missing FEN for index:", idx);
+        return;
+      }
+
+      const game = new Chess(answer.fen);
+
+      // Mate in 1 → single move solution
+      const moves = answer.correct_move
+  ? answer.correct_move.trim().split(/\s+/)
+  : [];
+
+
+      bulkGames[idx] = game;
+      bulkMoves[idx] = moves;
+      bulkSteps[idx] = 0;
+
+      bulkBoards[idx] = Chessboard(el, {
+        position: answer.fen,
+        draggable: false,
+        showNotation: false,
+        pieceTheme: getPieceThemePath(currentPieceTheme)
+      });
+
+      updateBulkLabel(idx);
+    });
+
+  });
+}
+
+
+
+
+
+
+window.bulkNext = function (i) {
+  if (!bulkMoves[i] || !bulkGames[i]) return;
+
+  if (bulkSteps[i] >= bulkMoves[i].length) return;
+
+  bulkGames[i].move(bulkMoves[i][bulkSteps[i]]);
+  bulkSteps[i]++;
+
+  bulkBoards[i].position(bulkGames[i].fen());
+  updateBulkLabel(i);
+};
+
+
+window.bulkPrev = function (i) {
+  if (!bulkMoves[i] || !bulkGames[i]) return;
+
+  if (bulkSteps[i] <= 0) return;
+
+  bulkGames[i].undo();
+  bulkSteps[i]--;
+
+  bulkBoards[i].position(bulkGames[i].fen());
+  updateBulkLabel(i);
+};
+
+
+function updateBulkLabel(i) {
+  const el = document.getElementById(`bulkStep-${i}`);
+  if (el) el.textContent = `${bulkSteps[i]} / ${bulkMoves[i].length}`;
+}
 
 
 
@@ -27917,6 +28116,7 @@ function renderBulkAnswers(attempt) {
 
       puzzles.forEach((p, i) => {
         html += `
+        
           <div style="padding:10px; margin-bottom:8px; border:1px solid #333; border-radius:8px;">
             <strong>Puzzle ${i + 1}</strong><br>
             Side to move: ${p.sideToMove === "w" ? "White" : "Black"}<br>
