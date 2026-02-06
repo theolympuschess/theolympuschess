@@ -12977,6 +12977,50 @@ body {
 
 
 
+/* ===============================
+   🔴 LIVE HALO INDICATOR (PREMIUM)
+=============================== */
+.live-dot {
+  position: absolute;
+  top: 6px;
+  right: -5px;
+
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+
+  background: #ff3b3b;
+  box-shadow:
+    0 0 0 0 rgba(255, 59, 59, 0.7),
+    0 0 6px rgba(255, 59, 59, 0.9);
+
+  display: none;
+  animation: liveHalo 1.6s ease-out infinite;
+}
+
+@keyframes liveHalo {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(255, 59, 59, 0.6),
+      0 0 6px rgba(255, 59, 59, 0.9);
+  }
+  70% {
+    box-shadow:
+      0 0 0 8px rgba(255, 59, 59, 0),
+      0 0 6px rgba(255, 59, 59, 0.8);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(255, 59, 59, 0),
+      0 0 6px rgba(255, 59, 59, 0.6);
+  }
+}
+
+/* ensure parent positioning */
+.nav-btn,
+.mp-subtab {
+  position: relative;
+}
 
 
 
@@ -13098,9 +13142,11 @@ body {
 </div>
 
 <button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
- <button class="nav-btn" data-tab="livematch" id="navLiveMatch">
-🔴 LIVE
+<button class="nav-btn" data-tab="livematch" id="navLiveMatch">
+ ▶️ Play
+  <span class="live-dot" id="navLiveDot"></span>
 </button>
+
  <button class="nav-btn" data-tab="assignments">📚 Assignments</button>
  <button class="nav-btn" data-tab="puzzlerush">⚡ Puzzle </button>
  <button class="nav-btn" data-tab="puzzlebattle">
@@ -13109,7 +13155,7 @@ body {
 
 <button class="nav-btn" data-tab="quiz">⚽️ Quiz</button>
 <button class="nav-btn" data-tab="computer">
-  🎯 Play
+  🤖 BOT
 </button>
 <button class="nav-btn" data-tab="board">🔬 Analysis</button>
  <button class="nav-btn" data-tab="gamereview">
@@ -13639,7 +13685,7 @@ body {
 <div id="livematch-section" class="section mp-wrap" style="display:none;">
 
   <h2 class="mp-title">
-    🔴 Live Match
+   🎲 Live Match
     <span id="mpHowToBtn" class="mp-howto">How to Play</span>
   </h2>
 
@@ -13647,7 +13693,11 @@ body {
   <div class="mp-subtabs">
     <button id="mpTabLive" class="mp-subtab active">♟ Create Game</button>
     <button id="mpTabArchive" class="mp-subtab">📚 All Games</button>
-    <button id="mpTabWatch" class="mp-subtab">🟢 Watch Live</button>
+   <button id="mpTabWatch" class="mp-subtab">
+   Watch Live
+  <span class="live-dot" id="subLiveDot"></span>
+</button>
+
 
   </div>
 
@@ -38905,6 +38955,9 @@ const allGames = [
   ...(botGames || []).map(g => ({ ...g, type: 'bot' }))
 ].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
+// ✅ ADD THIS LINE RIGHT HERE
+mpSetLiveIndicator(allGames.length > 0);
+
 // 🧹 STEP 6: REMOVE FINISHED GAMES FROM UI (PIN-POINT LOCATION)
 const activeIds = new Set(allGames.map(g => g.id));
 
@@ -38936,6 +38989,10 @@ const oldMsg = document.getElementById(emptyMsgId);
 if (oldMsg) oldMsg.remove();
 
 if (allGames.length === 0) {
+
+  // 🔴 TURN OFF LIVE INDICATOR
+  mpSetLiveIndicator(false);
+
   const msg = document.createElement('div');
   msg.id = emptyMsgId;
   msg.style.opacity = '.6';
@@ -39037,6 +39094,7 @@ function startLiveWatchAutoRefresh() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'live_match_rooms' },
       () => {
+        mpCheckAnyLiveGame(); // 🔴 AUTO pulse
         if (mpWatchPanel.style.display === 'block') {
           mpLoadLiveSpectatorGames();
         }
@@ -39048,6 +39106,7 @@ function startLiveWatchAutoRefresh() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'vs_bot_live_games' },
       () => {
+         mpCheckAnyLiveGame(); // 🔴 AUTO pulse
         if (mpWatchPanel.style.display === 'block') {
           mpLoadLiveSpectatorGames();
         }
@@ -39160,6 +39219,57 @@ if (spectatorChannel) {
 
 // 🔥 START LIVE WATCH AUTO MODE (GLOBAL, ONCE)
 startLiveWatchAutoRefresh();
+
+// 🔴 INITIAL LIVE CHECK (NO CLICK REQUIRED)
+mpCheckAnyLiveGame();
+
+
+
+// ===============================
+// 🔴 LIVE GAME INDICATOR CONTROL
+// ===============================
+function mpSetLiveIndicator(hasLive) {
+  const navDot = document.getElementById('navLiveDot');
+  const subDot = document.getElementById('subLiveDot');
+
+  if (!navDot || !subDot) return;
+
+  navDot.style.display = hasLive ? 'block' : 'none';
+  subDot.style.display = hasLive ? 'block' : 'none';
+}
+
+// ===============================
+// 🔴 CHECK LIVE GAME EXISTENCE
+// ===============================
+async function mpCheckAnyLiveGame() {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  const [{ data: pvp }, { data: bot }] = await Promise.all([
+    supabase
+      .from('live_match_rooms')
+      .select('id')
+      .eq('status', 'playing')
+      .gte('updated_at', fiveMinutesAgo)
+      .limit(1),
+
+    supabase
+      .from('vs_bot_live_games')
+      .select('id')
+      .eq('status', 'playing')
+      .gte('updated_at', fiveMinutesAgo)
+      .limit(1)
+  ]);
+
+  mpSetLiveIndicator(
+    (pvp && pvp.length > 0) || (bot && bot.length > 0)
+  );
+}
+
+
+
+
+
+
 
 
 
