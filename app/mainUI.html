@@ -13197,7 +13197,7 @@ body {
     <span id="miniAvgTime" class="mini-stat-value">--s</span>
   </div>
   <div class="mini-stat">
-    <span class="mini-stat-label">Solved</span>
+    <span class="mini-stat-label">Puzzles</span>
     <span id="miniSolved" class="mini-stat-value">--</span>
   </div>
   <div class="mini-stat">
@@ -24036,6 +24036,8 @@ if (miniError) throw miniError;
     // ✅ FINAL RENDER
    const vsBotSummary = await loadVsBotSummary(studentId);
    const liveMatchSummary = await loadLiveMatchSummary(studentId);
+   window.currentStudentAttempts = attempts || [];
+
 
 renderStudentModal(
   profile,
@@ -25360,6 +25362,16 @@ function getTotalAttemptsForAttempt(attempt) {
 
 function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary) {
 
+// 🔢 COUNT TOTAL PUZZLES (BULK + SINGLE)
+let totalPuzzles = 0;
+
+attempts.forEach(a => {
+  if (Array.isArray(a.bulk_answers) && a.bulk_answers.length > 0) {
+    totalPuzzles += a.bulk_answers.length;
+  } else {
+    totalPuzzles += 1; // single assignment = 1 puzzle
+  }
+});
 
 
   const ratings = calculateRatings(profile); // ✅ ADD THIS
@@ -25467,9 +25479,10 @@ const liveMatchHTML = `
  
 
   <div class="mini-stat">
-  <span class="mini-stat-label">Solved</span>
-  <span class="mini-stat-value">${miniStats.totalAssignments}</span>
+  <span class="mini-stat-label">Puzzles</span>
+  <span class="mini-stat-value">${miniStats.solved}</span>
 </div>
+
 
 </div>
 
@@ -27516,6 +27529,8 @@ if (currentProfile?.role === "student") {
 }
 // 🔥 Refresh global mini stats immediately
 loadMiniStats();
+
+
 
 
     // Reset assignment state
@@ -32729,6 +32744,12 @@ function generateStudentPDF() {
     .map(l => l.trim())
     .filter(Boolean);
 
+    // 🔢 GLOBAL PERFORMANCE (same logic as modal)
+const miniStats = calculateMiniStats(
+  window.currentStudentAttempts || []
+);
+
+
   let y = 20;
 
   /* ================= HEADER ================= */
@@ -32782,7 +32803,24 @@ function generateStudentPDF() {
 
   y += 6;
 
-  /* ================= RATING TIER ================= */
+  /* ================= GLOBAL PERFORMANCE ================= */
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.text("GLOBAL PERFORMANCE", 15, y);
+y += 8;
+
+pdf.setFont("courier", "normal");
+pdf.setFontSize(12);
+
+pdf.text(`Accuracy : ${miniStats.accuracy}%`, 18, y);
+y += 6;
+
+pdf.text(`Avg Time : ${miniStats.avgTime}s`, 18, y);
+y += 6;
+
+pdf.text(`Solved   : ${miniStats.solved}`, 18, y);
+y += 10;
+
   
 
   /* ================= RATING TIER ================= */
@@ -39670,7 +39708,6 @@ function calculateMiniStats(attempts) {
 }
 
 
-
 async function loadMiniStats() {
   if (!currentProfile) return;
 
@@ -40352,8 +40389,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
