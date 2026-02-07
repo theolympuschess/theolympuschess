@@ -27514,7 +27514,8 @@ return {
 if (currentProfile?.role === "student") {
   loadStudentProgress();
 }
-
+// 🔥 Refresh global mini stats immediately
+loadMiniStats();
 
 
     // Reset assignment state
@@ -39646,38 +39647,28 @@ function calculateMiniStats(attempts) {
     if (Array.isArray(row.bulk_answers) && row.bulk_answers.length > 0) {
       row.bulk_answers.forEach(puzzle => {
         totalPuzzles++;
-        if (puzzle.correct === true) {
+        if (puzzle.result === "correct") {
           correctPuzzles++;
         }
       });
       return;
     }
 
-    // 🟡 FALLBACK
+    // 🟡 SINGLE ASSIGNMENT
     totalPuzzles++;
     if (row.is_correct === true) {
       correctPuzzles++;
     }
   });
 
-  const accuracy =
-    totalPuzzles > 0
-      ? Math.round((correctPuzzles / totalPuzzles) * 100)
-      : 0;
-
-  const avgTime =
-    attempts.length > 0
-      ? Math.round(totalTime / attempts.length)
-      : 0;
-
   return {
-    accuracy,
-    avgTime,
+    accuracy: totalPuzzles ? Math.round((correctPuzzles / totalPuzzles) * 100) : 0,
+    avgTime: attempts.length ? Math.round(totalTime / attempts.length) : 0,
     solved: correctPuzzles,
-     totalAssignments: attempts.length   // ✅ NEW
-    
+    totalAssignments: attempts.length
   };
 }
+
 
 
 async function loadMiniStats() {
@@ -40361,6 +40352,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
