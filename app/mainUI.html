@@ -37372,6 +37372,8 @@ document.addEventListener('DOMContentLoaded', () => {
 let unreadBroadcast = 0
 let unreadPrivate = 0
 const userCache = {}   // { userId: username }
+let isLoadingUsers = false
+
 // ===============================
 // ONLINE PRESENCE STATE
 // ===============================
@@ -37607,6 +37609,10 @@ tabs.forEach(tab => {
      LOAD USERS (FROM PROFILES)
   =============================== */
 async function loadUsers() {
+  // ⛔ prevent parallel executions
+  if (isLoadingUsers) return
+  isLoadingUsers = true
+
   usersBox.innerHTML = ''
 
   const { data, error } = await supabase
@@ -37617,6 +37623,7 @@ async function loadUsers() {
 
   if (error) {
     usersBox.textContent = 'Failed to load users'
+    isLoadingUsers = false
     return
   }
 
@@ -37624,55 +37631,52 @@ async function loadUsers() {
     if (p.id === user.id) return
 
     const div = document.createElement('div')
-   const count = userUnreadMap[p.id] || 0
-div.classList.add('user-row')
+    const count = userUnreadMap[p.id] || 0
+    div.classList.add('user-row')
 
-const isOnline = onlineUsers.has(p.id)
+    const isOnline = onlineUsers.has(p.id)
 
-div.innerHTML = `
-  <span class="user-name">
-    <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>
-    ${p.username}
-  </span>
-  ${count > 0 ? `<span class="unread-badge">${count}</span>` : ''}
-`
+    div.innerHTML = `
+      <span class="user-name">
+        <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>
+        ${p.username}
+      </span>
+      ${count > 0 ? `<span class="unread-badge">${count}</span>` : ''}
+    `
 
+    if (p.role === 'admin') {
+      div.style.fontWeight = 'bold'
+      const nameSpan = div.querySelector('.user-name')
+      if (nameSpan) nameSpan.textContent += ' (Admin)'
+    }
 
+    div.onclick = () => {
+      userUnreadMap[p.id] = 0
+      markPrivateAsRead(p.id)
 
+      activeReceiver = p.id
+      setChatTitle(p.username)
 
-   if (p.role === 'admin') {
-  div.style.fontWeight = 'bold'
+      usersBox.classList.add('chat-hidden')
+      messagesBox.classList.remove('chat-hidden')
 
-  const nameSpan = div.querySelector('span')
-  if (nameSpan) {
-    nameSpan.textContent += ' (Admin)'
-  }
-}
+      if (Array.isArray(privateCache[p.id]) && privateCache[p.id].length > 0) {
+        renderMessages(privateCache[p.id])
+      } else {
+        loadPrivateChat()
+      }
 
- div.onclick = () => {
-  userUnreadMap[p.id] = 0
-  markPrivateAsRead(p.id)   // 👈 HERE
-
-  activeReceiver = p.id
-  setChatTitle(p.username)
-
-  usersBox.classList.add('chat-hidden')
-  messagesBox.classList.remove('chat-hidden')
-
-  if (Array.isArray(privateCache[p.id]) && privateCache[p.id].length > 0) {
-  renderMessages(privateCache[p.id])
-} else {
-  loadPrivateChat() // fallback to DB if cache empty or not ready
-}
-
-setTimeout(scrollToBottom, 50) // 👈 AUTO JUMP TO LATEST
-  loadUsers()
-}
-
+      setTimeout(scrollToBottom, 50)
+      loadUsers()
+    }
 
     usersBox.appendChild(div)
   })
+
+  // ✅ release lock
+  isLoadingUsers = false
 }
+
 
   /* ===============================
      LOAD BROADCAST
