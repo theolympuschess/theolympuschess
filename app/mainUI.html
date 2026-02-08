@@ -13145,6 +13145,30 @@ body {
 }
 
 
+.study-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.study-save-btn {
+  padding: 6px 14px;
+  background: #2ecc71;
+  color: #0e1a12;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: 0.2s;
+}
+
+.study-save-btn:hover {
+  background: #27ae60;
+}
+
+.study-save-btn.hidden {
+  display: none;
+}
 
 
 
@@ -13573,12 +13597,24 @@ body {
   <span id="studyTitle" class="study-title"></span>
 </h2>
 
+<div class="study-header-row">
   <input
-  type="text"
-  id="studySearchBox"
-  placeholder="🔍 Search PGN..."
-  class="study-search"
-/>
+    type="text"
+    id="studySearchBox"
+    placeholder="🔍 Search PGN..."
+    class="study-search"
+  />
+
+  <span
+    id="saveStudyBtn"
+    class="study-save-btn hidden"
+    title="Save this PGN to library"
+  >
+    💾 Save
+  </span>
+</div>
+
+
 
 
   <div class="study-layout">
@@ -25653,6 +25689,8 @@ let activeNotationNode = null; // { type: "main"|"variation", index }
 let currentStudyTitle = "";
 
 
+let importedStudyPGN = "";
+let importedStudyTitle = "";
 
 
 
@@ -25821,6 +25859,15 @@ function extractChapterName(pgn, fallback) {
     const raw = studyPgnInput.value.trim();
     if (!raw) return;
 
+    importedStudyPGN = raw;
+importedStudyTitle =
+  currentStudyTitle || "Imported Study";
+
+document
+  .getElementById("saveStudyBtn")
+  .classList.remove("hidden");
+
+
     // split multiple PGNs (Lichess-compatible)
     const games = raw
       .split(/\n\n(?=\[Event|\[ChapterName)/)
@@ -25836,6 +25883,71 @@ function extractChapterName(pgn, fallback) {
     modal.classList.add("hidden");
     studyPgnInput.value = "";
   });
+
+
+// ===============================
+// 💾 SAVE STUDY TO PGN LIBRARY
+// ===============================
+const saveBtn = document.getElementById("saveStudyBtn");
+
+if (saveBtn) {
+  saveBtn.addEventListener("click", async () => {
+    if (!importedStudyPGN) {
+      alert("No PGN to save");
+      return;
+    }
+
+    const defaultTitle =
+      importedStudyTitle ||
+      currentStudyTitle ||
+      "New Study";
+
+    const title = prompt(
+      "Enter a name for this study:",
+      defaultTitle
+    );
+
+    if (!title || !title.trim()) {
+      alert("Study name is required.");
+      return;
+    }
+
+    saveBtn.textContent = "⏳ Saving...";
+    saveBtn.style.pointerEvents = "none";
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("bulk_pgn_library")
+      .insert({
+        title: title.trim(),
+        pgn: importedStudyPGN,
+        source: "study",
+        created_by: user?.id || null
+      });
+
+    if (error) {
+      console.error("❌ Save failed:", error);
+      alert("Failed to save PGN");
+      saveBtn.textContent = "💾 Save";
+      saveBtn.style.pointerEvents = "auto";
+      return;
+    }
+
+    saveBtn.textContent = "✅ Saved";
+    setTimeout(() => {
+      saveBtn.classList.add("hidden");
+      saveBtn.textContent = "💾 Save";
+      saveBtn.style.pointerEvents = "auto";
+    }, 1200);
+
+    console.log("✅ Study saved as:", title);
+  });
+}
+
+
+
+
 
 
 function extractFenFromPgn(pgn) {
@@ -40521,6 +40633,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
