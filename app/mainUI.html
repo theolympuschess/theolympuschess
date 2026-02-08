@@ -37556,10 +37556,26 @@ const isAdmin = async () => {
     chat.style.display = chat.classList.contains('chat-hidden') ? 'none' : 'flex'
   }
 
-  bubble.onclick = (e) => {
-    e.stopPropagation()
-    toggleChat()
+ bubble.onclick = async (e) => {
+  e.stopPropagation()
+  toggleChat()
+
+  // ✅ If chat just opened AND broadcast is the active tab
+  if (
+    !chat.classList.contains('chat-hidden') &&
+    currentMode === 'global'
+  ) {
+  renderMessages(broadcastCache) // 👈 THIS LINE FIXES IT
+    await supabase
+      .from('profiles')
+      .update({ last_broadcast_read_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    unreadBroadcast = 0
+    updateBadges()
   }
+}
+
 
   minimize.onclick = (e) => {
     e.stopPropagation()
@@ -37571,7 +37587,8 @@ const isAdmin = async () => {
      TAB SWITCHING
   =============================== */
 tabs.forEach(tab => {
-  tab.onclick = () => {
+  tab.onclick = async () => {
+
     tabs.forEach(t => t.classList.remove('active'))
     tab.classList.add('active')
 
@@ -37594,8 +37611,15 @@ tabs.forEach(tab => {
       currentMode = 'global'
       activeReceiver = null
 
-      unreadBroadcast = 0
-      updateBadges()
+      // ✅ mark broadcast as read for this user
+await supabase
+  .from('profiles')
+  .update({ last_broadcast_read_at: new Date().toISOString() })
+  .eq('id', user.id)
+
+unreadBroadcast = 0
+updateBadges()
+
 
       usersBox.classList.add('chat-hidden')
       messagesBox.classList.remove('chat-hidden')
@@ -37753,6 +37777,29 @@ async function preloadUnreadCounts() {
   updateBadges()
 }
 
+async function preloadBroadcastUnread() {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('last_broadcast_read_at')
+    .eq('id', user.id)
+    .single()
+
+  const lastRead = profile?.last_broadcast_read_at
+
+  const query = supabase
+    .from('chat_messages')
+    .select('id', { count: 'exact', head: true })
+    .is('receiver_id', null)
+    .eq('deleted', false)
+
+  if (lastRead) {
+    query.gt('created_at', lastRead)
+  }
+
+  const { count } = await query
+  unreadBroadcast = count || 0
+  updateBadges()
+}
 
 
 
@@ -37987,6 +38034,8 @@ async function preloadPrivateChats() {
   await preloadUsers()
 await preloadPrivateChats()
 await preloadUnreadCounts() // 👈 PERSIST ALERTS
+await preloadBroadcastUnread()
+
 loadBroadcast()
 
 
