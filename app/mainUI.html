@@ -13110,9 +13110,39 @@ body {
 }
 
 
+.assign-badge {
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  display: inline-block;
+  font-weight: 600;
+}
+
+.assign-badge.public {
+  background: rgba(0, 200, 255, 0.15);
+  color: #5ddcff;
+}
+
+.assign-badge.private {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+}
+
+.assign-badge.none {
+  background: rgba(255, 71, 87, 0.15);
+  color: #ff4757;
+}
 
 
 
+.assign-names {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.85;
+  line-height: 1.4;
+  padding-left: 6px;
+}
 
 
 
@@ -23016,8 +23046,60 @@ function hidePuzzleRushResult() {
     // ============================================
     // ASSIGNMENTS
     // ============================================
+function renderAssignedTo(assign, studentNameMap) {
+  if (assign.is_public) {
+    return `<div class="assign-badge public">🌍 All students</div>`;
+  }
 
-    
+  if (Array.isArray(assign.assigned_to) && assign.assigned_to.length > 0) {
+    const names = assign.assigned_to
+      .map(id => studentNameMap[id])
+      .filter(Boolean);
+
+    return `
+      <div class="assign-badge private">
+        👤 ${names.length} selected
+      </div>
+      <div class="assign-names">
+        ${names.join(", ")}
+      </div>
+    `;
+  }
+
+  return `<div class="assign-badge none">⚠ Not assigned</div>`;
+}
+
+
+   async function resolveAssignedStudentNames(assignments) {
+  // Collect all unique student IDs
+  const ids = new Set();
+
+  assignments.forEach(a => {
+    if (Array.isArray(a.assigned_to)) {
+      a.assigned_to.forEach(id => ids.add(id));
+    }
+  });
+
+  if (ids.size === 0) return {};
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username")
+    .in("id", [...ids]);
+
+  if (error) {
+    console.error("Failed to resolve student names", error);
+    return {};
+  }
+
+  const map = {};
+  data.forEach(p => {
+    map[p.id] = p.username;
+  });
+
+  return map;
+}
+ 
 
     async function loadAssignments() {
     
@@ -23048,6 +23130,8 @@ function hidePuzzleRushResult() {
       console.log("STUDENT assignments data:", data);
       assignments = data || [];
     }
+// ✅ ADD THIS LINE HERE (EXACT SPOT)
+    const studentNameMap = await resolveAssignedStudentNames(assignments);
 
     if (assignments.length === 0) {
       listEl.innerHTML = '<div class="card"><p>No assignments available yet.</p></div>';
@@ -23058,7 +23142,13 @@ function hidePuzzleRushResult() {
       <div class="card" data-assignment-id="${assign.id}">
         <h4>${assign.title || 'Untitled Assignment'}</h4>
         <p>${assign.description || 'No description provided.'}</p>
-        <p><strong>Type:</strong> ${assign.task_type || 'General'} | <strong>Status:</strong> ${assign.status || 'active'}</p>
+        <p>
+  <strong>Type:</strong> ${assign.task_type || 'General'}
+  | <strong>Status:</strong> ${assign.status || 'active'}
+</p>
+
+${renderAssignedTo(assign, studentNameMap)}
+
         ${assign.due_at ? `<p><strong>Due:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
         <div class="assignment-actions">
 
