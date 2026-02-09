@@ -7092,11 +7092,7 @@ Safe for 360×800 and all phones
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ---------- HIDE MINI SCORE PANEL ON PHONE ---------- */
-  .mini-score-panel,
-  .mini-score-fixed {
-    display: none !important;
-  }
+
 }
 
 
@@ -13526,10 +13522,139 @@ body {
 
 
 
+/* =============================== */
+/* 📱 Mobile My History Button */
+/* =============================== */
+
+.mobile-my-history-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-my-history-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    margin-left: 8px;
+    padding: 4px 10px;
+
+    font-size: 15px;
+    font-weight: 600;
+
+    border-radius: 999px;
+    cursor: pointer;
+
+    background: linear-gradient(135deg, #1c275a, #121a3a);
+    color: #ffd54f;
+
+    user-select: none;
+  }
+
+  .mobile-my-history-btn:active {
+    transform: scale(0.95);
+  }
+}
+
+
+/* ===============================
+   📱 MOBILE MINI SCORE OVERLAY
+================================ */
+@media (max-width: 768px) {
+
+/* ===============================
+   📱 MOBILE MINI SCORE PANEL
+================================ */
+
+.mini-score-fixed {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mini-score-fixed {
+    position: fixed;
+    top: 45px;               /* just below rating bar */
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    background: #0f1429;
+    z-index: 9999;
+
+    overflow-y: auto;
+    padding: 14px;
+
+    display: none;
+  }
+
+  .mini-score-fixed.open {
+    display: block;
+  }
+}
+
+
+  .mini-score-panel {
+    width: 100%;
+    max-width: 420px;
+    max-height: 80vh;
+
+    overflow-y: auto;
+    border-radius: 16px;
+
+    animation: slideUp 0.25s ease;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(40px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
 
 
 
 
+/* ===============================
+   MINI PANEL CLOSE (MOBILE)
+================================ */
+.mini-panel-close {
+  display: none; /* hidden by default */
+}
+
+@media (max-width: 768px) {
+  .mini-panel-close {
+    display: flex;
+    position: sticky;
+    top: 0;
+    margin-left: auto;
+    margin-bottom: 8px;
+
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+
+    border: none;
+    cursor: pointer;
+    z-index: 10;
+  }
+
+  .mini-panel-close:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
 
 
 
@@ -13587,9 +13712,17 @@ body {
 
 <div class="mini-score-fixed">
   <div class="mini-score-panel">
+    <button
+  class="mini-panel-close"
+  aria-label="Close panel"
+  onclick="closeMiniScorePanel()"
+>
+  ✕
+</button>
+
     
 <button id="xpHistoryBtn" class="xp-history-btn">
-  📜 XP History
+  📜 My XP History
 </button>
     <!-- STUDENT HEADER -->
     <div class="mini-score-header">
@@ -13783,6 +13916,12 @@ body {
      <span>Olympus Rating</span> 
   </div>
  <span class="leaderboard-trigger" id="leaderboardBtn">🏆 Leaderboard 🏆</span>
+ <span
+  id="mobileMyHistoryBtn"
+  class="mobile-my-history-btn"
+>
+  🌐 My Profile
+</span>
   <!-- CENTER -->
   <div class="rating-center">
   <span class="rating-elo">Elo</span>
@@ -40742,6 +40881,54 @@ document.getElementById("xpHistoryOverlay")
 
 
 
+
+
+// ===============================
+// 📜 MOBILE: MY HISTORY TOGGLE
+// ===============================
+
+document.addEventListener("DOMContentLoaded", () => {
+  const myHistoryBtn = document.getElementById("mobileMyHistoryBtn");
+  const miniPanel = document.querySelector(".mini-score-fixed");
+
+  if (!myHistoryBtn || !miniPanel) {
+    console.warn("⚠️ My History button or mini panel not found");
+    return;
+  }
+
+  // 🔹 Toggle panel
+  myHistoryBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    console.log("📜 My History clicked");
+
+    miniPanel.classList.toggle("open");
+  });
+
+  // 🔹 Close when clicking outside panel (mobile UX)
+  document.addEventListener("click", (e) => {
+    if (
+      miniPanel.classList.contains("open") &&
+      !miniPanel.contains(e.target) &&
+      e.target !== myHistoryBtn
+    ) {
+      miniPanel.classList.remove("open");
+    }
+  });
+
+  // 🔹 Prevent inside clicks from closing
+  miniPanel.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+});
+
+
+
+window.closeMiniScorePanel = function () {
+  const panel = document.querySelector(".mini-score-fixed");
+  if (!panel) return;
+
+  panel.classList.remove("open");
+};
 
 
 
