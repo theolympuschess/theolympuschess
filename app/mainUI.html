@@ -1185,18 +1185,22 @@ body.student-view #pgnLibraryCard { display: none; }
 }
 
 
-/* 👤 Student Details Modal Scroll Fix */
+/* 👤 Student Details Modal Scroll + Width Fix */
 #studentDetailsModal .modal-box {
-  max-height: 80vh;              /* 👈 keeps modal inside screen */
+  max-height: 80vh;              /* keep modal inside screen */
+  max-width: 100px;              /* 👈 MAIN WIDTH CONTROL */
+  width: 92vw;                   /* 👈 responsive on small screens */
   display: flex;
   flex-direction: column;
 }
 
+/* Scrollable body */
 #studentModalBody {
-  overflow-y: auto;              /* 👈 ENABLE SCROLL */
-  max-height: 60vh;              /* 👈 scroll area height */
+  overflow-y: auto;
+  max-height: 60vh;
   padding-right: 6px;
 }
+
 
 
 
@@ -13443,6 +13447,93 @@ body {
 }
 
 
+/* ================================
+   STUDENT XP HISTORY (MODAL)
+================================ */
+
+.student-xp-history {
+  margin-top: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.student-xp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+}
+
+.student-xp-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.student-xp-date {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.student-xp-value {
+  font-weight: 700;
+  color: #4de3a1;
+}
+
+
+
+/* =========================================
+   🎨 Student Modal Scrollbar – Dark Theme
+   Fully Isolated
+========================================= */
+
+/* Firefox */
+#studentModalBody {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 140, 200, 0.35) transparent;
+}
+
+/* WebKit (Chrome, Edge, Safari) */
+#studentModalBody::-webkit-scrollbar {
+  width: 8px;
+}
+
+#studentModalBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#studentModalBody::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(120, 140, 200, 0.25),
+    rgba(80, 100, 160, 0.45)
+  );
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+#studentModalBody::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(150, 170, 255, 0.45),
+    rgba(100, 130, 220, 0.75)
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -24461,6 +24552,8 @@ async function viewAssignmentDetailsForStudent(assignmentId) {
 
 
 function openStudentModal(studentId, username) {
+  window.currentStudentId = studentId;
+
   document.getElementById("studentModalTitle").textContent =
     `👤 ${username} — Full Details`;
 
@@ -24568,6 +24661,10 @@ renderStudentModal(
   vsBotSummary,
   liveMatchSummary
 );
+
+// ✅ load XP history AFTER modal content exists
+loadStudentXpHistory(studentId);
+
 
   } catch (err) {
     console.error(err);
@@ -25880,6 +25977,63 @@ function getTotalAttemptsForAttempt(attempt) {
   return attempt.attempt_count || 1;
 }
 
+async function loadStudentXpHistory(studentId) {
+  const container = document.getElementById("studentXpHistory");
+  if (!container) return;
+
+  container.innerHTML = "<p class='muted'>Loading XP history…</p>";
+
+  const { data, error } = await supabase
+    .from("rating_history")
+    .select("source, reason, xp, created_at")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("❌ Student XP history load failed:", error);
+    container.innerHTML = "<p class='muted'>Failed to load XP history</p>";
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    container.innerHTML = "<p class='muted'>No XP history yet</p>";
+    return;
+  }
+
+  container.innerHTML = "";
+
+  data.forEach(row => {
+    const date = new Date(row.created_at);
+
+    const dateStr = date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+
+    const timeStr = date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    container.innerHTML += `
+      <div class="student-xp-row">
+        <div class="student-xp-left">
+          <div class="student-xp-title">
+            ${row.source} — ${row.reason}
+          </div>
+          <div class="student-xp-date">
+            ${dateStr} · ${timeStr}
+          </div>
+        </div>
+        <div class="student-xp-value">+${row.xp}</div>
+      </div>
+    `;
+  });
+}
+
+
 
 
 function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary) {
@@ -26019,10 +26173,18 @@ const liveMatchHTML = `
         <strong>🏅 Achievements unlocked:</strong>
         ${unlockedAchievements} / ${totalAchievements}
       </p>
+      
 
       <hr>
 
       ${miniGameHTML}
+      <hr />
+
+<h4>📜 XP History</h4>
+<div id="studentXpHistory" class="student-xp-history">
+  <p class="muted">Loading XP history…</p>
+</div>
+
       
 
 <hr>
@@ -33320,7 +33482,8 @@ document.getElementById("printStudentBtn").addEventListener("click", () => {
 let currentStudentTier = "N/A";
 
 
-function generateStudentPDF() {
+async function generateStudentPDF() {
+
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF("p", "mm", "a4");
 
@@ -33347,8 +33510,29 @@ const miniStats = calculateMiniStats(
   window.currentStudentAttempts || []
 );
 
+// ================= XP HISTORY DATA =================
+const studentId = window.currentStudentId;
+
+let xpHistory = [];
+
+if (studentId) {
+  const { data, error } = await supabase
+    .from("rating_history")
+    .select("source, reason, xp, created_at")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (!error && data) {
+    xpHistory = data;
+  }
+}
+
+
+
 
   let y = 20;
+  
 
   /* ================= HEADER ================= */
   if (logoImg && logoImg.src) {
@@ -33434,33 +33618,101 @@ y += 30;
 
 
   /* ================= MINI-GAME SCORES ================= */
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(14);
-  pdf.text("MINI-GAME BEST SCORES", 15, y);
-  y += 8;
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.text("MINI-GAME BEST SCORES", 15, y);
+y += 8;
 
-  pdf.setFont("courier", "normal");
-  pdf.setFontSize(12);
+pdf.setFont("courier", "normal");
+pdf.setFontSize(12);
 
-  let inMiniGame = false;
+let inMiniGame = false;
 
-  lines.forEach(l => {
-    if (l.includes("Mini-Game")) {
-      inMiniGame = true;
-      return;
+lines.forEach(l => {
+  if (l.includes("Mini-Game")) {
+    inMiniGame = true;
+    return;
+  }
+
+  if (inMiniGame && l.includes("XP History")) {
+    inMiniGame = false;
+  }
+
+  if (inMiniGame) {
+    // 🔴 PAGE BREAK FIX
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
+
+      // Re-print section title on new page
+      pdf.setFont("courier", "bold");
+      pdf.text("MINI-GAME BEST SCORES (cont.)", 15, y);
+      y += 8;
+
+      pdf.setFont("courier", "normal");
     }
-    if (inMiniGame && l.includes("Assignment")) {
-      inMiniGame = false;
-    }
-    if (inMiniGame) {
-      pdf.text(l, 18, y);
-      y += 7;
-    }
-  });
+
+    pdf.text(l, 18, y);
+    y += 7;
+  }
+});
+
+y += 10;
+
 
   y += 10;
 
-  
+ /* ================= XP HISTORY ================= */
+if (y > 230) {
+  pdf.addPage();
+  y = 20;
+}
+
+pdf.setFont("courier", "bold");
+pdf.setFontSize(14);
+pdf.text("XP HISTORY", 15, y);
+y += 8;
+
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+
+if (xpHistory.length === 0) {
+  pdf.text("No XP history available.", 18, y);
+  y += 6;
+} else {
+  xpHistory.forEach(row => {
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
+    }
+
+    const d = new Date(row.created_at);
+    const dateStr = d.toLocaleDateString();
+    const timeStr = d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    const cleanLine = `${row.source} - ${row.reason}`
+      .replace(/[^\x00-\x7F]/g, "");
+
+    pdf.text(cleanLine, 18, y);
+    pdf.text(`+${row.xp}`, 180, y, { align: "right" });
+    y += 5;
+
+    pdf.setFont("helvetica", "italic");
+    pdf.setFontSize(10);
+    pdf.text(`${dateStr} ${timeStr}`, 18, y);
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(11);
+    y += 7;
+  });
+}
+
+y += 10;
+
+
 
   /* ================= ASSIGNMENT HISTORY ================= */
   pdf.setFont("courier", "bold");
@@ -40686,7 +40938,7 @@ document.getElementById("xpHistoryOverlay")
 
 <!-- 👤 Student Details Modal -->
 <div id="studentDetailsModal" class="modal-overlay hidden">
-  <div class="modal-box" style="max-width:700px;">
+  <div class="modal-box" style="max-width:500px;">
     <h3 id="studentModalTitle">Student Details</h3>
 
     <!-- 🎯 Rating Progress (Modal) -->
