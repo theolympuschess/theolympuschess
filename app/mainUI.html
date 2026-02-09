@@ -13658,6 +13658,19 @@ body {
 
 
 
+.chat-admin-toggle {
+  background: #222;
+  color: #ffd700;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.chat-admin-toggle.hidden {
+  display: none;
+}
 
 
 
@@ -38318,6 +38331,71 @@ const isAdmin = async () => {
   return data?.role === 'admin'
 }
 
+// ===============================
+// PRIVATE CHAT VISIBILITY CONTROL
+// ===============================
+const toggleBtn = document.getElementById('togglePrivateChatBtn')
+
+async function applyStudentPrivateUI() {
+  const { data } = await supabase
+    .from('chat_settings')
+    .select('student_private_enabled')
+    .eq('id', 1)
+    .single()
+
+  const enabled = data?.student_private_enabled === true
+
+  const admin = await isAdmin()
+
+  // 🔐 Students: hide Users tab completely
+  if (!admin && !enabled) {
+    document
+      .querySelector('[data-tab="users"]')
+      ?.classList.add('hidden')
+
+    // Force back to broadcast if user was inside private
+    if (currentMode === 'private') {
+      document
+        .querySelector('[data-tab="global"]')
+        .click()
+    }
+  } else {
+    document
+      .querySelector('[data-tab="users"]')
+      ?.classList.remove('hidden')
+  }
+
+  // 👑 Admin toggle button
+  if (admin) {
+    toggleBtn.classList.remove('hidden')
+    toggleBtn.textContent = enabled
+      ? '🔓 Private Chat ON'
+      : '🔒 Private Chat OFF'
+  }
+}
+
+toggleBtn?.addEventListener('click', async () => {
+  const { data } = await supabase
+    .from('chat_settings')
+    .select('student_private_enabled')
+    .eq('id', 1)
+    .single()
+
+  const next = !data.student_private_enabled
+
+  await supabase
+    .from('chat_settings')
+    .update({
+      student_private_enabled: next,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', 1)
+
+  // ✅ FORCE LOCAL UI UPDATE (don’t wait for realtime)
+  await applyStudentPrivateUI()
+})
+
+
 
   /* ===============================
      ADMIN CHAT ENABLE CHECK
@@ -38821,6 +38899,8 @@ await preloadUnreadCounts() // 👈 PERSIST ALERTS
 await preloadBroadcastUnread()
 
 loadBroadcast()
+await applyStudentPrivateUI()
+
 
 
 }
@@ -41397,8 +41477,20 @@ window.closeMiniScorePanel = function () {
 
 <div id="chatWindow" class="chat-hidden">
   <div id="chatHeader">
+    
   <span id="chatHeaderTitle">💬 Olympus Chat</span>
+  <!-- ADMIN: Private Chat Toggle -->
+<button
+  id="togglePrivateChatBtn"
+  class="chat-admin-toggle hidden"
+  title="Toggle student private chat"
+>
+  🔒 Private Chat OFF
+</button>
+
+  
   <button id="chatMinimize">–</button>
+  
 </div>
 
 
@@ -41600,6 +41692,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
