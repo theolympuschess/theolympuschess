@@ -29917,6 +29917,9 @@ let kpPath = [];
 let kpTargetSquare = null;
 let kpWaitingForClick = false;
 let kpStepIndex = 0;
+let kpLives = 3;
+const kpLivesEl = document.getElementById("kpLives");
+
 
 let kpDifficulty = "easy";
 
@@ -29933,6 +29936,12 @@ const KNIGHT_MOVES = [
   [1, 2], [2, 1], [-1, 2], [-2, 1],
   [1, -2], [2, -1], [-1, -2], [-2, -1]
 ];
+
+function updateKPLives() {
+  if (!kpLivesEl) return;
+  kpLivesEl.textContent = kpLives;
+}
+
 
 
 function playKnightMoveSound() {
@@ -29984,7 +29993,10 @@ function unlockKnightAudio() {
 window.startKP = function (mode) {
   unlockKnightAudio();   // 🔓 REQUIRED FOR FLASH SOUND
   kpDifficulty = mode;   // ✅ THAT’S IT
-  kpLevel = 1;
+ kpLevel = 1;
+kpLives = 3;
+updateKPLives();
+
 
   kpKnightPos = kpRandomSquare();
   showKnightPathGame();
@@ -30070,7 +30082,7 @@ playKnightFlashSound();
 // HANDLE CLICK
 // ================================
 function handleKPClick(x, y) {
-  if (!kpWaitingForClick) return;
+  if (!kpWaitingForClick || kpLives <= 0) return;
 
   const expected = kpPath[kpStepIndex];
 
@@ -30103,10 +30115,58 @@ function handleKPClick(x, y) {
     }
 
   } else {
-    // ❌ wrong square
-    playKnightWrongSound();
-    // retry same step (no life system)
+  playKnightWrongSound();
+
+  kpLives--;
+  updateKPLives();
+
+  // 💀 GAME OVER
+  if (kpLives <= 0) {
+  kpWaitingForClick = false;
+
+  setTimeout(() => {
+    showKPGameOver();
+  }, 300);
+}
+
+}
+
+}
+
+function showKPGameOver() {
+   playPartySound();
+
+  // ⭐ DEFINE SCORE LOCALLY (FIX)
+  const finalScore = Math.max(0, kpLevel - 1);
+
+  // 🏆 SAVE BEST SCORE (Knight Flash Path)
+  saveMiniGameScore("knightpath", finalScore);
+
+  const modal = document.getElementById("floatingModal");
+  const title = document.getElementById("modalTitle");
+  const body = document.getElementById("modalBody");
+  const okBtn = document.getElementById("modalOkBtn");
+
+  if (!modal || !title || !body || !okBtn) {
+    console.error("❌ Floating modal not found (KP)");
+    return;
   }
+
+  title.textContent = "🐴 Game Over!";
+  body.innerHTML = `
+    <p style="font-size:16px; line-height:1.6;">
+      You ran out of lives ❤️‍🩹<br><br>
+      ⭐ <b>Levels completed:</b> ${finalScore}
+    </p>
+  `;
+
+  modal.classList.remove("hidden");
+
+  // ✅ ISOLATED close behavior
+  okBtn.onclick = () => {
+    modal.classList.add("hidden");
+    exitKP();
+  };
 }
 
 
@@ -41932,7 +41992,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
