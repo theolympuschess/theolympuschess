@@ -13676,6 +13676,49 @@ body {
 
 
 
+/* ================================
+   ASSIGNMENT BULK PREVIEW MODAL
+================================ */
+
+.bulk-preview-card {
+  background: linear-gradient(180deg, #1a1e3a, #12162d);
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 10px;
+
+  max-height: 65vh;        /* 🔥 modal-safe height */
+  display: flex;
+  flex-direction: column;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.05),
+    0 10px 30px rgba(0,0,0,0.45);
+}
+
+.bulk-preview-scroll {
+  overflow-y: auto;       /* ✅ INTERNAL SCROLL */
+  padding-right: 6px;
+}
+
+/* nice scrollbar (optional) */
+.bulk-preview-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.bulk-preview-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.25);
+  border-radius: 6px;
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20896,9 +20939,10 @@ setTimeout(() => {
     startAssignmentMode(id);
   }
 
-  if (action === "view") {
-    openAssignmentDetails(id);
-  }
+if (action === "view") {
+  openAssignmentBulkPreview(id);
+}
+
 });
 
 
@@ -23863,6 +23907,10 @@ document.getElementById('assignmentsList').addEventListener('click', (e) => {
 
   if (action === 'delete') {
     confirmDeleteAssignment(assignmentId);
+  }
+// ✅ ADD THIS BLOCK
+  if (action === 'view') {
+    openAssignmentBulkPreview(assignmentId);
   }
 });
 
@@ -41028,9 +41076,184 @@ window.closeMiniScorePanel = function () {
 
 
 
+function closeAssignmentBulkModal() {
+  document.getElementById("assignmentBulkModal").classList.add("hidden");
+  document.getElementById("assignmentBulkList").innerHTML = "";
+}
 
 
 
+async function openAssignmentBulkPreview(assignmentId) {
+  const modal = document.getElementById("assignmentBulkModal");
+  const list  = document.getElementById("assignmentBulkList");
+  const title = document.getElementById("assignmentBulkTitle");
+
+  modal.classList.remove("hidden");
+  list.innerHTML = "Loading puzzles...";
+
+  const { data: assignment, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("id", assignmentId)
+    .single();
+
+  if (error || !assignment) {
+    list.innerHTML = "<p>Error loading assignment</p>";
+    return;
+  }
+
+  title.textContent = assignment.title || "Assignment Preview";
+
+  if (!assignment.pgn || !assignment.is_bulk) {
+    list.innerHTML = "<p>This assignment has no bulk puzzles.</p>";
+    return;
+  }
+
+  // 🔥 Parse PGN into individual puzzles
+  const puzzles = splitBulkPGN(assignment.pgn);
+
+  // 🔥 Convert to BULK-ANSWER-LIKE structure (ISOLATED)
+  const virtualAnswers = puzzles.map((p, i) => ({
+    index: i + 1,
+    fen: p.fen,
+    correct_move: p.solution,
+    student_move: null,
+    attempts: 0,
+    result: "preview" // 👈 custom tag, not correct/wrong
+  }));
+
+  renderAssignmentBulkBoards(virtualAnswers);
+}
+
+
+function splitBulkPGN(pgn) {
+  const games = pgn
+    .split(/\n\n(?=\[Event|\[FEN)/)
+    .map(g => g.trim())
+    .filter(Boolean);
+
+  return games.map(g => {
+    // 🔹 Extract FEN
+    const fenMatch = g.match(/\[FEN "([^"]+)"\]/);
+    if (!fenMatch) return null;
+
+    // 🔹 Remove headers
+    let movesText = g.replace(/\[[^\]]+\]/g, "");
+
+    // 🔹 Remove comments, NAGs, results
+    movesText = movesText
+      .replace(/\{[^}]*\}/g, "")
+      .replace(/\$\d+/g, "")
+      .replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*/g, "");
+
+    // 🔹 Normalize whitespace
+    movesText = movesText.replace(/\s+/g, " ").trim();
+
+    // 🔹 Extract SAN moves (handles multi-move)
+    const sanMoves = movesText
+      .replace(/\d+\.(\.\.)?/g, "") // remove move numbers
+      .trim()
+      .split(" ")
+      .filter(m => m && !m.includes("..."));
+
+    return {
+      fen: fenMatch[1],
+      solution: sanMoves.join(" ")
+    };
+  }).filter(Boolean);
+}
+
+
+
+
+function renderAssignmentBulkBoards(bulkAnswers) {
+  const list = document.getElementById("assignmentBulkList");
+  list.innerHTML = "";
+
+  const boards = {};
+  const games  = {};
+  const moves  = {};
+  const steps  = {};
+
+  bulkAnswers.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "bulk-answer preview";
+
+    div.innerHTML = `
+      <div class="row">
+        <strong>#${a.index}</strong>
+        <span>🧩 Preview</span>
+      </div>
+
+      <div class="row">
+        <span>Solution:</span>
+        <span>${a.correct_move}</span>
+      </div>
+
+      <div class="row" style="justify-content:center;flex-direction:column">
+        <div class="bulk-mini-board" id="assignBoard-${a.index}"></div>
+
+        <div class="bulk-nav">
+          <button id="prev-${a.index}">◀</button>
+          <span id="step-${a.index}">0 / 0</span>
+          <button id="next-${a.index}">▶</button>
+        </div>
+      </div>
+    `;
+
+    list.appendChild(div);
+  });
+
+  requestAnimationFrame(() => {
+    bulkAnswers.forEach(a => {
+      const idx = a.index;
+      const el = document.getElementById(`assignBoard-${idx}`);
+      if (!el) return;
+
+      games[idx] = new Chess(a.fen);
+      moves[idx] = a.correct_move ? a.correct_move.split(/\s+/) : [];
+      steps[idx] = 0;
+
+      boards[idx] = Chessboard(el, {
+        position: a.fen,
+        draggable: false,
+        showNotation: false,
+        pieceTheme: getPieceThemePath(currentPieceTheme)
+      });
+
+      const label = document.getElementById(`step-${idx}`);
+      label.textContent = `0 / ${moves[idx].length}`;
+
+      document.getElementById(`next-${idx}`).onclick = () => {
+        if (steps[idx] >= moves[idx].length) return;
+        games[idx].move(moves[idx][steps[idx]]);
+        steps[idx]++;
+        boards[idx].position(games[idx].fen());
+        label.textContent = `${steps[idx]} / ${moves[idx].length}`;
+      };
+
+      document.getElementById(`prev-${idx}`).onclick = () => {
+        if (steps[idx] <= 0) return;
+        games[idx].undo();
+        steps[idx]--;
+        boards[idx].position(games[idx].fen());
+        label.textContent = `${steps[idx]} / ${moves[idx].length}`;
+      };
+    });
+  });
+}
+
+
+// ✅ GLOBAL — REQUIRED for onclick=""
+window.closeAssignmentBulkModal = function () {
+  const modal = document.getElementById("assignmentBulkModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+
+  const list = document.getElementById("assignmentBulkList");
+  if (list) list.innerHTML = "";
+};
 
 
 
@@ -41536,6 +41759,23 @@ window.closeMiniScorePanel = function () {
     <h3>📜 My XP history</h3>
     <div id="xpHistoryList"></div>
     <button onclick="closeXpHistory()">Got it!</button>
+  </div>
+</div>
+
+<div id="assignmentBulkModal" class="modal hidden">
+  <div class="modal-content large">
+    <h3 id="assignmentBulkTitle">Assignment Preview</h3>
+
+    <!-- ✅ PUZZLE CARD (ONLY ONCE) -->
+    <div class="bulk-preview-card">
+      <div id="assignmentBulkList" class="bulk-preview-scroll"></div>
+    </div>
+
+    <div style="text-align:right;margin-top:16px">
+      <button class="btn-secondary" onclick="closeAssignmentBulkModal()">
+        Close
+      </button>
+    </div>
   </div>
 </div>
 
