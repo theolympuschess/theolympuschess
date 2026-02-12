@@ -13783,7 +13783,7 @@ body {
     width: 100%;
     margin-top: 6px;
     gap: 8px;
-   justify-content: center;      /* base centering */
+    justify-content: center;      /* base centering */
     padding-left: 10px;  
   }
 
@@ -13794,6 +13794,42 @@ body {
 }
 
 
+
+#notationList {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+  word-wrap: break-word;
+}
+
+.move-inline {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.move-inline:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.move-inline.current {
+  background: #ffd700;
+  color: #000;
+  font-weight: bold;
+}
+
+.move-num {
+  color: #aaa;
+  margin-right: 4px;
+}
+
+.variation-bracket {
+  color: #888;
+  margin: 0 3px;
+}
 
 
 
@@ -14029,6 +14065,7 @@ body {
 
   </div>
 </div>
+
 
 
     <button class="btn-logout" id="logoutBtn">Logout</button>
@@ -21685,6 +21722,8 @@ function resolveMainPieceTheme(piece) {
       }
 
       chess = new Chess();
+      initMoveTree();
+
 
       const cfg = {
         draggable: true,
@@ -21855,7 +21894,10 @@ if (isPromotionMove(source, target)) {
 move = chess.move({
   from: source,
   to: target
+  
 });
+
+
 
 // ❗ correct check
 if (!move) return "snapback";
@@ -22010,7 +22052,8 @@ loadMiniStats();
           updateEnginePosition();
           
           updatePGNViewer();
-          renderNotation();
+          renderNotationTree();
+
           updateNavigationButtons();
           checkGameEnd();
           
@@ -22106,11 +22149,11 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
         timestamp: new Date()
       });
       
-      if (pgnCursor < fullPGNHistory.length) {
-        fullPGNHistory = fullPGNHistory.slice(0, pgnCursor);
-      }
+   
       fullPGNHistory.push(move);
       pgnCursor++;
+      addMoveToTree(move);
+
       
       updatePGNViewer();
       renderNotation();
@@ -22203,6 +22246,10 @@ window.clearAllStudents = function () {
   moveHistory = [];
   fullPGNHistory = [];
   pgnCursor = 0;
+  // 🔥 Reset move tree
+initMoveTree();
+renderNotationTree();
+
   isNavigationMode = false;
   isPGNLoaded = false;
   
@@ -22263,7 +22310,8 @@ function clearSVGOnly() {
         board.position(chess.fen());
         updatePGNViewer();
         updateNavigationButtons();
-        renderNotation();
+       renderNotationTree();
+
       }
     };
 
@@ -23017,70 +23065,172 @@ function playPRSound(id, volume = 0.75) {
 // Play with Computer Functions End //
 
     //SOUND SFX END//
+// ============================================
+// LICHESS STYLE MOVE TREE SYSTEM (ISOLATED)
+// ============================================
+
+// Tree node structure
+let moveTreeRoot = null;
+let currentNode = null;
+
+function createMoveNode(move, parent = null) {
+  return {
+    id: crypto.randomUUID(),
+    move: move,           // chess.js verbose move object
+    parent: parent,
+    children: [],
+    fen: chess.fen()
+  };
+}
+
+function initMoveTree() {
+  moveTreeRoot = {
+    id: "root",
+    move: null,
+    parent: null,
+    children: [],
+    fen: chess.fen()
+  };
+
+  currentNode = moveTreeRoot;
+}
+
+function addMoveToTree(move) {
+  if (!currentNode) initMoveTree();
+
+  // Check if move already exists as child
+  const existing = currentNode.children.find(
+    c => c.move.san === move.san
+  );
+
+  if (existing) {
+    currentNode = existing;
+    return;
+  }
+
+  // Create new variation
+  const newNode = createMoveNode(move, currentNode);
+  currentNode.children.push(newNode);
+  currentNode = newNode;
+}
+
+function goToTreeNode(node) {
+  if (!node) return;
+
+  chess.load(node.fen);
+  board.position(node.fen);
+
+  currentNode = node;
+
+  if (engineRunning) updateEnginePosition();
+
+  renderNotationTree();
+}
+
 
     // ============================================
     // NOTATION SYSTEM - FIXED VERSION
     // ============================================
-    function renderNotation() {
-      const container = document.getElementById('notationList');
-      container.innerHTML = '';
+ function renderNotationTree() {
+  const container = document.getElementById('notationList');
+  if (!container) return;
 
-      // Always use fullPGNHistory if it has moves, otherwise use current chess history
-      let moves = [];
-      if (fullPGNHistory.length > 0) {
-        // Show all moves from the complete history
-        moves = fullPGNHistory;
-      } else {
-        // No history yet, use current chess moves
-        moves = chess.history({ verbose: true });
-      }
+  container.innerHTML = '';
 
-      // Create notation rows
-      for (let i = 0; i < moves.length; i += 2) {
-        const moveNum = Math.floor(i / 2) + 1;
-        const white = moves[i] ? moves[i].san : '';
-        const black = moves[i + 1] ? moves[i + 1].san : '';
+  if (!moveTreeRoot) {
+    container.innerHTML =
+      '<span style="color:var(--text-muted)">No moves yet</span>';
+    return;
+  }
 
-        const row = document.createElement('div');
-        row.className = 'move';
-        row.dataset.plyIndex = i; // Store the ply index for clicking
-        
-        // Mark which plies this row contains
-        row.dataset.containsPlies = `${i},${i + 1}`;
+  function renderNode(node, moveNumber = 1) {
+    if (!node.children.length) return;
 
-        const num = document.createElement('div');
-        num.className = 'num';
-        num.textContent = moveNum + '.';
+    // 🔹 MAIN LINE FIRST (always child[0])
+    const mainChild = node.children[0];
+    const move = mainChild.move;
 
-        const whiteCell = document.createElement('div');
-        whiteCell.className = 'white';
-        whiteCell.textContent = white;
+    const span = document.createElement('span');
+    span.className = 'move-inline';
 
-        const blackCell = document.createElement('div');
-        blackCell.className = 'black';
-        blackCell.textContent = black;
-
-        row.appendChild(num);
-        row.appendChild(whiteCell);
-        row.appendChild(blackCell);
-        container.appendChild(row);
-      }
-
-      if (moves.length === 0) {
-        container.innerHTML = '<div style="padding:12px;color:var(--text-muted); text-align:center;">No moves yet</div>';
-      }
-
-      highlightCurrentNotation();
-      
-      // Scroll to show current move
-      setTimeout(() => {
-        const currentRows = container.querySelectorAll('.move.current');
-        if (currentRows.length > 0) {
-          const lastCurrent = currentRows[currentRows.length - 1];
-          lastCurrent.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
-      }, 10);
+    if (move.color === 'w') {
+      span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
     }
+
+    span.innerHTML += move.san + ' ';
+
+    if (mainChild === currentNode) {
+      span.classList.add('current');
+    }
+
+    span.onclick = () => {
+      playNavigationSound(move);
+      goToTreeNode(mainChild);
+    };
+
+    container.appendChild(span);
+
+    const nextMoveNumber =
+      move.color === 'b' ? moveNumber + 1 : moveNumber;
+
+    // 🔹 CONTINUE MAINLINE FIRST
+    renderNode(mainChild, nextMoveNumber);
+
+    // 🔹 AFTER mainline move, print variations
+    for (let i = 1; i < node.children.length; i++) {
+      const variationChild = node.children[i];
+      renderVariation(node, variationChild, moveNumber);
+    }
+  }
+
+  function renderVariation(parentNode, variationNode, moveNumber) {
+    const move = variationNode.move;
+    if (!move) return;
+
+    const open = document.createElement('span');
+    open.className = 'variation-bracket';
+    open.textContent = '(';
+    container.appendChild(open);
+
+    const span = document.createElement('span');
+    span.className = 'move-inline';
+
+    if (move.color === 'w') {
+      span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
+    } else {
+      span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
+    }
+
+    span.innerHTML += move.san + ' ';
+
+    span.onclick = () => {
+      playNavigationSound(move);
+      goToTreeNode(variationNode);
+    };
+
+    container.appendChild(span);
+
+    const nextMoveNumber =
+      move.color === 'b' ? moveNumber + 1 : moveNumber;
+
+    renderNode(variationNode, nextMoveNumber);
+
+    const close = document.createElement('span');
+    close.className = 'variation-bracket';
+    close.textContent = ') ';
+    container.appendChild(close);
+  }
+
+  renderNode(moveTreeRoot);
+}
+
+
+
+// 🔁 Compatibility wrapper (DO NOT REMOVE)
+function renderNotation() {
+  renderNotationTree();
+}
+
 
     function highlightCurrentNotation() {
       const container = document.getElementById('notationList');
@@ -23123,10 +23273,11 @@ function playPRSound(id, volume = 0.75) {
       });
     }
 
-    function initNotation() {
-      attachNotationClickHandler();
-      renderNotation();
-    }
+ function initNotation() {
+  attachNotationClickHandler();
+  renderNotationTree();
+}
+
 
     // ============================================
     // PGN NAVIGATION - FIXED VERSION
@@ -23154,6 +23305,15 @@ function playPRSound(id, volume = 0.75) {
       }
       
       board.position(chess.fen());
+      // Sync tree pointer to mainline position
+let temp = moveTreeRoot;
+for (let i = 0; i < targetIndex; i++) {
+  if (temp.children[0]) {
+    temp = temp.children[0];
+  }
+}
+currentNode = temp;
+
       // 🔥 Keep engine synced during PGN navigation
 if (engineRunning) updateEnginePosition();
 
@@ -23172,12 +23332,17 @@ if (targetIndex > 0) {
       updateBoardCursor();
       updatePGNViewer();
       updateNavigationButtons();
-      renderNotation();
+      renderNotationTree();
+
       highlightCurrentNotation();
       
       // Enable/disable move input based on navigation state
-      document.getElementById('moveInput').disabled = isNavigationMode;
-      document.getElementById('applyMoveBtn').disabled = isNavigationMode;
+     const moveInput = document.getElementById('moveInput');
+const applyBtn = document.getElementById('applyMoveBtn');
+
+if (moveInput) moveInput.disabled = isNavigationMode;
+if (applyBtn) applyBtn.disabled = isNavigationMode;
+
       
       // Show game status if at end and game is over
       if (targetIndex === fullPGNHistory.length) {
@@ -23263,6 +23428,22 @@ window.loadPGNFromString = function (pgnString) {
     chess.load_pgn(pgnString);
     board.position(chess.fen());
 
+    // 🔥 Rebuild move tree from PGN
+initMoveTree();
+
+chess.reset();
+
+moves.forEach(m => {
+  const move = chess.move({
+    from: m.from,
+    to: m.to,
+    promotion: m.promotion
+  });
+
+  addMoveToTree(move);
+});
+
+
     // Store history
     fullPGNHistory = moves;
     pgnCursor = moves.length;
@@ -23280,7 +23461,8 @@ window.loadPGNFromString = function (pgnString) {
 
     // 🔥 UI sync
     updatePGNViewer();
-    renderNotation();
+    renderNotationTree();
+
     updateNavigationButtons();
 
   } catch (e) {
@@ -23289,6 +23471,13 @@ window.loadPGNFromString = function (pgnString) {
     setTimeout(closeModal, 2000);
   }
 };
+
+function closeModal() {
+  const modal = document.getElementById('modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
 
 
     window.loadPGN = function() {
@@ -23323,6 +23512,21 @@ window.loadPGNFromString = function (pgnString) {
         // Load into main chess instance
         chess.load_pgn(pgnInput);
         board.position(chess.fen());
+        // 🔥 Rebuild move tree from PGN
+initMoveTree();
+
+chess.reset();
+
+moves.forEach(m => {
+  const move = chess.move({
+    from: m.from,
+    to: m.to,
+    promotion: m.promotion
+  });
+
+  addMoveToTree(move);
+});
+
         extractPlayersFromPGN(pgnInput);
 
         
@@ -23355,7 +23559,8 @@ setTimeout(() => {
         document.getElementById('moveInput').disabled = false;
         document.getElementById('applyMoveBtn').disabled = false;
         updateNavigationButtons();
-        renderNotation();
+       renderNotationTree();
+
         
 
         
@@ -23399,7 +23604,8 @@ setTimeout(() => {
         isPGNLoaded = false;
         updatePGNViewer();
         updateNavigationButtons();
-        renderNotation();
+        renderNotationTree();
+
        showModal(
   "♟ FEN Loaded",
   "<p>FEN loaded successfully.</p>"
@@ -28155,9 +28361,22 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
 
 
+   // ✅ ADD TO TREE (VERY IMPORTANT)
+  addMoveToTree(move);
+
   // ✅ ADD TO HISTORY
   fullPGNHistory.push(move);
   pgnCursor++;
+
+  // 🔥 Sync board (safety)
+  board.position(chess.fen());
+
+  // 🔥 Update UI
+  updatePGNViewer();
+  renderNotationTree();
+  updateNavigationButtons();
+  checkGameEnd();
+
 
   // ===============================
   // 🔥 ASSIGNMENT MODE CONTINUATION
@@ -32264,7 +32483,7 @@ const GAME_MUSIC_TRACKS = [
 ];
 
 let gameMusic = null;
-let musicMuted = false;
+let musicMuted = true;
 let musicStarted = false;
 
 // ▶️ PLAY SPECIFIC MUSIC (SINGLE SOURCE OF TRUTH)
@@ -32308,6 +32527,11 @@ function stopGameMusic() {
 // ================================
 
 const musicMuteBtn = document.getElementById("musicMuteBtn");
+// Ensure correct icon on load
+if (musicMuteBtn) {
+  musicMuteBtn.textContent = "🔇";
+}
+
 
 musicMuteBtn.addEventListener("click", () => {
   musicMuted = !musicMuted;
@@ -32325,9 +32549,7 @@ musicMuteBtn.addEventListener("click", () => {
 // 🔑 FIRST USER INTERACTION UNLOCK
 // ================================
 
-["click", "keydown", "touchstart"].forEach(evt => {
-  document.addEventListener(evt, startGameMusic, { once: true });
-});
+
 
 // ================================
 // 🎼 MUSIC MENU (HOVER SELECT)
@@ -35906,7 +36128,8 @@ pgnCursor++;
     // 🔄 Update board + UI
     board.position(chess.fen());
     updatePGNViewer();
-    renderNotation();
+    renderNotationTree();
+
     updateNavigationButtons();
     checkGameEnd();
 
@@ -41430,6 +41653,12 @@ window.closeAssignmentBulkModal = function () {
 };
 
 
+
+
+
+
+
+
 /* =========================================
    🌍 GLOBAL CLASSROOM LOCK SYSTEM
    ✔ Admin toggle updates database
@@ -41578,6 +41807,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   listenForRealtimeLockChanges();
 
 });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -42253,8 +42494,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
