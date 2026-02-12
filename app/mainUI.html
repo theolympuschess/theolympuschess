@@ -41430,7 +41430,154 @@ window.closeAssignmentBulkModal = function () {
 };
 
 
+/* =========================================
+   🌍 GLOBAL CLASSROOM LOCK SYSTEM
+   ✔ Admin toggle updates database
+   ✔ Students listen in realtime
+   ✔ Admin UI never affected
+   ✔ No duplicate button
+========================================= */
 
+let currentUserRole = null;
+let classLocked = false;
+
+const lockedTabs = [
+  "livematch",
+  "assignments",
+  "puzzlerush",
+  "puzzlebattle",
+  "quiz",
+  "computer",
+  "board",
+  "gamereview",
+  "coordtrain",
+  "piecePractice",
+  "memory",
+  "boardfreeze",
+  "color",
+  "knightfog",
+  "knightdefense",
+  "knightpath",
+  "knightmonster",
+  "knightescape",
+  "knightspeed",
+  "knightlava",
+  "knightgps",
+  "kingmath",
+  "colorchaos",
+  "flashqueen",
+  "pathfinder"
+];
+
+function applyLockToStudentUI() {
+
+  if (currentUserRole === "admin") return;
+
+  lockedTabs.forEach(tabName => {
+    const btn = document.querySelector(`.nav-btn[data-tab="${tabName}"]`);
+    if (btn) {
+      btn.style.display = classLocked ? "none" : "";
+    }
+  });
+}
+
+async function updateClassLockState(newState) {
+  await supabase
+    .from("class_settings")
+    .update({
+      class_locked: newState,
+      updated_at: new Date()
+    })
+    .eq("id", 1);
+}
+
+function createAdminToggle(initialState) {
+
+  if (document.getElementById("classLockBtn")) return;
+
+  const lockBtn = document.createElement("button");
+  lockBtn.id = "classLockBtn";
+  lockBtn.className = "nav-btn";
+  lockBtn.style.marginLeft = "10px";
+
+  const logoutBtn = document.getElementById("logoutBtn");
+  logoutBtn.parentNode.insertBefore(lockBtn, logoutBtn);
+
+  function updateButtonUI() {
+    if (classLocked) {
+      lockBtn.innerText = "🔓 Class Lock ON";
+      lockBtn.style.background = "#2e7d32";
+    } else {
+      lockBtn.innerText = "🔒 Class Lock OFF";
+      lockBtn.style.background = "#c62828";
+    }
+  }
+
+  updateButtonUI();
+
+  lockBtn.addEventListener("click", async () => {
+    classLocked = !classLocked;
+    updateButtonUI();
+    await updateClassLockState(classLocked);
+  });
+}
+
+async function loadInitialLockState() {
+  const { data } = await supabase
+    .from("class_settings")
+    .select("class_locked")
+    .eq("id", 1)
+    .single();
+
+  if (!data) return;
+
+  classLocked = data.class_locked;
+}
+
+function listenForRealtimeLockChanges() {
+
+  supabase
+    .channel("class-lock-listener")
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "class_settings"
+      },
+      payload => {
+        classLocked = payload.new.class_locked;
+        applyLockToStudentUI();
+      }
+    )
+    .subscribe();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) return;
+
+  currentUserRole = profile.role;
+
+  await loadInitialLockState();
+
+  if (currentUserRole === "admin") {
+    createAdminToggle(classLocked);
+  }
+
+  applyLockToStudentUI();
+  listenForRealtimeLockChanges();
+
+});
 
 
 
@@ -42106,6 +42253,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
