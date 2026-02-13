@@ -13833,6 +13833,50 @@ body {
 
 
 
+.vs-history-date {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+
+
+
+
+.mp-archive-date {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 4px;
+  text-align: center;
+}
+
+
+
+
+
+
+
+
+
+.mp-archive-winner {
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 4px;
+  text-align: center;
+}
+
+.mp-archive-winner.white-win {
+  color: #4CAF50;   /* green */
+}
+
+.mp-archive-winner.black-win {
+  color: #4CAF50;   /* green */
+}
+
+.mp-archive-winner.draw {
+  color: #FFC107;   /* gold */
+}
+
 
 
 
@@ -37343,25 +37387,41 @@ mpFlipBtn.onclick = () => {
   )
 }
 
+function formatLiveArchiveDate(dateString) {
+  const date = new Date(dateString);
 
-async function mpArchiveSaveGame() {
+  return date.toLocaleString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+
+async function mpArchiveSaveGame(finalWinner) {
   try {
-    console.log("📦 Archive called", { roomId, lastFen });
+    console.log("📦 Archive called", { roomId, lastFen, finalWinner });
 
     if (!lastFen) {
       console.warn("❌ Archive aborted: no lastFen");
       return;
     }
 
-    // 1️⃣ BASE INSERT — NEVER FAILS
+    // 1️⃣ BASE INSERT — NO WINNER CALCULATION HERE
     const basePayload = {
       room_code: mpRoomCode.textContent || roomId || "unknown",
       white_name: mpWhiteName,
       black_name: mpBlackName,
       pgn: lastPgn || "",
       final_fen: lastFen,
-      winner: mySide // "w" | "b" | "draw"
+      winner: finalWinner || "draw"
     };
+
+    console.log("📤 Saving payload:", basePayload);
 
     const { data: inserted, error: insertError } = await supabase
       .from("live_match_archive")
@@ -37376,20 +37436,18 @@ async function mpArchiveSaveGame() {
 
     console.log("✅ Archive base saved:", inserted.id);
 
-    // 2️⃣ TRY TO ENRICH WITH IDS (NON-FATAL)
+    // 2️⃣ ENRICH WITH IDS
     if (!roomId) return;
 
-    const { data: room, error: roomError } = await supabase
+    const { data: room } = await supabase
       .from("live_match_rooms")
       .select("white_id, black_id, fen")
       .eq("id", roomId)
       .single();
 
-    console.log("📥 Room fetch:", { room, roomError });
-
     if (!room) return;
 
-    const { error: updateError } = await supabase
+    await supabase
       .from("live_match_archive")
       .update({
         white_id: room.white_id || null,
@@ -37398,68 +37456,87 @@ async function mpArchiveSaveGame() {
       })
       .eq("id", inserted.id);
 
-    if (updateError) {
-      console.warn("⚠️ Archive enrich failed:", updateError);
-    } else {
-      console.log("🔗 Archive enriched with IDs");
-    }
   } catch (e) {
-    console.error("💥 Archive crash:", e.message);
+    console.error("💥 Archive crash:", e);
   }
 }
 
 
 
+
+
 async function mpLoadArchive() {
   console.log("Loading archive...")
-const grid = document.getElementById('mpArchiveGrid')
-grid.innerHTML = 'Loading...'
 
+  const grid = document.getElementById('mpArchiveGrid')
+  grid.innerHTML = 'Loading...'
 
-const { data } = await supabase
-.from('live_match_archive')
-.select('*')
-.order('ended_at', { ascending:false })
-.limit(50)
+  const { data, error } = await supabase
+    .from('live_match_archive')
+    .select('*')
+    .order('ended_at', { ascending: false })
+    .limit(50)
 
+  if (error || !data) {
+    grid.innerHTML = "Failed to load"
+    console.error(error)
+    return
+  }
 
-if (!data) return
+  grid.innerHTML = ''
 
+  data.forEach(g => {
 
-grid.innerHTML = ''
+    const card = document.createElement('div')
+    card.className = 'mp-archive-card'
 
+    const boardDiv = document.createElement('div')
+    boardDiv.style.height = '120px'
 
-data.forEach(g => {
-const card = document.createElement('div')
-card.className = 'mp-archive-card'
+    const names = document.createElement('div')
+    names.className = 'mp-archive-names'
+    names.textContent = `${g.white_name || 'White'} vs ${g.black_name || 'Black'}`
 
+    // 🏆 WINNER
+    const winnerDiv = document.createElement('div')
+    winnerDiv.className = 'mp-archive-winner'
 
-const boardDiv = document.createElement('div')
-boardDiv.style.height = '120px'
+    if (g.winner === 'draw') {
+      winnerDiv.textContent = 'Draw'
+      winnerDiv.classList.add('draw')
+    } else if (g.winner === 'w') {
+      winnerDiv.textContent = `Winner: ${g.white_name || 'White'}`
+      winnerDiv.classList.add('white-win')
+    } else if (g.winner === 'b') {
+      winnerDiv.textContent = `Winner: ${g.black_name || 'Black'}`
+      winnerDiv.classList.add('black-win')
+    }
 
+    // 📅 DATE
+    const dateDiv = document.createElement('div')
+    dateDiv.className = 'mp-archive-date'
+    dateDiv.textContent = formatLiveArchiveDate(g.ended_at)
 
+    // APPEND
+    card.appendChild(boardDiv)
+    card.appendChild(names)
+    card.appendChild(winnerDiv)
+    card.appendChild(dateDiv)
 
+    grid.appendChild(card)
 
-const names = document.createElement('div')
-names.className = 'mp-archive-names'
-names.textContent = `${g.white_name || 'White'} vs ${g.black_name || 'Black'}`
+    // MINI BOARD
+    Chessboard(boardDiv, {
+      position: g.final_fen,
+      draggable: false,
+      pieceTheme: getPieceThemePath(currentPieceTheme)
+    })
 
-
-card.appendChild(boardDiv)
-card.appendChild(names)
-grid.appendChild(card)
-
-
-const tempBoard = Chessboard(boardDiv, {
-  position: g.final_fen,
-  draggable: false,
-  pieceTheme: getPieceThemePath(currentPieceTheme)
-})
-
-
-card.onclick = () => mpOpenReplay(g)
-})
+    // CLICK → REPLAY
+    card.onclick = () => mpOpenReplay(g)
+  })
 }
+
 
 
 async function mpHardResetRoom(newSide = null, keepTime = false) {
@@ -37690,7 +37767,8 @@ if (newTime <= 0 && !mpGameOver) {
       ? '🎉 Opponent ran out of time! You won!'
       : '⛔ Time up! You lost on time.'
   )
-mpArchiveSaveGame()
+mpArchiveSaveGame(winner)
+
   mpClearSession()
   mpEndAndUnlock()
 
@@ -38388,7 +38466,8 @@ if (
   mpGameOver = true
   stopClock()
   mpShowModal('Draw', '🤝 Game ended in a draw')
-  mpArchiveSaveGame()
+mpArchiveSaveGame("draw")
+
   mpClearSession()
   mpEndAndUnlock()
 
@@ -38423,7 +38502,8 @@ if (
   } else {
     mpShowModal('Victory', '🎉 Opponent resigned. You win!')
   }
-  mpArchiveSaveGame()
+ mpArchiveSaveGame(row.winner)
+
 mpClearSession()
 mpEndAndUnlock()
 
@@ -38449,7 +38529,8 @@ if (
   } else {
     mpShowModal('Defeat', '💀 You were CHECKMATED.')
   }
-  mpArchiveSaveGame()
+ mpArchiveSaveGame(row.winner)
+
 mpClearSession()
 mpEndAndUnlock()
 
@@ -40532,7 +40613,21 @@ document.querySelectorAll(".vs-subtab").forEach(btn => {
   });
 });
 
+// Bot Game Time //
 
+function formatVsGameDate(dateString) {
+  const date = new Date(dateString);
+
+  return date.toLocaleString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
 
 async function loadVsBotHistory() {
   const { data, error } = await supabase
@@ -40558,19 +40653,26 @@ async function loadVsBotHistory() {
     const card = document.createElement("div");
     card.className = "vs-history-card";
 
-    card.innerHTML = `
-      <div class="vs-mini-board" id="mini-${game.id}"></div>
+card.innerHTML = `
+  <div class="vs-mini-board" id="mini-${game.id}"></div>
 
-      <div class="vs-history-meta">
-        <div class="vs-history-player">${game.student_name}</div>
-        <div class="vs-history-bot">
-          vs ${game.bot_name} (${game.difficulty})
-        </div>
-        <div class="vs-history-result ${game.result}">
-          ${game.result.toUpperCase()}
-        </div>
-      </div>
-    `;
+  <div class="vs-history-meta">
+    <div class="vs-history-player">${game.student_name}</div>
+
+    <div class="vs-history-bot">
+      vs ${game.bot_name} (${game.difficulty})
+    </div>
+
+    <div class="vs-history-result ${game.result}">
+      ${game.result.toUpperCase()}
+    </div>
+
+    <div class="vs-history-date">
+      ${formatVsGameDate(game.created_at)}
+    </div>
+  </div>
+`;
+
 
     card.onclick = () => openVsReplay(game.pgn);
 
@@ -40658,6 +40760,9 @@ let vsReplayChess = null;
 let vsReplayMoves = [];
 let vsReplayIndex = 0;
 let vsReplayPGN = "";
+
+
+
 
 function openVsReplay(pgn) {
 
@@ -42540,6 +42645,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
