@@ -38590,27 +38590,6 @@ mpLoadArchive()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ==================================================
  FLOATING CHAT — SUPABASE FINAL (profiles-based)
 ================================================== */
@@ -38677,6 +38656,26 @@ function playMessageSound() {
     messageSound.currentTime = 0
     messageSound.play().catch(() => {})
   } catch (e) {}
+}
+
+function formatDateTime(ts) {
+  if (!ts) return ''
+
+  const d = new Date(ts)
+
+  const day = d.toLocaleDateString([], {
+    weekday: 'short',   // Mon
+    day: '2-digit',     // 09
+    month: 'short'      // Feb
+  })
+
+  const time = d.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true        // AM / PM format
+  })
+
+  return `${day} • ${time}`
 }
 
 
@@ -39247,18 +39246,28 @@ async function renderMessages(list) {
     /* ===============================
        PRIVATE CHAT (WHATSAPP STYLE)
     =============================== */
-    if (msg.receiver_id !== null) {
-      const row = document.createElement('div')
-      row.className = `chat-msg-row ${isMine ? 'chat-msg-right' : 'chat-msg-left'}`
+if (msg.receiver_id !== null) {
+  const row = document.createElement('div')
+  row.className = `chat-msg-row ${isMine ? 'chat-msg-right' : 'chat-msg-left'}`
 
-      const bubble = document.createElement('div')
-      bubble.className = `chat-bubble ${isMine ? 'mine' : 'other'}`
-      bubble.textContent = msg.message
+  const bubble = document.createElement('div')
+  bubble.className = `chat-bubble ${isMine ? 'mine' : 'other'}`
 
-      row.appendChild(bubble)
-      messagesBox.appendChild(row)
-      return
-    }
+  const messageText = document.createElement('div')
+  messageText.textContent = msg.message
+
+  const time = document.createElement('div')
+  time.className = 'chat-time'
+  time.textContent = formatDateTime(msg.created_at)
+
+  bubble.appendChild(messageText)
+  bubble.appendChild(time)
+
+  row.appendChild(bubble)
+  messagesBox.appendChild(row)
+  return
+}
+
 
     /* ===============================
        BROADCAST (UNCHANGED)
@@ -39273,7 +39282,11 @@ async function renderMessages(list) {
     text.style.flex = '1'
 
     const name = userCache?.[msg.sender_id] || 'Unknown'
-    text.innerHTML = `<strong>${name}:</strong> ${msg.message}`
+   text.innerHTML = `
+  <strong>${name}:</strong> ${msg.message}
+  <div class="chat-time">${formatDateTime(msg.created_at)}</div>
+`
+
 
     row.appendChild(text)
 
@@ -39361,6 +39374,27 @@ await applyStudentPrivateUI()
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -42506,6 +42540,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
