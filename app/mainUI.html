@@ -13835,10 +13835,32 @@ body {
 
 .vs-history-date {
   font-size: 12px;
-  opacity: 0.7;
+  color: #9aa4b2;   /* Soft slate gray */
   margin-top: 4px;
 }
 
+
+
+.vs-history-result {
+  font-weight: 600;
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+/* 🟢 WIN */
+.vs-history-result.win {
+  color: #2ecc71;
+}
+
+/* 🔴 LOSS */
+.vs-history-result.loss {
+  color: #e74c3c;
+}
+
+/* 🟡 DRAW */
+.vs-history-result.draw {
+  color: #f1c40f;
+}
 
 
 
@@ -40632,7 +40654,8 @@ function formatVsGameDate(dateString) {
 async function loadVsBotHistory() {
   const { data, error } = await supabase
     .from("vs_bot_games")
-    .select("id, pgn, result, student_name, bot_name, difficulty, created_at")
+   .select("id, pgn, result, student_name, bot_name, difficulty, created_at, player_color")
+
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -40657,7 +40680,10 @@ card.innerHTML = `
   <div class="vs-mini-board" id="mini-${game.id}"></div>
 
   <div class="vs-history-meta">
-    <div class="vs-history-player">${game.student_name}</div>
+   <div class="vs-history-player">
+  ${game.student_name} (${game.player_color === "white" ? "White" : "Black"})
+</div>
+
 
     <div class="vs-history-bot">
       vs ${game.bot_name} (${game.difficulty})
@@ -40828,11 +40854,12 @@ async function saveVsBotGame({ result, pgn }) {
 
   const payload = {
     student_id: currentProfile.id,
-    student_name: currentProfile.username, // ✅ REQUIRED
+    student_name: currentProfile.username,
     bot_name: document.getElementById("engineSelect")?.value || "Ares Blaster",
     difficulty: parseInt(document.getElementById("engineLevel")?.value || 0),
     result,
-    pgn
+    pgn,
+    player_color: vsPlayerColor === "white" ? "white" : "black"
   };
 
   const { error } = await supabase
