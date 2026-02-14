@@ -13966,6 +13966,58 @@ body {
 
 
 
+/* 🎨 Dynamic Board Colors */
+:root {
+  --light-square: #f0d9b5;
+  --dark-square: #b58863;
+}
+
+#chessboard .white-1e1d7 {
+  background-color: var(--light-square) !important;
+}
+
+#chessboard .black-3c85d {
+  background-color: var(--dark-square) !important;
+}
+
+
+/* 🎨 Study Board Colors */
+:root {
+  --study-light-square: #f0d9b5;
+  --study-dark-square: #b58863;
+}
+
+#studyBoard .white-1e1d7 {
+  background-color: var(--study-light-square) !important;
+}
+
+#studyBoard .black-3c85d {
+  background-color: var(--study-dark-square) !important;
+}
+
+
+:root {
+  --vs-light-square: #f0d9b5;
+  --vs-dark-square: #b58863;
+}
+
+#computerBoard .white-1e1d7 {
+  background-color: var(--vs-light-square) !important;
+}
+
+#computerBoard .black-3c85d {
+  background-color: var(--vs-dark-square) !important;
+}
+
+
+@media (max-width: 768px) {
+  #vsBoardColorControls {
+    display: none !important;
+  }
+}
+
+
+
 
 
 
@@ -14423,6 +14475,8 @@ body {
     class="study-search"
   />
 
+  <div style="display:flex; align-items:center; gap:8px;">
+
   <span
     id="saveStudyBtn"
     class="study-save-btn hidden"
@@ -14430,6 +14484,30 @@ body {
   >
     💾 Save
   </span>
+
+  <!-- 🎨 Study Board Colors -->
+  <div id="studyBoardColorControls"
+       style="display:flex; align-items:center; gap:5px; font-size:11px;">
+
+    <input type="color"
+           id="studyLightPicker"
+           value="#f0d9b5"
+           style="width:20px;height:20px;border:none;padding:0;cursor:pointer;">
+
+    <input type="color"
+           id="studyDarkPicker"
+           value="#b58863"
+           style="width:20px;height:20px;border:none;padding:0;cursor:pointer;">
+
+    <button id="resetStudyBoardColors"
+            style="font-size:11px;padding:2px 5px;cursor:pointer;">
+      ↺
+    </button>
+
+  </div>
+
+</div>
+
 </div>
 
 
@@ -15077,6 +15155,27 @@ body {
   <span class="vs-xp-info">
     🏆 Win +10 XP <span class="sep">|</span> 🤝 Draw +5 XP
   </span>
+  <!-- 🎨 VS Computer Board Colors -->
+<div id="vsBoardColorControls"
+     style="display:flex; align-items:center; gap:5px; font-size:11px; margin-left:8px;">
+
+  <input type="color"
+         id="vsLightPicker"
+         value="#f0d9b5"
+         style="width:20px;height:20px;border:none;padding:0;cursor:pointer;">
+
+  <input type="color"
+         id="vsDarkPicker"
+         value="#b58863"
+         style="width:20px;height:20px;border:none;padding:0;cursor:pointer;">
+
+  <button id="resetVsBoardColors"
+          style="font-size:11px;padding:2px 5px;cursor:pointer;">
+    ↺
+  </button>
+
+</div>
+
 </h2>
 <!-- 🔹 VS SUB TABS -->
 <div class="vs-subtabs">
@@ -16355,6 +16454,36 @@ body {
 >
   ♟ King + Pawns
 </button>
+<!-- 🎨 Compact Board Color Controls -->
+<div id="boardColorControls" style="
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  margin-bottom:6px;
+">
+
+  <span style="color:#aaa;">Board:</span>
+
+  <input type="color" id="lightSquarePicker"
+         value="#f0d9b5"
+         style="width:22px;height:22px;padding:0;border:none;cursor:pointer;">
+
+  <input type="color" id="darkSquarePicker"
+         value="#b58863"
+         style="width:22px;height:22px;padding:0;border:none;cursor:pointer;">
+
+  <button id="resetBoardColorsBtn"
+          style="
+            font-size:11px;
+            padding:2px 6px;
+            cursor:pointer;
+          ">
+    ↺
+  </button>
+
+</div>
+
 
 
 </div>
@@ -16411,6 +16540,7 @@ body {
         
         <!-- Board (left) -->
         <div class="board-wrapper">
+          
           <div id="chessboard"></div>
 
           <button
@@ -21919,6 +22049,7 @@ enableMobileBoardFlip();
       
       // Initialize drawing system
       initDrawingSystem();
+      initBoardColorSystem();   // 👈 ADD THIS LINE
       
       window.addEventListener('resize', () => {
   if (board && typeof board.resize === 'function') board.resize();
@@ -22864,6 +22995,8 @@ onSnapEnd: () => {
 
 
   });
+  initVsBoardColorSystem();
+
   
 // ==================================================
   // 🔵 INIT DESKTOP DRAWING SYSTEM FOR BOT BOARD
@@ -27519,6 +27652,8 @@ function initStudyBoard() {
 
     onDrop: onStudyDrop
   });
+  initStudyBoardColorSystem();
+
 }
 
 
@@ -42404,7 +42539,7 @@ const AVATARS = [
   "pirate.png",
   "hen.png",
   "tiger.png",
-    "anime.png",
+  "anime.png",
   "anime1.png",
   "anime2.png",
   "anime3.png",
@@ -42416,7 +42551,7 @@ const AVATARS = [
   "broly.png",
   "goku.png",
   "vegeta.png",
- "chess1.png",
+  "chess1.png",
     "optimus3.png",
     "optimus2.png",
     "optimus1.png",
@@ -43034,11 +43169,179 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
+// ============================================
+// 🎨 BOARD COLOR SYSTEM
+// ============================================
+
+function initBoardColorSystem() {
+
+  const lightPicker = document.getElementById("lightSquarePicker");
+  const darkPicker = document.getElementById("darkSquarePicker");
+  const resetBtn = document.getElementById("resetBoardColorsBtn");
+
+  if (!lightPicker || !darkPicker) return;
+
+  // Load saved colors
+  const savedLight = localStorage.getItem("boardLightColor");
+  const savedDark = localStorage.getItem("boardDarkColor");
+
+  if (savedLight) {
+    document.documentElement.style.setProperty("--light-square", savedLight);
+    lightPicker.value = savedLight;
+  }
+
+  if (savedDark) {
+    document.documentElement.style.setProperty("--dark-square", savedDark);
+    darkPicker.value = savedDark;
+  }
+
+  // On change
+  lightPicker.addEventListener("input", (e) => {
+    const color = e.target.value;
+    document.documentElement.style.setProperty("--light-square", color);
+    localStorage.setItem("boardLightColor", color);
+  });
+
+  darkPicker.addEventListener("input", (e) => {
+    const color = e.target.value;
+    document.documentElement.style.setProperty("--dark-square", color);
+    localStorage.setItem("boardDarkColor", color);
+  });
+
+  // Reset button
+  resetBtn.addEventListener("click", () => {
+    const defaultLight = "#f0d9b5";
+    const defaultDark = "#b58863";
+
+    document.documentElement.style.setProperty("--light-square", defaultLight);
+    document.documentElement.style.setProperty("--dark-square", defaultDark);
+
+    lightPicker.value = defaultLight;
+    darkPicker.value = defaultDark;
+
+    localStorage.removeItem("boardLightColor");
+    localStorage.removeItem("boardDarkColor");
+  });
+}
+
+
+// ============================================
+// 🎨 STUDY BOARD COLOR SYSTEM
+// ============================================
+
+function initStudyBoardColorSystem() {
+
+  const lightPicker = document.getElementById("studyLightPicker");
+  const darkPicker = document.getElementById("studyDarkPicker");
+  const resetBtn = document.getElementById("resetStudyBoardColors");
+
+  if (!lightPicker || !darkPicker) return;
+
+  const savedLight = localStorage.getItem("studyBoardLight");
+  const savedDark = localStorage.getItem("studyBoardDark");
+
+  if (savedLight) {
+    document.documentElement.style
+      .setProperty("--study-light-square", savedLight);
+    lightPicker.value = savedLight;
+  }
+
+  if (savedDark) {
+    document.documentElement.style
+      .setProperty("--study-dark-square", savedDark);
+    darkPicker.value = savedDark;
+  }
+
+  lightPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement.style
+      .setProperty("--study-light-square", color);
+    localStorage.setItem("studyBoardLight", color);
+  });
+
+  darkPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement.style
+      .setProperty("--study-dark-square", color);
+    localStorage.setItem("studyBoardDark", color);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    const defaultLight = "#f0d9b5";
+    const defaultDark = "#b58863";
+
+    document.documentElement.style
+      .setProperty("--study-light-square", defaultLight);
+    document.documentElement.style
+      .setProperty("--study-dark-square", defaultDark);
+
+    lightPicker.value = defaultLight;
+    darkPicker.value = defaultDark;
+
+    localStorage.removeItem("studyBoardLight");
+    localStorage.removeItem("studyBoardDark");
+  });
+}
 
 
 
+// ============================================
+// 🎨 VS COMPUTER BOARD COLOR SYSTEM
+// ============================================
 
+function initVsBoardColorSystem() {
 
+  const lightPicker = document.getElementById("vsLightPicker");
+  const darkPicker = document.getElementById("vsDarkPicker");
+  const resetBtn = document.getElementById("resetVsBoardColors");
+
+  if (!lightPicker || !darkPicker) return;
+
+  const savedLight = localStorage.getItem("vsBoardLight");
+  const savedDark = localStorage.getItem("vsBoardDark");
+
+  if (savedLight) {
+    document.documentElement
+      .style.setProperty("--vs-light-square", savedLight);
+    lightPicker.value = savedLight;
+  }
+
+  if (savedDark) {
+    document.documentElement
+      .style.setProperty("--vs-dark-square", savedDark);
+    darkPicker.value = savedDark;
+  }
+
+  lightPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement
+      .style.setProperty("--vs-light-square", color);
+    localStorage.setItem("vsBoardLight", color);
+  });
+
+  darkPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement
+      .style.setProperty("--vs-dark-square", color);
+    localStorage.setItem("vsBoardDark", color);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    const defaultLight = "#f0d9b5";
+    const defaultDark = "#b58863";
+
+    document.documentElement
+      .style.setProperty("--vs-light-square", defaultLight);
+    document.documentElement
+      .style.setProperty("--vs-dark-square", defaultDark);
+
+    lightPicker.value = defaultLight;
+    darkPicker.value = defaultDark;
+
+    localStorage.removeItem("vsBoardLight");
+    localStorage.removeItem("vsBoardDark");
+  });
+}
 
 
 
@@ -43717,7 +44020,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
