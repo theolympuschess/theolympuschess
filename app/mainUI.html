@@ -13914,6 +13914,60 @@ body {
 
 
 
+/* =========================================
+   COMPUTER BOARD RESPONSIVE WRAPPER
+========================================= */
+
+#computerBoardWrapper {
+  position: relative;
+  width: 100%;
+  max-width: 650px;
+  margin: auto;
+}
+
+#computerBoard {
+  width: 100%;
+}
+
+#computerDrawLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+
+
+
+
+/* =========================================
+   EDITOR BOARD DRAW SYSTEM
+========================================= */
+
+#editorBoardWrapper {
+  position: relative;
+  width: 100%;
+  max-width: 650px;
+  margin: auto;
+}
+
+#editorBoard {
+  width: 100%;
+}
+
+#editorDrawLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+
+
+
+
 
 
 
@@ -14930,9 +14984,19 @@ body {
 
   <div class="board-layout">
     <!-- Board -->
-    <div class="board-wrapper">
-      <div id="editorBoard"></div>
-    </div>
+   <div class="board-wrapper">
+
+  <div id="editorBoardWrapper">
+
+    <div id="editorBoard"></div>
+
+    <!-- EDITOR DRAW LAYER -->
+    <canvas id="editorDrawLayer"></canvas>
+
+  </div>
+
+</div>
+
 
     <!-- Controls -->
     <div class="side-panel">
@@ -15076,10 +15140,19 @@ body {
 
 
     <!-- ♟ BOARD -->
-    <div class="board-column">
-      
-      
-      <div id="computerBoard" class="chessboard"></div>
+   <div class="board-column">
+
+ <div id="computerBoardWrapper">
+
+
+   <div id="computerBoard" class="chessboard"></div>
+
+
+    <!-- BOT DRAW LAYER -->
+    <canvas id="computerDrawLayer"></canvas>
+
+  </div>
+
       
 
       <!-- CLOCKS -->
@@ -17581,6 +17654,18 @@ function initEditorBoard() {
 
 
   syncEditorFEN();
+  // ==================================================
+  // 🔵 INIT DRAWING SYSTEM FOR EDITOR (DESKTOP ONLY)
+  // ==================================================
+  setTimeout(() => {
+    const wrapper = document.getElementById("editorBoardWrapper");
+    const boardEl = document.getElementById("editorBoard");
+    const canvas  = document.getElementById("editorDrawLayer");
+
+    if (wrapper && boardEl && canvas) {
+      initEditorBoardDrawing(wrapper, boardEl, canvas);
+    }
+  }, 200);
 }
 function onEditorDrop(source, target, piece) {
   // remove piece from source square
@@ -22780,6 +22865,19 @@ onSnapEnd: () => {
 
   });
   
+// ==================================================
+  // 🔵 INIT DESKTOP DRAWING SYSTEM FOR BOT BOARD
+  // ==================================================
+
+  setTimeout(() => {
+    const wrapper = document.getElementById("computerBoardWrapper");
+    const boardEl = document.getElementById("computerBoard");
+    const canvas  = document.getElementById("computerDrawLayer");
+
+    if (wrapper && boardEl && canvas) {
+      initComputerBoardDrawing(wrapper, boardEl, canvas);
+    }
+  }, 200);
 }
 
 window.completeVsPromotion = function (piece) {
@@ -28017,9 +28115,450 @@ const headWidth  = size * 0.24;   // narrower head
 
 
 
+/* =====================================================
+   COMPUTER BOARD DRAW SYSTEM (DESKTOP ONLY)
+   Fully isolated from study board
+===================================================== */
+
+function initComputerBoardDrawing(wrapper, boardEl, canvas) {
+
+  // 🚫 Disable on mobile / touch devices
+  if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
+    canvas.style.display = "none";
+    return;
+  }
+
+  const ctx = canvas.getContext("2d");
+  const DRAW_COLOR = "rgba(0,180,0,0.95)";
+
+  let startSquare = null;
+  let isRightDragging = false;
+  let dragMoved = false;
+
+  const botDrawings = {}; // isolated storage
+
+  function resizeCanvas() {
+    const rect = boardEl.getBoundingClientRect();
+    if (!rect.width) return;
+
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+
+    redraw();
+  }
+
+  function waitForBoardReady() {
+    const rect = boardEl.getBoundingClientRect();
+    if (!rect.width) {
+      requestAnimationFrame(waitForBoardReady);
+      return;
+    }
+    resizeCanvas();
+  }
+
+  waitForBoardReady();
+  window.addEventListener("resize", resizeCanvas);
+
+  function currentFenKey() {
+    return vsChess.fen().split(" ").slice(0, 4).join(" ");
+  }
+
+  function getDrawings() {
+    const key = currentFenKey();
+    if (!botDrawings[key]) botDrawings[key] = [];
+    return botDrawings[key];
+  }
+
+  function getSquareFromEvent(e) {
+    const rect = boardEl.getBoundingClientRect();
+    const size = rect.width / 8;
+
+    const x = Math.floor((e.clientX - rect.left) / size);
+    const y = Math.floor((e.clientY - rect.top) / size);
+
+    if (x < 0 || x > 7 || y < 0 || y > 7) return null;
+
+    return String.fromCharCode(97 + x) + (8 - y);
+  }
+
+  function squareCenter(square) {
+    const file = square.charCodeAt(0) - 97;
+    const rank = 8 - parseInt(square[1]);
+    const size = canvas.width / 8;
+
+    return {
+      x: file * size + size / 2,
+      y: rank * size + size / 2
+    };
+  }
+
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    getDrawings().forEach(drawElement);
+  }
+
+  function drawElement(d) {
+
+    const size = canvas.width / 8;
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = d.color;
+    ctx.fillStyle = d.color;
+
+    if (d.type === "circle") {
+
+      const c = squareCenter(d.square);
+      ctx.lineWidth = size * 0.08;
+      const radius = size * 0.38;
+
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (d.type === "arrow") {
+
+      const from = squareCenter(d.from);
+      const to = squareCenter(d.to);
+
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const angle = Math.atan2(dy, dx);
+
+      const shaftWidth = size * 0.08;
+      const headLength = size * 0.36;
+      const headWidth  = size * 0.24;
+
+      ctx.lineWidth = shaftWidth;
+
+      const shaftEndX = to.x - headLength * Math.cos(angle);
+      const shaftEndY = to.y - headLength * Math.sin(angle);
+
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(shaftEndX, shaftEndY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(
+        shaftEndX + headWidth * Math.cos(angle - Math.PI / 2),
+        shaftEndY + headWidth * Math.sin(angle - Math.PI / 2)
+      );
+      ctx.lineTo(
+        shaftEndX + headWidth * Math.cos(angle + Math.PI / 2),
+        shaftEndY + headWidth * Math.sin(angle + Math.PI / 2)
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  wrapper.addEventListener("contextmenu", e => e.preventDefault());
+
+  wrapper.addEventListener("mousedown", e => {
+
+    if (e.button !== 2) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    isRightDragging = true;
+    dragMoved = false;
+    startSquare = getSquareFromEvent(e);
+
+  }, true);
+
+  wrapper.addEventListener("mousemove", () => {
+    if (isRightDragging) dragMoved = true;
+  }, true);
+
+  wrapper.addEventListener("mouseup", e => {
+
+    if (!isRightDragging || e.button !== 2) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    isRightDragging = false;
+
+    const endSquare = getSquareFromEvent(e);
+    if (!startSquare || !endSquare) return;
+
+    const drawings = getDrawings();
+
+    if (!dragMoved || startSquare === endSquare) {
+
+      const idx = drawings.findIndex(
+        d => d.type === "circle" && d.square === startSquare
+      );
+
+      if (idx >= 0) drawings.splice(idx, 1);
+      else drawings.push({
+        type: "circle",
+        square: startSquare,
+        color: DRAW_COLOR
+      });
+
+    } else {
+
+      const idx = drawings.findIndex(
+        d =>
+          d.type === "arrow" &&
+          d.from === startSquare &&
+          d.to === endSquare
+      );
+
+      if (idx >= 0) drawings.splice(idx, 1);
+      else drawings.push({
+        type: "arrow",
+        from: startSquare,
+        to: endSquare,
+        color: DRAW_COLOR
+      });
+    }
+
+    redraw();
+
+  }, true);
+
+  wrapper.addEventListener("click", e => {
+    if (e.button !== 0) return;
+    getDrawings().length = 0;
+    redraw();
+  });
+
+}
 
 
 
+/* =====================================================
+   EDITOR BOARD DRAW SYSTEM (DESKTOP ONLY)
+===================================================== */
+
+function initEditorBoardDrawing(wrapper, boardEl, canvas) {
+
+  // 🚫 disable on mobile
+  if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
+    canvas.style.display = "none";
+    return;
+  }
+
+  const ctx = canvas.getContext("2d");
+  const DRAW_COLOR = "rgba(0,180,0,0.95)";
+
+  let startSquare = null;
+  let isRightDragging = false;
+  let dragMoved = false;
+
+  const editorDrawings = {};
+
+function resizeCanvas() {
+
+  const boardGrid = boardEl.querySelector(".board-b72b1");
+  if (!boardGrid) return;
+
+  const rect = boardGrid.getBoundingClientRect();
+
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+
+  // align canvas vertically with actual board grid
+  canvas.style.top = boardGrid.offsetTop + "px";
+
+  redraw();
+}
+
+
+  function waitForBoardReady() {
+    const rect = boardEl.getBoundingClientRect();
+    if (!rect.width) {
+      requestAnimationFrame(waitForBoardReady);
+      return;
+    }
+    resizeCanvas();
+  }
+
+  waitForBoardReady();
+  window.addEventListener("resize", resizeCanvas);
+
+  function currentFenKey() {
+    return editorChess.fen().split(" ").slice(0, 4).join(" ");
+  }
+
+  function getDrawings() {
+    const key = currentFenKey();
+    if (!editorDrawings[key]) editorDrawings[key] = [];
+    return editorDrawings[key];
+  }
+
+function getSquareFromEvent(e) {
+
+  const boardGrid = boardEl.querySelector(".board-b72b1");
+  if (!boardGrid) return null;
+
+  const rect = boardGrid.getBoundingClientRect();
+  const size = rect.width / 8;
+
+  const x = Math.floor((e.clientX - rect.left) / size);
+  const y = Math.floor((e.clientY - rect.top) / size);
+
+  if (x < 0 || x > 7 || y < 0 || y > 7) return null;
+
+  return String.fromCharCode(97 + x) + (8 - y);
+}
+
+
+  function squareCenter(square) {
+    const file = square.charCodeAt(0) - 97;
+    const rank = 8 - parseInt(square[1]);
+    const size = canvas.width / 8;
+
+    return {
+      x: file * size + size / 2,
+      y: rank * size + size / 2
+    };
+  }
+
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    getDrawings().forEach(drawElement);
+  }
+
+  function drawElement(d) {
+
+    const size = canvas.width / 8;
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = d.color;
+    ctx.fillStyle = d.color;
+
+    if (d.type === "circle") {
+      const c = squareCenter(d.square);
+      ctx.lineWidth = size * 0.08;
+      const radius = size * 0.38;
+
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (d.type === "arrow") {
+
+      const from = squareCenter(d.from);
+      const to = squareCenter(d.to);
+
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const angle = Math.atan2(dy, dx);
+
+      const shaftWidth = size * 0.08;
+      const headLength = size * 0.36;
+      const headWidth  = size * 0.24;
+
+      ctx.lineWidth = shaftWidth;
+
+      const shaftEndX = to.x - headLength * Math.cos(angle);
+      const shaftEndY = to.y - headLength * Math.sin(angle);
+
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(shaftEndX, shaftEndY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(
+        shaftEndX + headWidth * Math.cos(angle - Math.PI / 2),
+        shaftEndY + headWidth * Math.sin(angle - Math.PI / 2)
+      );
+      ctx.lineTo(
+        shaftEndX + headWidth * Math.cos(angle + Math.PI / 2),
+        shaftEndY + headWidth * Math.sin(angle + Math.PI / 2)
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  wrapper.addEventListener("contextmenu", e => e.preventDefault());
+
+  wrapper.addEventListener("mousedown", e => {
+    if (e.button !== 2) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    isRightDragging = true;
+    dragMoved = false;
+    startSquare = getSquareFromEvent(e);
+  }, true);
+
+  wrapper.addEventListener("mousemove", () => {
+    if (isRightDragging) dragMoved = true;
+  }, true);
+
+  wrapper.addEventListener("mouseup", e => {
+    if (!isRightDragging || e.button !== 2) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    isRightDragging = false;
+
+    const endSquare = getSquareFromEvent(e);
+    if (!startSquare || !endSquare) return;
+
+    const drawings = getDrawings();
+
+    if (!dragMoved || startSquare === endSquare) {
+
+      const idx = drawings.findIndex(
+        d => d.type === "circle" && d.square === startSquare
+      );
+
+      if (idx >= 0) drawings.splice(idx, 1);
+      else drawings.push({
+        type: "circle",
+        square: startSquare,
+        color: DRAW_COLOR
+      });
+
+    } else {
+
+      const idx = drawings.findIndex(
+        d =>
+          d.type === "arrow" &&
+          d.from === startSquare &&
+          d.to === endSquare
+      );
+
+      if (idx >= 0) drawings.splice(idx, 1);
+      else drawings.push({
+        type: "arrow",
+        from: startSquare,
+        to: endSquare,
+        color: DRAW_COLOR
+      });
+    }
+
+    redraw();
+  }, true);
+
+  wrapper.addEventListener("click", e => {
+    if (e.button !== 0) return;
+    getDrawings().length = 0;
+    redraw();
+  });
+}
 
 
 
