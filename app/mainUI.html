@@ -36309,6 +36309,9 @@ const clearBtn = document.getElementById("clearCanvas");
 
 let drawing = false;
 let startX, startY;
+let mouseX = 0;
+let mouseY = 0;
+
 
 // Resize canvas
 function resizeCanvas() {
@@ -36350,6 +36353,7 @@ canvas.addEventListener("mousedown", e => {
 });
 
 canvas.addEventListener("mouseup", e => {
+ctx.globalCompositeOperation = "source-over"; // reset
   if (!drawing) return;
   drawing = false;
 
@@ -36397,32 +36401,68 @@ if (mode === "arrow") {
 });
 
 canvas.addEventListener("mousemove", e => {
-  if (!drawing) return;
+
+  mouseX = e.clientX;
+  mouseY = e.clientY;
 
   const mode = modeSelect.value;
 
-  // Clear preview layer
+  // Always clear preview
   previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
 
-  if (mode === "pen" || mode === "erase") {
-    ctx.strokeStyle = mode === "erase" ? "#000000" : colorPicker.value;
-    ctx.lineWidth = sizeSlider.value;
-    ctx.lineCap = "round";
-
-    ctx.lineTo(e.clientX, e.clientY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX, e.clientY);
-    return;
+  // ========================
+  // ERASER CURSOR (always visible in erase mode)
+  // ========================
+  if (drawEnabled && mode === "erase") {
+    drawEraserCursor();
   }
 
-  // LIVE PREVIEW FOR SHAPES
+  // If not drawing, stop here
+  if (!drawing) return;
+
+  // ========================
+  // FREE DRAW / ERASE
+  // ========================
+if (mode === "pen" || mode === "erase") {
+
+  const baseSize = parseInt(sizeSlider.value);
+
+  ctx.lineCap = "round";
+
+  if (mode === "erase") {
+
+    ctx.globalCompositeOperation = "destination-out";
+
+    const radius = baseSize * 3;       // same as visual
+    ctx.lineWidth = radius * 2;        // diameter = actual erase width
+
+  } else {
+
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = colorPicker.value;
+    ctx.lineWidth = baseSize;
+
+  }
+
+  ctx.lineTo(e.clientX, e.clientY);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(e.clientX, e.clientY);
+
+  return;
+}
+
+
+
+  // ========================
+  // SHAPE PREVIEW
+  // ========================
   const x = e.clientX;
   const y = e.clientY;
 
   previewCtx.strokeStyle = colorPicker.value;
   previewCtx.lineWidth = sizeSlider.value;
-  previewCtx.setLineDash([6, 4]); // dashed preview
+  previewCtx.setLineDash([6, 4]);
   previewCtx.lineCap = "round";
 
   previewCtx.beginPath();
@@ -36451,6 +36491,7 @@ canvas.addEventListener("mousemove", e => {
   previewCtx.stroke();
   previewCtx.setLineDash([]);
 });
+
 
 
 // Clear
@@ -36580,6 +36621,8 @@ function updateToolboxUI() {
 
     // SHOW canvas
     canvas.style.display = "block";
+    canvas.style.cursor = drawEnabled && modeSelect.value === "erase" ? "none" : "default";
+
 
     toolboxTitle.textContent = "✏️ Draw Tools";
   } else {
@@ -36587,6 +36630,7 @@ function updateToolboxUI() {
 
     // HIDE canvas completely
     canvas.style.display = "none";
+     previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height); // 🔥 clear eraser circle
 
     toolboxTitle.textContent = "✏️ Open Tools";
   }
@@ -36600,6 +36644,40 @@ toolboxHeader.addEventListener("click", () => {
 
 // Init state
 updateToolboxUI();
+
+modeSelect.addEventListener("change", () => {
+  canvas.style.cursor =
+    drawEnabled && modeSelect.value === "erase"
+      ? "none"
+      : "default";
+});
+
+previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+
+// ============================
+// ERASER VISUAL CURSOR
+// ============================
+
+function drawEraserCursor() {
+
+  if (!drawEnabled) return;
+  if (modeSelect.value !== "erase") return;
+
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+  const radius = parseInt(sizeSlider.value) * 3;
+
+  previewCtx.beginPath();
+  previewCtx.arc(mouseX, mouseY, radius, 0, Math.PI * 2);
+
+  previewCtx.strokeStyle = "white";
+  previewCtx.lineWidth = 1.5;
+  previewCtx.setLineDash([4, 4]);
+  previewCtx.stroke();
+
+  previewCtx.setLineDash([]);
+}
 
 
 
