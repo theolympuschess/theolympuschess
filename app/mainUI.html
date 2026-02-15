@@ -630,40 +630,16 @@
 }
 
 
-    /* ===== CHESSBOARD CURSOR STYLES ===== */
-    #chessboard {
-      cursor: default;
-    }
+    /* ===== SIMPLE BOARD GRAB CURSOR ===== */
 
-    /* When hovering over draggable pieces */
-    #chessboard .piece-417db {
-      cursor: grab !important;
-    }
+#chessboard {
+  cursor: grab;
+}
 
-    #chessboard .piece-417db:hover {
-      cursor: grab !important;
-    }
+#chessboard:active {
+  cursor: grabbing;
+}
 
-    /* When actively dragging a piece */
-    #chessboard .piece-417db:active {
-      cursor: grabbing !important;
-    }
-
-    /* Disable cursor when in navigation mode */
-    .navigation-mode #chessboard .piece-417db {
-      cursor: not-allowed !important;
-    }
-
-    /* Also style the board squares on hover when piece is present */
-    #chessboard .square-55d63:hover {
-      cursor: pointer;
-    }
-
-    /* Make sure the board container has proper cursor */
-    .board-wrapper:hover #chessboard {
-      cursor: default;
-      
-    }
 
 
     /* ===== DRAWING SYSTEM STYLES ===== */
@@ -678,19 +654,17 @@
     }
 
     #boardOverlay line {
-      stroke: #057505;
-      stroke-width: 5;
-      stroke-linecap: round;
-      marker-end: url(#arrowhead);
-      filter: drop-shadow(0 1px 2px rgba(0, 255, 0, 0.5));
-    }
+  stroke-width: 5;
+  stroke-linecap: round;
+  
+}
 
-    #boardOverlay circle {
-      fill: none;
-      stroke: #057505;
-      
-      filter: drop-shadow(0 1px 2px rgba(0, 255, 0, 0.5));
-    }
+
+   #boardOverlay circle {
+  fill: none;
+  
+}
+
 
     #boardOverlay rect {
       fill: rgba(255, 255, 255, 0.05);
@@ -17868,6 +17842,8 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+
+
 function syncEditorFEN() {
   if (!editorBoard) return;
 
@@ -24122,6 +24098,12 @@ chessboardEl.addEventListener('mousedown', (e) => {
   };
 }
 
+function getDrawColor(e) {
+  if (e.ctrlKey)  return '#ff0000';   // Red
+  if (e.shiftKey) return '#0078ff';   // Blue
+  if (e.altKey)   return '#ffcc00';   // Yellow
+  return '#057505';                   // Default Green
+}
 
 
 
@@ -24157,6 +24139,8 @@ chessboardEl.addEventListener('mousedown', (e) => {
       }
     }
 
+    
+
     function handleMouseUp(e) {
   if (e.button !== 2) return;
 
@@ -24170,15 +24154,17 @@ chessboardEl.addEventListener('mousedown', (e) => {
   const endSquare = getSquareFromCoordinates(e.clientX, e.clientY);
 
   // 👉 Case 1: NO DRAG → draw circle
-  if (distance < DRAG_THRESHOLD) {
-    if (endSquare) {
-      drawCircle(endSquare);
-    }
+ const color = getDrawColor(e);
+
+if (distance < DRAG_THRESHOLD) {
+  if (endSquare) {
+    drawCircle(endSquare, color);
   }
-  // 👉 Case 2: DRAG → draw arrow
-  else if (drawStartSquare && endSquare && drawStartSquare !== endSquare) {
-    drawArrow(drawStartSquare, endSquare);
-  }
+}
+else if (drawStartSquare && endSquare && drawStartSquare !== endSquare) {
+  drawArrow(drawStartSquare, endSquare, color);
+}
+
 
   // Reset state
   isRightMouseDown = false;
@@ -24267,19 +24253,24 @@ chessboardEl.addEventListener('mousedown', (e) => {
       };
       
       // Draw preview line
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', startCoords.x);
-      line.setAttribute('y1', startCoords.y);
-      line.setAttribute('x2', currentCoords.x);
-      line.setAttribute('y2', currentCoords.y);
-      line.setAttribute('stroke', '#00ff00');
-      line.setAttribute('stroke-width', '2');
-      line.setAttribute('stroke-dasharray', '5,5');
-      line.setAttribute('stroke-linecap', 'round');
-      line.setAttribute('class', 'drawing-preview');
-      line.setAttribute('opacity', '0.7');
-      
-      svgOverlay.appendChild(line);
+      // Draw preview line
+const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+line.setAttribute('x1', startCoords.x);
+line.setAttribute('y1', startCoords.y);
+line.setAttribute('x2', currentCoords.x);
+line.setAttribute('y2', currentCoords.y);
+
+const color = getDrawColor(e);
+line.setAttribute('stroke', color);
+
+line.setAttribute('stroke-width', '2');
+line.setAttribute('stroke-dasharray', '5,5');
+line.setAttribute('stroke-linecap', 'round');
+line.setAttribute('class', 'drawing-preview');
+line.setAttribute('opacity', '0.7');
+
+svgOverlay.appendChild(line);
+
     }
 
     function clearDrawingPreview() {
@@ -24287,46 +24278,74 @@ chessboardEl.addEventListener('mousedown', (e) => {
       previews.forEach(el => el.remove());
     }
 
-    function drawArrow(fromSquare, toSquare) {
-      const fromCoords = getSquareCoordinates(fromSquare);
-      const toCoords = getSquareCoordinates(toSquare);
-      
-      // Create arrow
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', fromCoords.x);
-      line.setAttribute('y1', fromCoords.y);
-      line.setAttribute('x2', toCoords.x);
-      line.setAttribute('y2', toCoords.y);
-      line.setAttribute('stroke', '#00ff00');
-      line.setAttribute('stroke-width', '2.8');
-      line.setAttribute('stroke-linecap', 'round');
-      line.setAttribute('marker-end', 'url(#arrowhead)');
-      line.setAttribute('class', 'drawing-arrow');
-      line.setAttribute('data-from', fromSquare);
-      line.setAttribute('data-to', toSquare);
-      
-      svgOverlay.appendChild(line);
-      
-      // Store drawing
-      saveDrawing('arrow', { from: fromSquare, to: toSquare });
+    function drawArrow(fromSquare, toSquare, color = '#057505') {
+
+  const fromCoords = getSquareCoordinates(fromSquare);
+  const toCoords = getSquareCoordinates(toSquare);
+
+  const markerId = `arrowhead-${color.replace('#','')}`;
+
+  if (!document.getElementById(markerId)) {
+
+    let defs = svgOverlay.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      svgOverlay.appendChild(defs);
     }
 
-    function drawCircle(square) {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '6');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '5');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 6 3, 0 6');
+    polygon.setAttribute('fill', color);
+
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', fromCoords.x);
+  line.setAttribute('y1', fromCoords.y);
+  line.setAttribute('x2', toCoords.x);
+  line.setAttribute('y2', toCoords.y);
+  line.setAttribute('stroke', color);
+  line.setAttribute('stroke-width', '2.8');
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('marker-end', `url(#${markerId})`);
+  line.setAttribute('class', 'drawing-arrow');
+  line.setAttribute('data-from', fromSquare);
+  line.setAttribute('data-to', toSquare);
+
+  svgOverlay.appendChild(line);
+
+  saveDrawing('arrow', { from: fromSquare, to: toSquare, color });
+}
+
+
+
+    function drawCircle(square, color = '#057505') {
+
   const coords = getSquareCoordinates(square);
   const boardEl = document.getElementById('chessboard');
   const boardRect = boardEl.getBoundingClientRect();
   const squareSize = boardRect.width / 8;
 
-  // 🟢 LICHESS-BOLD VALUES
-  const radius = squareSize * 0.41;          // almost touching square
-  const strokeWidth = squareSize * 0.070;     // VERY bold (this was missing)
+  const radius = squareSize * 0.41;
+  const strokeWidth = squareSize * 0.070;
 
   const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   circle.setAttribute('cx', coords.x);
   circle.setAttribute('cy', coords.y);
   circle.setAttribute('r', radius);
   circle.setAttribute('fill', 'none');
-  circle.setAttribute('stroke', '#057505');
+  circle.setAttribute('stroke', color);
   circle.setAttribute('stroke-width', strokeWidth);
   circle.setAttribute('opacity', '0.70');
   circle.setAttribute('class', 'drawing-circle');
@@ -24334,8 +24353,10 @@ chessboardEl.addEventListener('mousedown', (e) => {
 
   svgOverlay.appendChild(circle);
 
-  saveDrawing('circle', { square });
+  saveDrawing('circle', { square, color });
 }
+
+
 
 
 
@@ -24377,10 +24398,19 @@ chessboardEl.addEventListener('mousedown', (e) => {
         const positionDrawings = drawings.get(fen);
         positionDrawings.forEach(drawing => {
           if (drawing.type === 'arrow') {
-            drawArrow(drawing.data.from, drawing.data.to);
-          } else if (drawing.type === 'circle') {
-            drawCircle(drawing.data.square);
-          }
+  drawArrow(
+    drawing.data.from,
+    drawing.data.to,
+    drawing.data.color || '#057505'
+  );
+}
+else if (drawing.type === 'circle') {
+  drawCircle(
+    drawing.data.square,
+    drawing.data.color || '#057505'
+  );
+}
+
         });
       }
     }
@@ -44176,7 +44206,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
