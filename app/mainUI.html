@@ -14890,6 +14890,7 @@ body {
         <button id="mpPrevMove">⏮ Prev</button>
         <button id="mpNextMove">Next ⏭</button>
         <button id="mpCopyReplayPGN">📋 Copy PGN</button>
+        <button id="mpOpenInAnalysis" class="btn-success">🔎Analysis</button>
       </div>
 
     </div>
@@ -38270,6 +38271,9 @@ let mpReplayBoard = null
 let mpReplayMoves = []
 let mpReplayIndex = 0
 let mpReplayChess = null
+let mpReplayPGN = "";
+let mpCurrentReplayGame = null;
+
 
 
 
@@ -38283,6 +38287,8 @@ mpReplayModal.classList.add('hidden')
 
 
 function mpOpenReplay(game) {
+  mpCurrentReplayGame = game;   // 🔥 ADD THIS LINE
+   mpReplayPGN = game.pgn || "";   // 🔥 VERY IMPORTANT
   mpReplayModal.classList.remove('hidden')
 
   mpReplayChess = new Chess()
@@ -38326,11 +38332,86 @@ function mpOpenReplay(game) {
     mpReplayBoard.position(mpReplayChess.fen(), false)
   }
 
-  document.getElementById('mpCopyReplayPGN').onclick = () => {
-    navigator.clipboard.writeText(game.pgn)
-  }
+ document.getElementById('mpCopyReplayPGN').onclick = () => {
+
+  const whiteName = game.white_name || "White";
+  const blackName = game.black_name || "Black";
+
+  // 🔥 Build proper PGN result from winner
+  let result = "*";
+
+  if (game.winner === "w") result = "1-0";
+  if (game.winner === "b") result = "0-1";
+  if (game.winner === "draw") result = "1/2-1/2";
+
+  const date = new Date(game.ended_at || Date.now())
+    .toISOString()
+    .split("T")[0];
+
+  const header =
+`[Event "Live Match"]
+[Site "Olympus Chess Academy"]
+[Date "${date}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + (game.pgn || "");
+
+  navigator.clipboard.writeText(fullPGN);
+};
+
 }
 
+
+document.getElementById("mpOpenInAnalysis").onclick = () => {
+
+  if (!mpCurrentReplayGame) return;
+
+  const game = mpCurrentReplayGame;
+
+  const whiteName = game.white_name || "White";
+  const blackName = game.black_name || "Black";
+
+  let result = "*";
+  if (game.winner === "w") result = "1-0";
+  if (game.winner === "b") result = "0-1";
+  if (game.winner === "draw") result = "1/2-1/2";
+
+  const date = new Date(game.ended_at || Date.now())
+    .toISOString()
+    .split("T")[0];
+
+  const header =
+`[Event "Live Match"]
+[Site "Olympus Chess Academy"]
+[Date "${date}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + (game.pgn || "");
+
+  // Switch to Analysis tab
+  document.querySelector('.nav-btn[data-tab="board"]')?.click();
+
+  setTimeout(() => {
+
+    const pgnBox = document.getElementById("pgnInput");
+    if (!pgnBox) return;
+
+    pgnBox.value = fullPGN;
+
+    window.loadPGN();
+
+  }, 200);
+
+  mpReplayModal.classList.add("hidden");
+};
 
 
 
@@ -43736,6 +43817,42 @@ function updateGameTimeControl(pgn) {
 
   timeEl.textContent = `• ${minutes}+${increment}`;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
