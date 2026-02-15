@@ -910,6 +910,13 @@
   margin-top: 2px;
 }
 
+#whitePlayer {
+  color: #d9f84d;   /* Royal Blue */
+}
+
+#blackPlayer {
+  color: #fca4f7;   /* Soft Red */
+}
 
 
 
@@ -14006,8 +14013,24 @@ body {
 }
 
 
+.game-result {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+  color: #d6b36a; /* elegant gold */
+}
 
 
+.result-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-time {
+  font-size: 0.9rem;
+  color: #d6b36a;
+}
 
 
 
@@ -16566,13 +16589,21 @@ Submit solution</button>
           
           <!-- Player names under board -->
 <div class="player-bar">
-    <div id="whitePlayer" class="player white">
-      ♚ White: <span></span>
-    </div>
-    <div id="blackPlayer" class="player black">
-      ♔ Black: <span></span>
-    </div>
+  <div id="whitePlayer" class="player white">
+    ♔ White: <span></span>
   </div>
+
+ <div class="result-wrapper">
+  <span id="gameResult" class="game-result">—</span>
+  <span id="gameTimeControl" class="game-time"></span>
+</div>
+
+
+  <div id="blackPlayer" class="player black">
+    ♚ Black: <span></span>
+  </div>
+</div>
+
   <div id="bulkNav" class="bulk-bar">
   <button onclick="goToPrevBulkPuzzle()">⬅ Prev</button>
   <span id="bulkIndicator">Puzzle 1 / 1</span>
@@ -24909,17 +24940,24 @@ function updatePlayerNames(white, black) {
 function extractPlayersFromPGN(pgn) {
   if (!pgn) {
     updatePlayerNames();
+    updateGameResult();
     return;
   }
 
   const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/i);
   const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/i);
+  const resultMatch = pgn.match(/\[Result\s+"([^"]+)"\]/i);
 
   const whiteName = whiteMatch ? whiteMatch[1] : null;
   const blackName = blackMatch ? blackMatch[1] : null;
+  const result = resultMatch ? resultMatch[1] : null;
 
   updatePlayerNames(whiteName, blackName);
+  updateGameResult(result);
+  updateGameTimeControl(pgn);
+
 }
+
 
 
 async function loadStudentsForLiveClass() {
@@ -43537,8 +43575,56 @@ function initEditorBoardColorSystem() {
 }
 
 
+function updateGameResult(result) {
+  const el = document.getElementById("gameResult");
+  if (!el) return;
+
+  if (!result) {
+    el.textContent = "—";
+    el.style.color = "#d6b36a";
+    return;
+  }
+
+  el.textContent = result;
+
+  if (result === "1-0") {
+    el.style.color = "#4caf50";   // white wins
+  } 
+  else if (result === "0-1") {
+    el.style.color = "#e57373";   // black wins
+  } 
+  else {
+    el.style.color = "#d6b36a";   // draw
+  }
+}
 
 
+function updateGameTimeControl(pgn) {
+  const timeEl = document.getElementById("gameTimeControl");
+  if (!timeEl) return;
+
+  const match = pgn.match(/\[TimeControl\s+"([^"]+)"\]/i);
+
+  if (!match) {
+    timeEl.textContent = "";
+    return;
+  }
+
+  const raw = match[1]; // e.g. "180+0"
+
+  const parts = raw.split("+");
+  if (parts.length !== 2) {
+    timeEl.textContent = "";
+    return;
+  }
+
+  const baseSeconds = parseInt(parts[0], 10);
+  const increment = parts[1];
+
+  const minutes = Math.floor(baseSeconds / 60);
+
+  timeEl.textContent = `• ${minutes}+${increment}`;
+}
 
 
 
