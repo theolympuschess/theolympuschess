@@ -21697,6 +21697,10 @@ document.addEventListener('click', e => {
           btn.classList.add('active');
 
           const tab = btn.dataset.tab;
+          // 🔥 FIX VS BOT HISTORY STICKING
+    if (tab !== 'computer') {
+      resetVsSubTabs();
+    }
           if (tab !== "quiz") {
   resetQuiz();
 }
@@ -42219,7 +42223,8 @@ card.innerHTML = `
 `;
 
 
-    card.onclick = () => openVsReplay(game.pgn);
+    card.onclick = () => openVsReplay(game)
+;
 
     grid.appendChild(card);
 
@@ -42305,15 +42310,22 @@ let vsReplayChess = null;
 let vsReplayMoves = [];
 let vsReplayIndex = 0;
 let vsReplayPGN = "";
+let vsCurrentReplayGame = null;
 
 
 
 
-function openVsReplay(pgn) {
 
-  vsReplayPGN = pgn;
+function openVsReplay(game) {
+
+  if (!game) return;
+
+  vsCurrentReplayGame = game;   // ✅ store full game
+
+  vsReplayPGN = game.pgn || ""; // ✅ use game.pgn
+
   vsReplayChess = new Chess();
-  vsReplayChess.load_pgn(pgn);
+  vsReplayChess.load_pgn(vsReplayPGN);
 
   vsReplayMoves = vsReplayChess.history({ verbose: true });
   vsReplayIndex = 0;
@@ -42325,7 +42337,7 @@ function openVsReplay(pgn) {
       position: "start",
       draggable: false,
       showNotation: false,
-       pieceTheme: getPieceThemePath(currentPieceTheme) // 🔥 REQUIRED
+      pieceTheme: getPieceThemePath(currentPieceTheme)
     });
   } else {
     vsReplayBoard.position("start");
@@ -42334,6 +42346,7 @@ function openVsReplay(pgn) {
   updateVsReplayUI();
   document.getElementById("vsReplayModal").classList.remove("hidden");
 }
+
 
 function updateVsReplayUI() {
   const counter = document.getElementById("vsMoveCounter");
@@ -42366,6 +42379,68 @@ document.getElementById("closeVsReplay").onclick = () => {
 document.getElementById("vsCopyReplayPGN").onclick = async () => {
   await navigator.clipboard.writeText(vsReplayPGN);
 };
+
+document.getElementById("vsOpenInAnalysis").onclick = () => {
+
+  if (!vsCurrentReplayGame) return;
+
+  const game = vsCurrentReplayGame;
+
+  const whiteName = game.player_color === "white"
+    ? (game.student_name || "You")
+    : (game.bot_name || "Olympus Bot");
+
+  const blackName = game.player_color === "white"
+    ? (game.bot_name || "Olympus Bot")
+    : (game.student_name || "You");
+
+  let result = "*";
+
+  if (game.result === "win") {
+    result = game.player_color === "white" ? "1-0" : "0-1";
+  }
+
+  if (game.result === "loss") {
+    result = game.player_color === "white" ? "0-1" : "1-0";
+  }
+
+  if (game.result === "draw") {
+    result = "1/2-1/2";
+  }
+
+  const date = new Date(game.created_at || Date.now())
+    .toISOString()
+    .split("T")[0];
+
+  const header =
+`[Event "Bot Game"]
+[Site "Olympus Chess Academy"]
+[Date "${date}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + (game.pgn || "");
+
+  // 🔥 Switch to Analysis tab
+  document.querySelector('.nav-btn[data-tab="board"]')?.click();
+
+  setTimeout(() => {
+
+    const pgnBox = document.getElementById("pgnInput");
+    if (!pgnBox) return;
+
+    pgnBox.value = fullPGN;
+
+    window.loadPGN();
+
+  }, 200);
+
+  document.getElementById("vsReplayModal")?.classList.add("hidden");
+};
+
 
 
 async function saveVsBotGame({ result, pgn }) {
@@ -43820,6 +43895,21 @@ function updateGameTimeControl(pgn) {
 
 
 
+function resetVsSubTabs() {
+
+  document.querySelectorAll('.vs-subtab')
+    .forEach(btn => btn.classList.remove('active'));
+
+  const playBtn = document.querySelector('.vs-subtab[data-tab="play"]');
+  if (playBtn) playBtn.classList.add('active');
+
+  const historyGrid = document.getElementById('vsHistoryGrid');
+  const playPanel = document.getElementById('vsPlayPanel');
+
+  if (historyGrid) historyGrid.innerHTML = ""; // 🔥 clear instead of hide
+  if (playPanel) playPanel.style.display = 'block';
+}
+
 
 
 
@@ -44272,6 +44362,10 @@ function updateGameTimeControl(pgn) {
 
     <div class="vs-replay-actions">
       <button id="vsCopyReplayPGN" class="btn-secondary">📋 Copy PGN</button>
+      <button id="vsOpenInAnalysis" class="btn-secondary">
+  Analysis
+</button>
+
     </div>
 
   </div>
