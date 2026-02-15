@@ -19070,8 +19070,60 @@ function updateVsMoveList() {
 
 document.getElementById("copyVsPGN")?.addEventListener("click", () => {
   if (!vsChess) return;
-  navigator.clipboard.writeText(vsChess.pgn());
+
+  const playerName = currentProfile?.username || "Player";
+
+  const botKey = document.getElementById("engineSelect").value;
+  const bot = BOT_PERSONALITIES[botKey];
+  const botName = bot?.name || "Olympus Bot";
+
+  let whiteName, blackName;
+
+  if (vsPlayerColor === "white") {
+    whiteName = playerName;
+    blackName = botName;
+  } else {
+    whiteName = botName;
+    blackName = playerName;
+  }
+
+  let result = "*";
+
+  if (vsChess.game_over()) {
+    if (vsChess.in_checkmate()) {
+      const winner =
+        vsChess.turn() === "w" ? "black" : "white";
+
+      result = winner === "white" ? "1-0" : "0-1";
+
+    } else if (
+      vsChess.in_draw() ||
+      vsChess.in_stalemate() ||
+      vsChess.in_threefold_repetition() ||
+      vsChess.insufficient_material()
+    ) {
+      result = "1/2-1/2";
+    }
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const header =
+`[Event "Bot Game"]
+[Site "Olympus Chess Academy"]
+[Date "${today}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + vsChess.pgn();
+
+  navigator.clipboard.writeText(fullPGN);
 });
+
+
 
 document.getElementById("clearVsPGN")?.addEventListener("click", () => {
   const box = document.getElementById("vsMoveList");
@@ -19106,49 +19158,57 @@ async function checkVsGameEnd() {
   clearInterval(clockInterval);
 
   if (vsChess.in_checkmate()) {
+
     const winnerColor =
       vsChess.turn() === "w" ? "black" : "white";
 
+    const finalResult =
+      winnerColor === "white" ? "1-0" : "0-1";
+
+    const terminationText =
+      winnerColor === "white"
+        ? "Black checkmated"
+        : "White checkmated";
+
     if (winnerColor === vsPlayerColor) {
+
       // 🏆 PLAYER WIN
       showVsBotResultModal("win");
       grantVsComputerXP();
 
-      // ✅ SAVE GAME (WIN)
       await saveVsBotGame({
         result: "win",
-        pgn: vsChess.pgn()
+        pgn: buildVsBotPGN(finalResult, terminationText)
       });
 
     } else {
+
       // 💥 PLAYER LOSE
       showVsBotResultModal("lose");
       playRandomLoserSound();
 
-      // ✅ SAVE GAME (LOSS)
       await saveVsBotGame({
         result: "loss",
-        pgn: vsChess.pgn()
+        pgn: buildVsBotPGN(finalResult, terminationText)
       });
     }
 
   } else {
+
     // 🤝 DRAW
     showVsBotResultModal("draw");
     grantVsComputerDrawXP();
 
-    // ✅ SAVE GAME (DRAW)
     await saveVsBotGame({
       result: "draw",
-      pgn: vsChess.pgn()
+      pgn: buildVsBotPGN("1/2-1/2", "Draw")
     });
   }
 
-  // 🧹 REMOVE FROM LIVE SPECTATOR TAB (CRITICAL)
-// 🧹 REMOVE FROM LIVE SPECTATOR TAB (LICHESS-STYLE)
-await finishVsBotLiveGame();
-
+  // 🧹 REMOVE FROM LIVE SPECTATOR TAB
+  await finishVsBotLiveGame();
 }
+
 
 
 
@@ -19171,11 +19231,20 @@ document.getElementById("resignBtn")?.addEventListener("click", async () => {
   playRandomLoserSound();
 
   // 💾 save resigned game
-  await saveVsBotGame({
-    result: "loss",
-    pgn: vsChess.pgn(),
-    resigned: true
-  });
+ const finalResult =
+  vsPlayerColor === "white" ? "0-1" : "1-0";
+
+const terminationText =
+  vsPlayerColor === "white"
+    ? "White resigned"
+    : "Black resigned";
+
+await saveVsBotGame({
+  result: "loss",
+  pgn: buildVsBotPGN(finalResult, terminationText),
+  resigned: true
+});
+
 
   // 🔴 CRITICAL — remove from live spectator IMMEDIATELY
   await finishVsBotLiveGame();
@@ -23138,7 +23207,7 @@ if (vsBotLiveGameId) {
     .from('vs_bot_live_games')
     .update({
       fen: vsChess.fen(),        // 🔥 FULL FEN
-      pgn: vsChess.pgn(),        // 🔥 PGN AFTER PLAYER MOVE
+      pgn: buildVsBotPGN(),        // 🔥 PGN AFTER PLAYER MOVE
       updated_at: new Date().toISOString()
     })
     .eq('id', vsBotLiveGameId);
@@ -23251,7 +23320,7 @@ if (window.vsBotLiveGameId) {
       .from('vs_bot_live_games')
       .update({
         fen: vsChess.fen(),
-        pgn: vsChess.pgn(),
+        pgn: buildVsBotPGN(),
         updated_at: new Date().toISOString()
       })
       .eq('id', vsBotLiveGameId);
@@ -23290,6 +23359,48 @@ function playBotCaptureSound() {
   const audio = new Audio(`bot_happy_sound/botcapture${i}.mp3`);
   audio.volume = BOT_SOUND_VOLUME;
   audio.play().catch(() => {});
+}
+
+
+function buildVsBotPGN(forcedResult = null, termination = null) {
+  if (!vsChess) return "";
+
+  // 🔥 Use real logged-in username
+  const playerName = currentProfile?.username || "Player";
+
+  const botKey = document.getElementById("engineSelect").value;
+  const bot = BOT_PERSONALITIES[botKey];
+  const botName = bot?.name || "Olympus Bot";
+
+  let whiteName, blackName;
+
+  if (vsPlayerColor === "white") {
+    whiteName = playerName;
+    blackName = botName;
+  } else {
+    whiteName = botName;
+    blackName = playerName;
+  }
+
+  const result = forcedResult || "*";
+  const today = new Date().toISOString().split("T")[0];
+
+  let header =
+`[Event "Bot Game"]
+[Site "Olympus Chess Academy"]
+[Date "${today}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+`;
+
+  if (termination) {
+    header += `[Termination "${termination}"]\n`;
+  }
+
+  header += "\n";
+
+  return header + vsChess.pgn();
 }
 
 
