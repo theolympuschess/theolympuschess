@@ -14035,6 +14035,64 @@ body {
 
 
 
+.vs-history-search {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #2f365f;
+  background: #111630;
+  color: #fff;
+  font-size: 14px;
+  width: 240px;
+  transition: 0.2s ease;
+}
+
+.vs-history-search:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 6px rgba(0,212,255,0.4);
+}
+
+
+
+/* 🔎 Multiplayer Archive Search (Small Version) */
+
+.mp-archive-search-wrapper {
+  margin-bottom: 5px;
+}
+
+.mp-archive-search {
+  padding: 4px 8px;
+  font-size: 12px;
+  width: 160px;       /* adjust width if needed */
+  height: 40px;       /* makes it small */
+  border-radius: 6px;
+  border: 1px solid #2f365f;
+  background: #111630;
+  color: #ffffff;
+  transition: 0.2s ease;
+}
+
+.mp-archive-search:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 5px rgba(0,212,255,0.4);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   </style>
 </head>
@@ -14756,10 +14814,21 @@ body {
   <div class="mp-subtabs">
     <button id="mpTabLive" class="mp-subtab active">♟ Create Game</button>
     <button id="mpTabArchive" class="mp-subtab">📚 All Games</button>
+    
    <button id="mpTabWatch" class="mp-subtab">
    Watch Live
   <span class="live-dot" id="subLiveDot"></span>
 </button>
+<div class="mp-archive-search-wrapper">
+  <input
+    type="text"
+    id="mpArchiveSearch"
+    placeholder="Search by player name..."
+    class="mp-archive-search"
+  >
+</div>
+
+
 
 
   </div>
@@ -15377,6 +15446,15 @@ body {
 
 </div>
 <div class="vs-tab-content" id="vs-tab-history">
+   <!-- 🔎 Search Bar -->
+  <div style="margin-bottom:15px;">
+    <input
+      type="text"
+      id="vsHistorySearch"
+      placeholder="Search by player name..."
+      class="vs-history-search"
+    >
+  </div>
   <div class="vs-history-grid" id="vsHistoryGrid">
     <!-- mini boards injected here -->
   </div>
@@ -43900,26 +43978,77 @@ function resetVsSubTabs() {
   document.querySelectorAll('.vs-subtab')
     .forEach(btn => btn.classList.remove('active'));
 
-  const playBtn = document.querySelector('.vs-subtab[data-tab="play"]');
+  const playBtn     = document.querySelector('.vs-subtab[data-tab="play"]');
+  const historyTab  = document.getElementById('vs-tab-history'); // 🔥 add this
+  const historyGrid = document.getElementById('vsHistoryGrid');
+  const playPanel   = document.getElementById('vs-tab-play'); // ⚠ correct id
+
   if (playBtn) playBtn.classList.add('active');
 
-  const historyGrid = document.getElementById('vsHistoryGrid');
-  const playPanel = document.getElementById('vsPlayPanel');
+  // 🔥 Hide full history tab (this hides search automatically)
+  if (historyTab) historyTab.classList.remove('active');
 
-  if (historyGrid) historyGrid.innerHTML = ""; // 🔥 clear instead of hide
-  if (playPanel) playPanel.style.display = 'block';
+  // 🔥 Clear history content
+  if (historyGrid) historyGrid.innerHTML = "";
+
+  // 🔥 Show play tab
+  if (playPanel) playPanel.classList.add('active');
 }
 
 
 
 
 
+function filterVsHistory(searchText) {
+
+  const cards = document.querySelectorAll("#vsHistoryGrid > div");
+
+  searchText = searchText.toLowerCase();
+
+  cards.forEach(card => {
+
+    const cardText = card.innerText.toLowerCase();
+
+    if (cardText.includes(searchText)) {
+      card.style.display = "block";
+    } else {
+      card.style.display = "none";
+    }
+
+  });
+}
+
+document.getElementById("vsHistorySearch")
+  .addEventListener("input", function () {
+    filterVsHistory(this.value);
+  });
 
 
 
+function filterMpArchive(searchText) {
+
+  const cards = document.querySelectorAll("#mpArchivePanel .mp-archive-card");
+
+  searchText = searchText.toLowerCase();
+
+  cards.forEach(card => {
+
+    const text = card.innerText.toLowerCase();
+
+    if (text.includes(searchText)) {
+      card.style.display = "block";
+    } else {
+      card.style.display = "none";
+    }
+
+  });
+}
 
 
-
+document.getElementById("mpArchiveSearch")
+  .addEventListener("input", function () {
+    filterMpArchive(this.value);
+  });
 
 
 
@@ -44618,6 +44747,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
