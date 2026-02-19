@@ -14188,6 +14188,39 @@ body {
 
 
 
+.study-search-wrapper {
+  position: relative;
+  width: 280px; /* adjust if needed */
+}
+
+.study-search-dropdown {
+  position: absolute;
+  top: 110%;
+  left: 0;
+  width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #141833;
+  border-radius: 10px;
+  border: 1px solid #2e335e;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  z-index: 9999;
+}
+
+.study-search-dropdown.hidden {
+  display: none;
+}
+
+.study-search-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #fff;
+}
+
+.study-search-item:hover {
+  background: #2a2f66;
+}
 
 
 
@@ -14651,12 +14684,19 @@ body {
 </h2>
 
 <div class="study-header-row">
-  <input
-    type="text"
-    id="studySearchBox"
-    placeholder="🔍 Search PGN..."
-    class="study-search"
-  />
+
+  <div class="study-search-wrapper">
+    <input
+      type="text"
+      id="studySearchBox"
+      placeholder="🔍 Search PGN..."
+      class="study-search"
+      autocomplete="off"
+    />
+
+    <div id="studySearchDropdown" class="study-search-dropdown hidden"></div>
+  </div>
+
 
   <div style="display:flex; align-items:center; gap:8px;">
 
@@ -14923,7 +14963,7 @@ body {
 
   <h2 class="mp-title">
    🎲 Live Match
-    <span id="mpHowToBtn" class="mp-howto">How to Play</span>
+   <span id="mpHowToBtn" class="mp-howto">How to Play</span>
 
 <div id="mpBoardColorControls">
   <input type="color"
@@ -28148,16 +28188,19 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const searchBox = document.getElementById("studySearchBox");
-  const studySelect = document.getElementById("studySelect");
 
-  if (!searchBox || !studySelect) return;
+  const searchBox = document.getElementById("studySearchBox");
+  const dropdown = document.getElementById("studySearchDropdown");
+
+  if (!searchBox || !dropdown) return;
 
   let searchTimeout = null;
 
   async function searchPGN(query) {
+
     if (!query.trim()) {
-      studySelect.innerHTML = `<option value="">Study</option>`;
+      dropdown.innerHTML = "";
+      dropdown.classList.add("hidden");
       return;
     }
 
@@ -28165,31 +28208,62 @@ document.addEventListener("DOMContentLoaded", () => {
       .from("bulk_pgn_library")
       .select("id, title")
       .ilike("title", `%${query}%`)
-      .order("title", { ascending: true }); // clean sorted list
+      .order("title", { ascending: true });
 
     if (error) {
       console.error("❌ PGN search error:", error);
       return;
     }
 
-    studySelect.innerHTML = `<option value="">Results</option>`;
+    dropdown.innerHTML = "";
+
+    if (!data || data.length === 0) {
+      dropdown.classList.add("hidden");
+      return;
+    }
 
     data.forEach(row => {
-      const opt = document.createElement("option");
-      opt.value = row.id;
-      opt.textContent = row.title;
-      studySelect.appendChild(opt);
+      const item = document.createElement("div");
+      item.className = "study-search-item";
+      item.textContent = row.title;
+
+      item.onclick = () => {
+  searchBox.value = row.title;
+  dropdown.classList.add("hidden");
+
+  const studySelect = document.getElementById("studySelect");
+  if (!studySelect) return;
+
+  studySelect.value = row.id;
+
+  // 🔥 trigger your existing change listener
+  studySelect.dispatchEvent(new Event("change"));
+};
+
+
+      dropdown.appendChild(item);
     });
+
+    dropdown.classList.remove("hidden");
   }
 
   searchBox.addEventListener("input", () => {
     clearTimeout(searchTimeout);
-
     searchTimeout = setTimeout(() => {
       searchPGN(searchBox.value);
-    }, 250); // debounce for performance
+    }, 200);
   });
+
+  // Close when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".study-search-wrapper")) {
+      dropdown.classList.add("hidden");
+    }
+  });
+
 });
+
+
 
 
 
