@@ -14243,13 +14243,158 @@ body {
 
 
 
+/* ===============================
+   📸 GALLERY SYSTEM
+=============================== */
+
+.gallery-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.gallery-controls input[type="file"],
+.gallery-controls input[type="text"] {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+}
+
+.gallery-controls input[type="text"] {
+  flex: 1;
+}
+
+/* GRID */
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 15px;
+}
+
+.gallery-item {
+  cursor: pointer;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+.gallery-item:hover {
+  transform: scale(1.05);
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+/* VIEWER */
+
+.gallery-viewer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  display: none; /* hidden by default */
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.gallery-viewer img {
+  max-width: 80%;
+  max-height: 80%;
+  transition: transform 0.3s ease;
+}
+
+.close-viewer {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  font-size: 28px;
+  cursor: pointer;
+  color: white;
+}
+
+.nav-prev,
+.nav-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 30px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.nav-prev { left: 20px; }
+.nav-next { right: 20px; }
+
+.zoom-controls {
+  position: absolute;
+  bottom: 30px;
+  display: flex;
+  gap: 10px;
+}
+
+.zoom-controls button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+}
 
 
 
 
+.gallery-card {
+  background: #1a1f35;
+  border-radius: 12px;
+  padding: 10px;
+  position: relative;
+  text-align: center;
+}
+
+.gallery-card img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.gallery-title {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: crimson;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 14px;
+}
 
 
 
+.gallery-viewer img {
+  will-change: transform;
+  transition: transform 0s;
+  user-select: none;
+}
 
 
 
@@ -14436,6 +14581,9 @@ body {
 
 
 <button class="nav-btn" data-tab="study">📘 Study</button>
+<button class="nav-btn" data-tab="gallery" id="galleryNavBtn">📸</button>
+
+
  
     <button class="nav-btn" data-tab="editor">🧩 Editor</button>
 
@@ -14631,6 +14779,34 @@ body {
 </div>
 
  
+
+<!-- ========================= -->
+<!-- 📸 GALLERY TAB -->
+<!-- ========================= -->
+<div class="section" id="gallery-section">
+
+  <h2>📸 Gallery Presentation</h2>
+
+  <div class="gallery-controls">
+    <input type="file" id="galleryUpload" accept="image/*">
+  </div>
+
+  <input 
+    type="text" 
+    id="gallerySearch" 
+    placeholder="🔍 Search images..."
+    style="margin-bottom:20px;width:100%;padding:10px;border-radius:8px;border:none;"
+  >
+
+  <div id="galleryGrid" class="gallery-grid"></div>
+
+</div>
+
+
+
+
+
+
     
 
     <div class="section" id="live-section">
@@ -44398,6 +44574,384 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+/* ========================= */
+/* GLOBAL STATE */
+/* ========================= */
+
+let galleryImages = [];
+let currentIndex = 0;
+let currentZoom = 1;
+
+let translateX = 0;
+let translateY = 0;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let animationFrameId = null;
+
+
+
+
+
+/* ========================= */
+/* INIT */
+/* ========================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  initGallery();
+  setupViewerControls();
+});
+
+/* ========================= */
+/* GALLERY SYSTEM */
+/* ========================= */
+
+async function initGallery() {
+
+  const uploadInput = document.getElementById("galleryUpload");
+ 
+  const searchInput = document.getElementById("gallerySearch");
+  const galleryGrid = document.getElementById("galleryGrid");
+
+  if (!uploadInput || !searchInput || !galleryGrid) return;
+
+  await loadGallery();
+
+  /* UPLOAD WITH CUSTOM NAME */
+/* AUTO UPLOAD WHEN FILE SELECTED */
+uploadInput.addEventListener("change", async (e) => {
+
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Ask name AFTER file selected
+  const displayName = prompt("Enter image name:");
+
+  if (!displayName || !displayName.trim()) {
+    uploadInput.value = "";
+    return;
+  }
+
+ // Strict filename sanitization
+const originalName = file.name.split(".")[0];
+const extension = file.name.split(".").pop();
+
+const cleanName = originalName
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, "_")   // remove EVERYTHING unsafe
+  .replace(/_+/g, "_");         // remove duplicate underscores
+
+const fileName = `${Date.now()}_${cleanName}.${extension}`;
+
+
+  // Upload to storage
+  const { error: uploadError } = await supabase.storage
+    .from("gallery")
+    .upload(fileName, file);
+
+  if (uploadError) {
+    console.error(uploadError.message);
+    uploadInput.value = "";
+    return;
+  }
+
+  // Save metadata in DB
+  await supabase.from("gallery_images").insert({
+    file_name: fileName,
+    display_name: displayName.trim()
+  });
+
+  uploadInput.value = "";
+  await loadGallery();
+});
+
+
+  /* SEARCH */
+  searchInput.addEventListener("input", renderGallery);
+
+  async function loadGallery() {
+
+    const { data, error } = await supabase
+      .from("gallery_images")
+      .select("*")
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    galleryImages = data.map(row => {
+      const { data: publicUrl } = supabase.storage
+        .from("gallery")
+        .getPublicUrl(row.file_name);
+
+      return {
+        id: row.id,
+        name: row.display_name,
+        src: publicUrl.publicUrl
+      };
+    });
+
+    renderGallery();
+  }
+
+  function renderGallery() {
+
+    const searchTerm = searchInput.value.toLowerCase();
+    galleryGrid.innerHTML = "";
+
+    const filtered = galleryImages.filter(img =>
+      img.name.toLowerCase().includes(searchTerm)
+    );
+
+    if (!filtered.length) {
+      galleryGrid.innerHTML = "<p>No images found.</p>";
+      return;
+    }
+
+    filtered.forEach((img) => {
+
+  const realIndex = galleryImages.findIndex(
+    original => original.id === img.id
+  );
+
+  const div = document.createElement("div");
+  div.className = "gallery-item";
+  div.style.position = "relative";
+
+  div.innerHTML = `
+    <button onclick="softDelete('${img.id}')" 
+            style="position:absolute;top:6px;right:6px;
+                   background:crimson;color:white;border:none;
+                   border-radius:50%;width:24px;height:24px;
+                   cursor:pointer;">✖</button>
+
+    <img src="${img.src}" alt="${img.name}">
+    <div style="margin-top:6px;font-size:14px;text-align:center;">
+      ${img.name}
+    </div>
+  `;
+
+  div.querySelector("img").onclick = () => openViewer(realIndex);
+
+  galleryGrid.appendChild(div);
+});
+
+  }
+}
+
+/* ========================= */
+/* SOFT DELETE */
+/* ========================= */
+
+window.softDelete = async function(id) {
+
+  if (!confirm("Delete this image?")) return;
+
+  await supabase
+    .from("gallery_images")
+    .update({ is_deleted: true })
+    .eq("id", id);
+
+  initGallery();
+};
+
+/* ========================= */
+/* VIEWER SYSTEM */
+/* ========================= */
+
+function setupViewerControls() {
+
+  const viewer = document.getElementById("galleryViewer");
+  const viewerImage = document.getElementById("viewerImage");
+
+  if (!viewer || !viewerImage) return;
+   viewerImage.draggable = false;   // 👈 ADD THIS HERE
+
+  viewer.addEventListener("click", (e) => {
+    if (e.target === viewer) closeViewer();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (viewer.style.display === "flex") {
+      if (e.key === "Escape") closeViewer();
+      if (e.key === "ArrowRight") nextImage();
+      if (e.key === "ArrowLeft") prevImage();
+    }
+  });
+
+  viewerImage.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) zoomIn();
+    else zoomOut();
+  });
+
+/* DRAG TO PAN WHEN ZOOMED */
+
+/* DRAG TO PAN */
+
+/* DRAG TO PAN */
+
+/* HOLD-TO-DRAG SYSTEM */
+
+viewerImage.style.cursor = "grab";
+
+viewerImage.addEventListener("mousedown", (e) => {
+  if (currentZoom <= 1) return;
+
+  isDragging = true;
+
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+
+  viewerImage.style.cursor = "grabbing";
+
+  // prevent image default drag behavior
+  e.preventDefault();
+});
+
+viewerImage.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+
+  translateX += dx;
+  translateY += dy;
+
+  applyTransform();
+});
+
+document.addEventListener("mouseup", () => {
+  if (!isDragging) return;
+
+  isDragging = false;
+  viewerImage.style.cursor = "grab";
+});
+
+
+
+
+
+
+
+
+}
+
+function applyTransform() {
+  if (animationFrameId) return;
+
+  animationFrameId = requestAnimationFrame(() => {
+    const img = document.getElementById("viewerImage");
+
+    img.style.transform =
+      `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
+
+    animationFrameId = null;
+  });
+}
+
+
+
+
+/* ========================= */
+/* VIEWER GLOBAL FUNCTIONS */
+/* ========================= */
+
+window.openViewer = function(index) {
+  if (!galleryImages.length) return;
+
+  currentIndex = index;
+  const viewer = document.getElementById("galleryViewer");
+  const viewerImage = document.getElementById("viewerImage");
+
+  viewer.style.display = "flex";
+  viewerImage.src = galleryImages[currentIndex].src;
+
+  currentZoom = 1;
+  translateX = 0;
+translateY = 0;
+applyTransform();
+  
+};
+
+window.closeViewer = function() {
+  document.getElementById("galleryViewer").style.display = "none";
+};
+
+window.nextImage = function() {
+  if (!galleryImages.length) return;
+
+  currentIndex = (currentIndex + 1) % galleryImages.length;
+  document.getElementById("viewerImage").src =
+    galleryImages[currentIndex].src;
+};
+
+window.prevImage = function() {
+  if (!galleryImages.length) return;
+
+  currentIndex =
+    (currentIndex - 1 + galleryImages.length) % galleryImages.length;
+
+  document.getElementById("viewerImage").src =
+    galleryImages[currentIndex].src;
+};
+
+window.zoomIn = function() {
+  currentZoom += 0.2;
+  applyTransform();
+};
+
+window.zoomOut = function() {
+  currentZoom -= 0.2;
+  if (currentZoom < 1) currentZoom = 1;
+  applyTransform();
+};
+
+
+
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", async () => {
+
+  const galleryNav = document.getElementById("galleryNavBtn");
+  const gallerySection = document.getElementById("gallery-section");
+
+  if (!galleryNav || !gallerySection) return;
+
+  // Get logged in user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    galleryNav.style.display = "none";
+    gallerySection.style.display = "none";
+    return;
+  }
+
+  // Check role from profiles table
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !profile || profile.role !== "admin") {
+    galleryNav.style.display = "none";
+    gallerySection.style.display = "none";
+  }
+
+});
+
+
+
+
 
 
 
@@ -45057,6 +45611,25 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 
 
+<!-- ========================= -->
+<!-- 📸 GALLERY VIEWER -->
+<!-- ========================= -->
+<div id="galleryViewer" class="gallery-viewer">
+
+  <span class="close-viewer" onclick="closeViewer()">✖</span>
+
+  <button class="nav-prev" onclick="prevImage()">◀</button>
+
+  <img id="viewerImage" alt="Gallery Image">
+
+  <button class="nav-next" onclick="nextImage()">▶</button>
+
+  <div class="zoom-controls">
+    <button type="button" onclick="zoomIn()">➕</button>
+    <button type="button" onclick="zoomOut()">➖</button>
+  </div>
+
+</div>
 
 
 
