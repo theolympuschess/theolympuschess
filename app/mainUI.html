@@ -16086,6 +16086,18 @@ body {
 </select>
 
 
+<h4>🧩 Custom FEN</h4>
+<input
+  type="text"
+  id="vsCustomFenInput"
+  placeholder="Paste FEN here..."
+  class="vs-fen-input"
+/>
+<button id="applyCustomFen" class="btn-secondary">
+  Apply FEN
+</button>
+
+
 
   </div>
   
@@ -19179,20 +19191,11 @@ document.getElementById("startVsComputer").addEventListener("click", async () =>
 
 
 
-// ===============================
-// ♟ LOAD CUSTOM START POSITION (SAFE)
-// ===============================
-const selectedFEN = document.getElementById("vsCustomPosition")?.value || "start";
+// 🔥 Do NOT reset position here
+// Use whatever is currently loaded in vsChess
 
-if (selectedFEN === "start") {
-  vsChess.reset();
-} else {
-  const loaded = vsChess.load(selectedFEN);
-  if (!loaded) {
-    console.warn("Invalid FEN — falling back to start");
-    vsChess.reset();
-  }
-}
+vsBoard.position(vsChess.fen(), false);
+
 
 
 // 🧹 FORCE-FINISH ANY OLD BOT LIVE GAMES (🔥 PUT IT HERE)
@@ -45325,8 +45328,45 @@ document.getElementById("vsCustomPosition")
 });
 
 
+// ======================================
+// 🧩 APPLY CUSTOM FEN MANUALLY
+// ======================================
+
+document.getElementById("applyCustomFen")
+  .addEventListener("click", function () {
+
+    const input = document.getElementById("vsCustomFenInput");
+    if (!input) return;
+
+    const fen = input.value.trim();
+    if (!fen) return;
+
+    if (!vsChess || !vsBoard) return;
+
+    const loaded = vsChess.load(fen);
+
+    if (!loaded) {
+      alert("Invalid FEN!");
+      return;
+    }
+
+    // 🔥 Update board instantly
+    vsBoard.position(vsChess.fen(), false);
+
+    console.log("🧩 Custom FEN applied");
+});
 
 
+document.getElementById("vsCustomFenInput")
+  .addEventListener("change", function () {
+
+    const fen = this.value.trim();
+    if (!fen || !vsChess || !vsBoard) return;
+
+    if (vsChess.load(fen)) {
+      vsBoard.position(vsChess.fen(), false);
+    }
+});
 
 
 
