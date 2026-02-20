@@ -14495,6 +14495,21 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+@keyframes sparkleFall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+  }
+}
+
+
+
+
+
+
+
 
 
 
@@ -43900,6 +43915,9 @@ async function mpCheckAnyLiveGame() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // ✅ Store globally
+
+
       // 🎓 fetch profile name
       const { data: profile } = await supabase
         .from("profiles")
@@ -43936,10 +43954,22 @@ async function mpCheckAnyLiveGame() {
   okBtn.onclick = closeWelcome;
 
   // 🚀 show once per session
-  if (!sessionStorage.getItem("welcome_shown")) {
-    openWelcomeWithName();
-    sessionStorage.setItem("welcome_shown", "1");
-  }
+ async function initUserSystem() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  currentUser = user;
+  console.log("User loaded:", currentUser.id);
+
+  listenForVisualReactions();
+}
+
+initUserSystem();
+
+if (!sessionStorage.getItem("welcome_shown")) {
+  openWelcomeWithName();
+  sessionStorage.setItem("welcome_shown", "1");
+}
 
 })();
 
@@ -45470,6 +45500,235 @@ document.getElementById("vsCustomFenInput")
 
 
 
+let reactionPanelOpen = false;
+
+document.addEventListener("keydown", async (e) => {
+  if (e.key === "`") {
+
+    if (!currentUser) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (!profile || profile.role !== "admin") return;
+
+    reactionPanelOpen = !reactionPanelOpen;
+
+    document.getElementById("reactionPanel").style.display =
+      reactionPanelOpen ? "block" : "none";
+
+    if (reactionPanelOpen) {
+      loadStudentsForReaction();
+    }
+  }
+});
+
+
+async function loadStudentsForReaction() {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, username")
+    .eq("role", "student");
+
+  const select = document.getElementById("reactionStudentSelect");
+  select.innerHTML = "";
+
+  data.forEach(student => {
+    const opt = document.createElement("option");
+    opt.value = student.id;
+    opt.textContent = student.username;
+    select.appendChild(opt);
+  });
+}
+
+
+window.sendEmoji = async function(emoji) {
+
+  if (!currentUser) return;
+
+  const sendToAll = document.getElementById("sendToAllStudents").checked;
+
+  if (sendToAll) {
+
+    // 🔥 Get all students
+    const { data: students } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "student");
+
+    if (!students) return;
+
+    const inserts = students.map(s => ({
+      student_id: s.id,
+      emoji: emoji
+    }));
+
+    await supabase.from("visual_reactions").insert(inserts);
+
+  } else {
+
+    const studentId = document.getElementById("reactionStudentSelect").value;
+
+    await supabase.from("visual_reactions").insert({
+      student_id: studentId,
+      emoji: emoji
+    });
+
+  }
+};
+
+window.sendGif = async function(url) {
+
+  if (!currentUser) return;
+
+  const sendToAll = document.getElementById("sendToAllStudents").checked;
+
+  if (sendToAll) {
+
+    const { data: students } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "student");
+
+    if (!students) return;
+
+    const inserts = students.map(s => ({
+      student_id: s.id,
+      gif_url: url
+    }));
+
+    await supabase.from("visual_reactions").insert(inserts);
+
+  } else {
+
+    const studentId = document.getElementById("reactionStudentSelect").value;
+
+    await supabase.from("visual_reactions").insert({
+      student_id: studentId,
+      gif_url: url
+    });
+
+  }
+};
+
+
+function listenForVisualReactions() {
+
+  if (!currentUser) {
+    console.log("❌ No currentUser — listener not started");
+    return;
+  }
+
+  console.log("🎧 Subscribing for:", currentUser.id);
+
+  const channel = supabase.channel("student-reactions");
+
+  channel
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "visual_reactions",
+        filter: `student_id=eq.${currentUser.id}`
+      },
+      (payload) => {
+        console.log("🔥 Reaction received:", payload.new);
+        showReaction(payload.new);
+      }
+    )
+    .subscribe((status) => {
+      console.log("📡 Subscription status:", status);
+    });
+}
+
+
+
+
+
+function showReaction(data) {
+  console.log("👀 showReaction called with:", data);
+
+  const container = document.createElement("div");
+
+  container.style.position = "fixed";
+  container.style.top = "50%";
+  container.style.left = "50%";
+  container.style.transform = "translate(-50%, -50%)";
+  container.style.zIndex = "999999";
+  container.style.fontSize = "100px";
+  container.style.pointerEvents = "none";
+
+  if (data.emoji) {
+    container.textContent = data.emoji;
+  }
+
+  if (data.gif_url) {
+    const img = document.createElement("img");
+    img.src = data.gif_url;
+    img.style.width = "300px";
+    container.appendChild(img);
+  }
+
+  document.body.appendChild(container);
+
+  // 🔥 Launch sparkle rain
+if (data.emoji) {
+  launchSparkleRain(data.emoji);
+} else {
+  launchSparkleRain("✨");
+}
+
+  setTimeout(() => {
+    container.remove();
+  }, 4000);
+}
+
+
+
+// =====================================
+// ✨ SPARKLE RAIN SYSTEM (ISOLATED)
+// =====================================
+function launchSparkleRain(emoji) {
+
+  const sparkleContainer = document.createElement("div");
+  sparkleContainer.style.position = "fixed";
+  sparkleContainer.style.top = "0";
+  sparkleContainer.style.left = "0";
+  sparkleContainer.style.width = "100%";
+  sparkleContainer.style.height = "100%";
+  sparkleContainer.style.pointerEvents = "none";
+  sparkleContainer.style.zIndex = "999998";
+  sparkleContainer.style.overflow = "hidden";
+
+  document.body.appendChild(sparkleContainer);
+
+  const total = 100;
+
+  for (let i = 0; i < total; i++) {
+
+    const sparkle = document.createElement("div");
+    sparkle.textContent = emoji || "✨";
+    sparkle.style.position = "absolute";
+    sparkle.style.left = Math.random() * 100 + "vw";
+    sparkle.style.top = "-50px";
+    sparkle.style.fontSize = (Math.random() * 30 + 20) + "px";
+    sparkle.style.opacity = Math.random();
+    sparkle.style.animation = `sparkleFall ${Math.random() * 2 + 3}s linear forwards`;
+
+    sparkleContainer.appendChild(sparkle);
+  }
+
+  setTimeout(() => {
+    sparkleContainer.remove();
+  }, 6000);
+}
+
+
+
 
 
 
@@ -46143,7 +46402,71 @@ document.getElementById("vsCustomFenInput")
 
 </div>
 
+<!-- ============================= -->
+<!-- ADMIN VISUAL REACTION PANEL -->
+<!-- ============================= -->
 
+<div id="reactionPanel" style="
+  position: fixed;
+  top: 80px;
+  right: 40px;
+  width: 350px;
+  background: #1e1e2f;
+  border-radius: 12px;
+  padding: 16px;
+  display: none;
+  z-index: 99999;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+">
+
+  <h3 style="color: gold; margin-bottom: 10px;">Send Celebration 🎉</h3>
+
+  <select id="reactionStudentSelect" style="width:100%; margin-bottom:10px;"></select>
+  <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:white;font-size:14px;">
+  <input type="checkbox" id="sendToAllStudents">
+  Send to ALL students
+</label>
+
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button onclick="sendEmoji('🔥')">🔥</button>
+    <button onclick="sendEmoji('🎉')">🎉</button>
+    <button onclick="sendEmoji('👏')">👏</button>
+    <button onclick="sendEmoji('🏆')">🏆</button>
+    <button onclick="sendEmoji('💯')">💯</button>
+    <button onclick="sendEmoji('🚀')">🚀</button>
+<button onclick="sendEmoji('⭐')">⭐</button>
+<button onclick="sendEmoji('🎯')">🎯</button>
+<button onclick="sendEmoji('👑')">👑</button>
+<button onclick="sendEmoji('💪')">💪</button>
+<button onclick="sendEmoji('🧠')">🧠</button>
+<button onclick="sendEmoji('⚡')">⚡</button>
+<button onclick="sendEmoji('🔥🔥')">🔥🔥</button>
+<button onclick="sendEmoji('🎊')">🎊</button>
+<button onclick="sendEmoji('🥇')">🥇</button>
+<button onclick="sendEmoji('🥳')">🥳</button>
+<button onclick="sendEmoji('🌟')">🌟</button>
+<button onclick="sendEmoji('💎')">💎</button>
+<button onclick="sendEmoji('🦅')">🦅</button>
+<button onclick="sendEmoji('♟️')">♟️</button>
+<button onclick="sendEmoji('♚')">♚</button>
+  </div>
+
+  <hr style="margin:12px 0;">
+
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZGtjamU5eXN1eXdwNDg0cXZsdDVldG02ZHY0bzhtNWJnOTllMXp6YiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TVNmNzfL8ibYUyeQo8/giphy.gif')">Clap</button>
+    <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3M2FnbXZ3OXYwZHk4bnQ4andlZ3k3em93eHBqdXViYzM0Z3RqM3B3MyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/S2jPUl8fNnydeNZD0g/giphy.gif')">Congrats</button>
+    <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sh4v6aGk0SGyCckWQd/giphy.gif')">Very Good</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/hqOYNoLGQrzLX2qjYg/giphy.gif')">Bravo</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/GJhrlsMlyF2TWb1vHQ/giphy.gif')">Perfect</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/9o5CeZaOpylXuSaFzt/giphy.gif')">Great</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZDFnajlqdGV1MW1jMDIzY2ZhdTVvM3JuZ3BodjZkY25jbmdjZW5tMiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/7YvTpYBtcGonlNKswo/giphy.gif')">Welldone</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/R3mHpQfy9iOLFLjgvy/giphy.gif')">Wow</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/fjqcSUv3lsV1RlrHo1/giphy.gif')">Nailed</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/9o5CeZaOpylXuSaFzt/giphy.gif')">Great work</button>
+  </div>
+
+</div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
