@@ -26454,12 +26454,72 @@ function calculateRatings(profile) {
 }
 
 
+// ===============================
+// 🔥 FULL HEARTBEAT UPTIME SYSTEM
+// ===============================
 
+let currentAppSessionId = null;
 
+async function startAppSession(userId) {
+  const { data, error } = await supabase
+    .from("app_sessions")
+    .insert({
+      student_id: userId
+    })
+    .select()
+    .single();
 
+  if (error || !data) return;
 
+  currentAppSessionId = data.id;
 
+  // 🔥 HEARTBEAT every 30 seconds
+  setInterval(async () => {
+    await supabase
+      .from("app_sessions")
+      .update({
+        last_seen: new Date().toISOString()
+      })
+      .eq("id", currentAppSessionId);
+  }, 30000); // 30 seconds
+}
 
+async function getStudentTotalUptime(studentId) {
+  const { data, error } = await supabase
+    .from("app_sessions")
+    .select("login_time, last_seen")
+    .eq("student_id", studentId);
+
+  if (error || !data) return 0;
+
+  let total = 0;
+
+  data.forEach(session => {
+    if (!session.login_time || !session.last_seen) return;
+
+    const start = new Date(session.login_time).getTime();
+    const end = new Date(session.last_seen).getTime();
+
+    if (end > start) {
+      total += Math.floor((end - start) / 1000);
+    }
+  });
+
+  return total;
+}
+
+// ===============================
+// ⏳ FORMAT UPTIME
+// ===============================
+function formatUptime(seconds) {
+  if (!seconds || isNaN(seconds)) return "0h 0m 0s";
+
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  return `${h}h ${m}m ${s}s`;
+}
 
 async function loadStudentFullDetails(studentId) {
   try {
@@ -26513,15 +26573,25 @@ if (miniError) throw miniError;
     // ✅ FINAL RENDER
    const vsBotSummary = await loadVsBotSummary(studentId);
    const liveMatchSummary = await loadLiveMatchSummary(studentId);
+  
    window.currentStudentAttempts = attempts || [];
 
+// 🔥 SAFELY CALCULATE UPTIME
+let formattedUptime = "0h 0m 0s";
 
+try {
+  const totalUptimeSeconds = await getStudentTotalUptime(studentId);
+  formattedUptime = formatUptime(totalUptimeSeconds);
+} catch (e) {
+  console.warn("Uptime load failed:", e.message);
+}
 renderStudentModal(
   profile,
   attempts || [],
   miniScores || [],
   vsBotSummary,
-  liveMatchSummary
+  liveMatchSummary,
+  formattedUptime
 );
 
 // ✅ load XP history AFTER modal content exists
@@ -27898,7 +27968,7 @@ async function loadStudentXpHistory(studentId) {
 
 
 
-function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary) {
+function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary, formattedUptime = "0h 0m 0s") {
 
 // 🔢 COUNT TOTAL PUZZLES (BULK + SINGLE)
 let totalPuzzles = 0;
@@ -28030,6 +28100,7 @@ const liveMatchHTML = `
       <p><strong>Correct:</strong> ${correct}</p>
       <p><strong>Incorrect:</strong> ${incorrect}</p>
       <p><strong>Total time spent:</strong> ${formatTime(totalTime)}</p>
+      <p><strong>Total App Uptime:</strong> ${formattedUptime}</p>
 
       <p>
         <strong>🏅 Achievements unlocked:</strong>
@@ -36406,7 +36477,8 @@ if (studentId) {
       l.startsWith("Total assignments") ||
       l.startsWith("Correct") ||
       l.startsWith("Incorrect") ||
-      l.startsWith("Total time")
+      l.startsWith("Total time") ||
+      l.startsWith("Total App Uptime")   // 🔥 ADD THIS
     ) {
       pdf.text(l, 18, y);
       y += 7;
@@ -41223,6 +41295,13 @@ async function initChat() {
   =============================== */
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
+
+  // ===============================
+// 🔥 START UPTIME SESSION
+// ===============================
+if (user?.id) {
+  startAppSession(user.id);
+}
 
 // ===============================
 // SUPABASE REALTIME PRESENCE (FIXED)
