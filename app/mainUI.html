@@ -26033,6 +26033,12 @@ function renderPGNLibrary(pgNs) {
     Use PGN
   </button>
 
+  <button class="btn-small"
+  onclick="openPGNViewer(${pgn.id})">
+  👁 View
+</button>
+  
+
   <button
     class="btn-small danger"
     onclick="deletePGNFromLibrary(${pgn.id})"
@@ -45733,7 +45739,165 @@ function launchSparkleRain(emoji) {
 
 
 
+/* ============================================
+   PGN VIEWER SYSTEM (FULLY ISOLATED)
+============================================ */
 
+const PGN_VIEWER = {
+  puzzles: [],
+  currentPuzzle: 0,
+  currentMove: 0,
+  board: null,
+  game: null
+};
+
+
+// 🔥 OPEN VIEWER
+window.openPGNViewer = async function(pgnId) {
+
+  const { data, error } = await supabase
+    .from("bulk_pgn_library")
+    .select("title, pgn")
+    .eq("id", pgnId)
+    .single();
+
+  if (error || !data) {
+    alert("Failed to load PGN");
+    return;
+  }
+
+  document.getElementById("pgnViewerTitle").textContent = data.title;
+
+  // SPLIT BULK PGN INTO MULTIPLE GAMES
+  const games = data.pgn
+    .split(/\n\s*\n(?=\[Event|\[FEN)/g)
+    .filter(g => g.trim().length > 0);
+
+  PGN_VIEWER.puzzles = games;
+  PGN_VIEWER.currentPuzzle = 0;
+
+  document.getElementById("pgnViewerOverlay").style.display = "flex";
+
+  loadViewerPuzzle(0);
+};
+
+
+// LOAD SINGLE PUZZLE
+function loadViewerPuzzle(index) {
+
+  const raw = PGN_VIEWER.puzzles[index];
+
+  const game = new Chess();
+
+  // ✅ Load PGN properly (supports FEN puzzles)
+  game.load_pgn(raw);
+
+  // 🔥 Detect starting position (very important)
+  const startFen = game.history().length === 0
+    ? game.fen()
+    : game.fen();
+
+  // Now extract moves
+  const moves = game.history();
+
+  // Reset game to starting position from PGN
+  game.load_pgn(raw);
+
+  PGN_VIEWER.game = new Chess();
+
+  // 🔥 If PGN contains FEN tag, chess.js auto loads it
+  PGN_VIEWER.game.load_pgn(raw);
+
+  PGN_VIEWER.currentMove = 0;
+
+  // Reset back to initial position
+  while (PGN_VIEWER.game.history().length > 0) {
+    PGN_VIEWER.game.undo();
+  }
+
+  // INIT BOARD
+  const boardEl = document.getElementById("pgnViewerBoard");
+  boardEl.innerHTML = "";
+
+  PGN_VIEWER.board = Chessboard(boardEl, {
+    position: PGN_VIEWER.game.fen(),
+    draggable: false,
+    showNotation: true,
+    pieceTheme: getPieceThemePath(currentPieceTheme)
+  });
+
+  PGN_VIEWER.totalMoves = moves.length;
+
+  updateViewerLabels(moves.length);
+}
+
+// MOVE NAVIGATION
+window.viewerNextMove = function() {
+
+  if (!PGN_VIEWER.game) return;
+
+  const moves = PGN_VIEWER.puzzles[PGN_VIEWER.currentPuzzle];
+
+  const tempGame = new Chess();
+  tempGame.load_pgn(moves);
+
+  const history = tempGame.history();
+
+  if (PGN_VIEWER.currentMove >= history.length) return;
+
+  PGN_VIEWER.game.move(history[PGN_VIEWER.currentMove]);
+  PGN_VIEWER.currentMove++;
+
+  PGN_VIEWER.board.position(PGN_VIEWER.game.fen());
+
+  updateViewerLabels(history.length);
+};
+
+window.viewerPrevMove = function() {
+
+  if (!PGN_VIEWER.game) return;
+  if (PGN_VIEWER.currentMove <= 0) return;
+
+  PGN_VIEWER.game.undo();
+  PGN_VIEWER.currentMove--;
+
+  PGN_VIEWER.board.position(PGN_VIEWER.game.fen());
+
+  updateViewerLabels(PGN_VIEWER.totalMoves || 0);
+};
+
+
+// PUZZLE NAVIGATION
+window.viewerNextPuzzle = function() {
+  if (PGN_VIEWER.currentPuzzle >= PGN_VIEWER.puzzles.length - 1) return;
+
+  PGN_VIEWER.currentPuzzle++;
+  loadViewerPuzzle(PGN_VIEWER.currentPuzzle);
+};
+
+window.viewerPrevPuzzle = function() {
+  if (PGN_VIEWER.currentPuzzle <= 0) return;
+
+  PGN_VIEWER.currentPuzzle--;
+  loadViewerPuzzle(PGN_VIEWER.currentPuzzle);
+};
+
+
+// LABEL UPDATE
+function updateViewerLabels(totalMoves) {
+
+  document.getElementById("viewerMoveLabel")
+    .textContent = `${PGN_VIEWER.currentMove} / ${totalMoves}`;
+
+  document.getElementById("viewerPuzzleLabel")
+    .textContent = `${PGN_VIEWER.currentPuzzle + 1} / ${PGN_VIEWER.puzzles.length}`;
+}
+
+
+// CLOSE
+window.closePGNViewer = function() {
+  document.getElementById("pgnViewerOverlay").style.display = "none";
+};
 
 
 
@@ -46480,6 +46644,70 @@ function launchSparkleRain(emoji) {
 
 </div>
 
+
+<!-- =========================================
+     PGN VIEWER MODAL (FULLY ISOLATED)
+========================================= -->
+<div id="pgnViewerOverlay" style="
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.75);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:9999;
+">
+
+  <div style="
+    background:#1c1f35;
+    padding:25px;
+    border-radius:14px;
+    width:700px;
+    max-width:95%;
+    text-align:center;
+    position:relative;
+  ">
+
+    <h3 id="pgnViewerTitle">PGN Viewer</h3>
+
+    <div id="pgnViewerBoard" style="width:420px; margin:15px auto;"></div>
+
+    <div style="margin-top:10px;">
+      <button onclick="viewerPrevMove()">◀ Move</button>
+      <span id="viewerMoveLabel">0 / 0</span>
+      <button onclick="viewerNextMove()">Move ▶</button>
+    </div>
+
+    <hr style="margin:20px 0; opacity:.3;">
+
+    <div>
+      <button onclick="viewerPrevPuzzle()">⬅ Puzzle</button>
+      <span id="viewerPuzzleLabel">1 / 1</span>
+      <button onclick="viewerNextPuzzle()">Puzzle ➡</button>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button onclick="closePGNViewer()" style="
+        background:#ff4d4d;
+        padding:8px 18px;
+        border:none;
+        border-radius:8px;
+        color:white;
+      ">
+        Close
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+
+
+
+
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
 
@@ -46505,6 +46733,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
