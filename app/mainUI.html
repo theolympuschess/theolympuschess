@@ -14506,6 +14506,105 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* ===========================
+   GRADE BADGE SYSTEM
+=========================== */
+
+.grade-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  display: inline-block;
+  margin-left: 6px;
+  color: #fff;
+}
+
+/* Grade Colors */
+.grade-AA { background: linear-gradient(45deg, #ffd700, #ffcc00); color: #111; }
+.grade-Aplus { background: linear-gradient(45deg, #00e676, #00c853); }
+.grade-A { background: linear-gradient(45deg, #4caf50, #2e7d32); }
+.grade-Bplus { background: linear-gradient(45deg, #42a5f5, #1e88e5); }
+.grade-B { background: linear-gradient(45deg, #5c6bc0, #3949ab); }
+.grade-Cplus { background: linear-gradient(45deg, #ffb74d, #fb8c00); }
+.grade-C { background: linear-gradient(45deg, #ef5350, #c62828); }
+
+
+
+
+
+
+
+/* ===========================
+   ADMIN GRADE BUTTONS
+=========================== */
+
+.grade-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.grade-btn {
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: #1e2238;
+  color: #ddd;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.grade-btn:hover {
+  background: #2c3154;
+  transform: translateY(-2px);
+  border-color: #ffd700;
+  color: #fff;
+}
+
+.grade-btn.active-grade {
+  background: linear-gradient(45deg, #ffd700, #ffcc00);
+  color: #111;
+  border: none;
+  box-shadow: 0 0 8px rgba(255,215,0,0.6);
+}
+
+
+
+
+/* ===========================
+   ADMIN ATTEMPT ACTIONS
+=========================== */
+
+.attempt-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.grade-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.admin-grade-label {
+  font-weight: 700;
+  color: #ffd700;
+  font-size: 0.9rem;
+}
+
+
+
+
+
 
 
 
@@ -26253,12 +26352,13 @@ async function loadStudentProgress() {
   const { data, error } = await supabase
     .from("attempts")
     .select(`
-      assignment_id,
-      time_spent,
-      is_correct,
-      submitted_at,
-      assignments ( title )
-    `)
+  assignment_id,
+  time_spent,
+  is_correct,
+  submitted_at,
+  grade_letter,
+  assignments ( title )
+`)
     .eq("student_id", currentUser.id)
     .order("submitted_at", { ascending: false });
 
@@ -26280,17 +26380,16 @@ async function loadStudentProgress() {
     const id = row.assignment_id;
 
     if (!progressMap[id]) {
-      progressMap[id] = {
-  assignmentId: id,
-  title: row.assignments?.title || "Unknown assignment",
-  attempts: 0,
-  status: "Attempted",
-  time: row.time_spent,
-  lastPlayed: row.submitted_at
-};
-
-    }
-
+  progressMap[id] = {
+    assignmentId: id,
+    title: row.assignments?.title || "Unknown assignment",
+    attempts: 0,
+    status: "Attempted",
+    time: row.time_spent,
+    lastPlayed: row.submitted_at,
+    grade: row.grade_letter || null
+  };
+}
     progressMap[id].attempts += 1;
 
     if (row.is_correct) {
@@ -26328,10 +26427,16 @@ orderedProgress.forEach(p => {
     <div class="progress-item">
       <strong>${p.title}</strong>
       <div class="progress-meta">
-        Attempts: ${p.attempts} |
-        Status: ${p.status} |
-        Time: ${formatSecondsToTime(p.time)}
-      </div>
+  Attempts: ${p.attempts} |
+  Status: ${p.status} |
+  Time: ${formatSecondsToTime(p.time)}
+ ${p.grade ? `
+  | Grade:
+  <span class="grade-badge grade-${p.grade.replace("+", "plus")}">
+    ${p.grade}
+  </span>
+` : ""}
+</div>
       <div class="progress-date">
         Last played: ${new Date(p.lastPlayed).toLocaleDateString()}
       </div>
@@ -26356,7 +26461,7 @@ orderedProgress.forEach(p => {
   class="btn-small view-puzzles-btn"
   data-assignment-id="${p.assignmentId}"
 >
-  Puzzles
+ Puzzles
 </button>
 
       </div>
@@ -31679,14 +31784,17 @@ function updateBulkLabel(i) {
       if (currentProfile.role !== 'admin') return;
 
       const attemptsList = document.getElementById('attemptsList');
+      
       attemptsList.innerHTML = '<div class="loading">Loading attempts...</div>';
 
       try {
         const { data: attempts, error } = await supabase
           .from('attempts')
           .select(`*, assignments (title), profiles (username)`)
-          .order('submitted_at', { ascending: false });
+          .order('id', { ascending: false });
         if (error) throw error;
+
+        
 
         if (!attempts || attempts.length === 0) {
           attemptsList.innerHTML = '<div class="card"><p>No attempts yet.</p></div>';
@@ -31703,11 +31811,25 @@ function updateBulkLabel(i) {
             <p><strong>Status:</strong> ${attempt.is_correct ? '✅ Correct' : '❌ Needs Review'}</p>
             <p><strong>Score:</strong> ${attempt.score || 'Not graded'}</p>
             ${attempt.pgn ? `<div class="pgn-viewer" style="max-height: 100px;">${(attempt.pgn || '').substring(0, 100)}${attempt.pgn.length > 100 ? '...' : ''}</div>` : ''}
-            <div style="margin-top: 10px;">
-              <button class="btn-secondary" onclick="viewAttempt('${attempt.id}')">View Details</button>
-              <button class="btn-success" onclick="gradeAttempt('${attempt.id}', true)" ${attempt.is_correct ? 'disabled' : ''}>Mark Correct</button>
-              <button class="btn-danger" onclick="gradeAttempt('${attempt.id}', false)" ${!attempt.is_correct ? 'disabled' : ''}>Mark Incorrect</button>
-            </div>
+            <div class="attempt-actions">
+  <button class="btn-secondary" onclick="viewAttempt('${attempt.id}')">
+    View Details
+  </button>
+
+  <div class="grade-buttons">
+    ${["AA","A+","A","B+","B","C+","C"].map(g => `
+      <button 
+        class="grade-btn ${attempt.grade_letter === g ? "active-grade" : ""}" 
+        onclick="setLetterGrade('${attempt.id}', '${g}')">
+        ${g}
+      </button>
+    `).join("")}
+  </div>
+
+  ${attempt.grade_letter ? 
+    `<p class="admin-grade-label">Grade: ${attempt.grade_letter}</p>` 
+    : ""}
+</div>
           </div>
         `).join('');
 
@@ -31830,7 +31952,27 @@ renderBulkAnswers(attempt);
 };
 
 
+window.setLetterGrade = async function(attemptId, grade) {
+  try {
+    const { error } = await supabase
+      .from("attempts")
+      .update({
+        grade_letter: grade,
+        graded_at: new Date().toISOString()
+      })
+      .eq("id", attemptId);
 
+    if (error) throw error;
+
+    showStatus(`🏅 Grade set to ${grade}`, "success");
+
+    loadAttempts(); // refresh admin list
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to set grade");
+  }
+};
 
 
 
@@ -46913,7 +47055,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
