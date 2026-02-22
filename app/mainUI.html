@@ -31265,7 +31265,10 @@ return {
   <p style="margin-top:10px; color:#3cff8f;">
     ✔ Completed successfully!
   </p>
-  `
+  `,
+  () => {
+    showSubmissionGif(); // 🔥 fires ONLY after OK click
+  }
 );
 
 // 🔄 Refresh My Progress (student only)
@@ -31578,15 +31581,94 @@ loadStudents();
 };
 
 
-    function showResultModal(title, htmlContent) {
+const submissionGifs = [
+
+"https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZGtjamU5eXN1eXdwNDg0cXZsdDVldG02ZHY0bzhtNWJnOTllMXp6YiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TVNmNzfL8ibYUyeQo8/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3M2FnbXZ3OXYwZHk4bnQ4andlZ3k3em93eHBqdXViYzM0Z3RqM3B3MyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/S2jPUl8fNnydeNZD0g/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/sh4v6aGk0SGyCckWQd/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/hqOYNoLGQrzLX2qjYg/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/GJhrlsMlyF2TWb1vHQ/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/9o5CeZaOpylXuSaFzt/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZDFnajlqdGV1MW1jMDIzY2ZhdTVvM3JuZ3BodjZkY25jbmdjZW5tMiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/7YvTpYBtcGonlNKswo/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/R3mHpQfy9iOLFLjgvy/giphy.gif",
+"https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXplZWMzeGNyZmV5MnIzNWZ3MWR5cjRkMXl6OXF6cGFuaHRuZWdkYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/fjqcSUv3lsV1RlrHo1/giphy.gif"
+
+];
+
+function showSubmissionGif() {
+
+  const randomGif = submissionGifs[Math.floor(Math.random() * submissionGifs.length)];
+
+  const overlay = document.createElement("div");
+
+  overlay.style.position = "fixed";
+  overlay.style.top = "0";
+  overlay.style.left = "0";
+  overlay.style.width = "100%";
+  overlay.style.height = "100%";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.background = "rgba(0,0,0,0.35)";
+  overlay.style.zIndex = "9999999";
+
+  // 🎬 animation setup
+  overlay.style.opacity = "0";
+  overlay.style.transition = "opacity 0.6s ease";
+
+  const gif = document.createElement("img");
+
+  gif.src = randomGif;
+  gif.style.width = "380px";
+  gif.style.borderRadius = "20px";
+  gif.style.boxShadow = "0 0 40px gold";
+  gif.style.transform = "scale(0.9)";
+  gif.style.transition = "transform 0.6s ease";
+
+  overlay.appendChild(gif);
+  document.body.appendChild(overlay);
+
+  // 🔥 Fade in
+  requestAnimationFrame(() => {
+    overlay.style.opacity = "1";
+    gif.style.transform = "scale(1)";
+  });
+
+  // ⏳ Stay for 2.8 sec then fade out
+  setTimeout(() => {
+    overlay.style.opacity = "0";
+    gif.style.transform = "scale(0.95)";
+
+    setTimeout(() => {
+      overlay.remove();
+    }, 600); // match transition duration
+
+  }, 4000);
+}
+
+
+    let resultModalCallback = null;
+
+function showResultModal(title, htmlContent, onClose = null) {
+
   document.getElementById("modalTitle").textContent = title;
   document.getElementById("modalContent").innerHTML = htmlContent;
   document.getElementById("resultModal").classList.remove("hidden");
+
+  // store callback
+  resultModalCallback = onClose;
 }
 
 window.closeResultModal = function () {
+
   const modal = document.getElementById("resultModal");
   modal.classList.add("hidden");
+
+  // 🔥 Fire callback AFTER modal closes
+  if (typeof resultModalCallback === "function") {
+    resultModalCallback();
+    resultModalCallback = null; // ensure it runs only once
+  }
 };
 
 window.closeAttemptDetails = function () {
@@ -46944,7 +47026,7 @@ document.addEventListener("click", function (e) {
      <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3Y3gxdWx3dWJoYmV2c3J3YWJlcW50ZjI1ZGxpdzMxOTBsdzhoa3VoeiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/nZquP79glLisgJ578y/giphy.gif')">Night</button>
      <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZjY3M3V3ZGg1cjZsOTAxYTFwcXFvNmFsNXZkY3llbWFxY2w1dGJrZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/CGTOPJGJSoXAaDBpZE/giphy.gif')">Morning</button>
      <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3NmRzeXFmc2NqaXN6NWRuZmVkbTk5Zm4zYm9rdHZueXE0N2txbDl3dCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/nN1EcdaJgv7liAvgx9/giphy.gif')">Punish</button>
-   <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3NzNudDhocm5zczV0bXh2bGgyajYyZ21ieWpqMnhxNnV5emk1enh1cSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/UuTXIj5MyFzhTT8lsh/giphy.gif')">You can</button>
+     <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3NzNudDhocm5zczV0bXh2bGgyajYyZ21ieWpqMnhxNnV5emk1enh1cSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/UuTXIj5MyFzhTT8lsh/giphy.gif')">You can</button>
       <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MjZ6OWgzejN1YWFzMmhlMHptOHVzcTUxb3N2cGM2amdtcjlqaTh5biZlcD12MV9naWZzX3NlYXJjaCZjdD1n/bgfsKf2s4AiQYs7Glg/giphy.gif')">Waiting</button>
        <button onclick="sendGif('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZHpzZHQ0cm1xZ2VqNXlldHBmMDMyc3d2YXg1NmQ2anByODBsN2Z5MiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/HMzHH3J2RbHzPbRJH5/giphy.gif')">Pain</button>
   </div>
@@ -47085,7 +47167,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
