@@ -26691,6 +26691,7 @@ async function loadStudentFullDetails(studentId) {
   time_spent,
   attempt_count,
   is_correct,
+  grade_letter,
   bulk_answers,
   assignments ( title )
 `)
@@ -28282,6 +28283,12 @@ ${liveMatchHTML}
          Attempts: ${getTotalAttemptsForAttempt(a)} |
 
           ${a.is_correct ? "✅ Correct" : "❌ Incorrect"}
+${a.grade_letter ? `
+  <span class="grade-badge grade-${a.grade_letter.replace("+","plus")}" 
+        style="margin-left:8px;">
+    ${a.grade_letter}
+  </span>
+` : ""}
         </div>
       `;
     });
@@ -36856,18 +36863,38 @@ y += 10;
 
   // 🟨 Time | Attempts | Status line
   if (l.startsWith("Time")) {
-    const parts = l.split("|").map(p => p.trim());
 
-    parts.forEach(part => {
-      if (y > 270) {
-        pdf.addPage();
-        y = 20;
-      }
-      pdf.text(part, 22, y);
-      y += 6;
-    });
-    return;
+  const parts = l.split("|").map(p => p.trim());
+
+  parts.forEach(part => {
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
+    }
+
+    pdf.text(part, 22, y);
+    y += 6;
+  });
+
+  // 🔥 NEW: Detect grade in the original attempts array
+  const attemptMatch = window.currentStudentAttempts.find(a =>
+    currentAssignment.includes(a.assignments?.title)
+  );
+
+  if (attemptMatch && attemptMatch.grade_letter) {
+    if (y > 270) {
+      pdf.addPage();
+      y = 20;
+    }
+
+    pdf.setFont("courier", "bold");
+    pdf.text(`Grade: ${attemptMatch.grade_letter}`, 22, y);
+    pdf.setFont("courier", "normal");
+    y += 7;
   }
+
+  return;
+}
 
 });
 
