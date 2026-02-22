@@ -26352,6 +26352,13 @@ orderedProgress.forEach(p => {
   View details
 </button>
 
+<button
+  class="btn-small view-puzzles-btn"
+  data-assignment-id="${p.assignmentId}"
+>
+  👁 View Puzzles
+</button>
+
       </div>
       <hr />
     </div>
@@ -45902,6 +45909,134 @@ window.closePGNViewer = function() {
 
 
 
+document.addEventListener("click", function (e) {
+
+  if (e.target.classList.contains("view-puzzles-btn")) {
+    const id = e.target.dataset.assignmentId;
+    viewStudentAssignmentPuzzles(id);
+  }
+
+});
+
+
+
+
+/* =====================================
+   STUDENT PUZZLE GRID VIEWER
+   (NO MOVE NAVIGATION)
+===================================== */
+
+window.viewStudentAssignmentPuzzles = async function(assignmentId) {
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select("title, pgn, is_bulk")
+    .eq("id", assignmentId)
+    .single();
+
+  if (error || !data) {
+    showModal("❌ Error", "<p>Could not load puzzles.</p>");
+    return;
+  }
+
+  document.getElementById("studentPuzzleTitle").textContent = data.title;
+
+  const grid = document.getElementById("studentPuzzleGrid");
+  grid.innerHTML = "";
+
+  if (!data.pgn) {
+    grid.innerHTML = "<p>No PGN found.</p>";
+    return;
+  }
+
+  let puzzles = [];
+
+  if (data.is_bulk) {
+    puzzles = data.pgn
+      .split(/\n\s*\n(?=\[Event|\[FEN)/g)
+      .filter(p => p.trim().length > 0);
+  } else {
+    puzzles = [data.pgn];
+  }
+
+puzzles.forEach((raw, index) => {
+
+  const game = new Chess();
+  game.load_pgn(raw);
+
+  // Reset to starting FEN
+  while (game.history().length > 0) {
+    game.undo();
+  }
+
+  const container = document.createElement("div");
+  container.style.textAlign = "center";
+
+  const title = document.createElement("div");
+  title.textContent = `Puzzle ${index + 1}`;
+  title.style.marginBottom = "6px";
+
+  const boardDiv = document.createElement("div");
+  boardDiv.style.width = "180px";
+  boardDiv.style.margin = "0 auto";
+
+  container.appendChild(title);
+  container.appendChild(boardDiv);
+
+  grid.appendChild(container);
+
+  // ✅ IMPORTANT — pass actual DOM element
+  Chessboard(boardDiv, {
+    position: game.fen(),
+    draggable: false,
+    showNotation: false,
+    pieceTheme: getPieceThemePath(currentPieceTheme)
+  });
+
+});
+
+  document.getElementById("studentPuzzleOverlay").style.display = "flex";
+};
+
+
+window.closeStudentPuzzleViewer = function() {
+  document.getElementById("studentPuzzleOverlay").style.display = "none";
+};
+
+
+
+
+
+/* ===============================
+   CLOSE STUDENT PUZZLE MODAL
+   WHEN CLICKING OUTSIDE
+================================ */
+
+document.addEventListener("click", function (e) {
+
+  const overlay = document.getElementById("studentPuzzleOverlay");
+  if (!overlay) return;
+
+  // If overlay is visible
+  if (overlay.style.display === "flex") {
+
+    // If clicked directly on overlay (not inner box)
+    if (e.target === overlay) {
+      closeStudentPuzzleViewer();
+    }
+
+  }
+
+});
+
+
+
+
+
+
+
+
+
 
 
 
@@ -46704,7 +46839,52 @@ window.closePGNViewer = function() {
 
 
 
+<!-- ===============================
+     STUDENT PUZZLE VIEW MODAL
+================================ -->
+<div id="studentPuzzleOverlay" style="
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.8);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:9999;
+">
 
+  <div style="
+    background:#1c1f35;
+    padding:25px;
+    border-radius:14px;
+    width:90%;
+    max-width:900px;
+    max-height:90vh;
+    overflow:auto;
+  ">
+
+    <h3 id="studentPuzzleTitle"></h3>
+
+    <div id="studentPuzzleGrid" style="
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));
+      gap:20px;
+      margin-top:20px;
+    "></div>
+
+    <div style="text-align:center; margin-top:20px;">
+      <button onclick="closeStudentPuzzleViewer()" style="
+        background:#ff4d4d;
+        padding:8px 18px;
+        border:none;
+        border-radius:8px;
+        color:white;
+      ">
+        Close
+      </button>
+    </div>
+
+  </div>
+</div>
 
 
 
