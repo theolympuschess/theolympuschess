@@ -37354,7 +37354,7 @@ y += 10;
 pdf.setFont("helvetica", "bold");
 pdf.setFontSize(11);
 pdf.setTextColor(...COLORS.primary);
-pdf.text("Coach: Tirtha Sarkar", 15, y);
+pdf.text("Head Coach: Tirtha Sarkar", 15, y);
 
 pdf.setFont("helvetica", "normal");
 pdf.setTextColor(...COLORS.darkText);
@@ -37393,13 +37393,22 @@ pdf.save(`${title.replace(/\s+/g, "_")}_Olympus_Official_Report.pdf`);
 
 
 /* =========================================================
-   📜 CERTIFICATE PDF — FINAL VERSION (WITH ELO)
+   🏛 OLYMPUS PREMIUM CERTIFICATE — ELITE DESIGN
    ========================================================= */
 window.generateStudentCertificatePDF = function () {
+
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF("landscape", "mm", "a4");
 
   const logoImg = document.getElementById("academyLogo");
+
+  /* ================= COLORS ================= */
+  const COLORS = {
+    navy: [18, 32, 61],
+    gold: [212, 175, 55],
+    lightGold: [255, 248, 220],
+    darkText: [33, 37, 41]
+  };
 
   /* ================= STUDENT NAME ================= */
   const studentName = document
@@ -37422,16 +37431,6 @@ window.generateStudentCertificatePDF = function () {
     eloRating = eloMatch[1];
   }
 
-  /* ================= EXTRACT VS BOT RESULTS ================= */
-let vsBotSummary = "No VS Bot games recorded";
-
-const vsMatch = bodyText.match(
-  /Wins:\s*(\d+)\s*\|\s*Draws:\s*(\d+)\s*\|\s*Losses:\s*(\d+)/i
-);
-
-if (vsMatch) {
-  vsBotSummary = `VS Bot — Wins: ${vsMatch[1]}, Draws: ${vsMatch[2]}, Losses: ${vsMatch[3]}`;
-}
 
 
   /* ================= META ================= */
@@ -37439,73 +37438,106 @@ if (vsMatch) {
   const today = new Date().toLocaleDateString();
   const year = new Date().getFullYear();
 
-  /* ================= BORDER ================= */
+  /* ================= BACKGROUND HEADER ================= */
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(0, 0, 297, 35, "F");
+
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(0, 175, 297, 35, "F");
+
+  /* ================= DOUBLE GOLD BORDER ================= */
+  pdf.setDrawColor(...COLORS.gold);
+  pdf.setLineWidth(2);
+  pdf.rect(8, 8, 281, 194);
+
+  pdf.setLineWidth(0.6);
+  pdf.rect(12, 12, 273, 186);
+
+ /* ================= LOGO ================= */
+if (logoImg && logoImg.src) {
+  // Move logo lower so it does not block title
+  pdf.addImage(logoImg, "PNG", 138, 38, 22, 22);
+}
+
+  /* ================= HEADER TEXT ================= */
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(28);
+  pdf.setTextColor(255, 255, 255);
+  pdf.text("THE OLYMPUS CHESS ACADEMY", 148, 27, { align: "center" });
+
+  /* ================= CERTIFICATE TITLE ================= */
+  pdf.setTextColor(...COLORS.gold);
+  pdf.setFontSize(20);
+  pdf.text("CERTIFICATE OF ACHIEVEMENT", 148, 65, { align: "center" });
+
+  /* ================= BODY TEXT ================= */
+  pdf.setTextColor(...COLORS.darkText);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(16);
+  pdf.text("This is proudly presented to", 148, 85, { align: "center" });
+
+  /* ================= STUDENT NAME BIG ================= */
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(34);
+  pdf.setTextColor(...COLORS.navy);
+  pdf.text(studentName, 148, 105, { align: "center" });
+
+  /* Gold underline */
+  pdf.setDrawColor(...COLORS.gold);
   pdf.setLineWidth(1.2);
-  pdf.rect(10, 10, 277, 190);
+  pdf.line(90, 112, 206, 112);
 
-  pdf.setLineWidth(0.4);
-  pdf.rect(14, 14, 269, 182);
-
-  /* ================= LOGO ================= */
-  if (logoImg && logoImg.src) {
-    pdf.addImage(logoImg, "PNG", 135, 20, 30, 30);
-  }
-
-  /* ================= HEADER ================= */
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(26);
-  pdf.text("THE OLYMPUS CHESS ACADEMY", 148, 65, { align: "center" });
-
-  pdf.setFontSize(14);
-  pdf.setFont("times", "normal");
-  pdf.text("CERTIFICATE OF ACHIEVEMENT", 148, 76, { align: "center" });
-
-  /* ================= BODY ================= */
-  pdf.setFontSize(16);
-  pdf.text("This is proudly presented to", 148, 95, { align: "center" });
-
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(30);
-  pdf.text(studentName, 148, 112, { align: "center" });
-
+  /* ================= DESCRIPTION ================= */
   pdf.setFont("times", "normal");
   pdf.setFontSize(16);
+  pdf.setTextColor(...COLORS.darkText);
   pdf.text(
-    "for demonstrating dedication, discipline, and excellence in chess training",
+    "For demonstrating dedication, discipline, and excellence in structured chess training.",
     148,
-    128,
-    { align: "center" }
+    125,
+    { align: "center", maxWidth: 230 }
   );
 
-  /* ================= TIER + ELO ================= */
+  /* ================= ACHIEVEMENT INFO BOX ================= */
+  pdf.setFillColor(...COLORS.lightGold);
+  pdf.roundedRect(80, 135, 137, 28, 6, 6, "F");
+
   pdf.setFont("times", "bold");
   pdf.setFontSize(18);
-  pdf.text(`Achievement Tier: ${tier}`, 148, 142, { align: "center" });
+  pdf.setTextColor(...COLORS.navy);
+  pdf.text(`Achievement Tier: ${tier}`, 148, 148, { align: "center" });
 
   pdf.setFont("times", "normal");
   pdf.setFontSize(16);
-  pdf.text(`Olympus ELO Rating: ${eloRating}`, 148, 152, { align: "center" });
+  pdf.text(`Olympus ELO Rating: ${eloRating}`, 148, 158, { align: "center" });
 
 
 
+  /* ================= SIGNATURE SECTION ================= */
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(11);
 
-  /* ================= SIGNATURE ================= */
-  pdf.setLineWidth(0.5);
-  pdf.line(60, 168, 130, 168);
-  pdf.text("Coach: Tirtha Sarkar", 60, 176);
+  pdf.setDrawColor(255, 255, 255);
+  pdf.setLineWidth(0.8);
 
-  pdf.line(170, 168, 240, 168);
-  pdf.text(`Date: ${today}`, 170, 176);
+pdf.line(60, 176, 130, 176);
+pdf.text("Head Coach: Tirtha Sarkar", 60, 184);
 
-  /* ================= FOOTER ================= */
-  pdf.setFontSize(10);
-  pdf.setTextColor(120);
-  pdf.text(
-    `© ${year} The Olympus Chess Academy. All rights reserved.`,
-    148,
-    188,
-    { align: "center" }
-  );
+pdf.line(170, 176, 240, 176);
+pdf.text(`Date: ${today}`, 170, 184);
+
+/* ================= FOOTER ================= */
+
+// Move footer slightly upward for balance
+pdf.setFontSize(10);
+pdf.setTextColor(255, 255, 255);
+
+pdf.text(
+  `© ${year} The Olympus Chess Academy • Official Certification`,
+  148,
+  196,   // 🔥 changed from 200 → 196
+  { align: "center" }
+);
 
   /* ================= SAVE ================= */
   pdf.save(`${studentName}_Olympus_Certificate.pdf`);
@@ -47454,6 +47486,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
