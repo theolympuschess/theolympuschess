@@ -36671,6 +36671,17 @@ async function generateStudentPDF() {
 
   const logoImg = document.getElementById("academyLogo");
 
+  /* ================= COLOR THEME ================= */
+  const COLORS = {
+    primary: [22, 33, 62],
+    gold: [212, 175, 55],
+    lightBg: [245, 247, 250],
+    section: [230, 235, 245],
+    green: [40, 167, 69],
+    red: [220, 53, 69],
+    darkText: [33, 37, 41]
+  };
+
   // ===== CLEAN TEXT =====
   const title = document
     .getElementById("studentModalTitle")
@@ -36713,101 +36724,179 @@ if (studentId) {
 
 
 
-  let y = 20;
-  
+let y = 20;
 
-  /* ================= HEADER ================= */
-  if (logoImg && logoImg.src) {
-    pdf.addImage(logoImg, "PNG", 15, y - 8, 20, 20);
-  }
+/* ================= HEADER ================= */
 
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(20);
-  pdf.text("THE OLYMPUS CHESS ACADEMY", 40, y);
+// 🔵 Full width dark navy header background
+pdf.setFillColor(...COLORS.primary);
+pdf.rect(0, 0, 210, 32, "F");
 
-  pdf.setFontSize(12);
-  pdf.setFont("courier", "normal");
-  pdf.text("Official Student Performance Report", 40, y + 8);
+// 🏛 Logo
+if (logoImg && logoImg.src) {
+  pdf.addImage(logoImg, "PNG", 15, 6, 20, 20);
+}
 
-  y += 26;
+// 🏆 Academy Title (White Text)
+pdf.setTextColor(255, 255, 255);
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(18);
+pdf.text("THE OLYMPUS CHESS ACADEMY", 40, 15);
 
-  /* ================= STUDENT NAME ================= */
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(16);
-  pdf.text(title.toUpperCase(), 15, y);
+// 📄 Subtitle
+pdf.setFontSize(11);
+pdf.setFont("helvetica", "normal");
+pdf.text("Official Student Performance Report", 40, 22);
 
-  y += 6;
-  pdf.setLineWidth(0.6);
-  pdf.line(15, y, 195, y);
-  y += 10;
+// Reset text color for body
+pdf.setTextColor(...COLORS.darkText);
 
-  /* ================= STUDENT SUMMARY ================= */
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(14);
-  pdf.text("STUDENT SUMMARY", 15, y);
-  y += 8;
+// Move content below header
+y = 40;
 
-  pdf.setFont("courier", "normal");
-  pdf.setFontSize(12);
+/* ================= STUDENT NAME ================= */
 
-  lines.forEach(l => {
-    if (
-      l.startsWith("ELO") ||
-      l.startsWith("Status") ||
-      l.startsWith("Joined") ||
-      l.startsWith("Total assignments") ||
-      l.startsWith("Correct") ||
-      l.startsWith("Incorrect") ||
-      l.startsWith("Total time") ||
-      l.startsWith("Total App Uptime")   // 🔥 ADD THIS
-    ) {
-      pdf.text(l, 18, y);
-      y += 7;
-    }
-  });
+// 🏆 Gold Student Name
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(16);
+pdf.setTextColor(...COLORS.gold);
+pdf.text(title.toUpperCase(), 15, y);
 
-  y += 6;
-
-  /* ================= GLOBAL PERFORMANCE ================= */
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.text("GLOBAL PERFORMANCE", 15, y);
-y += 8;
-
-pdf.setFont("courier", "normal");
-pdf.setFontSize(12);
-
-pdf.text(`Accuracy : ${miniStats.accuracy}%`, 18, y);
 y += 6;
 
-pdf.text(`Avg Time : ${miniStats.avgTime}s`, 18, y);
-y += 6;
+// Gold underline
+pdf.setDrawColor(...COLORS.gold);
+pdf.setLineWidth(1);
+pdf.line(15, y, 195, y);
 
-pdf.text(`Solved   : ${miniStats.solved}`, 18, y);
+y += 12;
+
+// Reset text color
+pdf.setTextColor(...COLORS.darkText);
+
+
+/* ================= STUDENT SUMMARY ================= */
+
+// 🔵 Section Background Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("STUDENT SUMMARY", 18, y + 1);
+
 y += 10;
 
-  
+// Reset style
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
 
-  /* ================= RATING TIER ================= */
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.rect(15, y, 180, 18);
-pdf.text("OLYMPUS RATING TIER", 18, y + 7);
+// Summary Lines
+lines.forEach(l => {
+  if (
+    l.startsWith("ELO") ||
+    l.startsWith("Status") ||
+    l.startsWith("Joined") ||
+    l.startsWith("Total assignments") ||
+    l.startsWith("Correct") ||
+    l.startsWith("Incorrect") ||
+    l.startsWith("Total time") ||
+    l.startsWith("Total App Uptime")
+  ) {
+    pdf.text(l, 20, y);
+    y += 6;
+  }
+});
 
-pdf.setFont("courier", "normal");
-pdf.text(currentStudentTier, 18, y + 14);
-
-y += 30;
-
-
-  /* ================= MINI-GAME SCORES ================= */
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.text("MINI-GAME BEST SCORES", 15, y);
 y += 8;
 
-pdf.setFont("courier", "normal");
+/* ================= GLOBAL PERFORMANCE ================= */
+
+// 🔵 Section Background Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("GLOBAL PERFORMANCE", 18, y + 1);
+
+y += 12;
+
+// Reset
+pdf.setFont("helvetica", "bold");
 pdf.setFontSize(12);
+
+// 🟢 Accuracy (Green Highlight)
+pdf.setTextColor(...COLORS.green);
+pdf.text(`Accuracy : ${miniStats.accuracy}%`, 20, y);
+y += 6;
+
+// 🔵 Avg Time (Primary)
+pdf.setTextColor(...COLORS.primary);
+pdf.text(`Avg Time : ${miniStats.avgTime}s`, 20, y);
+y += 6;
+
+// 🟢 Solved Count
+pdf.setTextColor(...COLORS.green);
+pdf.text(`Solved   : ${miniStats.solved}`, 20, y);
+y += 12;
+
+// Reset text color
+pdf.setTextColor(...COLORS.darkText);
+pdf.setFont("helvetica", "normal");
+
+  
+
+/* ================= RATING TIER ================= */
+
+// 🔵 Section Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("OLYMPUS RATING TIER", 18, y + 1);
+
+y += 12;
+
+// 🏅 Gold Badge Background
+pdf.setFillColor(255, 248, 220); // light gold cream
+pdf.roundedRect(40, y - 4, 130, 18, 5, 5, "F");
+
+// 🏆 Tier Text
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(15);
+pdf.setTextColor(...COLORS.gold);
+pdf.text(currentStudentTier, 105, y + 7, { align: "center" });
+
+y += 28;
+
+// Reset text color
+pdf.setTextColor(...COLORS.darkText);
+pdf.setFont("helvetica", "normal");
+
+
+ /* ================= MINI-GAME SCORES ================= */
+
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("MINI-GAME BEST SCORES", 18, y + 1);
+
+y += 12;
+
+// Reset style
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
 
 let inMiniGame = false;
 
@@ -36822,51 +36911,87 @@ lines.forEach(l => {
   }
 
   if (inMiniGame) {
-    // 🔴 PAGE BREAK FIX
+
+    // 🔴 PAGE BREAK FIX (Styled)
     if (y > 270) {
       pdf.addPage();
       y = 20;
 
-      // Re-print section title on new page
-      pdf.setFont("courier", "bold");
-      pdf.text("MINI-GAME BEST SCORES (cont.)", 15, y);
-      y += 8;
+      pdf.setFillColor(...COLORS.section);
+      pdf.rect(15, y - 6, 180, 10, "F");
 
-      pdf.setFont("courier", "normal");
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(...COLORS.primary);
+      pdf.text("MINI-GAME BEST SCORES (cont.)", 18, y + 1);
+
+      y += 12;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(...COLORS.darkText);
     }
 
-    pdf.text(l, 18, y);
-    y += 7;
+    // 🟢 Highlight numeric scores if present
+    if (l.match(/\d+/)) {
+      pdf.setTextColor(...COLORS.green);
+      pdf.text(l, 20, y);
+      pdf.setTextColor(...COLORS.darkText);
+    } else {
+      pdf.text(l, 20, y);
+    }
+
+    y += 6;
   }
 });
 
-y += 10;
-
-
-  y += 10;
+y += 20;
 
  /* ================= XP HISTORY ================= */
+
+// Page break check
 if (y > 230) {
   pdf.addPage();
   y = 20;
 }
 
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.text("XP HISTORY", 15, y);
-y += 8;
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
 
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("XP HISTORY", 18, y + 1);
+
+y += 12;
+
+// Reset
 pdf.setFont("helvetica", "normal");
 pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
 
 if (xpHistory.length === 0) {
-  pdf.text("No XP history available.", 18, y);
-  y += 6;
+  pdf.text("No XP history available.", 20, y);
+  y += 8;
 } else {
+
   xpHistory.forEach(row => {
+
     if (y > 270) {
       pdf.addPage();
       y = 20;
+
+      // Re-draw styled header on new page
+      pdf.setFillColor(...COLORS.section);
+      pdf.rect(15, y - 6, 180, 10, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(...COLORS.primary);
+      pdf.text("XP HISTORY (cont.)", 18, y + 1);
+
+      y += 12;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(...COLORS.darkText);
     }
 
     const d = new Date(row.created_at);
@@ -36879,38 +37004,62 @@ if (xpHistory.length === 0) {
     const cleanLine = `${row.source} - ${row.reason}`
       .replace(/[^\x00-\x7F]/g, "");
 
-    pdf.text(cleanLine, 18, y);
-    pdf.text(`+${row.xp}`, 180, y, { align: "right" });
-    y += 5;
+    // Light entry background
+    pdf.setFillColor(248, 250, 252);
+    pdf.roundedRect(18, y - 4, 174, 14, 2, 2, "F");
 
-    pdf.setFont("helvetica", "italic");
-    pdf.setFontSize(10);
-    pdf.text(`${dateStr} ${timeStr}`, 18, y);
+    // Source & reason
+    pdf.setTextColor(...COLORS.darkText);
+    pdf.text(cleanLine, 22, y);
+
+    // XP Value (Green)
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(...COLORS.green);
+    pdf.text(`+${row.xp}`, 185, y, { align: "right" });
 
     pdf.setFont("helvetica", "normal");
+
+    y += 6;
+
+    // Date + Time (Muted)
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text(`${dateStr} ${timeStr}`, 22, y);
+
     pdf.setFontSize(11);
-    y += 7;
+    pdf.setTextColor(...COLORS.darkText);
+
+    y += 10;
   });
 }
 
-y += 10;
+y += 12;
 
 
 
-  /* ================= ASSIGNMENT HISTORY ================= */
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(14);
-  pdf.text("ASSIGNMENT HISTORY", 15, y);
-  y += 8;
+ /* ================= ASSIGNMENT HISTORY ================= */
 
-  pdf.setFont("courier", "normal");
-  pdf.setFontSize(12);
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
 
-  let currentAssignment = "";
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("ASSIGNMENT HISTORY", 18, y + 1);
 
-  lines.forEach(l => {
+y += 12;
 
-  // 🟦 Assignment title
+// Reset font
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
+
+let currentAssignment = "";
+
+lines.forEach(l => {
+
+  // 🟦 Assignment Title
   if (
     !l.startsWith("Submitted") &&
     !l.startsWith("Time") &&
@@ -36926,94 +37075,155 @@ y += 10;
     return;
   }
 
-  // 🟩 Submitted line
+  // 🟩 Submitted Line
   if (l.startsWith("Submitted")) {
-    if (y > 270) {
+
+    if (y > 265) {
       pdf.addPage();
       y = 20;
     }
 
-    pdf.setFont("courier", "bold");
-    pdf.text(currentAssignment, 18, y);
+    // Light card background
+    pdf.setFillColor(248, 250, 252);
+    pdf.roundedRect(18, y - 5, 174, 30, 3, 3, "F");
+
+    // Assignment Title (Bold Primary)
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(...COLORS.primary);
+    pdf.text(currentAssignment, 22, y);
+
     y += 6;
 
-    pdf.setFont("courier", "normal");
+    // Submitted info
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(...COLORS.darkText);
     pdf.text(l, 22, y);
+
     y += 6;
     return;
   }
 
-  // 🟨 Time | Attempts | Status line
+  // 🟨 Time | Attempts | Status Line
   if (l.startsWith("Time")) {
 
-  const parts = l.split("|").map(p => p.trim());
+    const parts = l.split("|").map(p => p.trim());
 
-  parts.forEach(part => {
-    if (y > 270) {
-      pdf.addPage();
-      y = 20;
+    parts.forEach(part => {
+      if (y > 270) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      pdf.text(part, 25, y);
+      y += 6;
+    });
+
+    // 🔥 Detect grade
+    const attemptMatch = window.currentStudentAttempts.find(a =>
+      currentAssignment.includes(a.assignments?.title)
+    );
+
+    if (attemptMatch && attemptMatch.grade_letter) {
+
+      if (y > 270) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      pdf.setFont("helvetica", "bold");
+
+      // 🟢 Green for A/B, 🔴 Red for low grade
+      if (["A", "A+", "B", "B+"].includes(attemptMatch.grade_letter)) {
+        pdf.setTextColor(...COLORS.green);
+      } else {
+        pdf.setTextColor(...COLORS.red);
+      }
+
+      pdf.text(`Grade: ${attemptMatch.grade_letter}`, 25, y);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(...COLORS.darkText);
+
+      y += 8;
     }
 
-    pdf.text(part, 22, y);
-    y += 6;
-  });
-
-  // 🔥 NEW: Detect grade in the original attempts array
-  const attemptMatch = window.currentStudentAttempts.find(a =>
-    currentAssignment.includes(a.assignments?.title)
-  );
-
-  if (attemptMatch && attemptMatch.grade_letter) {
-    if (y > 270) {
-      pdf.addPage();
-      y = 20;
-    }
-
-    pdf.setFont("courier", "bold");
-    pdf.text(`Grade: ${attemptMatch.grade_letter}`, 22, y);
-    pdf.setFont("courier", "normal");
-    y += 7;
+    y += 4;
+    return;
   }
-
-  return;
-}
 
 });
 
+y += 12;
 
+/* ================= VS BOT RESULTS ================= */
 
-  y += 10;
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
 
-  /* ================= VS BOT RESULTS ================= */
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.text("VS BOT RESULTS", 15, y);
-y += 8;
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("VS BOT RESULTS", 18, y + 1);
 
-pdf.setFont("courier", "normal");
-pdf.setFontSize(12);
+y += 12;
+
+// Reset
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
 
 // Extract VS Bot stats from modal text
 let botLine = lines.find(l => l.includes("Wins:") && l.includes("Losses"));
 
 if (botLine) {
-  pdf.text(botLine, 18, y);
-  y += 8;
+
+  // Light card background
+  pdf.setFillColor(248, 250, 252);
+  pdf.roundedRect(18, y - 5, 174, 16, 3, 3, "F");
+
+  // Color highlight wins
+  const winMatch = botLine.match(/Wins:\s*(\d+)/);
+  const lossMatch = botLine.match(/Losses:\s*(\d+)/);
+
+  if (winMatch) {
+    pdf.setTextColor(...COLORS.green);
+  }
+
+  pdf.text(botLine, 22, y);
+
+  pdf.setTextColor(...COLORS.darkText);
+
+  y += 12;
+
 } else {
-  pdf.text("No VS Bot games played yet.", 18, y);
-  y += 8;
+
+  pdf.setTextColor(120);
+  pdf.text("No VS Bot games played yet.", 20, y);
+  pdf.setTextColor(...COLORS.darkText);
+
+  y += 10;
 }
 
-y += 6;
-
-/* ================= LIVE MATCH RESULTS ================= */
-pdf.setFont("courier", "bold");
-pdf.setFontSize(14);
-pdf.text("LIVE MATCH RESULTS", 15, y);
 y += 8;
 
-pdf.setFont("courier", "normal");
-pdf.setFontSize(12);
+/* ================= LIVE MATCH RESULTS ================= */
+
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("LIVE MATCH RESULTS", 18, y + 1);
+
+y += 12;
+
+// Reset
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
 
 // Find Live Match section range in modal text
 const liveIndex = lines.findIndex(l =>
@@ -37024,7 +37234,6 @@ const nextSectionIndex = lines.findIndex(
   (l, i) => i > liveIndex && l.toUpperCase().includes("ASSIGNMENT HISTORY")
 );
 
-// Extract only the Live Match lines
 const liveLines =
   liveIndex !== -1
     ? lines.slice(
@@ -37033,70 +37242,148 @@ const liveLines =
       )
     : [];
 
-// Print cleanly
 if (liveLines.length) {
+
   liveLines.forEach(l => {
-    if (y > 270) {
+
+    if (y > 265) {
       pdf.addPage();
       y = 20;
+
+      // Re-draw section header
+      pdf.setFillColor(...COLORS.section);
+      pdf.rect(15, y - 6, 180, 10, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(...COLORS.primary);
+      pdf.text("LIVE MATCH RESULTS (cont.)", 18, y + 1);
+
+      y += 12;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(...COLORS.darkText);
     }
-    pdf.text(l, 18, y);
-    y += 7;
+
+    // Light card background
+    pdf.setFillColor(248, 250, 252);
+    pdf.roundedRect(18, y - 5, 174, 14, 3, 3, "F");
+
+    // Color code results
+    if (l.toLowerCase().includes("win")) {
+      pdf.setTextColor(...COLORS.green);
+    } else if (l.toLowerCase().includes("loss")) {
+      pdf.setTextColor(...COLORS.red);
+    } else {
+      pdf.setTextColor(...COLORS.darkText);
+    }
+
+    pdf.text(l, 22, y);
+
+    pdf.setTextColor(...COLORS.darkText);
+
+    y += 12;
   });
+
 } else {
-  pdf.text("No live matches played yet.", 18, y);
-  y += 8;
+
+  pdf.setTextColor(120);
+  pdf.text("No live matches played yet.", 20, y);
+  pdf.setTextColor(...COLORS.darkText);
+
+  y += 10;
 }
+
+y += 12;
+
+
+/* ================= COACH REMARKS ================= */
+
+if (y > 235) {
+  pdf.addPage();
+  y = 20;
+}
+
+// 🔵 Section Header Strip
+pdf.setFillColor(...COLORS.section);
+pdf.rect(15, y - 6, 180, 10, "F");
+
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("COACH REMARKS", 18, y + 1);
+
+y += 14;
+
+// 📝 Soft Blue Remark Card
+pdf.setFillColor(240, 248, 255);
+pdf.roundedRect(18, y - 6, 174, 32, 4, 4, "F");
+
+// Left Accent Line (Gold)
+pdf.setFillColor(...COLORS.gold);
+pdf.rect(18, y - 6, 4, 32, "F");
+
+// Remark Text
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.darkText);
+
+pdf.text(
+  "Excellent consistency and accuracy. Continue focusing on calculation depth and endgame conversion. We wish you all the very best!",
+  26,
+  y + 8,
+  { maxWidth: 158 }
+);
+
+y += 40;
+
+/* ================= SIGNATURE & DATE ================= */
+
+const today = new Date().toLocaleDateString();
+
+// Slight spacing adjustment
+y += 10;
+
+// 🟡 Gold Divider Line
+pdf.setDrawColor(...COLORS.gold);
+pdf.setLineWidth(0.8);
+pdf.line(15, y, 195, y);
 
 y += 10;
 
+// Coach Signature
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(11);
+pdf.setTextColor(...COLORS.primary);
+pdf.text("Coach: Tirtha Sarkar", 15, y);
 
-  /* ================= COACH REMARKS ================= */
-  if (y > 235) {
-    pdf.addPage();
-    y = 20;
-  }
+pdf.setFont("helvetica", "normal");
+pdf.setTextColor(...COLORS.darkText);
+pdf.text("(Trainer & Mentor)", 15, y + 5);
 
-  pdf.setFont("courier", "bold");
-  pdf.setFontSize(14);
-  pdf.text("COACH REMARKS", 15, y);
-  y += 6;
+// Date on Right
+pdf.setFont("helvetica", "bold");
+pdf.text("Report Date:", 150, y);
+pdf.setFont("helvetica", "normal");
+pdf.text(today, 150, y + 5);
 
-  pdf.rect(15, y, 180, 28);
-  pdf.setFont("courier", "normal");
-  pdf.setFontSize(11);
-  pdf.text(
-    "Excellent consistency and accuracy. Continue focusing on calculation depth and endgame conversion. We wish you all the very best!",
-    18,
-    y + 10,
-    { maxWidth: 170 }
-  );
+// 🔵 Footer Background Bar
+pdf.setFillColor(...COLORS.primary);
+pdf.rect(0, 282, 210, 15, "F");
 
-  y += 38;
-
-  /* ================= SIGNATURE & DATE ================= */
-  const today = new Date().toLocaleDateString();
-
-  pdf.setLineWidth(0.4);
-  pdf.line(15, y, 80, y);
-  pdf.text("Coach: Tirtha Sarkar (Trainer & Mentor)", 15, y + 6);
-
-  pdf.line(120, y, 195, y);
-  pdf.text(`Date: ${today}`, 120, y + 6);
-
-  pdf.setFontSize(10);
-  pdf.setTextColor(120);
-  pdf.text(
-  `© ${new Date().getFullYear()} The Olympus Chess Academy Official report. All rights reserved.`,
-  15,
-  287
+// Footer Text
+pdf.setFontSize(9);
+pdf.setTextColor(255, 255, 255);
+pdf.text(
+  `© ${new Date().getFullYear()} The Olympus Chess Academy • Official Performance Report`,
+  105,
+  291,
+  { align: "center" }
 );
 
 
-  /* ================= SAVE ================= */
-  pdf.save(`${title.replace(/\s+/g, "_")}_Olympus_Official_Report.pdf`);
+/* ================= SAVE ================= */
+pdf.save(`${title.replace(/\s+/g, "_")}_Olympus_Official_Report.pdf`);
 }
-
 
 
 
