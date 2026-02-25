@@ -17909,7 +17909,7 @@ Submit solution</button>
 ></p>
 
                <div id="adminPgnUploader" class="admin-pgn-box">
-  <h3>📥 Upload PGN TO DB</h3>
+  <h3>Puzzle Rush DB</h3>
 
   <input type="file" id="pgnFileInput" accept=".pgn" hidden />
 
@@ -26145,6 +26145,13 @@ function renderPGNLibrary(pgNs) {
     onclick="deletePGNFromLibrary(${pgn.id})"
   >
     🗑 Delete
+  </button>
+
+   <!-- NEW DOWNLOAD BUTTON -->
+  <button class="btn-small"
+    onclick="downloadPGNFromLibrary(${pgn.id})"
+    title="Download PGN">
+    Download
   </button>
 </div>
 
@@ -46602,7 +46609,38 @@ document.addEventListener("click", function (e) {
 });
 
 
+window.downloadPGNFromLibrary = async function(id) {
 
+  const { data, error } = await supabase
+    .from("bulk_pgn_library")
+    .select("title, pgn")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    alert("Failed to download PGN");
+    console.error(error);
+    return;
+  }
+
+  const blob = new Blob([data.pgn], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+
+  const safeTitle = data.title
+    .replace(/[^a-z0-9]/gi, "_")
+    .toLowerCase();
+
+  a.download = `${safeTitle}.pgn`;
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  URL.revokeObjectURL(url);
+};
 
 
 
@@ -47488,6 +47526,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
