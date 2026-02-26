@@ -14875,6 +14875,38 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.trainer-xp-popup {
+  position: absolute;
+  top: 40%;
+  left: -150px; /* 👈 LEFT SIDE OF BOARD */
+  font-size: 40px;
+  font-weight: bold;
+  color: #00ffcc; 
+  text-shadow: 0 0 15px rgba(255,215,0,0.9);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.4s ease;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.trainer-xp-popup.show {
+  opacity: 1;
+  transform: translateY(-20px) scale(1.1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16626,7 +16658,11 @@ body.guardians-theme .chessboard-63f37 img {
 <div id="trainerStreakBox">
 
   <div class="streak-header">
-    🔥 Streak: <span id="trainerStreakCount">0</span> / 5
+   🔥 Streak: 
+<span id="trainerStreakCount">0</span>
+<span id="trainerStreakPercent" style="font-size:15px;opacity:0.8;margin-left:6px;">
+(0%)
+</span>
   </div>
 
   <div class="streak-bar">
@@ -47881,27 +47917,51 @@ if (autoMove.flags.includes('k') || autoMove.flags.includes('q')) {
 
 function trainerPuzzleSolved() {
 
-  if (trainerPuzzleLock) return; // 🔒 prevent double trigger
+  if (trainerPuzzleLock) return;
   trainerPuzzleLock = true;
 
-  if (!trainerHadMistake) {
+  let wasPerfect = !trainerHadMistake;
+
+  if (wasPerfect) {
     incrementTrainerStreak();
   }
 
   incrementTrainerSolved();
 
+  // ===============================
+  // 🏆 STREAK XP REWARD SYSTEM
+  // ===============================
+
+  if (wasPerfect && trainerStreak > 0 && trainerStreak % 5 === 0) {
+
+    const XP = 5;
+
+    // ✅ Uses your existing XP engine
+    applyMiniGameRating(XP);
+
+    showTrainerXPReward(XP);
+
+    // ✅ Log to XP history
+    if (window.logRatingEvent) {
+      window.logRatingEvent({
+        source: "Puzzle Streak",
+        reason: `5 Perfect Streak (${trainerStreak})`,
+        xp: XP
+      });
+    }
+
+    showTrainerStatus(`🔥 ${trainerStreak} Streak! +${XP} XP`, "success");
+  }
+
   trainerHadMistake = false;
 
   playQuizSound("next");
 
-  showTrainerStatus("✅ Correct! Loading next puzzle...", "success");
-
   setTimeout(() => {
-    trainerPuzzleLock = false; // unlock for next puzzle
+    trainerPuzzleLock = false;
     loadRandomPuzzle();
   }, 1000);
 }
-
 /* ================================
    START BUTTON
 ================================ */
@@ -48104,8 +48164,17 @@ function updateTrainerStreakUI() {
 
   countEl.textContent = trainerStreak;
 
-  const percent = (trainerStreak / 5) * 100;
-  fillEl.style.width = percent + "%";
+// % toward next 5 XP reward
+const cycleProgress = trainerStreak % 5;
+const percent = Math.floor((cycleProgress / 5) * 100);
+
+fillEl.style.width = percent + "%";
+
+// Update percent text
+const percentEl = document.getElementById("trainerStreakPercent");
+if (percentEl) {
+  percentEl.textContent = `(${percent}%)`;
+}
 if (trainerStreak >= 5) {
 
   fillEl.classList.add("streak-max");
@@ -48134,7 +48203,6 @@ function resetTrainerStreak() {
 
 function incrementTrainerStreak() {
   trainerStreak++;
-  if (trainerStreak > 5) trainerStreak = 5;
   updateTrainerStreakUI();
 }
 
@@ -48482,8 +48550,26 @@ function playTrainerFullSolution() {
 
 
 
+function showTrainerXPReward(amount) {
 
+  const boardWrapper = document.querySelector(".trainer-right");
+  if (!boardWrapper) return;
 
+  const popup = document.createElement("div");
+  popup.className = "trainer-xp-popup";
+  popup.textContent = `+${amount} XP`;
+
+  boardWrapper.style.position = "relative";
+  boardWrapper.appendChild(popup);
+
+  setTimeout(() => {
+    popup.classList.add("show");
+  }, 10);
+
+  setTimeout(() => {
+    popup.remove();
+  }, 3000);
+}
 
 
 
