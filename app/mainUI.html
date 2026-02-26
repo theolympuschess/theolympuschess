@@ -16588,6 +16588,21 @@ body.guardians-theme .chessboard-63f37 img {
         </div>
         
       </div>
+      <div style="margin-top:15px;">
+  <select id="trainerMoveFilter" class="btn-secondary" style="width:100%;">
+    
+    <option value="all">🎯 All Levels</option>
+
+    <option value="1">🟢 Easiest Puzzle</option>
+    <option value="2">🟡 Easier Puzzle</option>
+    <option value="3">🔵 Normal Puzzle</option>
+    <option value="4">🟠 Hard Puzzle</option>
+    <option value="5">😈 Hardest Puzzle</option>
+
+    <option value="5plus">💀 Insane Puzzle</option>
+
+  </select>
+</div>
 
       <div class="card" style="margin-top:20px;">
         <button class="btn-primary" id="startTrainerBtn">
@@ -47764,10 +47779,22 @@ document
   document.getElementById("trainerStatus").textContent =
     "Loading puzzle...";
 
-  const { data, error } = await supabase
-    .from("trainer_puzzles")
-    .select("*")
-    .eq("is_active", true);
+const moveFilter =
+  document.getElementById("trainerMoveFilter")?.value || "all";
+
+let query = supabase
+  .from("trainer_puzzles")
+  .select("*")
+  .eq("is_active", true);
+
+if (["1","2","3","4","5"].includes(moveFilter)) {
+  query = query.eq("move_count", Number(moveFilter));
+}
+else if (moveFilter === "5plus") {
+  query = query.gte("move_count", 5);
+}
+
+const { data, error } = await query;
 
   if (error) {
     console.error(error);
@@ -47801,6 +47828,7 @@ document
 
   document.getElementById("trainerStatus").textContent =
     "Find the best move!";
+    
 }
 
 /* =========================================
