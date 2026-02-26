@@ -26591,6 +26591,11 @@ function renderPGNLibrary(pgNs) {
     title="Download PGN">
     Download
   </button>
+
+<button class="btn-small"
+        onclick="downloadPGNPuzzlesPDF(${pgn.id})">
+  PDF
+</button>
   
 </div>
 
@@ -48572,6 +48577,297 @@ function showTrainerXPReward(amount) {
 }
 
 
+// ======================================
+// ♟ GLOBAL PIECE STORAGE
+// ======================================
+
+window.PDF_PIECES = {};
+
+window.preloadChessPieces = async function () {
+
+  const pieceFiles = {
+    p: "assets/pieces/bP.png",
+    r: "assets/pieces/bR.png",
+    n: "assets/pieces/bN.png",
+    b: "assets/pieces/bB.png",
+    q: "assets/pieces/bQ.png",
+    k: "assets/pieces/bK.png",
+    P: "assets/pieces/wP.png",
+    R: "assets/pieces/wR.png",
+    N: "assets/pieces/wN.png",
+    B: "assets/pieces/wB.png",
+    Q: "assets/pieces/wQ.png",
+    K: "assets/pieces/wK.png"
+  };
+
+  const loadImage = (url) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = url;
+    });
+
+  for (const key in pieceFiles) {
+    window.PDF_PIECES[key] = await loadImage(pieceFiles[key]);
+  }
+};
+
+// =======================================================
+// 🖨 DOWNLOAD ALL PUZZLE POSITIONS FROM PGN LIBRARY
+// =======================================================
+
+window.downloadPGNPuzzlesPDF = async function (pgnId) {
+  try {
+    const { jsPDF } = window.jspdf;
+
+    // 🔥 PRELOAD PIECES HERE
+    await preloadChessPieces();
+
+    const mode = await new Promise((resolve) => {
+  const choice = confirm(
+    "Click OK for PRINT MODE (Low Ink Grey Board)\n\nClick Cancel for NORMAL PDF Mode (Brown Board)"
+  );
+  resolve(choice ? "print" : "pdf");
+});
+
+
+    const { data, error } = await supabase
+      .from("bulk_pgn_library")
+      .select("title, pgn")
+      .eq("id", pgnId)
+      .single();
+
+    if (error || !data) {
+      alert("Failed to load PGN");
+      return;
+    }
+
+    const title = data.title;
+    const pgn = data.pgn;
+    console.log("Chess object:", typeof Chess);
+
+    // ============================================
+// Extract FIRST puzzle position of EACH game
+// ============================================
+
+const games = pgn
+  .split(/\n(?=\[Event)/g) // split by new game
+  .filter(g => g.trim() !== "");
+
+const positions = [];
+
+games.forEach(gameText => {
+
+  const chess = new Chess();
+
+  const loaded = chess.load_pgn(gameText, { sloppy: true });
+
+  if (!loaded) return;
+
+  // If PGN has FEN tag → use that
+  const headers = chess.header();
+
+  if (headers.FEN) {
+    positions.push(headers.FEN);
+  } else {
+    // Otherwise starting position
+    chess.reset();
+    positions.push(chess.fen());
+  }
+
+});
+
+    const doc = new jsPDF("p", "mm", "a4");
+
+    const boardSize = 65;
+    const marginX = 15;
+    const marginTop = 30;
+
+    let col = 0;
+    let row = 0;
+    let count = 0;
+
+    positions.forEach((fen, index) => {
+
+      if (count !== 0 && count % 6 === 0) {
+        doc.addPage();
+        col = 0;
+        row = 0;
+      }
+
+      if (count % 6 === 0) {
+        doc.setFontSize(16);
+        doc.text("The Olympus Chess Academy", 105, 15, { align: "center" });
+
+        doc.setFontSize(12);
+        doc.text(title, 105, 22, { align: "center" });
+      }
+
+     const x = marginX + (col * (boardSize + 20));
+const y = marginTop + (row * (boardSize + 25));
+
+      drawBoardFromFen(doc, fen, x, y, boardSize, mode);
+
+      const side = fen.split(" ")[1] === "w"
+        ? "White to Play"
+        : "Black to Play";
+
+      doc.setFontSize(10);
+      doc.text(side, x + boardSize / 2, y + boardSize + 5, {
+        align: "center"
+      });
+
+      col++;
+      if (col === 2) {
+        col = 0;
+        row++;
+      }
+
+      count++;
+    });
+
+    doc.save(`${title}_Puzzle_Positions.pdf`);
+
+  } catch (err) {
+  console.error("PDF ERROR:", err);
+  alert("PDF generation failed. Check console.");
+}
+};
+
+
+// =====================================================
+// ♟ FINAL PROFESSIONAL BOARD DRAWER (BASE64 PIECES)
+// =====================================================
+
+window.drawBoardFromFen = function (doc, fen, startX, startY, size, mode) {
+
+  const square = size / 8;
+  const rows = fen.split(" ")[0].split("/");
+
+let light, dark;
+
+if (mode === "print") {
+  // Low ink version
+  light = [255, 255, 255];
+  dark  = [225, 225, 225];
+} else {
+  // Normal brown PDF version
+  light = [240, 217, 181];
+  dark  = [181, 136, 99];
+}
+
+  // 🔥 STEP 1 — Draw FULL BOARD
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+
+      const x = startX + c * square;
+      const y = startY + r * square;
+
+      if ((r + c) % 2 === 0) {
+        doc.setFillColor(...light);
+      } else {
+        doc.setFillColor(...dark);
+      }
+
+      doc.rect(x, y, square, square, "F");
+    }
+  }
+
+  // ======================================
+// ♟ Draw Bigger Clear Coordinates
+// ======================================
+
+const files = ["a","b","c","d","e","f","g","h"];
+const ranks = ["8","7","6","5","4","3","2","1"];
+
+// Bigger size
+doc.setFont("helvetica", "bold");
+doc.setFontSize(square * 0.90);
+
+// Stronger color
+if (mode === "print") {
+  doc.setTextColor(100, 100, 100);
+} else {
+  doc.setTextColor(60, 60, 60);
+}
+
+// Draw ranks (left side — closer to board)
+for (let r = 0; r < 8; r++) {
+  const y = startY + r * square + square * 0.65;
+  doc.text(
+    ranks[r],
+    startX - square * 0.25,  // closer than before
+    y
+  );
+}
+
+// Draw files (bottom — closer)
+for (let c = 0; c < 8; c++) {
+  const x = startX + c * square + square / 2;
+  doc.text(
+    files[c],
+    x,
+    startY + size + square * 0.22, // closer to board
+    { align: "center" }
+  );
+}
+
+  // 🔥 STEP 2 — Draw PIECES USING PRELOADED BASE64
+  for (let r = 0; r < 8; r++) {
+
+    let colIndex = 0;
+
+    for (let char of rows[r]) {
+
+      if (!isNaN(char)) {
+        colIndex += parseInt(char);
+      } else {
+
+        const x = startX + colIndex * square;
+        const y = startY + r * square;
+
+        if (window.PDF_PIECES && window.PDF_PIECES[char]) {
+
+         // 🔥 Proper piece scaling and centering
+
+// 🔥 Improved scaling for uneven PNG pieces
+
+const pieceScale = 0.78; // slightly smaller to normalize visual weight
+const pieceSize = square * pieceScale;
+const offset = (square - pieceSize) / 2;
+
+// Slight vertical correction (PNG sets often sit too high)
+const verticalAdjust = square * 0.03;
+
+doc.addImage(
+  window.PDF_PIECES[char],
+  "PNG",
+  x + offset,
+  y + offset + verticalAdjust,
+  pieceSize,
+  pieceSize
+);
+
+        }
+
+        colIndex++;
+      }
+    }
+  }
+};
+
+
+
+
+
+
 
 
 
@@ -49440,6 +49736,8 @@ window.addEventListener("message", e => {
 </script>
 
 
+
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 
@@ -49451,7 +49749,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
