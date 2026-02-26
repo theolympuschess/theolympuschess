@@ -47499,14 +47499,16 @@ if (playedUci !== expectedMove) {
   // 👇 HOOK HERE
 trainerWrongAttempts++;
 
-if (trainerWrongAttempts >= 4) {
+if (trainerWrongAttempts >= 3) {
   document
     .getElementById("trainerShowSolutionBtn")
     ?.classList.remove("hidden");
 }
   resetTrainerStreak();
 
+ if (!trainerShowingSolution) {
   playSound('wrong');
+}
   showTrainerStatus("❌ Wrong move. Try again.", "error");
 
   return "snapback";
@@ -47583,14 +47585,16 @@ if (playedUci !== expectedMove) {
   // 👇 HOOK HERE
 trainerWrongAttempts++;
 
-if (trainerWrongAttempts >= 4) {
+if (trainerWrongAttempts >= 3) {
   document
     .getElementById("trainerShowSolutionBtn")
     ?.classList.remove("hidden");
 }
   resetTrainerStreak();
 
+if (!trainerShowingSolution) {
   playSound('wrong');
+}
   showTrainerStatus("❌ Wrong move. Try again.", "error");
 
   trainerBoard.position(trainerChess.fen(), false);
@@ -47980,29 +47984,37 @@ function startTrainerEmojiRain() {
 
   trainerEmojiInterval = setInterval(() => {
 
-    const emoji = document.createElement("div");
-    emoji.className = "trainer-emoji";
+    const EMOJIS_PER_WAVE = 4; // 🔥 increase this number
 
-    emoji.textContent =
-      trainerEmojis[
-        Math.floor(Math.random() * trainerEmojis.length)
-      ];
+    for (let i = 0; i < EMOJIS_PER_WAVE; i++) {
 
-    emoji.style.left =
-      Math.random() * window.innerWidth + "px";
+      const emoji = document.createElement("div");
+      emoji.className = "trainer-emoji";
 
-    const duration = 2 + Math.random() * 2;
-    emoji.style.animationDuration = duration + "s";
+      emoji.textContent =
+        trainerEmojis[
+          Math.floor(Math.random() * trainerEmojis.length)
+        ];
 
-    document.body.appendChild(emoji);
+      emoji.style.left =
+        Math.random() * window.innerWidth + "px";
 
-    setTimeout(() => {
-      emoji.remove();
-    }, duration * 1000);
+      // random size for depth effect
+      const size = 18 + Math.random() * 18;
+      emoji.style.fontSize = size + "px";
 
-  }, 90);
+      const duration = 2 + Math.random() * 2;
+      emoji.style.animationDuration = duration + "s";
+
+      document.body.appendChild(emoji);
+
+      setTimeout(() => {
+        emoji.remove();
+      }, duration * 1000);
+    }
+
+  }, 120);
 }
-
 function stopTrainerEmojiRain() {
 
   if (trainerEmojiInterval) {
@@ -48220,6 +48232,10 @@ async function saveTrainerBestScoreOnly(score) {
 let trainerWrongAttempts = 0;
 
 // ===============================
+// 🔒 TRAINER SOLUTION MODE FLAG
+// ===============================
+let trainerShowingSolution = false;
+// ===============================
 // 👁 TRAINER SHOW SOLUTION
 // ===============================
 
@@ -48228,13 +48244,11 @@ document.getElementById("trainerShowSolutionBtn")
 
     if (!trainerCurrentPuzzle) return;
 
-    // 🔁 Reset streak & solved count
+    trainerShowingSolution = true;
+
     resetTrainerStreak();
     resetTrainerSolved();
     trainerHadMistake = true;
-
-    // 🔊 Optional sound
-    playSound("wrong");
 
     showTrainerStatus("👁 Showing full solution...", "info");
 
@@ -48255,11 +48269,14 @@ function playTrainerFullSolution() {
 
   function playNext() {
 
-    if (trainerMoveIndex >= trainerSolutionMoves.length) {
-      showTrainerStatus("✔ Solution completed.", "success");
-      return;
-    }
+  if (trainerMoveIndex >= trainerSolutionMoves.length) {
 
+  showTrainerStatus("✔ Solution completed.", "success");
+
+  trainerShowingSolution = false; // 🔓 unlock
+
+  return;
+}
     const uci = trainerSolutionMoves[trainerMoveIndex];
 
     const move = trainerChess.move({
