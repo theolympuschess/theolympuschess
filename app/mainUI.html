@@ -14942,6 +14942,34 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.lb-tier {
+  font-size: 12px;
+  color: #00e5ff;
+  margin-left: 6px;
+}
+
+
+
+/* ===============================
+   🎨 UNIVERSAL TIER SYSTEM
+=============================== */
+
+.tier-badge {
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+/* Auto color for ALL levels */
+[class^="tier-"]:not(.tier-immortal) {
+  color: white;
+}
+
+/* Dynamically colored levels */
+
 
 
 
@@ -18902,7 +18930,16 @@ function updateRatingsFromProfile(profile) {
   set("quizRating", quizRating);
   set("gameRating", gameRating);
   set("olympusRating", olympusRating);
-  set("ratingTier", getOlympusTier(olympusRating));
+ const tierObj = getOlympusTier(olympusRating);
+const tierEl = document.getElementById("ratingTier");
+
+if (tierEl) {
+  tierEl.innerHTML = `
+    <span class="tier-badge ${tierObj.className}">
+      ${tierObj.name}
+    </span>
+  `;
+}
 
   // Progress UI
   const fill = document.getElementById("ratingProgressFill");
@@ -19095,53 +19132,65 @@ async function grantVsComputerDrawXP() {
 
 
 
+// ===============================
+// 🏆 GLOBAL OLYMPUS TIER SYSTEM
+// ===============================
+
 function getOlympusTier(rating) {
-  if (rating >= 3000) return "Olympus Immortal";
+  if (rating >= 3000) {
+    return {
+      level: 999,
+      name: "Olympus Immortal",
+      className: "tier-immortal"
+    };
+  }
 
-  if (rating >= 2900) return "Celestial GM";
-  if (rating >= 2800) return "Mythic GM";
-  if (rating >= 2700) return "Supreme GM";
-  if (rating >= 2600) return "Legendary GM";
-  if (rating >= 2500) return "Grandmaster";
+  if (rating < 0) rating = 0;
 
-  if (rating >= 2400) return "IM Master";
-  if (rating >= 2300) return "FM Master";
-  if (rating >= 2200) return "Candidate";
-  if (rating >= 2100) return "Club Champ";
-  if (rating >= 2000) return "Champion";
+  const level = Math.floor(rating / 100) + 1;
 
-  if (rating >= 1900) return "Grand Queen";
-  if (rating >= 1800) return "Elite Queen";
-  if (rating >= 1700) return "Queen";
-
-  if (rating >= 1600) return "Grand Rook";
-  if (rating >= 1500) return "Elite Rook";
-  if (rating >= 1400) return "Rook";
-
-  if (rating >= 1300) return "Grand Bishop";
-  if (rating >= 1200) return "Elite Bishop";
-  if (rating >= 1100) return "Bishop";
-
-  if (rating >= 1000) return "Grand Knight";
-  if (rating >= 900)  return "Elite Knight";
-  if (rating >= 800)  return "Knight";
-
-  if (rating >= 700)  return "Advanced Pawn";
-  if (rating >= 600)  return "Skilled Pawn";
-  if (rating >= 500)  return "Pawn";
-
-  if (rating >= 400)  return "Rising Learner";
-  if (rating >= 300)  return "Active Learner";
-  if (rating >= 200)  return "Chess Learner";
-
-  return "Beginner";
+  return {
+    level: level,
+    name: `Level-${level}`,
+    className: `tier-${level}`
+  };
 }
 
 
+function renderTierBadge(rating) {
+  const tier = getOlympusTier(rating);
+
+  return `
+    <span class="tier-badge ${tier.className}">
+      ${tier.name}
+    </span>
+  `;
+}
 
 
+// ===============================
+// 🎨 AUTO COLOR GENERATOR
+// ===============================
 
+document.addEventListener("DOMContentLoaded", () => {
 
+  const style = document.createElement("style");
+  let css = "";
+
+  for (let i = 1; i <= 50; i++) {
+    const hue = (i * 37) % 360; // unique color spread
+    css += `
+      .tier-${i} {
+        background: hsl(${hue}, 70%, 45%);
+        box-shadow: 0 0 6px hsl(${hue}, 70%, 55%);
+      }
+    `;
+  }
+
+  style.innerHTML = css;
+  document.head.appendChild(style);
+
+});
 
 
 
@@ -27102,15 +27151,17 @@ function calculateRatings(profile) {
   const olympusRating =
     Math.round((puzzleRating + quizRating + gameRating) / 3 / 10) * 10;
 
+  const tierObj = getOlympusTier(olympusRating);
+
   return {
     puzzleRating,
     quizRating,
     gameRating,
     olympusRating,
-    tier: getOlympusTier(olympusRating)
+    tierName: tierObj.name,
+    tierClass: tierObj.className
   };
 }
-
 
 // ===============================
 // 🔥 FULL HEARTBEAT UPTIME SYSTEM
@@ -28810,7 +28861,7 @@ if (fill) fill.style.width = `${progressData.progress}%`;
 if (text)
   text.textContent = `${progressData.progress}% to ${progressData.nextStep}`;
 
-  currentStudentTier = ratings.tier || "N/A";
+ 
 
 
   const total = attempts.length;
@@ -28868,8 +28919,10 @@ const liveMatchHTML = `
       <!-- 🏆 RATING BLOCK (NEW) -->
       <div class="student-rating-box">
         <div class="main-rating">
-          <strong>ELO ${ratings.olympusRating}</strong>
-          <span class="tier">${ratings.tier}</span>
+          <strong>ELO ${ratings.olympusRating}
+<span class="tier-badge ${ratings.tierClass}">
+  ${ratings.tierName}
+</span>
         </div>
 
         <div class="rating-breakdown">
@@ -37680,7 +37733,7 @@ document.getElementById("printStudentBtn").addEventListener("click", () => {
   generateStudentPDF();
 });
 
-let currentStudentTier = "N/A";
+
 
 
 async function generateStudentPDF() {
@@ -37721,6 +37774,25 @@ async function generateStudentPDF() {
 const miniStats = calculateMiniStats(
   window.currentStudentAttempts || []
 );
+
+// ================= GET REAL ELO FROM MODAL =================
+let olympusRating = 0;
+let tierName = "Level-1";
+
+// Find ELO line from modal text
+const eloLine = lines.find(l => l.startsWith("ELO"));
+
+if (eloLine) {
+  const match = eloLine.match(/ELO\s+(\d+)/);
+  if (match) {
+    olympusRating = parseInt(match[1]);
+  }
+
+  const tierMatch = eloLine.match(/Level-\d+|Olympus Immortal/);
+  if (tierMatch) {
+    tierName = tierMatch[0];
+  }
+}
 
 // ================= XP HISTORY DATA =================
 const studentId = window.currentStudentId;
@@ -37815,7 +37887,7 @@ pdf.setTextColor(...COLORS.darkText);
 // Summary Lines
 lines.forEach(l => {
   if (
-    l.startsWith("ELO") ||
+   
     l.startsWith("Status") ||
     l.startsWith("Joined") ||
     l.startsWith("Total assignments") ||
@@ -37828,6 +37900,11 @@ lines.forEach(l => {
     y += 6;
   }
 });
+// 🔥 ADD HERE
+pdf.setFont("helvetica", "bold");
+pdf.text(`ELO ${olympusRating}  ${tierName}`, 20, y);
+pdf.setFont("helvetica", "normal");
+y += 8;
 
 y += 8;
 
@@ -37890,7 +37967,7 @@ pdf.roundedRect(40, y - 4, 130, 18, 5, 5, "F");
 pdf.setFont("helvetica", "bold");
 pdf.setFontSize(15);
 pdf.setTextColor(...COLORS.gold);
-pdf.text(currentStudentTier, 105, y + 7, { align: "center" });
+pdf.text(tierName, 105, y + 7, { align: "center" });
 
 y += 28;
 
@@ -40633,20 +40710,23 @@ async function loadRatingLeaderboard() {
     return;
   }
 
-  const ranked = data
-    .filter(p => !HIDDEN_USERNAMES.includes((p.username || "").toLowerCase()))
-    .map(p => {
-      const raw = (
-        (p.puzzle_current_score || 0) +
-        (p.quiz_current_score || 0) +
-        (p.game_current_score || 0)
-      ) / 3;
+const ranked = data
+  .filter(p => !HIDDEN_USERNAMES.includes((p.username || "").toLowerCase()))
+  .map(p => {
+    const raw = (
+      (p.puzzle_current_score || 0) +
+      (p.quiz_current_score || 0) +
+      (p.game_current_score || 0)
+    ) / 3;
 
-      return {
-        name: p.username || "Student",
-        rating: Math.floor(raw / 10) * 10
-      };
-    })
+    const rating = Math.floor(raw / 10) * 10;
+
+    return {
+      name: p.username || "Student",
+      rating: rating,
+      tier: getOlympusTier(rating)   // ✅ ADD THIS
+    };
+  })
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 50);
 
@@ -40666,11 +40746,14 @@ async function loadRatingLeaderboard() {
 
     div.className = `lb-row ${rankClass}`;
 
-    div.innerHTML = `
-      <span class="lb-rank crown ${crownClass}">#${i + 1}</span>
-      <span class="lb-name">${row.name}</span>
-      <span class="lb-score">${row.rating}</span>
-    `;
+div.innerHTML = `
+  <span class="lb-rank crown ${crownClass}">#${i + 1}</span>
+  <span class="lb-name">
+    ${row.name}
+    ${renderTierBadge(row.rating)}
+  </span>
+  <span class="lb-score">${row.rating}</span>
+`;
 
     ratingList.appendChild(div);
   });
@@ -40725,15 +40808,29 @@ async function loadGameLeaderboard(gameKey) {
   // 2️⃣ Get all user profiles for those scores
   const ids = scores.map(s => s.student_id);
 
-  const { data: users } = await supabase
-    .from("profiles")
-    .select("id, username")
-    .in("id", ids);
+ const { data: users } = await supabase
+  .from("profiles")
+  .select("id, username, puzzle_current_score, quiz_current_score, game_current_score")
+  .in("id", ids);
 
-  const userMap = {};
-  users?.forEach(u => {
-    userMap[u.id] = u.username || "Student";
-  });
+ const userMap = {};
+users?.forEach(u => {
+
+  const raw =
+    ((u.puzzle_current_score || 0) +
+     (u.quiz_current_score || 0) +
+     (u.game_current_score || 0)) / 3;
+
+  const olympusRating = Math.floor(raw / 10) * 10;
+  const tierObj = getOlympusTier(olympusRating);
+
+  userMap[u.id] = {
+    name: u.username || "Student",
+    rating: olympusRating,
+    tierName: tierObj.name,
+    tierClass: tierObj.className
+  };
+});
 
   // 3️⃣ Render leaderboard
   gameList.innerHTML = "";
@@ -40752,7 +40849,10 @@ async function loadGameLeaderboard(gameKey) {
 
   div.innerHTML = `
     <span class="lb-rank crown ${crownClass}">#${i + 1}</span>
-    <span class="lb-name">${userMap[row.student_id] || "Student"}</span>
+   <span class="lb-name">
+  ${userMap[row.student_id]?.name || "Student"}
+  ${renderTierBadge(userMap[row.student_id]?.rating || 0)}
+</span>
     <span class="lb-score">${row.score}</span>
   `;
 
