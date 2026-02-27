@@ -18430,7 +18430,14 @@ window.saveMiniGameScore = async function (gameKey, newScore) {
     "puzzlerush",
     "knightmonster",
     "knightlava",
-    "puzzlebattle"
+    "puzzlebattle",
+    // 🔥 ADD THESE
+  "pawn",
+  "knight",
+  "bishop",
+  "rook",
+  "queen",
+  "king"
   ];
 
   const { data: existing } = await supabase
@@ -18551,6 +18558,12 @@ async function loadMyBestScores() {
 
 function formatGameName(key) {
   const map = {
+    pawn: "♙ Pawn Trainer",
+knight: "♘ Knight Trainer",
+bishop: "♗ Bishop Trainer",
+rook: "♖ Rook Trainer",
+queen: "♛ Queen Trainer",
+king: "👑 King Trainer",
     memory: "🧠 IQ Hunt",
     boardfreeze: "❓ Guess Materials",
     color: "🧪 Lab Hunt",
@@ -27363,6 +27376,43 @@ function getRandomTarget() {
 }
 
 
+/* ================================
+   🔊 GLOBAL MINI GAME SOUND ENGINE
+================================ */
+
+const MiniGameSound = (() => {
+
+  const basePath = "./sounds/";   // ✅ CORRECT PATH
+
+  const sounds = {
+    wrong: new Audio(basePath + "wrong.mp3"),
+    move:  new Audio(basePath + "move.mp3"),
+    next:  new Audio(basePath + "next.mp3")
+  };
+
+  Object.values(sounds).forEach(a => {
+    a.preload = "auto";
+    a.volume = 0.2;
+  });
+
+  function play(type) {
+    const sound = sounds[type];
+    if (!sound) return;
+
+    sound.pause();
+    sound.currentTime = 0;
+    sound.play().catch(() => {});
+  }
+
+  return {
+    wrong: () => play("wrong"),
+    move:  () => play("move"),
+    next:  () => play("next")
+  };
+
+})();
+
+
 
 let misses = 0;
 const missEl = document.getElementById("knightMisses");
@@ -27448,39 +27498,61 @@ function drawBoard() {
 function handleClick(square) {
   const x = parseInt(square.dataset.x);
   const y = parseInt(square.dataset.y);
-
   const key = `${x}-${y}`;
 
   // ❌ illegal knight move
   if (!correctSquares.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    misses++;
+    if (missEl) missEl.textContent = misses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
   // ✅ legal move
   square.classList.add("correct");
-
-  // move knight
+MiniGameSound.move();
   knightPos = { x, y };
 
   // 🎯 TARGET REACHED!
   if (knightTarget && x === knightTarget.x && y === knightTarget.y) {
     stars++;
     starEl.textContent = stars;
+    MiniGameSound.next();
 
-    setTimeout(startGame, 400); // next puzzle
+    setTimeout(() => {
+      nextKnightRound();   // ⚡ DO NOT reset score
+    }, 400);
+
     return;
   }
 
-  // continue same puzzle
   setTimeout(drawBoard, 300);
 }
 
-
 function startGame() {
+  if (stars > 0) {
+  window.saveMiniGameScore("knight", stars);
+}
   stars = 0;
-  starEl.textContent = stars;
+  misses = 0;
 
+  starEl.textContent = stars;
+  if (missEl) missEl.textContent = misses;
+
+  nextKnightRound();
+}
+
+
+startBtn.onclick = startGame;
+
+function nextKnightRound() {
   knightPos = randomSquare();
 
   // 🎯 spawn target (not on knight)
@@ -27493,17 +27565,6 @@ function startGame() {
 
   knightTargetImg = getRandomTarget();
 
-  drawBoard();
-}
-
-
-startBtn.onclick = startGame;
-
-function nextKnightRound() {
-  knightPos = {
-    x: Math.floor(Math.random() * 8),
-    y: Math.floor(Math.random() * 8)
-  };
   drawBoard();
 }
 
@@ -27597,15 +27658,25 @@ function bishopClick(square) {
   // ❌ illegal bishop move
   if (!bishopCorrect.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    bishopMisses++;
+    if (bishopMissEl) bishopMissEl.textContent = bishopMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
   // ✅ legal move
   square.classList.add("correct");
+  MiniGameSound.move();
 
   bishopPos = { x, y };
 
-  // 🎯 target reached
+  // 🎯 TARGET REACHED
   if (
     bishopTarget &&
     x === bishopTarget.x &&
@@ -27613,8 +27684,12 @@ function bishopClick(square) {
   ) {
     bishopStars++;
     bishopStarEl.textContent = bishopStars;
+    MiniGameSound.next();
 
-    setTimeout(startBishopGame, 400);
+    setTimeout(() => {
+      nextBishopRound();   // ⚡ do NOT reset score
+    }, 400);
+
     return;
   }
 
@@ -27624,22 +27699,11 @@ function bishopClick(square) {
 
 
 function nextBishopRound() {
-  bishopPos = {
-    x: Math.floor(Math.random() * 8),
-    y: Math.floor(Math.random() * 8)
-  };
-  drawBishopBoard();
-}
-
-function startBishopGame() {
-  bishopStars = 0;
-  bishopStarEl.textContent = bishopStars;
-
   bishopPos = randomSquare();
 
   function sameSquareColor(a, b) {
-  return (a.x + a.y) % 2 === (b.x + b.y) % 2;
-}
+    return (a.x + a.y) % 2 === (b.x + b.y) % 2;
+  }
 
   // 🎯 spawn target on SAME COLOR square
   do {
@@ -27657,6 +27721,18 @@ function startBishopGame() {
 
 
 bishopStartBtn.onclick = startBishopGame;
+function startBishopGame() {
+  if (bishopStars > 0) {
+  window.saveMiniGameScore("bishop", bishopStars);
+}
+  bishopStars = 0;
+  bishopMisses = 0;
+
+  if (bishopStarEl) bishopStarEl.textContent = bishopStars;
+  if (bishopMissEl) bishopMissEl.textContent = bishopMisses;
+
+  nextBishopRound();
+}
 
 let rookMisses = 0;
 const rookMissEl = document.getElementById("rookMisses");
@@ -27735,19 +27811,28 @@ function rookClick(square) {
   const y = parseInt(square.dataset.y);
   const key = `${x}-${y}`;
 
-  // ❌ illegal rook move (not same rank/file)
+  // ❌ illegal rook move
   if (!rookCorrect.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    rookMisses++;
+    if (rookMissEl) rookMissEl.textContent = rookMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
-  // ✅ legal step
+  // ✅ legal move
   square.classList.add("correct");
+  MiniGameSound.move();
 
-  // move rook
   rookPos = { x, y };
 
-  // 🎯 target reached
+  // 🎯 TARGET REACHED
   if (
     rookTarget &&
     x === rookTarget.x &&
@@ -27755,32 +27840,24 @@ function rookClick(square) {
   ) {
     rookStars++;
     rookStarEl.textContent = rookStars;
+    MiniGameSound.next();
 
-    setTimeout(startRookGame, 400);
+    setTimeout(() => {
+      nextRookRound();   // ⚡ DO NOT reset score
+    }, 400);
+
     return;
   }
 
-  // continue SAME puzzle
   setTimeout(drawRookBoard, 300);
 }
 
 
 
 function nextRookRound() {
-  rookPos = {
-    x: Math.floor(Math.random() * 8),
-    y: Math.floor(Math.random() * 8)
-  };
-  drawRookBoard();
-}
-
-function startRookGame() {
-  rookStars = 0;
-  rookStarEl.textContent = rookStars;
-
   rookPos = randomSquare();
 
-  // 🎯 target can be ANYWHERE except rook square
+  // 🎯 spawn target (anywhere except rook square)
   do {
     rookTarget = randomSquare();
   } while (
@@ -27791,6 +27868,19 @@ function startRookGame() {
   rookTargetImg = getRandomTarget();
 
   drawRookBoard();
+}
+
+function startRookGame() {
+  if (rookStars > 0) {
+  window.saveMiniGameScore("rook", rookStars);
+}
+  rookStars = 0;
+  rookMisses = 0;
+
+  if (rookStarEl) rookStarEl.textContent = rookStars;
+  if (rookMissEl) rookMissEl.textContent = rookMisses;
+
+  nextRookRound();
 }
 
 
@@ -27889,14 +27979,24 @@ function queenClick(square) {
   // ❌ illegal queen move
   if (!queenCorrect.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    queenMisses++;
+    if (queenMissEl) queenMissEl.textContent = queenMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
-  // ✅ legal step
+  // ✅ legal move
   square.classList.add("correct");
+  MiniGameSound.move();
   queenPos = { x, y };
 
-  // 🎯 target reached
+  // 🎯 TARGET REACHED
   if (
     queenTarget &&
     x === queenTarget.x &&
@@ -27904,31 +28004,23 @@ function queenClick(square) {
   ) {
     queenStars++;
     queenStarEl.textContent = queenStars;
+    MiniGameSound.next();
 
-    setTimeout(startQueenGame, 400);
+    setTimeout(() => {
+      nextQueenRound();   // ⚡ do NOT reset score
+    }, 400);
+
     return;
   }
 
-  // continue same puzzle
   setTimeout(drawQueenBoard, 300);
 }
 
 
 function nextQueenRound() {
-  queenPos = {
-    x: Math.floor(Math.random() * 8),
-    y: Math.floor(Math.random() * 8)
-  };
-  drawQueenBoard();
-}
-
-function startQueenGame() {
-  queenStars = 0;
-  queenStarEl.textContent = queenStars;
-
   queenPos = randomSquare();
 
-  // 🎯 target can be ANYWHERE except queen square
+  // 🎯 spawn target (anywhere except queen square)
   do {
     queenTarget = randomSquare();
   } while (
@@ -27941,6 +28033,18 @@ function startQueenGame() {
   drawQueenBoard();
 }
 
+function startQueenGame() {
+  if (queenStars > 0) {
+  window.saveMiniGameScore("queen", queenStars);
+}
+  queenStars = 0;
+  queenMisses = 0;
+
+  if (queenStarEl) queenStarEl.textContent = queenStars;
+  if (queenMissEl) queenMissEl.textContent = queenMisses;
+
+  nextQueenRound();
+}
 
 queenStartBtn.onclick = startQueenGame;
 
@@ -28033,8 +28137,18 @@ function pawnClick(square) {
   const y = parseInt(square.dataset.y);
   const key = `${x}-${y}`;
 
+  // ❌ illegal square
   if (!pawnCorrect.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    pawnMisses++;
+    if (pawnMissEl) pawnMissEl.textContent = pawnMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
@@ -28045,24 +28159,43 @@ function pawnClick(square) {
     (pawnTarget.x !== x || pawnTarget.y !== y)
   ) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    pawnMisses++;
+    if (pawnMissEl) pawnMissEl.textContent = pawnMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
-  // 🚫 cannot move diagonally unless target is there
+  // 🚫 cannot move diagonally unless capturing
   if (
     x !== pawnPos.x &&
     pawnTarget &&
     !(x === pawnTarget.x && y === pawnTarget.y)
   ) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    pawnMisses++;
+    if (pawnMissEl) pawnMissEl.textContent = pawnMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
-  // ✅ legal pawn action
+  // ✅ legal move
   square.classList.add("correct");
+  MiniGameSound.move();
   pawnPos = { x, y };
 
-  // 🎯 target reached (move or capture)
+  // 🎯 TARGET REACHED
   if (
     pawnTarget &&
     x === pawnTarget.x &&
@@ -28070,8 +28203,12 @@ function pawnClick(square) {
   ) {
     pawnStars++;
     pawnStarEl.textContent = pawnStars;
+    MiniGameSound.next();
 
-    setTimeout(startPawnGame, 400);
+    setTimeout(() => {
+      nextPawnRound();   // ⚡ do NOT reset score
+    }, 400);
+
     return;
   }
 
@@ -28079,25 +28216,20 @@ function pawnClick(square) {
 }
 
 
-function startPawnGame() {
-  pawnStars = 0;
-  pawnStarEl.textContent = pawnStars;
+function nextPawnRound() {
 
   // ♙ random file
   const startX = Math.floor(Math.random() * 8);
 
-  // ♙ random rank BUT not 1st (7) or last (0)
-  // board y: 0 = rank 8, 7 = rank 1
-  const startY = Math.floor(Math.random() * 6) + 1; // 1 → 6
+  // ♙ random rank (1 → 6)
+  const startY = Math.floor(Math.random() * 6) + 1;
 
   pawnPos = { x: startX, y: startY };
 
-  // decide puzzle type
   const canDouble = pawnPos.y === 6;
   const mode = Math.random() < 0.6 ? "move" : "capture";
 
   if (mode === "move") {
-    // ♙ forward move
     pawnTarget = {
       x: pawnPos.x,
       y: canDouble && Math.random() < 0.5
@@ -28105,7 +28237,6 @@ function startPawnGame() {
         : pawnPos.y - 1
     };
   } else {
-    // ⚔️ diagonal capture
     const dirs = [];
     if (pawnPos.x > 0) dirs.push(-1);
     if (pawnPos.x < 7) dirs.push(1);
@@ -28119,6 +28250,20 @@ function startPawnGame() {
   pawnTargetImg = getRandomTarget();
 
   drawPawnBoard();
+}
+
+
+function startPawnGame() {
+  if (pawnStars > 0) {
+  window.saveMiniGameScore("pawn", pawnStars);
+}
+  pawnStars = 0;
+  pawnMisses = 0;
+
+  if (pawnStarEl) pawnStarEl.textContent = pawnStars;
+  if (pawnMissEl) pawnMissEl.textContent = pawnMisses;
+
+  nextPawnRound();
 }
 
 
@@ -28215,14 +28360,24 @@ function kingClick(square) {
   // ❌ illegal king move
   if (!kingCorrect.includes(key)) {
     square.classList.add("wrong");
+    MiniGameSound.wrong();
+
+    kingMisses++;
+    if (kingMissEl) kingMissEl.textContent = kingMisses;
+
+    setTimeout(() => {
+      square.classList.remove("wrong");
+    }, 300);
+
     return;
   }
 
-  // ✅ legal step
+  // ✅ legal move
   square.classList.add("correct");
+  MiniGameSound.move();
   kingPos = { x, y };
 
-  // 🎯 target reached
+  // 🎯 TARGET REACHED
   if (
     kingTarget &&
     x === kingTarget.x &&
@@ -28230,23 +28385,22 @@ function kingClick(square) {
   ) {
     kingStars++;
     kingStarEl.textContent = kingStars;
+    MiniGameSound.next();
 
-    setTimeout(startKingGame, 400);
+    setTimeout(() => {
+      nextKingRound();   // ⚡ DO NOT reset score
+    }, 400);
+
     return;
   }
 
-  // continue same puzzle
   setTimeout(drawKingBoard, 300);
 }
 
-
-function startKingGame() {
-  kingStars = 0;
-  kingStarEl.textContent = kingStars;
-
+function nextKingRound() {
   kingPos = randomSquare();
 
-  // 🎯 target can be ANYWHERE except king square
+  // 🎯 spawn target anywhere except king square
   do {
     kingTarget = randomSquare();
   } while (
@@ -28257,6 +28411,20 @@ function startKingGame() {
   kingTargetImg = getRandomTarget();
 
   drawKingBoard();
+}
+
+
+function startKingGame() {
+  if (kingStars > 0) {
+  window.saveMiniGameScore("king", kingStars);
+}
+  kingStars = 0;
+  kingMisses = 0;
+
+  if (kingStarEl) kingStarEl.textContent = kingStars;
+  if (kingMissEl) kingMissEl.textContent = kingMisses;
+
+  nextKingRound();
 }
 
 
