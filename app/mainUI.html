@@ -14973,7 +14973,126 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* ===========================
+   🕒 TIMER PANEL PRO
+=========================== */
 
+#floatingStopwatch {
+  position: fixed;
+  top: 120px;
+  left: 120px;
+  width: 320px;
+  min-width: 260px;
+  min-height: 260px;
+  background: linear-gradient(145deg, #0f2027, #203a43, #2c5364);
+  border-radius: 16px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+  display: none;
+  flex-direction: column;
+  z-index: 99999;
+  user-select: none;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  resize: both;
+}
+
+#stopwatchHeader {
+  background: rgba(0,0,0,0.5);
+  padding: 12px;
+  font-weight: bold;
+  cursor: move;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #00ffff;
+}
+
+#stopwatchClose {
+  cursor: pointer;
+}
+
+#stopwatchTime {
+  font-size: 60px;
+  text-align: center;
+  padding: 18px 10px;
+  font-weight: bold;
+  color: white;
+}
+
+#modeSelector {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+}
+
+#modeSelector button {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.activeMode {
+  background: #00ffff;
+  color: black;
+}
+
+#countdownSetup {
+  display: none;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+}
+
+#countdownSetup input {
+  width: 60px;
+  padding: 6px;
+  border-radius: 6px;
+  border: none;
+  text-align: center;
+}
+
+#stopwatchControls {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px;
+  gap: 6px;
+}
+
+#stopwatchControls button {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+#swStart { background: #00ff88; }
+#swPause { background: #ffaa00; }
+#swReset { background: #ff4444; color: white; }
+#swLap { background: #00aaff; color: white; }
+
+#stopwatchLaps {
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 6px;
+  font-size: 12px;
+  color: white;
+}
+
+#resizeHandle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  right: 0;
+  bottom: 0;
+  cursor: se-resize;
+}
 
 
 
@@ -49279,6 +49398,178 @@ doc.addImage(
 
 
 
+(function(){
+
+const sw = document.getElementById("floatingStopwatch");
+const header = document.getElementById("stopwatchHeader");
+const closeBtn = document.getElementById("stopwatchClose");
+const timeEl = document.getElementById("stopwatchTime");
+const lapsEl = document.getElementById("stopwatchLaps");
+
+const btnStart = document.getElementById("swStart");
+const btnPause = document.getElementById("swPause");
+const btnReset = document.getElementById("swReset");
+const btnLap = document.getElementById("swLap");
+
+const modeStopwatch = document.getElementById("modeStopwatch");
+const modeCountdown = document.getElementById("modeCountdown");
+const cdSetup = document.getElementById("countdownSetup");
+const cdMin = document.getElementById("cdMinutes");
+const cdSec = document.getElementById("cdSeconds");
+
+let mode = "stopwatch";
+let startTime = 0;
+let elapsed = 0;
+let timer = null;
+let running = false;
+let countdownTotal = 0;
+const alarmSound = new Audio("./app/sounds/complete.mp3");
+
+let alarmPlayed = false;
+
+alarmSound.preload = "auto";
+
+/* ===============================
+   🔊 ISOLATED TIMER SOUND
+=============================== */
+
+function playTimerCompleteSound() {
+  try {
+    const audio = new Audio("./sounds/complete.mp3"); 
+    audio.volume = 0.8;
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {});
+    }
+  } catch (e) {}
+}
+
+function formatTime(ms){
+  const totalSeconds = Math.floor(ms/1000);
+
+  const h = String(Math.floor(totalSeconds/3600)).padStart(2,'0');
+  const m = String(Math.floor((totalSeconds%3600)/60)).padStart(2,'0');
+  const s = String(totalSeconds%60).padStart(2,'0');
+
+  return `${h}:${m}:${s}`;
+}
+
+function updateStopwatch(){
+  elapsed = Date.now() - startTime;
+  timeEl.textContent = formatTime(elapsed);
+}
+
+function updateCountdown(){
+  const remaining = countdownTotal - (Date.now() - startTime);
+
+  // 10 SECOND WARNING FLASH
+  if(remaining <= 10000 && remaining > 0){
+    sw.style.background = "linear-gradient(145deg, #4a0000, #880000, #ff0000)";
+    sw.style.boxShadow = "0 0 20px red";
+  } else {
+    sw.style.background = "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
+    sw.style.boxShadow = "0 15px 40px rgba(0,0,0,0.6)";
+  }
+
+  if(remaining <= 0){
+    clearInterval(timer);
+    running = false;
+    timeEl.textContent = "TIME UP!";
+
+  if(!alarmPlayed){
+  playTimerCompleteSound();
+  alarmPlayed = true;
+}
+
+    sw.style.background = "linear-gradient(145deg, #ff0000, #aa0000)";
+    sw.style.boxShadow = "0 0 30px red";
+
+    return;
+  }
+
+  timeEl.textContent = formatTime(remaining);
+}
+
+btnStart.onclick = function(){
+  if(running) return;
+  running = true;
+
+  if(mode === "stopwatch"){
+    startTime = Date.now() - elapsed;
+    timer = setInterval(updateStopwatch, 250);
+  } else {
+    countdownTotal = (parseInt(cdMin.value||0)*60 + parseInt(cdSec.value||0)) * 1000;
+    startTime = Date.now();
+    timer = setInterval(updateCountdown, 250);
+  }
+};
+
+btnPause.onclick = function(){
+  running = false;
+  clearInterval(timer);
+};
+
+btnReset.onclick = function(){
+  running = false;
+  clearInterval(timer);
+  elapsed = 0;
+  alarmPlayed = false;
+
+  sw.style.background = "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
+  sw.style.boxShadow = "0 15px 40px rgba(0,0,0,0.6)";
+
+ timeEl.textContent = "00:00:00";
+  lapsEl.innerHTML = "";
+};
+
+btnLap.onclick = function(){
+  if(!running || mode !== "stopwatch") return;
+  const lap = document.createElement("div");
+  lap.textContent = "Lap → " + formatTime(elapsed);
+  lapsEl.prepend(lap);
+};
+
+modeStopwatch.onclick = function(){
+  mode = "stopwatch";
+  cdSetup.style.display = "none";
+  modeStopwatch.classList.add("activeMode");
+  modeCountdown.classList.remove("activeMode");
+};
+
+modeCountdown.onclick = function(){
+  mode = "countdown";
+  cdSetup.style.display = "flex";
+  modeCountdown.classList.add("activeMode");
+  modeStopwatch.classList.remove("activeMode");
+};
+
+closeBtn.onclick = () => sw.style.display = "none";
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "2" && !["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){
+    sw.style.display = sw.style.display === "flex" ? "none" : "flex";
+  }
+});
+
+/* DRAG */
+let offsetX=0, offsetY=0, dragging=false;
+header.addEventListener("mousedown", e=>{
+  dragging=true;
+  offsetX=e.clientX - sw.offsetLeft;
+  offsetY=e.clientY - sw.offsetTop;
+});
+document.addEventListener("mousemove", e=>{
+  if(!dragging) return;
+  sw.style.left = (e.clientX-offsetX)+"px";
+  sw.style.top = (e.clientY-offsetY)+"px";
+});
+document.addEventListener("mouseup", ()=> dragging=false);
+
+})();
+
+
+
 
 
 
@@ -50140,6 +50431,43 @@ doc.addImage(
     </div>
 
   </div>
+</div>
+
+
+<!-- ============================= -->
+<!-- 🕒 FLOATING TIMER PRO PANEL -->
+<!-- ============================= -->
+
+<div id="floatingStopwatch">
+
+  <div id="stopwatchHeader">
+    ⏱ Timer Panel
+    <span id="stopwatchClose">✖</span>
+  </div>
+
+ <div id="stopwatchTime">00:00:00</div>
+
+  <div id="modeSelector">
+    <button id="modeStopwatch" class="activeMode">Stopwatch</button>
+    <button id="modeCountdown">Countdown</button>
+  </div>
+
+  <div id="countdownSetup">
+    <input type="number" id="cdMinutes" placeholder="Min" min="0" value="3">
+    <input type="number" id="cdSeconds" placeholder="Sec" min="0" max="59" value="0">
+  </div>
+
+  <div id="stopwatchControls">
+    <button id="swStart">Start</button>
+    <button id="swPause">Pause</button>
+    <button id="swReset">Reset</button>
+    <button id="swLap">Lap</button>
+  </div>
+
+  <div id="stopwatchLaps"></div>
+
+  <div id="resizeHandle"></div>
+
 </div>
 
 
