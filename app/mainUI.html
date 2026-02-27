@@ -14897,7 +14897,48 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* ================================
+   📍 COORD TRAIN MODAL
+================================ */
 
+.ct-result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.ct-result-card {
+  background: #111827;
+  padding: 30px 40px;
+  border-radius: 16px;
+  text-align: center;
+  min-width: 300px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  animation: fadeInScale 0.25s ease;
+}
+
+.ct-result-card h3 {
+  margin-bottom: 10px;
+  color: #ffd43b;
+}
+
+.ct-result-card p {
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
 
 
 
@@ -15212,7 +15253,7 @@ body.guardians-theme .chessboard-63f37 img {
   </div>
 
   <div class="rating-info-body">
-    <p><strong>Olympus Rating</strong> is calculated from 7 areas:</p>
+    <p><strong>Olympus Rating</strong> is calculated from 8 areas:</p>
 
     <ul>
   <li>🤖 <strong>Play vs Bot</strong><br>
@@ -15226,6 +15267,13 @@ body.guardians-theme .chessboard-63f37 img {
     • XP gained = ⌊score ÷ 2⌋<br>
     • <2 Score = 0 XP <br>
     • Higher score = more XP
+  </li>
+
+  <li>⚡ <strong>Puzzle Streak</strong><br>
+    • Every Streak rwards XP<br>
+    • XP gained = 5<br>
+    • <5 Score = 0 XP <br>
+    • Higher Streak = more XP
   </li>
 
     <li>⚔️ <strong>Puzzle Battle</strong><br>
@@ -17477,7 +17525,8 @@ body.guardians-theme .chessboard-63f37 img {
     <h3>Find the Square!</h3>
     <p>
       A square name will flash briefly.<br />
-      Click the correct square on the board.
+      Click the correct square on the board.<br />
+      3 Wrong moves and the Game will over
     </p>
 
     <button class="btn-primary" onclick="startCT()">▶ Start</button>
@@ -36632,6 +36681,7 @@ const ctMissEl = document.getElementById("ctMiss");
 let ctTarget = "";
 let ctScore = 0;
 let ctMiss = 0;
+const CT_MAX_MISS = 3;
 
 // ================================
 // 🔊 COORD TRAINING SOUNDS (ISOLATED)
@@ -36716,6 +36766,10 @@ function nextCTTarget() {
 
 // CLICK
 function handleCTClick(coord, sq) {
+
+  // 🛑 Prevent clicks after game over
+  if (ctMiss >= 3) return;
+
   if (coord === ctTarget) {
 
     playCTCorrectSound(); // 🔊 correct
@@ -36728,17 +36782,32 @@ function handleCTClick(coord, sq) {
       sq.style.boxShadow = "";
       nextCTTarget();
     }, 300);
+
   } else {
 
-     playCTWrongSound(); // 🔊 wrong
+    playCTWrongSound(); // 🔊 wrong
     ctMiss++;
     ctMissEl.textContent = ctMiss;
 
     sq.style.boxShadow = "inset 0 0 0 4px #ff6b6b";
     setTimeout(() => (sq.style.boxShadow = ""), 300);
+
+    // 🛑 GAME OVER CONDITION
+    if (ctMiss >= 3) {
+
+      setTimeout(() => {
+
+        // 🏆 Save best score
+        saveMiniGameScore("coordtrain", ctScore);
+        playKGCompleteSound()
+
+        // 🎬 Show result (use your modal if preferred)
+        showCTResult(ctScore);
+
+      }, 300);
+    }
   }
 }
-
 // ================================
 // 👁 TOGGLE FILES & RANKS (ISOLATED)
 // ================================
@@ -36763,6 +36832,28 @@ window.toggleCTCoords = function () {
   }
 };
 
+// ================================
+// 📍 COORD TRAIN MODAL LOGIC
+// ================================
+
+window.showCTResult = function(score) {
+  const overlay = document.getElementById("ctResultOverlay");
+  const text = document.getElementById("ctResultText");
+
+  if (!overlay || !text) return;
+
+  text.textContent = `Final Score: ${score}`;
+  overlay.classList.remove("hidden");
+};
+
+window.closeCTResult = function() {
+  const overlay = document.getElementById("ctResultOverlay");
+  overlay.classList.add("hidden");
+
+  // Return to menu
+  ctGame.classList.add("hidden");
+  ctMenu.classList.remove("hidden");
+};
 
 // ======================================
 // 🧠 BOARD FREEZE — AUTO QUESTION ENGINE
@@ -49301,6 +49392,17 @@ doc.addImage(
         Cancel
       </button>
     </div>
+  </div>
+</div>
+
+<!-- ================================ -->
+<!-- 📍 COORD TRAIN RESULT MODAL -->
+<!-- ================================ -->
+<div id="ctResultOverlay" class="ct-result-overlay hidden">
+  <div class="ct-result-card">
+    <h3 id="ctResultTitle">📍 Game Over</h3>
+    <p id="ctResultText">Final Score: 0</p>
+    <button class="btn-success" onclick="closeCTResult()">OK</button>
   </div>
 </div>
 
