@@ -17543,6 +17543,9 @@ body.guardians-theme .chessboard-63f37 img {
   <button class="btn-secondary" id="ctToggleCoords" onclick="toggleCTCoords()">
     👁 Hide Files & Ranks
   </button>
+  <button class="btn-secondary" onclick="toggleCTFlip()">
+  🔄 Flip Board
+</button>
 </div>
 
 
@@ -36682,6 +36685,7 @@ let ctTarget = "";
 let ctScore = 0;
 let ctMiss = 0;
 const CT_MAX_MISS = 3;
+let ctFlipped = false;
 
 // ================================
 // 🔊 COORD TRAINING SOUNDS (ISOLATED)
@@ -36715,6 +36719,7 @@ window.startCT = function () {
   ctGame.classList.remove("hidden");
 
   drawCTBoard();
+  updateCTCoordinates();   // 👈 PUT IT HERE
   nextCTTarget();
 };
 
@@ -36730,12 +36735,17 @@ window.exitCT = function () {
 function drawCTBoard() {
   ctBoardEl.innerHTML = "";
 
-  for (let y = 7; y >= 0; y--) {
-    for (let x = 0; x < 8; x++) {
+  for (let row = 0; row < 8; row++) {
+
+    const y = ctFlipped ? row : 7 - row;
+
+    for (let col = 0; col < 8; col++) {
+
+      const x = ctFlipped ? 7 - col : col;
+
       const sq = document.createElement("div");
 
-     const isLight = (x + y) % 2 === 1;
-
+      const isLight = (x + y) % 2 === 1;
       sq.className = "square " + (isLight ? "light" : "dark");
 
       const file = String.fromCharCode(97 + x);
@@ -36743,7 +36753,6 @@ function drawCTBoard() {
       const coord = file + rank;
 
       sq.dataset.coord = coord;
-
       sq.onclick = () => handleCTClick(coord, sq);
 
       ctBoardEl.appendChild(sq);
@@ -36751,6 +36760,24 @@ function drawCTBoard() {
   }
 }
 
+function updateCTCoordinates() {
+
+  const ranks = document.querySelectorAll("#coordtrain-section .cfc-ranks span");
+  const files = document.querySelectorAll("#coordtrain-section .cfc-files span");
+
+  if (!ranks.length || !files.length) return;
+
+  const rankValues = ctFlipped
+    ? ["1","2","3","4","5","6","7","8"]
+    : ["8","7","6","5","4","3","2","1"];
+
+  const fileValues = ctFlipped
+    ? ["h","g","f","e","d","c","b","a"]
+    : ["a","b","c","d","e","f","g","h"];
+
+  ranks.forEach((el, i) => el.textContent = rankValues[i]);
+  files.forEach((el, i) => el.textContent = fileValues[i]);
+}
 // TARGET
 function nextCTTarget() {
   const file = String.fromCharCode(97 + Math.floor(Math.random() * 8));
@@ -36832,6 +36859,11 @@ window.toggleCTCoords = function () {
   }
 };
 
+window.toggleCTFlip = function () {
+  ctFlipped = !ctFlipped;
+  drawCTBoard();
+  updateCTCoordinates();
+};
 // ================================
 // 📍 COORD TRAIN MODAL LOGIC
 // ================================
