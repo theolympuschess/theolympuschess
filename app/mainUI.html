@@ -29093,7 +29093,7 @@ async function loadStudentXpHistory(studentId) {
     .select("source, reason, xp, created_at")
     .eq("student_id", studentId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(500);
 
   if (error) {
     console.error("❌ Student XP history load failed:", error);
@@ -41325,7 +41325,7 @@ async function loadGameLeaderboard(gameKey) {
     .select("student_id, score")
     .eq("game_key", gameKey)
     .order("score", { ascending: false })
-    .limit(50);
+    .limit(500);
 
   if (error || !scores) {
     console.error("Leaderboard error:", error);
@@ -42165,10 +42165,10 @@ async function mpLoadArchive() {
   grid.innerHTML = 'Loading...'
 
   const { data, error } = await supabase
-    .from('live_match_archive')
-    .select('*')
-    .order('ended_at', { ascending: false })
-    .limit(50)
+  .from('live_match_archive')
+  .select('*')
+  .order('ended_at', { ascending: false })
+  .range(0, 9999); // 🔥 fetch up to 10,000 rows
 
   if (error || !data) {
     grid.innerHTML = "Failed to load"
@@ -45416,11 +45416,10 @@ function formatVsGameDate(dateString) {
 
 async function loadVsBotHistory() {
   const { data, error } = await supabase
-    .from("vs_bot_games")
-   .select("id, pgn, result, student_name, bot_name, difficulty, created_at, player_color")
-
-    .order("created_at", { ascending: false })
-    .limit(50);
+  .from("vs_bot_games")
+  .select("id, pgn, result, student_name, bot_name, difficulty, created_at, player_color")
+  .order("created_at", { ascending: false })
+  .range(0, 999); // 🔥 REMOVE LIMIT, FETCH ALL
 
   if (error) {
     console.error(error);
@@ -45488,10 +45487,10 @@ card.innerHTML = `
 
   // 🔒 READ-ONLY FETCH
   const { data, error } = await supabase
-    .from("vs_bot_games")
-    .select("id, student_name, bot_name, difficulty, result, pgn")
-    .order("created_at", { ascending: false })
-    .limit(50);
+  .from("vs_bot_games")
+  .select("id, student_name, bot_name, difficulty, result, pgn, created_at")
+  .order("created_at", { ascending: false })
+  .range(0, 999);
 
   if (error || !data) {
     console.warn("VS history load failed");
@@ -46425,7 +46424,7 @@ async function openXpHistory(e) {
     .select("*")
     .eq("student_id", currentProfile.id)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   if (error) {
     list.innerHTML = "Failed to load history";
