@@ -25286,6 +25286,77 @@ function goToTreeNode(node) {
   renderNotationTree();
 }
 
+// ============================================
+// MAIN TREE VARIATION DIALOG (GLOBAL)
+// ============================================
+function showMainTreeVariationDialog(children) {
+
+  const modal = document.getElementById("floatingModal");
+  const titleEl = document.getElementById("modalTitle");
+  const bodyEl = document.getElementById("modalBody");
+  const okBtn = document.getElementById("modalOkBtn");
+
+  if (!modal || !titleEl || !bodyEl) return;
+
+  // 🔥 Calculate move number
+  let ply = 0;
+  let temp = currentNode;
+
+  while (temp && temp.parent) {
+    ply++;
+    temp = temp.parent;
+  }
+
+  const moveNumber = Math.floor(ply / 2) + 1;
+  const isWhiteToMove = ply % 2 === 0;
+  const side = isWhiteToMove ? "." : "...";
+
+  // 🔥 FORCE TITLE TEXT
+ modal.querySelector("#modalTitle").innerText =
+  `Choose Variation (Move ${moveNumber}${side})`;
+
+  // 🔥 CLEAR BODY
+  bodyEl.innerHTML = "";
+
+  // Hide default OK button completely
+  if (okBtn) okBtn.style.display = "none";
+
+  // 🔥 Create move buttons
+  children.forEach(child => {
+    const btn = document.createElement("button");
+    btn.textContent = child.move.san;
+    btn.style.margin = "6px";
+    btn.style.padding = "6px 12px";
+    btn.style.cursor = "pointer";
+
+    btn.onclick = () => {
+      modal.classList.add("hidden");
+      goToTreeNode(child);
+    };
+
+    bodyEl.appendChild(btn);
+  });
+
+  // 🔥 Cancel Button
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.style.display = "block";
+  cancelBtn.style.margin = "16px auto 0";
+  cancelBtn.style.padding = "6px 14px";
+  cancelBtn.style.background = "#444";
+  cancelBtn.style.color = "#fff";
+  cancelBtn.style.border = "none";
+  cancelBtn.style.cursor = "pointer";
+
+  cancelBtn.onclick = () => {
+    modal.classList.add("hidden");
+  };
+
+  bodyEl.appendChild(cancelBtn);
+
+  // 🔥 Show modal
+  modal.classList.remove("hidden");
+}
 
     // ============================================
     // NOTATION SYSTEM - FIXED VERSION
@@ -25342,6 +25413,8 @@ function goToTreeNode(node) {
     }
   }
 
+
+
   function renderVariation(parentNode, variationNode, moveNumber) {
     const move = variationNode.move;
     if (!move) return;
@@ -25352,20 +25425,25 @@ function goToTreeNode(node) {
     container.appendChild(open);
 
     const span = document.createElement('span');
-    span.className = 'move-inline';
+span.className = 'move-inline';
 
-    if (move.color === 'w') {
-      span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
-    } else {
-      span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
-    }
+if (move.color === 'w') {
+  span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
+} else {
+  span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
+}
 
-    span.innerHTML += move.san + ' ';
+span.innerHTML += move.san + ' ';
 
-    span.onclick = () => {
-      playNavigationSound(move);
-      goToTreeNode(variationNode);
-    };
+// 🔥 THIS FIXES HIGHLIGHTING
+if (variationNode === currentNode) {
+  span.classList.add('current');
+}
+
+span.onclick = () => {
+  playNavigationSound(move);
+  goToTreeNode(variationNode);
+};
 
     container.appendChild(span);
 
@@ -25527,18 +25605,44 @@ if (applyBtn) applyBtn.disabled = isNavigationMode;
       navigateToMove(0);
     };
 
-    window.pgnPrevMove = function() {
-      if (pgnCursor > 0) {
-        navigateToMove(pgnCursor - 1);
-      }
-    };
+window.pgnPrevMove = function() {
 
-    window.pgnNextMove = function() {
-      if (pgnCursor < fullPGNHistory.length) {
-        navigateToMove(pgnCursor + 1);
-      }
-    };
+  if (!currentNode || !currentNode.parent) return;
 
+  // 🔥 Move to parent node
+  goToTreeNode(currentNode.parent);
+
+  // 🔥 Sync pgnCursor with tree depth
+  let temp = currentNode;
+  let depth = 0;
+
+  while (temp && temp.parent) {
+    depth++;
+    temp = temp.parent;
+  }
+
+  pgnCursor = depth;
+
+  updateNavigationButtons();
+};
+
+   window.pgnNextMove = function() {
+
+  if (!currentNode) return;
+
+  const children = currentNode.children;
+
+  if (!children || children.length === 0) return;
+
+  // Only one move → normal
+  if (children.length === 1) {
+    goToTreeNode(children[0]);
+  } 
+  // Multiple variations → show chooser
+  else {
+    showMainTreeVariationDialog(children);
+  }
+};
     window.pgnLastMove = function() {
       navigateToMove(fullPGNHistory.length);
     };
@@ -50875,6 +50979,8 @@ document.addEventListener("mouseup", ()=> dragging=false);
     ">
     Cancel
   </button>
+
+  
 
 </div>
 
