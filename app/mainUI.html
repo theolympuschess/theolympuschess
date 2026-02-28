@@ -15096,7 +15096,90 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* =======================================
+   🖨 PDF MODE MODAL (FULLY ISOLATED)
+======================================= */
 
+.pdf-mode-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+}
+
+.pdf-mode-window {
+  background: #1c1f35;
+  padding: 30px 40px;
+  border-radius: 18px;
+  width: 380px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: pdfPop 0.25s ease-out;
+}
+
+@keyframes pdfPop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.pdf-mode-window h2 {
+  color: #ffd700;
+  margin-bottom: 10px;
+}
+
+.pdf-mode-window p {
+  color: #aaa;
+  margin-bottom: 25px;
+}
+
+.pdf-mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.pdf-mode-btn {
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pdf-mode-btn.brown {
+  background: #b58863;
+  color: white;
+}
+
+.pdf-mode-btn.brown:hover {
+  background: #a5744f;
+}
+
+.pdf-mode-btn.grey {
+  background: #d6d6d6;
+  color: #333;
+}
+
+.pdf-mode-btn.grey:hover {
+  background: #c5c5c5;
+}
+
+.pdf-cancel-btn {
+  margin-top: 20px;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.pdf-cancel-btn:hover {
+  color: white;
+}
 
 
 
@@ -47630,7 +47713,7 @@ window.sendEmoji = async function(emoji) {
     });
 
   }
- // 🔥 SHOW ON ADMIN SCREEN TOO
+  // 🔥 SHOW ON ADMIN SCREEN TOO
   showReaction({ emoji: emoji });
 };
 
@@ -47666,7 +47749,7 @@ window.sendGif = async function(url) {
     });
 
   }
- // 🔥 SHOW ON ADMIN SCREEN TOO
+  // 🔥 SHOW ON ADMIN SCREEN TOO
   showReaction({ gif_url: url });
 };
 
@@ -49142,6 +49225,40 @@ window.preloadChessPieces = async function () {
   }
 };
 
+function choosePDFMode() {
+  return new Promise((resolve) => {
+
+    const overlay = document.getElementById("pdfModeOverlay");
+    const normalBtn = document.getElementById("pdfNormalBtn");
+    const printBtn = document.getElementById("pdfPrintBtn");
+    const cancelBtn = document.getElementById("pdfModeCancel");
+
+    overlay.style.display = "flex";
+
+    function cleanup() {
+      overlay.style.display = "none";
+      normalBtn.onclick = null;
+      printBtn.onclick = null;
+      cancelBtn.onclick = null;
+    }
+
+    normalBtn.onclick = () => {
+      cleanup();
+      resolve("pdf");
+    };
+
+    printBtn.onclick = () => {
+      cleanup();
+      resolve("print");
+    };
+
+    cancelBtn.onclick = () => {
+      cleanup();
+      resolve(null);
+    };
+
+  });
+}
 // =======================================================
 // 🖨 DOWNLOAD ALL PUZZLE POSITIONS FROM PGN LIBRARY
 // =======================================================
@@ -49153,12 +49270,8 @@ window.downloadPGNPuzzlesPDF = async function (pgnId) {
     // 🔥 PRELOAD PIECES HERE
     await preloadChessPieces();
 
-    const mode = await new Promise((resolve) => {
-  const choice = confirm(
-    "Click OK for PRINT MODE (Low Ink Grey Board)\n\nClick Cancel for NORMAL PDF Mode (Brown Board)"
-  );
-  resolve(choice ? "print" : "pdf");
-});
+   const mode = await choosePDFMode();
+if (!mode) return;
 
 
     const { data, error } = await supabase
@@ -49380,6 +49493,21 @@ const offset = (square - pieceSize) / 2;
 // Slight vertical correction (PNG sets often sit too high)
 const verticalAdjust = square * 0.03;
 
+if (mode === "print") {
+
+  // 🧻 Ultra Light Piece Mode
+  if (char === char.toLowerCase()) {
+    // Black pieces → convert to soft grey
+    doc.setGState(new doc.GState({ opacity: 0.55 }));
+  } else {
+    // White pieces → slightly lighter
+    doc.setGState(new doc.GState({ opacity: 0.85 }));
+  }
+
+} else {
+  doc.setGState(new doc.GState({ opacity: 1 }));
+}
+
 doc.addImage(
   window.PDF_PIECES[char],
   "PNG",
@@ -49388,6 +49516,8 @@ doc.addImage(
   pieceSize,
   pieceSize
 );
+
+doc.setGState(new doc.GState({ opacity: 1 }));
 
         }
 
@@ -50474,7 +50604,31 @@ document.addEventListener("mouseup", ()=> dragging=false);
 
 </div>
 
+<!-- ===================================== -->
+<!-- 🖨 PDF BOARD MODE SELECTOR MODAL -->
+<!-- ===================================== -->
+<div id="pdfModeOverlay" class="pdf-mode-overlay">
+  <div id="pdfModeWindow" class="pdf-mode-window">
 
+    <h2>Choose Board Style</h2>
+    <p>Select the board theme for PDF export</p>
+
+    <div class="pdf-mode-buttons">
+      <button id="pdfNormalBtn" class="pdf-mode-btn brown">
+        🟤 Brown Board (Normal PDF)
+      </button>
+
+      <button id="pdfPrintBtn" class="pdf-mode-btn grey">
+        ⚪ Grey Board (Low Ink Print)
+      </button>
+    </div>
+
+    <button id="pdfModeCancel" class="pdf-cancel-btn">
+      Cancel
+    </button>
+
+  </div>
+</div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
@@ -50503,9 +50657,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
-
 
 
 
