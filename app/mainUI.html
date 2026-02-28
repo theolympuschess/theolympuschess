@@ -27233,6 +27233,8 @@ orderedProgress.forEach(p => {
  Puzzles
 </button>
 
+
+
       </div>
       <hr />
     </div>
@@ -29517,56 +29519,84 @@ function extractFenFromPgn(pgn) {
 
     
 
-    div.addEventListener("click", () => {
-      // 🔹 Update Study Title (Main PGN + Chapter)
+   div.addEventListener("click", () => {
+
+  // 🔹 Update Study Title
   document.getElementById("studyTitle").textContent =
     `${currentStudyTitle} • ${ch.title}`;
-     
-      
-      studyState.currentChapterPgn = ch.pgn;
 
-  // active highlight
+  // Active highlight
   document
     .querySelectorAll(".study-chapter")
     .forEach(c => c.classList.remove("active"));
   div.classList.add("active");
 
-  // reset game
-  // 🔁 FULL RESET (SAFE)
+  // 🔁 FULL RESET
+  studyChess.reset();
+  studyMoves.length = 0;
+  currentMoveIndex = -1;
+  studyState.currentChapterPgn = ch.pgn;
+
+  // =========================================
+  // 🔥 EXTRACT FEN SAFELY
+  // =========================================
+  const fen = extractFenFromPgn(ch.pgn);
+  if (fen) {
+    studyChess.load(fen);
+  }
+
+  // =========================================
+  // 🔒 CLEAN PGN (REMOVE VARIATIONS)
+  // =========================================
+  const cleanPgn = ch.pgn
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\{[^}]*\}/g, "");
+
+  // Load clean PGN into temp chess
+  const tempChess = new Chess();
+
+  if (fen) {
+    tempChess.load(fen);
+  }
+
+  const ok = tempChess.load_pgn(cleanPgn, { sloppy: true });
+
+  if (!ok) {
+    console.error("❌ PGN load failed");
+    return;
+  }
+
+  // =========================================
+  // ♟️ COLLECT MAINLINE MOVES
+  // =========================================
+  const mainlineMoves = tempChess.history({ verbose: true });
+
+  studyMoves.push(...mainlineMoves);
+
+  // =========================================
+  // 🌳 BUILD STUDY TREE
+  // =========================================
+  initStudyMoveTree();
+
+  studyChess.reset();
+  if (fen) studyChess.load(fen);
+
+  mainlineMoves.forEach(move => {
+    studyChess.move(move);
+    addStudyMoveToTree(move);
+  });
+
+  // Reset board back to start
+// Reset board back to start
 studyChess.reset();
-studyMoves.length = 0;
-currentMoveIndex = -1;
+if (fen) studyChess.load(fen);
+studyBoard.position(studyChess.fen(), false);
 
-// 🔑 store current chapter PGN
-studyState.currentChapterPgn = ch.pgn;
+// 🔥 VERY IMPORTANT FIX
+studyCurrentNode = studyMoveTreeRoot;
 
-// 🧠 load PGN into ONE chess instance
-// 🔒 CLEAN PGN (remove variations & comments for replay safety)
-const cleanPgn = ch.pgn
-  .replace(/\([^)]*\)/g, "")   // remove ( ... )
-  .replace(/\{[^}]*\}/g, ""); // remove { comments }
-
-// 🧠 load CLEAN PGN into studyChess
-const ok = studyChess.load_pgn(cleanPgn, { sloppy: true });
-if (!ok) {
-  console.error("❌ PGN load failed");
-  return;
-}
-
-if (!ok) {
-  console.error("❌ PGN load failed");
-  return;
-}
-
-// ♟️ collect VERBOSE mainline moves
-studyMoves.push(...studyChess.history({ verbose: true }));
-
-// 📝 render notation from SAME move source
-renderStudyNotation(studyMoves);
-
-// ♟️ reset board to chapter start (or FEN)
-jumpToMove(-1);
-
+// Render notation
+renderStudyNotationTree();
 
   console.log("📘 Chapter selected:", ch.title);
 });
@@ -29579,7 +29609,78 @@ jumpToMove(-1);
 });
 
 
+function showStudyVariationPopup(children) {
+  const popup = document.getElementById("studyVariationPopup");
+  const options = document.getElementById("studyVariationOptions");
+  const title = document.getElementById("studyVariationTitle");
 
+  options.innerHTML = "";
+
+  // 🔥 Determine move number
+let ply = 0;
+let temp = studyCurrentNode;
+
+while (temp && temp.parent) {
+  ply++;
+  temp = temp.parent;
+}
+
+// 🔥 Move number calculation (always minimum 1)
+const moveNumber = Math.floor(ply / 2) + 1;
+
+// Determine side to move
+const isWhiteToMove = ply % 2 === 0;
+const side = isWhiteToMove ? "." : "...";
+
+  title.textContent = `Choose Variation (Move ${moveNumber}${side})`;
+
+  // 🔥 Render buttons
+  children.forEach((child) => {
+    const btn = document.createElement("button");
+    btn.textContent = child.move.san;
+    btn.style.margin = "6px";
+    btn.style.padding = "6px 10px";
+    btn.style.cursor = "pointer";
+
+    btn.onclick = () => {
+      popup.classList.add("hidden");
+      goToStudyTreeNode(child);
+    };
+
+    options.appendChild(btn);
+  });
+
+  popup.classList.remove("hidden");
+}
+
+function closeStudyVariationPopup() {
+  const popup = document.getElementById("studyVariationPopup");
+  popup.classList.add("hidden");
+}
+
+// Cancel button
+document.addEventListener("DOMContentLoaded", () => {
+  const cancelBtn = document.getElementById("studyVariationCancelBtn");
+  if (cancelBtn) {
+    cancelBtn.onclick = closeStudyVariationPopup;
+  }
+});
+
+// ESC key closes popup
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeStudyVariationPopup();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  const popup = document.getElementById("studyVariationPopup");
+  if (!popup || popup.classList.contains("hidden")) return;
+
+  if (!popup.contains(e.target)) {
+    closeStudyVariationPopup();
+  }
+});
 
 function jumpToMove(index) {
   studyChess.reset();
@@ -29613,32 +29714,36 @@ function jumpToMove(index) {
 
 
 // ===============================
-// ⌨️ KEYBOARD NAV — MAINLINE ONLY
+// ⌨️ KEYBOARD NAV — TREE BASED
 // ===============================
 document.addEventListener("keydown", (e) => {
-  // Don't trigger when typing in input/textarea
+
   if (
     e.target.tagName === "INPUT" ||
     e.target.tagName === "TEXTAREA"
   ) return;
 
-  // ➡️ Right Arrow = Next move
-  if (e.key === "ArrowRight") {
-    if (currentMoveIndex < studyMoves.length - 1) {
-      currentMoveIndex++;
-      jumpToMove(currentMoveIndex);
-highlightByIndex(currentMoveIndex);
+if (e.key === "ArrowRight") {
 
-    }
+  if (!studyCurrentNode) return;
+
+  const children = studyCurrentNode.children;
+
+  if (!children || children.length === 0) return;
+
+  // 🔥 Only one move → go directly
+  if (children.length === 1) {
+    goToStudyTreeNode(children[0]);
+  } 
+  // 🔥 Multiple variations → show chooser
+  else {
+    showStudyVariationPopup(children);
   }
+}
 
-  // ⬅️ Left Arrow = Previous move
   if (e.key === "ArrowLeft") {
-    if (currentMoveIndex > -1) {
-      currentMoveIndex--;
-      jumpToMove(currentMoveIndex);
-highlightByIndex(currentMoveIndex);
-
+    if (studyCurrentNode && studyCurrentNode.parent) {
+      goToStudyTreeNode(studyCurrentNode.parent);
     }
   }
 });
@@ -29652,75 +29757,169 @@ function extractFenMoveIndex(pgn) {
 }
 
 
+// ============================================
+// 📘 STUDY MOVE TREE (LICHESS STYLE)
+// ============================================
+
+let studyMoveTreeRoot = null;
+let studyCurrentNode = null;
+
+function createStudyMoveNode(move, parent = null) {
+  return {
+    id: crypto.randomUUID(),
+    move: move,
+    parent: parent,
+    children: [],
+    fen: studyChess.fen()
+  };
+}
+
+function initStudyMoveTree() {
+  studyMoveTreeRoot = {
+    id: "root",
+    move: null,
+    parent: null,
+    children: [],
+    fen: studyChess.fen()
+  };
+
+  studyCurrentNode = studyMoveTreeRoot;
+}
+
+function addStudyMoveToTree(move) {
+  if (!studyCurrentNode) initStudyMoveTree();
+
+  const existing = studyCurrentNode.children.find(
+    c => c.move.san === move.san
+  );
+
+  if (existing) {
+    studyCurrentNode = existing;
+    return;
+  }
+
+  const newNode = createStudyMoveNode(move, studyCurrentNode);
+  studyCurrentNode.children.push(newNode);
+  studyCurrentNode = newNode;
+}
+
+function goToStudyTreeNode(node) {
+  if (!node) return;
+
+  studyChess.load(node.fen);
+  studyBoard.position(node.fen);
+
+  studyCurrentNode = node;
+
+  renderStudyNotationTree();
+}
 
 
 
+// ============================================
+// 📘 STUDY NOTATION TREE (LICHESS STYLE)
+// ============================================
 
-function renderStudyNotation(moves) {
-  const notation = document.getElementById("studyNotation");
-  if (!notation) return;
+function renderStudyNotationTree() {
+  const container = document.getElementById("studyNotation");
+  if (!container) return;
 
-  notation.innerHTML = "";
+  container.innerHTML = "";
 
-  for (let i = 0; i < moves.length; i += 2) {
-    const row = document.createElement("div");
-    row.className = "notation-row";
+  if (!studyMoveTreeRoot) {
+    container.innerHTML =
+      '<span style="color:#777">No moves yet</span>';
+    return;
+  }
 
-    const num = document.createElement("span");
-    num.className = "move-num";
-    num.textContent = Math.floor(i / 2) + 1 + ".";
-    row.appendChild(num);
+  function renderNode(node, moveNumber = 1) {
+    if (!node.children.length) return;
 
-    if (moves[i]) {
-      const white = document.createElement("span");
-      white.className = "move white";
-      white.textContent = moves[i].san;
+    const mainChild = node.children[0];
+    const move = mainChild.move;
 
-     white.onclick = () => {
-  currentMoveIndex = i;
-  jumpToMove(i);
-  setActiveMainMove(white, i);
-};
+    const span = document.createElement("span");
+    span.className = "move-inline";
 
-      row.appendChild(white);
+    if (move.color === "w") {
+      span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
     }
 
-    if (moves[i + 1]) {
-      const black = document.createElement("span");
-      black.className = "move black";
-      black.textContent = moves[i + 1].san;
+    span.innerHTML += move.san + " ";
 
-    black.onclick = () => {
-  currentMoveIndex = i + 1;
-  jumpToMove(i + 1);
-  setActiveMainMove(black, i + 1);
-};
-
-      row.appendChild(black);
+    if (mainChild === studyCurrentNode) {
+      span.classList.add("current");
     }
 
-    notation.appendChild(row);
+    span.onclick = () => {
+      goToStudyTreeNode(mainChild);
+    };
+
+    container.appendChild(span);
+
+    const nextMoveNumber =
+      move.color === "b" ? moveNumber + 1 : moveNumber;
+
+    renderNode(mainChild, nextMoveNumber);
+
+    for (let i = 1; i < node.children.length; i++) {
+      const variationChild = node.children[i];
+      renderVariation(node, variationChild, moveNumber);
+    }
   }
-}
 
+  function renderVariation(parentNode, variationNode, moveNumber) {
+    const move = variationNode.move;
+    if (!move) return;
 
+    const open = document.createElement("span");
+    open.className = "variation-bracket";
+    open.textContent = "(";
+    container.appendChild(open);
 
-function setActiveMainMove(el, index) {
-  clearNotationHighlights();
-  el.classList.add("active-main");
-  activeNotationNode = { type: "main", index };
-}
+    const span = document.createElement("span");
+    span.className = "move-inline";
 
+    if (move.color === "w") {
+      span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
+    } else {
+      span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
+    }
 
-function highlightByIndex(index) {
-  clearNotationHighlights();
+    span.innerHTML += move.san + " ";
 
-  const moves = document.querySelectorAll(".notation-row .move");
-  const el = moves[index];
-  if (el) {
-    el.classList.add("active-main");
+    span.onclick = () => {
+      goToStudyTreeNode(variationNode);
+    };
+
+    container.appendChild(span);
+
+    const nextMoveNumber =
+      move.color === "b" ? moveNumber + 1 : moveNumber;
+
+    renderNode(variationNode, nextMoveNumber);
+
+    const close = document.createElement("span");
+    close.className = "variation-bracket";
+    close.textContent = ") ";
+    container.appendChild(close);
   }
+
+  renderNode(studyMoveTreeRoot);
+
+  setTimeout(() => {
+    const current = container.querySelector(".current");
+    if (current) {
+      current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+  }, 10);
 }
+
+
+
 
 
 
@@ -30048,7 +30247,6 @@ function onStudyDrop(source, target) {
 
   const piece = studyChess.get(source);
 
-  // 🔥 Detect promotion attempt
   const isPromotion =
     piece &&
     piece.type === "p" &&
@@ -30070,6 +30268,15 @@ function onStudyDrop(source, target) {
 
   if (!move) return "snapback";
 
+  // =========================================
+  // 🔥 NEW TREE SYSTEM (IMPORTANT)
+  // =========================================
+  addStudyMoveToTree(move);
+  renderStudyNotationTree();
+
+  // =========================================
+  // 🔁 KEEP YOUR EXISTING ARRAY (SAFE)
+  // =========================================
   const absoluteIndex =
     currentMoveIndex >= 0
       ? currentMoveIndex + 1
@@ -30186,6 +30393,12 @@ function studyFinishMove(source, target, promotion) {
     studyBoard.position(studyChess.fen(), false);
     return;
   }
+
+  // =========================================
+// 🔥 ADD TO STUDY TREE (PROMOTION FIX)
+// =========================================
+addStudyMoveToTree(move);
+renderStudyNotationTree();
 
   // 🔑 absolute move index
   const absoluteIndex =
@@ -50629,6 +50842,42 @@ document.addEventListener("mouseup", ()=> dragging=false);
 
   </div>
 </div>
+
+
+<div id="studyVariationPopup" class="hidden" style="
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #1e2238;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+  z-index: 9999;
+  min-width: 240px;
+  text-align: center;
+">
+
+  <div id="studyVariationTitle" style="margin-bottom:12px; font-weight:bold;">
+    Choose Variation
+  </div>
+
+  <div id="studyVariationOptions" style="margin-bottom:12px;"></div>
+
+  <button id="studyVariationCancelBtn"
+    style="
+      padding:6px 14px;
+      background:#444;
+      color:white;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+    ">
+    Cancel
+  </button>
+
+</div>
+
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
