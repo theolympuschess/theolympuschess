@@ -15333,7 +15333,11 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
-
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
 
 
 
@@ -15921,19 +15925,18 @@ body.guardians-theme .chessboard-63f37 img {
   📝Hide/Show Notation
 </button>
 
+<div style="display:flex; gap:30px; margin-top:12px; justify-content:center;">
+  <button id="staticNewChapterBtn" class="btn-secondary btn-small">
+    ➕ New
+  </button>
 
+  <button id="staticSaveStudyBtn" class="btn-secondary btn-small">
+    💾 Save
+  </button>
+</div>
 
       <div class="study-list" id="studyList">
-        <div class="study-item active">
-          ▶ Sample Study
-        </div>
-        <div class="study-chapter">
-          1. Introduction
-        </div>
-        <div class="study-chapter">
-          2. Main Line
-        </div>
-      </div>
+</div>
     </div>
 
     <!-- CENTER: Board -->
@@ -30058,19 +30061,7 @@ if (saveBtn) {
     console.log("✅ Study saved as:", title);
   });
 }
-const saveChapterBtn = document.createElement("button");
-saveChapterBtn.textContent = "💾 Save Chapter";
-saveChapterBtn.style.margin = "6px 0 14px 10px";
-saveChapterBtn.style.padding = "6px 10px";
-saveChapterBtn.style.borderRadius = "6px";
-saveChapterBtn.style.border = "none";
-saveChapterBtn.style.cursor = "pointer";
-saveChapterBtn.style.background = "#2e8b57";
-saveChapterBtn.style.color = "#fff";
 
-saveChapterBtn.onclick = saveCurrentChapterToSupabase;
-
-studyList.appendChild(saveChapterBtn);
 
 function buildPGNFromTree(node, moveNumber = 1) {
 
@@ -30123,7 +30114,7 @@ function buildPGNFromTree(node, moveNumber = 1) {
 // ============================================
 // 💾 SAVE STUDY (ALL CHAPTERS)
 // ============================================
-async function saveCurrentChapterToSupabase() {
+window.saveCurrentChapterToSupabase = async function() {
 
   if (!studyState.chapters.length) {
     alert("No chapters to save.");
@@ -30212,7 +30203,7 @@ ${chapterMoves}
 // ============================================
 // ➕ CREATE NEW STUDY CHAPTER
 // ============================================
-function createNewStudyChapter(title) {
+window.createNewStudyChapter = function(title) {
 
   // Reset board
   studyChess.reset();
@@ -30241,7 +30232,7 @@ function createNewStudyChapter(title) {
 // ============================================
 // 📥 LOAD FULL STUDY (WITH MULTIPLE CHAPTERS)
 // ============================================
-async function loadSavedStudyChapters() {
+window.loadSavedStudyChapters = async function() {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
@@ -50969,6 +50960,35 @@ document.addEventListener("mousemove", e=>{
 document.addEventListener("mouseup", ()=> dragging=false);
 
 })();
+
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const newBtn = document.getElementById("staticNewChapterBtn");
+  const saveBtn = document.getElementById("staticSaveStudyBtn");
+
+  if (newBtn) {
+    newBtn.addEventListener("click", () => {
+      const name = prompt("Enter chapter name:");
+      if (!name || !name.trim()) return;
+      createNewStudyChapter(name.trim());
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      saveCurrentChapterToSupabase();
+    });
+  }
+
+});
+
+
+
 
 
 
