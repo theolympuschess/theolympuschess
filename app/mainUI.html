@@ -30120,38 +30120,46 @@ function buildPGNFromTree(node, moveNumber = 1) {
 }
 
 // ============================================
-// 💾 SAVE ACTIVE STUDY CHAPTER
+// 💾 SAVE STUDY (ALL CHAPTERS)
 // ============================================
 async function saveCurrentChapterToSupabase() {
 
-  if (studyState.currentChapterIndex == null) {
-    alert("No chapter selected.");
+  if (!studyState.chapters.length) {
+    alert("No chapters to save.");
     return;
   }
-
-  const chapterIndex = studyState.currentChapterIndex;
-  const chapter = studyState.chapters[chapterIndex];
-
-  if (!chapter) return;
-
- const pgnMoves = buildPGNFromTree(studyMoveTreeRoot);
-
-  studyState.chapters[chapterIndex].pgn =
-`[ChapterName "${chapter.title}"]
-
-${pgnMoves}`;
-
-  // 🔥 Combine all chapters
-  let combinedPgn = "";
-  studyState.chapters.forEach(ch => {
-    combinedPgn += `${ch.pgn}\n\n`;
-  });
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
   // ============================================
-  // 🟢 CASE 1: STUDY ALREADY EXISTS → UPDATE
+  // 🔁 BUILD FULL STUDY FROM MEMORY TREES
+  // ============================================
+
+  let combinedPgn = "";
+
+  studyState.chapters.forEach((ch, index) => {
+
+    let tree = studyState.chapterTrees[index];
+
+    // If chapter never opened → build from stored PGN
+    if (!tree) {
+      buildStudyTreeFromPgn(ch.pgn);
+      tree = studyMoveTreeRoot;
+    }
+
+    const chapterMoves = buildPGNFromTree(tree);
+
+    combinedPgn +=
+`[ChapterName "${ch.title}"]
+
+${chapterMoves}
+
+`;
+  });
+
+  // ============================================
+  // 🟢 CASE 1: STUDY EXISTS → UPDATE
   // ============================================
   if (studyState.studyId) {
 
@@ -30162,11 +30170,11 @@ ${pgnMoves}`;
 
     if (error) {
       console.error(error);
-      alert("❌ Update failed.");
+      alert("❌ Study update failed.");
       return;
     }
 
-    alert("✅ Study updated!");
+    alert("✅ Study updated successfully!");
     return;
   }
 
@@ -30183,18 +30191,18 @@ ${pgnMoves}`;
       title: studyTitle.trim(),
       pgn: combinedPgn,
       source: "study",
-      created_by: user.id
+      created_by: user.id,
+      is_active: true
     })
     .select()
     .single();
 
   if (error) {
     console.error(error);
-    alert("❌ Save failed.");
+    alert("❌ Study save failed.");
     return;
   }
 
-  // 🔥 STORE NEW STUDY ID
   studyState.studyId = data.id;
   currentStudyTitle = data.title;
 
@@ -51965,6 +51973,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
