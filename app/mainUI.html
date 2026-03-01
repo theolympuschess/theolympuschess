@@ -15236,7 +15236,13 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.study-chapter-wrapper {
+  margin-bottom: 6px;
+}
 
+.copy-pgn-btn:hover {
+  background: #3b4480;
+}
 
 
 
@@ -25385,7 +25391,7 @@ function showMainTreeVariationDialog(children) {
   if (okBtn) okBtn.style.display = "none";
 
   // 🔥 Create move buttons
- children.forEach(child => {
+  children.forEach(child => {
 
   const btn = document.createElement("button");
   btn.textContent = child.move.san;
@@ -25483,6 +25489,14 @@ function showMainTreeVariationDialog(children) {
 
     container.appendChild(span);
 
+    // 🔥 Render comment (mainline)
+if (mainChild.comment) {
+  const commentEl = document.createElement('div');
+  commentEl.className = 'move-comment';
+  commentEl.textContent = mainChild.comment;
+  container.appendChild(commentEl);
+}
+
     const nextMoveNumber =
       move.color === 'b' ? moveNumber + 1 : moveNumber;
 
@@ -25506,6 +25520,13 @@ function showMainTreeVariationDialog(children) {
     open.className = 'variation-bracket';
     open.textContent = '(';
     container.appendChild(open);
+    // 🔥 Render comment (variation)
+if (variationNode.comment) {
+  const commentEl = document.createElement('div');
+  commentEl.className = 'move-comment';
+  commentEl.textContent = variationNode.comment;
+  container.appendChild(commentEl);
+}
 
     const span = document.createElement('span');
 span.className = 'move-inline';
@@ -25768,6 +25789,45 @@ function updateNavigationButtons() {
       }
     }
 
+
+    // ============================================
+// MAIN BOARD COMMENT PARSER (SEQUENTIAL)
+// ============================================
+function extractMainCommentsSequential(pgn) {
+
+  // Remove variations ONLY
+  const noVars = pgn.replace(/\([^)]*\)/g, "");
+
+  const moveRegex = /(\{[^}]+\})|(\d+\.(\.\.)?\s*[^\s{]+)/g;
+
+  const comments = [];
+  let lastMoveIndex = -1;
+  let moveIndex = -1;
+
+  let match;
+
+  while ((match = moveRegex.exec(noVars)) !== null) {
+
+    // If comment found
+    if (match[1]) {
+      if (lastMoveIndex >= 0) {
+        comments[lastMoveIndex] = match[1]
+          .replace(/[{}]/g, "")
+          .replace(/\[%.*?\]/g, "") // remove drawing tags
+          .trim();
+      }
+    }
+
+    // If move found
+    if (match[2]) {
+      moveIndex++;
+      lastMoveIndex = moveIndex;
+    }
+  }
+
+  return comments;
+}
+
     // ============================================
     // PGN / FEN LOAD
     // ============================================
@@ -25795,24 +25855,51 @@ window.loadPGNFromString = function (pgnString) {
     board.position(chess.fen());
 
     // 🔥 Rebuild move tree from PGN
+// 🔥 Extract comments first
+const sequentialComments = extractMainCommentsSequential(pgnString);
+
+// 🔥 Rebuild move tree WITH comments
 initMoveTree();
 
 chess.reset();
 
-moves.forEach(m => {
+moves.forEach((m, index) => {
+
   const move = chess.move({
     from: m.from,
     to: m.to,
     promotion: m.promotion
   });
 
-  addMoveToTree(move);
+  // Create node manually instead of addMoveToTree
+  const newNode = {
+    id: crypto.randomUUID(),
+    move,
+    parent: currentNode,
+    children: [],
+    fen: chess.fen(),
+    comment: sequentialComments[index] || null
+  };
+
+  currentNode.children.push(newNode);
+  currentNode = newNode;
 });
 
 
     // Store history
     fullPGNHistory = moves;
     pgnCursor = moves.length;
+
+    // 🔥 START FROM INITIAL POSITION (NOT LAST)
+chess.reset();
+board.position(chess.fen());
+
+currentNode = moveTreeRoot;
+pgnCursor = 0;
+isNavigationMode = true;
+
+renderNotationTree();
+updateNavigationButtons();
 
     moveHistory = moves.map((m, i) => ({
       from: m.from,
@@ -25879,18 +25966,33 @@ function closeModal() {
         chess.load_pgn(pgnInput);
         board.position(chess.fen());
         // 🔥 Rebuild move tree from PGN
+// 🔥 Extract comments
+const sequentialComments = extractMainCommentsSequential(pgnInput);
+
+// 🔥 Rebuild tree WITH comments
 initMoveTree();
 
 chess.reset();
 
-moves.forEach(m => {
+moves.forEach((m, index) => {
+
   const move = chess.move({
     from: m.from,
     to: m.to,
     promotion: m.promotion
   });
 
-  addMoveToTree(move);
+  const newNode = {
+    id: crypto.randomUUID(),
+    move,
+    parent: currentNode,
+    children: [],
+    fen: chess.fen(),
+    comment: sequentialComments[index] || null
+  };
+
+  currentNode.children.push(newNode);
+  currentNode = newNode;
 });
 
         extractPlayersFromPGN(pgnInput);
@@ -25907,7 +26009,16 @@ moves.forEach(m => {
         
         isPGNLoaded = true;
         isNavigationMode = false;
-        navigateToMove(pgnCursor);
+        // 🔥 Start from beginning instead of last
+chess.reset();
+board.position(chess.fen());
+
+currentNode = moveTreeRoot;
+pgnCursor = 0;
+isNavigationMode = true;
+
+renderNotationTree();
+updateNavigationButtons();
 
         
         updatePGNViewer();
@@ -26096,14 +26207,20 @@ chessboardEl.addEventListener('mousedown', (e) => {
       }
     }
 
-    function showModal(title, message, onOk) {
+   function showModal(title, message, onOk) {
   const modal = document.getElementById("floatingModal");
   const titleEl = document.getElementById("modalTitle");
   const bodyEl = document.getElementById("modalBody");
   const okBtn = document.getElementById("modalOkBtn");
 
+  if (!modal || !titleEl || !bodyEl || !okBtn) return;
+
   titleEl.textContent = title;
   bodyEl.innerHTML = message.replace(/\n/g, "<br>");
+
+  // 🔥 ALWAYS RESTORE OK BUTTON
+  okBtn.style.display = "inline-block";
+  okBtn.textContent = "OK";
 
   modal.classList.remove("hidden");
 
@@ -26739,19 +26856,20 @@ async function loadStudyDropdown() {
   const { data, error } = await supabase
     .from("bulk_pgn_library")
     .select("id, title")
+    .eq("is_active", true)   // 🔥 only filter by active
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("❌ PGN load error:", error);
+    console.error(error);
     return;
   }
 
   select.innerHTML = `<option value="">Study</option>`;
 
-  data.forEach(pgn => {
+  data.forEach(row => {
     const opt = document.createElement("option");
-    opt.value = pgn.id;
-    opt.textContent = pgn.title;
+    opt.value = row.id;
+    opt.textContent = row.title;
     select.appendChild(opt);
   });
 }
@@ -27289,43 +27407,54 @@ setTimeout(() => {
 };
 
 
-
 window.deletePGNFromLibrary = function (pgnId) {
+
   openGradeConfirm(
     "🗑️ Delete PGN",
-    "<p>Are you sure you want to delete this PGN?<br>This action cannot be undone.</p>",
+    "<p>Are you sure you want to delete this PGN?</p>",
     async () => {
-      try {
-        const { error } = await supabase
-          .from("bulk_pgn_library")
-          .update({ is_active: false })
-          .eq("id", pgnId);
 
-        if (error) throw error;
+      const response = await supabase
+        .from("bulk_pgn_library")
+        .update({ is_active: false })
+        .eq("id", pgnId)
+        .select();
 
-        showModal(
-          "✅ PGN Deleted",
-          "<p>The PGN has been deleted successfully.</p>"
-        );
+      console.log("DELETE RESPONSE:", response);
 
-        setTimeout(() => {
-          closeModal();
-        }, 1500);
-
-        await loadPGNLibrary(); // 🔥 force refresh
-
-      } catch (err) {
-        console.error(err);
+      if (response.error) {
+        console.error(response.error);
 
         showModal(
           "❌ Error",
-          "<p>Failed to delete PGN.<br>Please try again.</p>"
+          "<p>Delete failed.</p>"
         );
 
-        setTimeout(() => {
-          closeModal();
-        }, 2000);
+        setTimeout(closeModal, 2000);
+        return;
       }
+
+      if (!response.data || response.data.length === 0) {
+        showModal(
+          "⚠️ Warning",
+          "<p>No row updated.</p>"
+        );
+        setTimeout(closeModal, 2000);
+        return;
+      }
+
+      // ✅ SUCCESS
+      showModal(
+        "✅ PGN Deleted",
+        "<p>The PGN has been deleted successfully.</p>"
+      );
+
+      setTimeout(closeModal, 1200);
+
+      // 🔥 refresh WITHOUT await
+      loadPGNLibrary();
+      loadStudyDropdown();
+      loadSavedStudyChapters();
     }
   );
 };
@@ -29571,16 +29700,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Chapter selection
-  chapters.forEach(chapter => {
-    chapter.addEventListener("click", () => {
-      chapters.forEach(c => c.classList.remove("active"));
-      chapter.classList.add("active");
 
-      // 🔒 placeholder for later:
-      // loadChapterPGN(chapter)
-    });
-  });
+  // 🔥 LOAD SAVED STUDY AFTER PAGE LOAD
+  loadSavedStudyChapters();
 });
 
 // ===============================
@@ -29784,11 +29906,177 @@ if (saveBtn) {
     console.log("✅ Study saved as:", title);
   });
 }
+const saveChapterBtn = document.createElement("button");
+saveChapterBtn.textContent = "💾 Save Chapter";
+saveChapterBtn.style.margin = "6px 0 14px 10px";
+saveChapterBtn.style.padding = "6px 10px";
+saveChapterBtn.style.borderRadius = "6px";
+saveChapterBtn.style.border = "none";
+saveChapterBtn.style.cursor = "pointer";
+saveChapterBtn.style.background = "#2e8b57";
+saveChapterBtn.style.color = "#fff";
 
+saveChapterBtn.onclick = saveCurrentChapterToSupabase;
 
+studyList.appendChild(saveChapterBtn);
+// ============================================
+// 💾 SAVE CURRENT CHAPTER TO SUPABASE
+// ============================================
+// ============================================
+// 💾 SAVE ACTIVE STUDY CHAPTER
+// ============================================
+async function saveCurrentChapterToSupabase() {
 
+  if (studyState.currentChapterIndex == null) {
+    alert("No chapter selected.");
+    return;
+  }
 
+  const chapterIndex = studyState.currentChapterIndex;
+  const chapter = studyState.chapters[chapterIndex];
 
+  if (!chapter) return;
+
+  const pgnMoves = studyChess.pgn({ max_width: 80 });
+
+  studyState.chapters[chapterIndex].pgn =
+`[ChapterName "${chapter.title}"]
+
+${pgnMoves}`;
+
+  // 🔥 Combine all chapters
+  let combinedPgn = "";
+  studyState.chapters.forEach(ch => {
+    combinedPgn += `${ch.pgn}\n\n`;
+  });
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  // ============================================
+  // 🟢 CASE 1: STUDY ALREADY EXISTS → UPDATE
+  // ============================================
+  if (studyState.studyId) {
+
+    const { error } = await supabase
+      .from("bulk_pgn_library")
+      .update({ pgn: combinedPgn })
+      .eq("id", studyState.studyId);
+
+    if (error) {
+      console.error(error);
+      alert("❌ Update failed.");
+      return;
+    }
+
+    alert("✅ Study updated!");
+    return;
+  }
+
+  // ============================================
+  // 🔵 CASE 2: NEW STUDY → INSERT
+  // ============================================
+
+  const studyTitle = prompt("Enter study name:");
+  if (!studyTitle || !studyTitle.trim()) return;
+
+  const { data, error } = await supabase
+    .from("bulk_pgn_library")
+    .insert({
+      title: studyTitle.trim(),
+      pgn: combinedPgn,
+      source: "study",
+      created_by: user.id
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    alert("❌ Save failed.");
+    return;
+  }
+
+  // 🔥 STORE NEW STUDY ID
+  studyState.studyId = data.id;
+  currentStudyTitle = data.title;
+
+  alert("✅ Study created and saved!");
+}
+// ============================================
+// ➕ CREATE NEW STUDY CHAPTER
+// ============================================
+function createNewStudyChapter(title) {
+
+  // Reset board
+  studyChess.reset();
+  studyBoard.position(studyChess.fen(), false);
+
+  initStudyMoveTree();
+  studyMoves.length = 0;
+
+  const emptyPgn = studyChess.pgn();
+
+  const newChapter = {
+    title,
+    pgn: emptyPgn
+  };
+
+  studyState.chapters.push(newChapter);
+
+  renderStudyChapters();
+
+  console.log("📘 New chapter created:", title);
+}
+
+// ============================================
+// 📥 LOAD SAVED STUDY CHAPTERS FROM SUPABASE
+// ============================================
+// ============================================
+// 📥 LOAD FULL STUDY (WITH MULTIPLE CHAPTERS)
+// ============================================
+async function loadSavedStudyChapters() {
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data, error } = await supabase
+  .from("bulk_pgn_library")
+  .select("id, title, pgn")
+  .eq("source", "study")
+  .eq("is_active", true) // 🔥 IMPORTANT
+  .order("id", { ascending: false })
+ 
+
+  if (error) {
+    console.error("Failed to load study:", error);
+    return;
+  }
+
+  if (!data || !data.length) return;
+
+  const studyRow = data[0];
+  studyState.studyId = studyRow.id;
+
+  const fullPgn = studyRow.pgn;
+
+  // 🔥 Split chapters by ChapterName tag
+  const chapters = fullPgn
+    .split(/\[ChapterName\s+"[^"]+"\]/)
+    .slice(1); // remove first empty split
+
+  const titles = [...fullPgn.matchAll(/\[ChapterName\s+"([^"]+)"\]/g)];
+
+  studyState.chapters = chapters.map((chapterPgn, index) => ({
+    id: studyRow.id,
+    title: titles[index]?.[1] || `Chapter ${index + 1}`,
+    pgn: chapterPgn.trim()
+  }));
+
+  currentStudyTitle = studyRow.title;
+
+  renderStudyChapters();
+}
 
 function extractFenFromPgn(pgn) {
   const match = pgn.match(/\[FEN\s+"([^"]+)"\]/);
@@ -29881,14 +30169,73 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
 }
 
   function renderStudyChapters() {
+
   studyList.innerHTML = `
     <div class="study-item active">▶ Imported Study</div>
   `;
 
+  // ➕ New Chapter
+  const addBtn = document.createElement("button");
+  addBtn.textContent = "➕ New Chapter";
+  addBtn.className = "study-action-btn";
+  addBtn.onclick = () => {
+    const name = prompt("Enter chapter name:");
+    if (!name || !name.trim()) return;
+    createNewStudyChapter(name.trim());
+  };
+
+  studyList.appendChild(addBtn);
+
+  // 💾 Save Chapter
+  const saveBtn = document.createElement("button");
+  saveBtn.textContent = "💾 Save Chapter";
+  saveBtn.className = "study-action-btn";
+  saveBtn.onclick = saveCurrentChapterToSupabase;
+
+  studyList.appendChild(saveBtn);
+
   studyState.chapters.forEach((ch, idx) => {
-    const div = document.createElement("div");
-    div.className = "study-chapter";
-    div.textContent = `${idx + 1}. ${ch.title}`;
+    // 🔹 Chapter wrapper
+const chapterWrapper = document.createElement("div");
+chapterWrapper.className = "study-chapter-wrapper";
+
+// 🔹 Title row
+const div = document.createElement("div");
+div.className = "study-chapter";
+div.textContent = `${idx + 1}. ${ch.title}`;
+
+// 🔹 Copy Button
+const copyBtn = document.createElement("button");
+copyBtn.textContent = "📋 Copy PGN";
+copyBtn.className = "copy-pgn-btn";
+
+copyBtn.style.margin = "6px 0 12px 18px";
+copyBtn.style.padding = "4px 10px";
+copyBtn.style.fontSize = "12px";
+copyBtn.style.borderRadius = "6px";
+copyBtn.style.border = "none";
+copyBtn.style.cursor = "pointer";
+copyBtn.style.background = "#2f355c";
+copyBtn.style.color = "#fff";
+
+copyBtn.onclick = (e) => {
+  e.stopPropagation(); // prevent chapter selection
+
+  navigator.clipboard.writeText(ch.pgn).then(() => {
+    copyBtn.textContent = "✅ Copied!";
+    setTimeout(() => {
+      copyBtn.textContent = "📋 Copy PGN";
+    }, 1200);
+  }).catch(() => {
+    alert("Copy failed.");
+  });
+};
+
+// 🔹 Append
+chapterWrapper.appendChild(div);
+chapterWrapper.appendChild(copyBtn);
+
+studyList.appendChild(chapterWrapper);
 
     
 
@@ -29909,6 +30256,7 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
   studyMoves.length = 0;
   currentMoveIndex = -1;
   studyState.currentChapterPgn = ch.pgn;
+  studyState.currentChapterIndex = idx;
 
   // ===============================
 // 🧠 Extract PGN Comments (per chapter)
@@ -29993,7 +30341,7 @@ renderStudyNotationTree();
 });
 
 
-    studyList.appendChild(div);
+   
   });
 }
 
@@ -30026,7 +30374,7 @@ const side = isWhiteToMove ? "." : "...";
   title.textContent = `Choose Variation (Move ${moveNumber}${side})`;
 
   // 🔥 Render buttons
-  children.forEach((child) => {
+children.forEach((child) => {
 
   const btn = document.createElement("button");
   btn.textContent = child.move.san;
@@ -51360,8 +51708,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
