@@ -15183,6 +15183,68 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.move-comment {
+  margin-left: 40px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #b9d6ff;
+  font-style: italic;
+}
+
+
+
+/* ===============================
+   ♟ Study Notation Styling
+=============================== */
+
+/* MAINLINE MOVES */
+.move-inline {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* VARIATION MOVES */
+.move-inline.variation-move {
+  color: #c7a6ff;
+  font-style: italic;
+}
+
+/* Variation brackets */
+.variation-bracket {
+  color: #9a9cff;
+}
+
+/* COMMENTS */
+.move-comment {
+  color: #9fdcff;      /* lighter blue */
+  font-style: italic;
+  margin-left: 16px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Current move highlight */
+.move-inline.current {
+  background: #ffd54a;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   </style>
 </head>
@@ -26702,9 +26764,35 @@ function loadStudyFromPGN(pgnText, studyTitle) {
 }
 
 function loadStudyChapter(pgn) {
+
+  // ===============================
+  // 🧠 Extract PGN Comments
+  // ===============================
+  function extractMoveComments(pgn) {
+    const comments = [];
+    const regex = /(\d+\.\.\.\s*[^\s{]+|\d+\.\s*[^\s{]+)\s*\{([^}]+)\}/g;
+
+    let match;
+    while ((match = regex.exec(pgn)) !== null) {
+      comments.push({
+        moveText: match[1].trim(),
+        comment: match[2].trim()
+      });
+    }
+
+    return comments;
+  }
+
+  // 🔥 Store comments globally for this chapter
+  window.studyMoveComments = extractMoveComments(pgn);
+
+  // 🔒 Remove variations only (keep comments)
+  const cleanPgn = pgn.replace(/\([^)]*\)/g, "");
+
   studyChess.reset();
-  studyChess.load_pgn(pgn);
+  studyChess.load_pgn(cleanPgn, { sloppy: true });
   studyBoard.position(studyChess.fen());
+
   renderStudyNotation(studyChess.history({ verbose: true }));
 }
 
@@ -26725,6 +26813,75 @@ document.addEventListener("change", async (e) => {
 
   loadStudyFromPGN(data.pgn, data.title);
 });
+
+function renderStudyNotation(moves) {
+  const notation = document.getElementById("studyNotation");
+  if (!notation) return;
+
+  notation.innerHTML = "";
+
+  const commentMap = {};
+
+  // Build quick lookup
+  if (window.studyMoveComments) {
+    window.studyMoveComments.forEach(entry => {
+      commentMap[entry.moveText] = entry.comment;
+    });
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+
+    const moveNumber = Math.floor(i / 2) + 1;
+
+    const row = document.createElement("div");
+    row.className = "notation-row";
+
+    const num = document.createElement("span");
+    num.className = "move-num";
+    num.textContent = moveNumber + ".";
+    row.appendChild(num);
+
+    // ================= WHITE =================
+    if (moves[i]) {
+
+      const white = document.createElement("span");
+      white.className = "move white";
+      white.textContent = moves[i].san;
+
+      row.appendChild(white);
+
+      const whiteKey = `${moveNumber}. ${moves[i].san}`;
+
+      if (commentMap[whiteKey]) {
+        const commentEl = document.createElement("div");
+        commentEl.className = "move-comment";
+        commentEl.textContent = commentMap[whiteKey];
+        row.appendChild(commentEl);
+      }
+    }
+
+    // ================= BLACK =================
+    if (moves[i + 1]) {
+
+      const black = document.createElement("span");
+      black.className = "move black";
+      black.textContent = moves[i + 1].san;
+
+      row.appendChild(black);
+
+      const blackKey = `${moveNumber}... ${moves[i + 1].san}`;
+
+      if (commentMap[blackKey]) {
+        const commentEl = document.createElement("div");
+        commentEl.className = "move-comment";
+        commentEl.textContent = commentMap[blackKey];
+        row.appendChild(commentEl);
+      }
+    }
+
+    notation.appendChild(row);
+  }
+}
 
 function resetStudyState() {
   studyChess = new Chess();
@@ -29618,7 +29775,90 @@ function extractFenFromPgn(pgn) {
   return match ? match[1] : null;
 }
 
+// =========================================
+// ♟ FULL PGN TREE PARSER (Lichess Style)
+// =========================================
+function buildStudyTreeFromPgn(pgn, fen = null) {
 
+  initStudyMoveTree();
+
+  const chess = new Chess();
+  if (fen) chess.load(fen);
+
+  studyMoveTreeRoot.fen = chess.fen();
+
+  const tokens = pgn
+    .replace(/\r?\n/g, " ")
+    .replace(/\[[^\]]+\]/g, "") // remove headers
+    .match(/\(|\)|\{[^}]+\}|[^\s(){}]+/g);
+
+  if (!tokens) return;
+
+  let currentNode = studyMoveTreeRoot;
+  const nodeStack = [];
+  const chessStack = [];
+
+  tokens.forEach(token => {
+
+    // =============================
+    // VARIATION START
+    // =============================
+    if (token === "(") {
+      nodeStack.push(currentNode);
+      chessStack.push(new Chess(chess.fen()));
+      return;
+    }
+
+    // =============================
+    // VARIATION END
+    // =============================
+    if (token === ")") {
+      currentNode = nodeStack.pop() || studyMoveTreeRoot;
+      const prevChess = chessStack.pop();
+      if (prevChess) chess.load(prevChess.fen());
+      return;
+    }
+
+    // =============================
+    // COMMENT
+    // =============================
+    if (token.startsWith("{")) {
+      const cleanComment = token
+        .replace(/[{}]/g, "")
+        .replace(/\[%.*?\]/g, "")
+        .trim();
+
+      if (currentNode !== studyMoveTreeRoot) {
+        currentNode.comment = cleanComment;
+      }
+      return;
+    }
+
+    // =============================
+    // IGNORE MOVE NUMBERS / RESULT
+    // =============================
+    if (/^\d+\./.test(token)) return;
+    if (["1-0", "0-1", "1/2-1/2", "*"].includes(token)) return;
+
+    // =============================
+    // APPLY MOVE
+    // =============================
+    const move = chess.move(token, { sloppy: true });
+    if (!move) return;
+
+    const newNode = {
+      id: crypto.randomUUID(),
+      move,
+      parent: currentNode,
+      children: [],
+      fen: chess.fen(),
+      comment: null
+    };
+
+    currentNode.children.push(newNode);
+    currentNode = newNode;
+  });
+}
 
   function renderStudyChapters() {
   studyList.innerHTML = `
@@ -29650,6 +29890,46 @@ function extractFenFromPgn(pgn) {
   currentMoveIndex = -1;
   studyState.currentChapterPgn = ch.pgn;
 
+  // ===============================
+// 🧠 Extract PGN Comments (per chapter)
+// ===============================
+// =========================================
+// 🧠 STUDY COMMENT ENGINE (Lichess Accurate)
+// =========================================
+function extractCommentsSequential(pgn) {
+
+  // Remove variations ONLY
+  const noVars = pgn.replace(/\([^)]*\)/g, "");
+
+  const moveRegex = /(\{[^}]+\})|(\d+\.(\.\.)?\s*[^\s{]+)/g;
+
+  const comments = [];
+  let lastMoveIndex = -1;
+  let moveIndex = -1;
+
+  let match;
+  while ((match = moveRegex.exec(noVars)) !== null) {
+
+    // Comment found
+    if (match[1]) {
+      if (lastMoveIndex >= 0) {
+        comments[lastMoveIndex] = match[1]
+          .replace(/[{}]/g, "")
+          .replace(/\[%.*?\]/g, "")  // remove drawing tags
+          .trim();
+      }
+    }
+
+    // Move found
+    if (match[2]) {
+      moveIndex++;
+      lastMoveIndex = moveIndex;
+    }
+  }
+
+  return comments;
+}
+
   // =========================================
   // 🔥 EXTRACT FEN SAFELY
   // =========================================
@@ -29658,12 +29938,7 @@ function extractFenFromPgn(pgn) {
     studyChess.load(fen);
   }
 
-  // =========================================
-  // 🔒 CLEAN PGN (REMOVE VARIATIONS)
-  // =========================================
-  const cleanPgn = ch.pgn
-    .replace(/\([^)]*\)/g, "")
-    .replace(/\{[^}]*\}/g, "");
+
 
   // Load clean PGN into temp chess
   const tempChess = new Chess();
@@ -29672,41 +29947,24 @@ function extractFenFromPgn(pgn) {
     tempChess.load(fen);
   }
 
-  const ok = tempChess.load_pgn(cleanPgn, { sloppy: true });
 
-  if (!ok) {
-    console.error("❌ PGN load failed");
-    return;
-  }
+
 
   // =========================================
   // ♟️ COLLECT MAINLINE MOVES
   // =========================================
-  const mainlineMoves = tempChess.history({ verbose: true });
+ // =========================================
+// 🌳 BUILD FULL TREE FROM PGN
+// =========================================
+buildStudyTreeFromPgn(ch.pgn, fen);
 
-  studyMoves.push(...mainlineMoves);
-
-  // =========================================
-  // 🌳 BUILD STUDY TREE
-  // =========================================
-  initStudyMoveTree();
-
-  studyChess.reset();
-  if (fen) studyChess.load(fen);
-
-  mainlineMoves.forEach(move => {
-    studyChess.move(move);
-    addStudyMoveToTree(move);
-  });
-
-  // Reset board back to start
-// Reset board back to start
+// Reset board
 studyChess.reset();
 if (fen) studyChess.load(fen);
 studyBoard.position(studyChess.fen(), false);
 
-// 🔥 VERY IMPORTANT FIX
 studyCurrentNode = studyMoveTreeRoot;
+renderStudyNotationTree();
 
 // Render notation
 renderStudyNotationTree();
@@ -29934,6 +30192,7 @@ function goToStudyTreeNode(node) {
 // ============================================
 
 function renderStudyNotationTree() {
+
   const container = document.getElementById("studyNotation");
   if (!container) return;
 
@@ -29945,7 +30204,9 @@ function renderStudyNotationTree() {
     return;
   }
 
+ 
   function renderNode(node, moveNumber = 1) {
+
     if (!node.children.length) return;
 
     const mainChild = node.children[0];
@@ -29954,8 +30215,14 @@ function renderStudyNotationTree() {
     const span = document.createElement("span");
     span.className = "move-inline";
 
+    let moveKey = "";
+
     if (move.color === "w") {
       span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
+      moveKey = `${moveNumber}. ${move.san}`;
+    } else {
+      span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
+      moveKey = `${moveNumber}... ${move.san}`;
     }
 
     span.innerHTML += move.san + " ";
@@ -29970,18 +30237,28 @@ function renderStudyNotationTree() {
 
     container.appendChild(span);
 
+    // ===============================
+    // 🔥 COMMENT RENDER HERE
+    // ===============================
+ if (mainChild.comment) {
+  const commentEl = document.createElement("div");
+  commentEl.className = "move-comment";
+  commentEl.textContent = mainChild.comment;
+  container.appendChild(commentEl);
+}
     const nextMoveNumber =
       move.color === "b" ? moveNumber + 1 : moveNumber;
 
     renderNode(mainChild, nextMoveNumber);
 
+    // Variations
     for (let i = 1; i < node.children.length; i++) {
-      const variationChild = node.children[i];
-      renderVariation(node, variationChild, moveNumber);
+      renderVariation(node, node.children[i], moveNumber);
     }
   }
 
   function renderVariation(parentNode, variationNode, moveNumber) {
+
     const move = variationNode.move;
     if (!move) return;
 
@@ -29991,12 +30268,16 @@ function renderStudyNotationTree() {
     container.appendChild(open);
 
     const span = document.createElement("span");
-    span.className = "move-inline";
+   span.className = "move-inline variation-move";
+
+    let moveKey = "";
 
     if (move.color === "w") {
       span.innerHTML += `<span class="move-num">${moveNumber}.</span> `;
+      moveKey = `${moveNumber}. ${move.san}`;
     } else {
       span.innerHTML += `<span class="move-num">${moveNumber}...</span> `;
+      moveKey = `${moveNumber}... ${move.san}`;
     }
 
     span.innerHTML += move.san + " ";
@@ -30006,6 +30287,14 @@ function renderStudyNotationTree() {
     };
 
     container.appendChild(span);
+
+    // 🔥 COMMENT FOR VARIATION
+if (variationNode.comment) {
+  const commentEl = document.createElement("div");
+  commentEl.className = "move-comment";
+  commentEl.textContent = variationNode.comment;
+  container.appendChild(commentEl);
+}
 
     const nextMoveNumber =
       move.color === "b" ? moveNumber + 1 : moveNumber;
@@ -32119,6 +32408,7 @@ function isPromotionMove(source, target) {
   return true;
 }
 
+
 /* ===============================
    SAFE STYLE HELPER
 ================================= */
@@ -32130,7 +32420,6 @@ function safeStyle(id, property, value) {
   }
   el.style[property] = value;
 }
-
 
 
     window.testAssignment = function(assignmentId) {
@@ -51030,8 +51319,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
