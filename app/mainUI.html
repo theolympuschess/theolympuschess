@@ -15246,6 +15246,98 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* ===============================
+   📘 STUDY COMMENT MODAL STYLE
+================================= */
+
+.study-comment-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+.study-comment-modal.hidden {
+  display: none;
+}
+
+.study-comment-box {
+  width: 420px;
+  background: #1e1f26;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  animation: fadeInStudyModal 0.2s ease;
+}
+
+@keyframes fadeInStudyModal {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.study-comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.study-comment-header button {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.study-comment-box textarea {
+  width: 100%;
+  height: 120px;
+  background: #2a2c36;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  color: #fff;
+  resize: none;
+  font-size: 14px;
+}
+
+.study-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.study-comment-actions button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+#studyCommentCancel {
+  background: #444;
+  color: #fff;
+}
+
+#studyCommentSave {
+  background: #2e8b57;
+  color: #fff;
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -29668,7 +29760,8 @@ let studyChess = null;
 const studyState = {
   currentChapterPgn: "",
   chapters: [],
-  baseMoveIndex: 0
+  baseMoveIndex: 0,
+  chapterTrees: {}   // 🔥 ADD THIS
 };
 
 function clearNotationHighlights() {
@@ -29679,6 +29772,64 @@ function clearNotationHighlights() {
     });
 }
 
+// ===============================
+// 📘 STUDY COMMENT MODAL ENGINE
+// ===============================
+
+let studyCommentTargetNode = null;
+
+function openStudyCommentModal(node) {
+  studyCommentTargetNode = node;
+
+  const modal = document.getElementById("studyCommentModal");
+  const input = document.getElementById("studyCommentInput");
+
+  if (!modal || !input) {
+    console.error("Study comment modal elements not found.");
+    return;
+  }
+
+  input.value = node.comment || "";
+  modal.classList.remove("hidden");
+
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeStudyCommentModal() {
+  const modal = document.getElementById("studyCommentModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+  studyCommentTargetNode = null;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const saveBtn = document.getElementById("studyCommentSave");
+  const cancelBtn = document.getElementById("studyCommentCancel");
+  const closeBtn = document.getElementById("studyCommentClose");
+  const input = document.getElementById("studyCommentInput");
+
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      if (!studyCommentTargetNode) return;
+
+      studyCommentTargetNode.comment = input.value.trim();
+      renderStudyNotationTree();
+      closeStudyCommentModal();
+    };
+  }
+
+  if (cancelBtn) cancelBtn.onclick = closeStudyCommentModal;
+  if (closeBtn) closeBtn.onclick = closeStudyCommentModal;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeStudyCommentModal();
+    }
+  });
+
+});
 
 // ===============================
 // 📘 Study Panel Interaction (UI only)
@@ -29919,9 +30070,55 @@ saveChapterBtn.style.color = "#fff";
 saveChapterBtn.onclick = saveCurrentChapterToSupabase;
 
 studyList.appendChild(saveChapterBtn);
-// ============================================
-// 💾 SAVE CURRENT CHAPTER TO SUPABASE
-// ============================================
+
+function buildPGNFromTree(node, moveNumber = 1) {
+
+  let pgn = "";
+
+  if (!node.children.length) return pgn;
+
+  const main = node.children[0];
+  const move = main.move;
+
+  if (move.color === "w") {
+    pgn += `${moveNumber}. `;
+  }
+
+  pgn += move.san + " ";
+
+  if (main.comment) {
+    pgn += `{${main.comment}} `;
+  }
+
+  const nextMoveNumber =
+    move.color === "b" ? moveNumber + 1 : moveNumber;
+
+  pgn += buildPGNFromTree(main, nextMoveNumber);
+
+  // 🔁 Variations
+  for (let i = 1; i < node.children.length; i++) {
+    const variation = node.children[i];
+    pgn += "(";
+
+    if (variation.move.color === "w") {
+      pgn += `${moveNumber}. `;
+    } else {
+      pgn += `${moveNumber}... `;
+    }
+
+    pgn += variation.move.san + " ";
+
+    if (variation.comment) {
+      pgn += `{${variation.comment}} `;
+    }
+
+    pgn += buildPGNFromTree(variation, nextMoveNumber);
+    pgn += ") ";
+  }
+
+  return pgn;
+}
+
 // ============================================
 // 💾 SAVE ACTIVE STUDY CHAPTER
 // ============================================
@@ -29937,7 +30134,7 @@ async function saveCurrentChapterToSupabase() {
 
   if (!chapter) return;
 
-  const pgnMoves = studyChess.pgn({ max_width: 80 });
+ const pgnMoves = buildPGNFromTree(studyMoveTreeRoot);
 
   studyState.chapters[chapterIndex].pgn =
 `[ChapterName "${chapter.title}"]
@@ -30168,6 +30365,12 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
   });
 }
 
+// ===============================
+// 📘 STUDY COMMENT MODAL ENGINE
+// ===============================
+
+
+
   function renderStudyChapters() {
 
   studyList.innerHTML = `
@@ -30188,7 +30391,7 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
 
   // 💾 Save Chapter
   const saveBtn = document.createElement("button");
-  saveBtn.textContent = "💾 Save Chapter";
+  saveBtn.textContent = "💾 Save Study";
   saveBtn.className = "study-action-btn";
   saveBtn.onclick = saveCurrentChapterToSupabase;
 
@@ -30324,20 +30527,37 @@ function extractCommentsSequential(pgn) {
  // =========================================
 // 🌳 BUILD FULL TREE FROM PGN
 // =========================================
-buildStudyTreeFromPgn(ch.pgn, fen);
+// ========================================
+// 🔒 CHAPTER MEMORY CACHE SYSTEM
+// ========================================
 
-// Reset board
+// If tree already exists in memory → reuse it
+if (studyState.chapterTrees && studyState.chapterTrees[idx]) {
+
+  studyMoveTreeRoot = studyState.chapterTrees[idx];
+  studyCurrentNode = studyMoveTreeRoot;
+
+} else {
+
+  buildStudyTreeFromPgn(ch.pgn, fen);
+
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  studyState.chapterTrees[idx] = studyMoveTreeRoot;
+  studyCurrentNode = studyMoveTreeRoot;
+}
+
+// 🔁 Reset board position
 studyChess.reset();
 if (fen) studyChess.load(fen);
 studyBoard.position(studyChess.fen(), false);
 
-studyCurrentNode = studyMoveTreeRoot;
+// 🔁 Render notation
 renderStudyNotationTree();
 
-// Render notation
-renderStudyNotationTree();
-
-  console.log("📘 Chapter selected:", ch.title);
+console.log("📘 Chapter selected:", ch.title);
 });
 
 
@@ -30621,8 +30841,18 @@ function renderStudyNotationTree() {
     }
 
     span.onclick = () => {
-      goToStudyTreeNode(mainChild);
-    };
+  goToStudyTreeNode(mainChild);
+};
+
+// 📝 RIGHT CLICK → OPEN COMMENT MODAL
+span.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  openStudyCommentModal(mainChild);
+});
+
+ 
+
+    
 
     container.appendChild(span);
 
@@ -30674,7 +30904,10 @@ function renderStudyNotationTree() {
     span.onclick = () => {
       goToStudyTreeNode(variationNode);
     };
-
+span.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  openStudyCommentModal(variationNode);
+});
     container.appendChild(span);
 
     // 🔥 COMMENT FOR VARIATION
@@ -30880,7 +31113,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-   const { data, error } = await supabase
+    const { data, error } = await supabase
   .from("bulk_pgn_library")
   .select("id, title")
   .eq("is_active", true)          // 🔥 ADD THIS
@@ -51680,7 +51913,30 @@ document.addEventListener("mouseup", ()=> dragging=false);
   
 
 </div>
+<!-- ===============================
+     📘 STUDY COMMENT MODAL (ISOLATED)
+================================== -->
+<div id="studyCommentModal" class="study-comment-modal hidden">
 
+  <div class="study-comment-box">
+
+    <div class="study-comment-header">
+      <span>Add Comment</span>
+      <button id="studyCommentClose">✖</button>
+    </div>
+
+    <textarea
+      id="studyCommentInput"
+      placeholder="Write your comment here..."
+    ></textarea>
+
+    <div class="study-comment-actions">
+      <button id="studyCommentCancel">Cancel</button>
+      <button id="studyCommentSave">Save</button>
+    </div>
+
+  </div>
+</div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
@@ -51709,7 +51965,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
