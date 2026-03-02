@@ -49113,73 +49113,94 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initGallery() {
 
   const uploadInput = document.getElementById("galleryUpload");
- 
   const searchInput = document.getElementById("gallerySearch");
   const galleryGrid = document.getElementById("galleryGrid");
 
   if (!uploadInput || !searchInput || !galleryGrid) return;
 
-  await loadGallery();
+  // 👇 GET USER + ROLE
+  const { data: { user } } = await supabase.auth.getUser();
+  let isAdmin = false;
 
-  /* UPLOAD WITH CUSTOM NAME */
-/* AUTO UPLOAD WHEN FILE SELECTED */
-uploadInput.addEventListener("change", async (e) => {
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-  const file = e.target.files[0];
-  if (!file) return;
-
-  // Ask name AFTER file selected
-  const displayName = prompt("Enter image name:");
-
-  if (!displayName || !displayName.trim()) {
-    uploadInput.value = "";
-    return;
+    if (profile && profile.role === "admin") {
+      isAdmin = true;
+    }
   }
 
- // Strict filename sanitization
-const originalName = file.name.split(".")[0];
-const extension = file.name.split(".").pop();
-
-const cleanName = originalName
-  .toLowerCase()
-  .replace(/[^a-z0-9]/g, "_")   // remove EVERYTHING unsafe
-  .replace(/_+/g, "_");         // remove duplicate underscores
-
-const fileName = `${Date.now()}_${cleanName}.${extension}`;
-
-
-  // Upload to storage
-  const { error: uploadError } = await supabase.storage
-    .from("gallery")
-    .upload(fileName, file);
-
-  if (uploadError) {
-    console.error(uploadError.message);
-    uploadInput.value = "";
-    return;
+  // ❌ Hide upload for students
+  if (!isAdmin) {
+    uploadInput.style.display = "none";
   }
 
-  // Save metadata in DB
-  await supabase.from("gallery_images").insert({
-    file_name: fileName,
-    display_name: displayName.trim()
-  });
-
-  uploadInput.value = "";
   await loadGallery();
-});
 
+  /* AUTO UPLOAD */
+  if (isAdmin) {
+    uploadInput.addEventListener("change", async (e) => {
 
-  /* SEARCH */
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const displayName = prompt("Enter image name:");
+      if (!displayName || !displayName.trim()) {
+        uploadInput.value = "";
+        return;
+      }
+
+      const originalName = file.name.split(".")[0];
+      const extension = file.name.split(".").pop();
+
+      const cleanName = originalName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "_")
+        .replace(/_+/g, "_");
+
+      const fileName = `${Date.now()}_${cleanName}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("gallery")
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error(uploadError.message);
+        uploadInput.value = "";
+        return;
+      }
+
+      await supabase.from("gallery_images").insert({
+        file_name: fileName,
+        display_name: displayName.trim(),
+        is_visible: true
+      });
+
+      uploadInput.value = "";
+      await loadGallery();
+    });
+  }
+
   searchInput.addEventListener("input", renderGallery);
 
   async function loadGallery() {
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("gallery_images")
       .select("*")
       .eq("is_deleted", false)
       .order("created_at", { ascending: false });
+
+    // 👇 Students only see visible images
+    if (!isAdmin) {
+      query = query.eq("is_visible", true);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(error);
@@ -49194,7 +49215,8 @@ const fileName = `${Date.now()}_${cleanName}.${extension}`;
       return {
         id: row.id,
         name: row.display_name,
-        src: publicUrl.publicUrl
+        src: publicUrl.publicUrl,
+        is_visible: row.is_visible
       };
     });
 
@@ -49217,32 +49239,46 @@ const fileName = `${Date.now()}_${cleanName}.${extension}`;
 
     filtered.forEach((img) => {
 
-  const realIndex = galleryImages.findIndex(
-    original => original.id === img.id
-  );
+      const realIndex = galleryImages.findIndex(
+        original => original.id === img.id
+      );
 
-  const div = document.createElement("div");
-  div.className = "gallery-item";
-  div.style.position = "relative";
+      const div = document.createElement("div");
+      div.className = "gallery-item";
+      div.style.position = "relative";
 
-  div.innerHTML = `
-    <button onclick="softDelete('${img.id}')" 
+      let adminControls = "";
+
+      if (isAdmin) {
+        adminControls = `
+          <button onclick="softDelete('${img.id}')"
             style="position:absolute;top:6px;right:6px;
                    background:crimson;color:white;border:none;
                    border-radius:50%;width:24px;height:24px;
                    cursor:pointer;">✖</button>
 
-    <img src="${img.src}" alt="${img.name}">
-    <div style="margin-top:6px;font-size:14px;text-align:center;">
-      ${img.name}
-    </div>
-  `;
+          <button onclick="toggleVisibility('${img.id}', ${img.is_visible})"
+            style="position:absolute;top:6px;right:36px;
+                   background:${img.is_visible ? 'limegreen' : 'gray'};
+                   color:white;border:none;
+                   border-radius:50%;width:24px;height:24px;
+                   cursor:pointer;">
+                   ${img.is_visible ? '👁' : '🚫'}
+          </button>
+        `;
+      }
 
-  div.querySelector("img").onclick = () => openViewer(realIndex);
+      div.innerHTML = `
+        ${adminControls}
+        <img src="${img.src}" alt="${img.name}">
+        <div style="margin-top:6px;font-size:14px;text-align:center;">
+          ${img.name}
+        </div>
+      `;
 
-  galleryGrid.appendChild(div);
-});
-
+      div.querySelector("img").onclick = () => openViewer(realIndex);
+      galleryGrid.appendChild(div);
+    });
   }
 }
 
@@ -49257,6 +49293,16 @@ window.softDelete = async function(id) {
   await supabase
     .from("gallery_images")
     .update({ is_deleted: true })
+    .eq("id", id);
+
+  initGallery();
+};
+
+window.toggleVisibility = async function(id, currentState) {
+
+  await supabase
+    .from("gallery_images")
+    .update({ is_visible: !currentState })
     .eq("id", id);
 
   initGallery();
@@ -49446,10 +49492,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     .eq("id", user.id)
     .single();
 
-  if (error || !profile || profile.role !== "admin") {
-    galleryNav.style.display = "none";
-    gallerySection.style.display = "none";
-  }
+
 
 });
 
