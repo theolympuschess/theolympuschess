@@ -15341,7 +15341,19 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.study-nav-btn {
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #fff;
+  font-weight: bold;
+  transition: 0.2s;
+}
 
+.study-nav-btn:hover {
+  background: #334155;
+}
 
 
 
@@ -15853,6 +15865,7 @@ body.guardians-theme .chessboard-63f37 img {
   >
     💾 Save
   </span>
+  
 
   <!-- 🎨 Study Board Colors -->
   <div id="studyBoardColorControls"
@@ -15873,7 +15886,17 @@ body.guardians-theme .chessboard-63f37 img {
       ↺
     </button>
 
+    
+
   </div>
+
+  <span id="prevChapterBtn" class="study-nav-btn" title="Previous Chapter">
+  ⬅ Previous Chapter
+</span>
+
+<span id="nextChapterBtn" class="study-nav-btn" title="Next Chapter">
+  Next Chapter ➡
+</span>
 
 </div>
 
@@ -30694,6 +30717,9 @@ studyMoveTreeRoot = studyState.chapterTrees[idx];
 studyCurrentNode = studyMoveTreeRoot;
 
 studyChess.load(studyCurrentNode.fen);
+// 🔥 SET POV ONLY WHEN CHAPTER IS CLICKED
+const sideToMove = studyCurrentNode.fen.split(" ")[1];
+studyBoard.orientation(sideToMove === "b" ? "black" : "white");
 studyBoard.position(studyCurrentNode.fen, false);
 
 renderStudyNotationTree();
@@ -30790,6 +30816,9 @@ studyCurrentNode = studyMoveTreeRoot;
 
 // 🔁 Load board from CURRENT NODE FEN (not from PGN)
 studyChess.load(studyCurrentNode.fen);
+// 🔥 SET POV ONLY WHEN CHAPTER IS CLICKED
+const turn = studyCurrentNode.fen.split(" ")[1];
+studyBoard.orientation(turn === "b" ? "black" : "white");
 studyBoard.position(studyCurrentNode.fen, false);
 
 
@@ -31578,7 +31607,10 @@ function onStudyDrop(source, target) {
 
 
 
-
+function setStudyOrientationFromFen(fen) {
+  const turn = fen.split(" ")[1]; // w or b
+  studyBoard.orientation(turn === "b" ? "black" : "white");
+}
 
 
 
@@ -51225,6 +51257,82 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 });
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const prevBtn = document.getElementById("prevChapterBtn");
+  const nextBtn = document.getElementById("nextChapterBtn");
+
+  if (!prevBtn || !nextBtn) return;
+
+  function getChapterElements() {
+    return Array.from(document.querySelectorAll(".study-chapter"));
+  }
+
+  function getActiveIndex() {
+    const chapters = getChapterElements();
+    return chapters.findIndex(ch => ch.classList.contains("active"));
+  }
+
+  function activateChapter(index) {
+    const chapters = getChapterElements();
+    if (index < 0 || index >= chapters.length) return;
+
+    // 🔥 Trigger original click logic
+    chapters[index].click();
+
+    // 🔥 Safety highlight (in case click logic changes later)
+    chapters.forEach(c => c.classList.remove("active"));
+    chapters[index].classList.add("active");
+
+    // 🔥 Auto scroll into view
+   scrollChapterIntoPanel(chapters[index]);
+  }
+
+  prevBtn.addEventListener("click", () => {
+    const current = getActiveIndex();
+    if (current > 0) {
+      activateChapter(current - 1);
+    }
+  });
+
+  nextBtn.addEventListener("click", () => {
+    const chapters = getChapterElements();
+    const current = getActiveIndex();
+    if (current < chapters.length - 1) {
+      activateChapter(current + 1);
+    }
+  });
+
+});
+
+function scrollChapterIntoPanel(target) {
+  const panel = document.querySelector(".study-list");
+  if (!panel || !target) return;
+
+  const offset =
+    target.offsetTop -
+    panel.offsetTop -
+    panel.clientHeight / 2 +
+    target.clientHeight / 2;
+
+  panel.scrollTo({
+    top: offset,
+    behavior: "smooth"
+  });
+}
+
+
+
+
+
+
+
+
 
 
 
