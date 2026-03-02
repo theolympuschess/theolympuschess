@@ -15636,6 +15636,134 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* ========================================= */
+/* 🎲 Dice Chess Luck ULTRA FIXED */
+/* ========================================= */
+
+#diceWindow {
+  position: fixed;
+  top: 150px;
+  left: 150px;
+  width: 300px;
+  background: linear-gradient(145deg,#111628,#0a0f1e);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+  display: none;
+  flex-direction: column;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+#diceHeader {
+  padding: 16px 20px;
+  background: linear-gradient(90deg,#ffd700,#ffb300);
+  color: #000;
+  font-weight: 800;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+  font-size: 18px;
+}
+
+#diceClose {
+  cursor: pointer;
+  font-size: 20px;
+}
+
+#diceSlotWrapper {
+  height: 220px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#diceSlot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.dicePiece {
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dicePiece img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+}
+
+.dicePiece span {
+  margin-top: 14px;
+  font-weight: 700;
+  font-size: 22px;
+  color: #ffd700;
+}
+
+#diceResultText {
+  text-align: center;
+  padding: 14px;
+  color: #fff;
+  min-height: 28px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+#diceButtons {
+  display: flex;
+  gap: 14px;
+  padding: 20px;
+}
+
+#diceButtons button {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  background: linear-gradient(45deg,#ffd700,#ffb300);
+  transition: 0.2s;
+  font-size: 15px;
+}
+
+#diceButtons button:hover {
+  transform: scale(1.05);
+}
+
+
+
+
+.bot-dice-overlay {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999999 !important;
+}
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -17037,6 +17165,11 @@ body.guardians-theme .chessboard-63f37 img {
     <select id="timeControl">
       <option value="3600">Standard</option>
     </select>
+    <h4>🕹️ Bot Mode</h4>
+<select id="vsBotMode">
+  <option value="normal">Normal Mode 🎧</option>
+  <option value="dice">Dice Mode 🎲</option>
+</select>
    <h4>♟ Starting Position</h4>
 <select id="vsCustomPosition">
 
@@ -21078,7 +21211,81 @@ let gameOver = false;
 
 
 
+// =======================================
+// 🎲 BOT DICE MODE
+// =======================================
 
+async function rollBotDiceAndMove() {
+
+  const mode = document.getElementById("vsBotMode")?.value;
+  if (mode !== "dice") {
+    makeBotMoveNormal();
+    return;
+  }
+
+  const pieceNames = ["Pawn","Knight","Bishop","Rook","Queen","King"];
+  const pieceCodes = ["p","n","b","r","q","k"];
+
+  const overlay = document.createElement("div");
+  overlay.className = "bot-dice-overlay";
+  overlay.innerHTML = `
+    <div class="bot-dice-box">
+      <div class="bot-dice-title">🎲 Bot Rolling...</div>
+      <div id="botDiceResult" class="bot-dice-piece">?</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  let chosenIndex = null;
+  let legalMoves = vsChess.moves({ verbose: true });
+
+  if (legalMoves.length === 0) {
+    overlay.remove();
+    return;
+  }
+
+  // Try until piece exists
+  for (let i = 0; i < 10; i++) {
+    const randomIndex = Math.floor(Math.random() * pieceCodes.length);
+    const piece = pieceCodes[randomIndex];
+
+    const exists = legalMoves.some(m => m.piece === piece);
+
+    if (exists) {
+      chosenIndex = randomIndex;
+      break;
+    }
+  }
+
+  if (chosenIndex === null) {
+    overlay.remove();
+    makeBotMoveNormal();
+    return;
+  }
+
+  document.getElementById("botDiceResult").textContent =
+    pieceNames[chosenIndex];
+
+  await new Promise(r => setTimeout(r, 1000));
+
+  overlay.remove();
+
+  // Filter moves by chosen piece
+  const filteredMoves =
+    legalMoves.filter(m => m.piece === pieceCodes[chosenIndex]);
+
+  const move =
+    filteredMoves[Math.floor(Math.random() * filteredMoves.length)];
+
+  vsChess.move(move);
+  vsBoard.position(vsChess.fen());
+
+  updateVsMoveList();
+  checkVsGameEnd();
+}
 
 
 
@@ -25365,7 +25572,80 @@ if (vsBotLiveGameId) {
   
 }
 
+// =======================================
+// 🎲 BOT DICE MOVE LOGIC
+// =======================================
 
+// =======================================
+// 🎲 BOT DICE VISUAL + MOVE
+// =======================================
+
+async function getDiceFilteredBotMoveWithVisual() {
+
+  const pieceCodes = ["p","n","b","r","q","k"];
+  const pieceNames = ["Pawn","Knight","Bishop","Rook","Queen","King"];
+  const pieceImages = {
+  p: "assets/pieces/Guardians/wP.png",
+  n: "assets/pieces/Guardians/wN.png",
+  b: "assets/pieces/Guardians/wB.png",
+  r: "assets/pieces/Guardians/wR.png",
+  q: "assets/pieces/Guardians/wQ.png",
+  k: "assets/pieces/Guardians/wK.png"
+};
+
+  const legalMoves = vsChess.moves({ verbose: true });
+  if (legalMoves.length === 0) return null;
+
+  // 🎬 CREATE OVERLAY
+  const overlay = document.createElement("div");
+  overlay.className = "bot-dice-overlay";
+  overlay.innerHTML = `
+    <div class="bot-dice-box">
+      <div class="bot-dice-title">🎲 Bot Rolling...</div>
+      <div id="botDiceContent"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  await new Promise(r => setTimeout(r, 1000));
+
+  let chosenIndex = null;
+  let chosenMove = null;
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const index = Math.floor(Math.random() * pieceCodes.length);
+    const piece = pieceCodes[index];
+
+    const filtered = legalMoves.filter(m => m.piece === piece);
+
+    if (filtered.length > 0) {
+      chosenIndex = index;
+      chosenMove = filtered[Math.floor(Math.random() * filtered.length)];
+      break;
+    }
+  }
+
+  if (!chosenMove) {
+    overlay.remove();
+    return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+  }
+
+  const code = pieceCodes[chosenIndex];
+
+  // 🎯 SHOW FINAL RESULT VISUALLY
+  document.getElementById("botDiceContent").innerHTML = `
+    <img src="${pieceImages[code]}" class="bot-dice-piece-img">
+    <div class="bot-dice-piece-name">${pieceNames[chosenIndex]}</div>
+  `;
+
+  console.log("🎲 Bot rolled:", pieceNames[chosenIndex]);
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  overlay.remove();
+
+  return chosenMove;
+}
 
 function initVsEngine() {
   if (vsEngine) return;
@@ -25379,7 +25659,7 @@ function initVsEngine() {
   console.log("🤖 VS Engine initialized");
 }
 
-function handleVsEngineMessage(e) {
+async function handleVsEngineMessage(e) {
   const line = e.data;
 if (typeof line !== "string") return;
 
@@ -25410,15 +25690,29 @@ if (!moveUci || moveUci === "(none)") return;
 
 
   // ⏱ DELAY ENGINE MOVE BY 3 SECONDS
-setTimeout(() => {
+setTimeout(async () => {
+
   if (!vsGameActive) return;
 
-  // ♟ APPLY ENGINE MOVE
-  const engineMove = vsChess.move({
-    from: moveUci.slice(0, 2),
-    to: moveUci.slice(2, 4),
-    promotion: moveUci[4]
-  });
+  let engineMove;
+  const mode = document.getElementById("vsBotMode")?.value;
+
+  if (mode === "dice") {
+
+    const diceMove = await getDiceFilteredBotMoveWithVisual();
+    if (!diceMove) return;
+
+    engineMove = vsChess.move(diceMove);
+
+  } else {
+
+    engineMove = vsChess.move({
+      from: moveUci.slice(0, 2),
+      to: moveUci.slice(2, 4),
+      promotion: moveUci[4]
+    });
+
+  }
 
   if (!engineMove) return;
   
@@ -25584,6 +25878,10 @@ async function resetVsComputerGame() {
   // 🧹 6. REMOVE FROM LIVE SPECTATOR (CRITICAL)
  // 🧹 REMOVE FROM LIVE SPECTATOR (CRITICAL)
 await finishVsBotLiveGame();
+
+// 9️⃣ Reset dice mode safely
+  const diceOverlay = document.querySelector(".bot-dice-overlay");
+  if (diceOverlay) diceOverlay.remove();
 
 
   console.log("✅ VS Computer fully reset");
@@ -51729,7 +52027,160 @@ function scrollChapterIntoPanel(target) {
 }
 
 
+/* ========================================= */
+/* 🎲 Dice Chess Luck CLEAN FINAL */
+/* ========================================= */
 
+let diceOpen = false
+let diceRolling = false
+let animationId = null
+let currentTranslate = 0
+
+const diceWindow = document.getElementById("diceWindow")
+const diceClose = document.getElementById("diceClose")
+const diceRollBtn = document.getElementById("diceRollBtn")
+const diceSlot = document.getElementById("diceSlot")
+const diceResultText = document.getElementById("diceResultText")
+
+const pieceNames = ["Pawn","Knight","Bishop","Rook","Queen","King"]
+const pieceCodes = ["p","n","b","r","q","k"]
+
+const SLOT_HEIGHT = 220
+
+/* ===== Toggle Window ===== */
+
+document.addEventListener("keydown", e => {
+
+  if (e.key === "3") {
+    diceOpen = !diceOpen
+    diceWindow.style.display = diceOpen ? "flex" : "none"
+  }
+
+  if (e.code === "Space" && diceOpen) {
+    e.preventDefault()
+    startRoll()
+  }
+
+})
+
+diceClose.onclick = () => {
+  diceOpen = false
+  diceWindow.style.display = "none"
+}
+
+/* ===== Roll Logic ===== */
+
+diceRollBtn.onclick = startRoll
+
+function startRoll() {
+
+  if (diceRolling) return
+  diceRolling = true
+
+  diceResultText.textContent = "Rolling..."
+
+  if (animationId) cancelAnimationFrame(animationId)
+
+  const duration = 3000
+  const startTime = performance.now()
+
+  const baseCount = pieceNames.length      // 6 real pieces
+  const totalHeight = SLOT_HEIGHT * baseCount
+  const loops = 6
+
+  // 🎯 Pick result FIRST
+  const randomIndex = Math.floor(Math.random() * baseCount)
+
+  // 🎯 Calculate final absolute target
+  const finalTarget =
+    (loops * totalHeight) + (randomIndex * SLOT_HEIGHT)
+
+  function animate(now) {
+
+    const elapsed = now - startTime
+    const progress = Math.min(elapsed / duration, 1)
+
+    const easeOut = 1 - Math.pow(1 - progress, 4)
+
+    const move = easeOut * finalTarget
+
+    // IMPORTANT: wrap inside duplicated list range
+    const visibleMove = move % totalHeight
+
+    diceSlot.style.transform =
+      `translateY(-${visibleMove}px)`
+
+    if (progress < 1) {
+      animationId = requestAnimationFrame(animate)
+    } else {
+
+      const finalPosition = randomIndex * SLOT_HEIGHT
+
+      diceSlot.style.transform =
+        `translateY(-${finalPosition}px)`
+
+      diceResultText.textContent =
+        "You must move a " + pieceNames[randomIndex] + "!"
+
+      setTimeout(() => {
+        safeCheckPiece(pieceCodes[randomIndex])
+      }, 0)
+
+      diceRolling = false
+    }
+  }
+
+  animationId = requestAnimationFrame(animate)
+}
+
+/* ===== Safe Move Check ===== */
+
+function safeCheckPiece(code) {
+
+  try {
+
+    if (!window.studyBoard) return
+    if (!studyBoard) return
+    if (typeof studyBoard.position !== "function") return
+
+    const fen = studyBoard.position()
+    if (!fen) return
+
+    const chess = new Chess(fen)
+    const moves = chess.moves({ verbose: true })
+
+    const exists = moves.some(m => m.piece === code)
+
+    if (!exists) {
+      diceResultText.textContent += " ❌ Not available!"
+    }
+
+  } catch (e) {
+    console.log("Dice check safely skipped")
+  }
+
+}
+
+/* ===== Draggable ===== */
+
+
+const header = document.getElementById("diceHeader")
+
+header.addEventListener("mousedown", e => {
+  drag = true
+  offsetX = e.clientX - diceWindow.offsetLeft
+  offsetY = e.clientY - diceWindow.offsetTop
+})
+
+document.addEventListener("mousemove", e => {
+  if (!drag) return
+  diceWindow.style.left = (e.clientX - offsetX) + "px"
+  diceWindow.style.top = (e.clientY - offsetY) + "px"
+})
+
+document.addEventListener("mouseup", () => {
+  drag = false
+})
 
 
 
@@ -52725,6 +53176,42 @@ function scrollChapterIntoPanel(target) {
       <button id="studyCommentSave">Save</button>
     </div>
 
+  </div>
+</div>
+
+
+<div id="diceWindow">
+  <div id="diceHeader">
+    🎲 Dice Chess Luck
+    <span id="diceClose">✕</span>
+  </div>
+
+  <div id="diceSlotWrapper">
+    <div id="diceSlot">
+
+  <!-- SET 1 -->
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wP.png"><span>Pawn</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wN.png"><span>Knight</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wB.png"><span>Bishop</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wR.png"><span>Rook</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wQ.png"><span>Queen</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wK.png"><span>King</span></div>
+
+  <!-- SET 2 (duplicate for smooth loop) -->
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wP.png"><span>Pawn</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wN.png"><span>Knight</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wB.png"><span>Bishop</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wR.png"><span>Rook</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wQ.png"><span>Queen</span></div>
+  <div class="dicePiece"><img src="assets/pieces/Guardians/wK.png"><span>King</span></div>
+
+</div>
+  </div>
+
+  <div id="diceResultText">Press Roll or SPACE</div>
+
+  <div id="diceButtons">
+    <button id="diceRollBtn">🎲 Roll</button>
   </div>
 </div>
 
