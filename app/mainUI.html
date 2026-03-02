@@ -29918,6 +29918,7 @@ fileInput.addEventListener("change", () => {
   reader.readAsText(file);
 });
 document.getElementById("studySelect").addEventListener("change", async (e) => {
+  hardResetStudyState();   // 🔥 ADD THIS HERE
   const pgnId = e.target.value;
   if (!pgnId) return;
 
@@ -29973,6 +29974,7 @@ function extractChapterName(pgn, fallback) {
 
   // Confirm import
   confirmBtn.addEventListener("click", () => {
+    hardResetStudyState();   // 🔥 ADD THIS HERE
     const raw = studyPgnInput.value.trim();
     if (!raw) return;
 
@@ -29990,7 +29992,12 @@ document
       .split(/\n\n(?=\[Event|\[ChapterName)/)
       .filter(Boolean);
 
-    studyState.chapters = games.map((pgn, i) => ({
+   // 🔥 Ensure fresh containers (extra safety)
+studyState.chapters = [];
+studyState.chapterTrees = {};
+
+// 🔥 Build new chapters
+studyState.chapters = games.map((pgn, i) => ({
   title: extractChapterName(pgn, `Chapter ${i + 1}`),
   pgn
 }));
@@ -30063,52 +30070,72 @@ if (saveBtn) {
 }
 
 
-function buildPGNFromTree(node, moveNumber = 1) {
+function buildPGNFromTree(root) {
 
-  let pgn = "";
+  function recurse(node, moveNumber) {
 
-  if (!node.children.length) return pgn;
+    let result = "";
 
-  const main = node.children[0];
-  const move = main.move;
+    if (!node.children.length) return result;
 
-  if (move.color === "w") {
-    pgn += `${moveNumber}. `;
-  }
+    const main = node.children[0];
+    const move = main.move;
 
-  pgn += move.san + " ";
-
-  if (main.comment) {
-    pgn += `{${main.comment}} `;
-  }
-
-  const nextMoveNumber =
-    move.color === "b" ? moveNumber + 1 : moveNumber;
-
-  pgn += buildPGNFromTree(main, nextMoveNumber);
-
-  // 🔁 Variations
-  for (let i = 1; i < node.children.length; i++) {
-    const variation = node.children[i];
-    pgn += "(";
-
-    if (variation.move.color === "w") {
-      pgn += `${moveNumber}. `;
+    // Move number formatting
+    if (move.color === "w") {
+      result += `${moveNumber}. `;
     } else {
-      pgn += `${moveNumber}... `;
+      result += `${moveNumber}... `;
     }
 
-    pgn += variation.move.san + " ";
+    result += move.san;
 
-    if (variation.comment) {
-      pgn += `{${variation.comment}} `;
+    if (main.comment) {
+      result += ` {${main.comment}}`;
     }
 
-    pgn += buildPGNFromTree(variation, nextMoveNumber);
-    pgn += ") ";
+    result += " ";
+
+    // 🔥 Handle variations BEFORE going deeper
+    for (let i = 1; i < node.children.length; i++) {
+
+      const variation = node.children[i];
+      const varMove = variation.move;
+
+      result += "(";
+
+      if (varMove.color === "w") {
+        result += `${moveNumber}. `;
+      } else {
+        result += `${moveNumber}... `;
+      }
+
+      result += varMove.san;
+
+      if (variation.comment) {
+        result += ` {${variation.comment}}`;
+      }
+
+      result += " ";
+
+      const nextVarMoveNum =
+        varMove.color === "b" ? moveNumber + 1 : moveNumber;
+
+      result += recurse(variation, nextVarMoveNum);
+
+      result += ") ";
+    }
+
+    const nextMoveNumber =
+      move.color === "b" ? moveNumber + 1 : moveNumber;
+
+    // 🔥 Now continue mainline
+    result += recurse(main, nextMoveNumber);
+
+    return result;
   }
 
-  return pgn;
+  return recurse(root, 1).trim();
 }
 
 // ============================================
@@ -30124,17 +30151,14 @@ window.saveCurrentChapterToSupabase = async function() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
-  // ============================================
-  // 🔁 BUILD FULL STUDY FROM MEMORY TREES
-  // ============================================
-
   let combinedPgn = "";
+
+  const safeStudyTitle = currentStudyTitle || "Untitled Study";
 
   studyState.chapters.forEach((ch, index) => {
 
     let tree = studyState.chapterTrees[index];
 
-    // If chapter never opened → build from stored PGN
     if (!tree) {
       buildStudyTreeFromPgn(ch.pgn);
       tree = studyMoveTreeRoot;
@@ -30142,17 +30166,29 @@ window.saveCurrentChapterToSupabase = async function() {
 
     const chapterMoves = buildPGNFromTree(tree);
 
+    let fenHeader = "";
+
+if (tree.fen && tree.fen !== new Chess().fen()) {
+  fenHeader =
+`[FEN "${tree.fen}"]
+[SetUp "1"]
+`;
+}
+
     combinedPgn +=
-`[ChapterName "${ch.title}"]
+`[Event "Study: ${safeStudyTitle}"]
+[ChapterName "${ch.title}"]
+[Source "Olympus Study"]
+${fenHeader}
 
 ${chapterMoves}
 
 `;
   });
 
-  // ============================================
-  // 🟢 CASE 1: STUDY EXISTS → UPDATE
-  // ============================================
+  // =============================
+  // 🟢 UPDATE EXISTING STUDY
+  // =============================
   if (studyState.studyId) {
 
     const { error } = await supabase
@@ -30170,9 +30206,9 @@ ${chapterMoves}
     return;
   }
 
-  // ============================================
-  // 🔵 CASE 2: NEW STUDY → INSERT
-  // ============================================
+  // =============================
+  // 🔵 CREATE NEW STUDY
+  // =============================
 
   const studyTitle = prompt("Enter study name:");
   if (!studyTitle || !studyTitle.trim()) return;
@@ -30199,31 +30235,74 @@ ${chapterMoves}
   currentStudyTitle = data.title;
 
   alert("✅ Study created and saved!");
-}
+};
 // ============================================
 // ➕ CREATE NEW STUDY CHAPTER
 // ============================================
 window.createNewStudyChapter = function(title) {
 
-  // Reset board
+  // 🔒 Ensure containers exist
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  // 🔥 Reset board to start
   studyChess.reset();
   studyBoard.position(studyChess.fen(), false);
 
-  initStudyMoveTree();
-  studyMoves.length = 0;
+  // 🔥 Create fresh tree root
+  const newRoot = {
+    id: crypto.randomUUID(),
+    move: null,
+    parent: null,
+    children: [],
+    fen: studyChess.fen(),
+    comment: null
+  };
 
-  const emptyPgn = studyChess.pgn();
-
+  // 🔥 Create chapter object
   const newChapter = {
     title,
-    pgn: emptyPgn
+    pgn: "" // PGN is NOT used during editing
   };
 
   studyState.chapters.push(newChapter);
 
+  const newIndex = studyState.chapters.length - 1;
+
+  // 🔥 Register tree in memory immediately
+  studyState.chapterTrees[newIndex] = newRoot;
+
+  // 🔥 Activate this chapter immediately
+  studyMoveTreeRoot = newRoot;
+  studyCurrentNode = newRoot;
+
   renderStudyChapters();
 
-  console.log("📘 New chapter created:", title);
+  console.log("📘 New chapter created (memory mode):", title);
+};
+
+
+function hardResetStudyState() {
+
+  studyState.studyId = null;
+  studyState.chapters = [];
+  studyState.chapterTrees = {};
+
+  studyState.currentChapterIndex = null;
+  studyState.currentChapterPgn = null;
+
+  studyMoveTreeRoot = null;
+  studyCurrentNode = null;
+
+  studyChess.reset();
+  studyBoard.position(studyChess.fen(), false);
+
+  document.getElementById("studyTitle").textContent = "";
+  document.getElementById("studyNotation").innerHTML =
+    "Select a chapter to view moves";
+
+  console.log("🧹 Study state fully reset");
 }
 
 // ============================================
@@ -30233,6 +30312,7 @@ window.createNewStudyChapter = function(title) {
 // 📥 LOAD FULL STUDY (WITH MULTIPLE CHAPTERS)
 // ============================================
 window.loadSavedStudyChapters = async function() {
+ hardResetStudyState();   // 🔥 ADD THIS FIRST
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
@@ -30308,11 +30388,20 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
     // =============================
     // VARIATION START
     // =============================
-    if (token === "(") {
-      nodeStack.push(currentNode);
-      chessStack.push(new Chess(chess.fen()));
-      return;
-    }
+   if (token === "(") {
+
+  // Save current state
+  nodeStack.push(currentNode);
+  chessStack.push(new Chess(chess.fen()));
+
+  // 🔥 Rewind one move for variation start
+  if (currentNode.parent) {
+    currentNode = currentNode.parent;
+    chess.load(currentNode.fen);
+  }
+
+  return;
+}
 
     // =============================
     // VARIATION END
@@ -30408,35 +30497,141 @@ div.className = "study-chapter";
 div.textContent = `${idx + 1}. ${ch.title}`;
 
 // 🔹 Copy Button
+// 🔹 Action buttons container
+// 🔹 Action buttons container
+const actionRow = document.createElement("div");
+actionRow.style.display = "flex";
+actionRow.style.gap = "6px";
+actionRow.style.margin = "6px 0 12px 18px";
+
+// 📋 COPY
 const copyBtn = document.createElement("button");
-copyBtn.textContent = "📋 Copy PGN";
+copyBtn.textContent = "📋 Copy";
 copyBtn.className = "copy-pgn-btn";
 
-copyBtn.style.margin = "6px 0 12px 18px";
-copyBtn.style.padding = "4px 10px";
-copyBtn.style.fontSize = "12px";
-copyBtn.style.borderRadius = "6px";
-copyBtn.style.border = "none";
-copyBtn.style.cursor = "pointer";
-copyBtn.style.background = "#2f355c";
-copyBtn.style.color = "#fff";
-
 copyBtn.onclick = (e) => {
-  e.stopPropagation(); // prevent chapter selection
-
-  navigator.clipboard.writeText(ch.pgn).then(() => {
-    copyBtn.textContent = "✅ Copied!";
-    setTimeout(() => {
-      copyBtn.textContent = "📋 Copy PGN";
-    }, 1200);
-  }).catch(() => {
-    alert("Copy failed.");
-  });
+  e.stopPropagation();
+  navigator.clipboard.writeText(ch.pgn || "");
 };
 
-// 🔹 Append
+// 🗑 DELETE
+const deleteBtn = document.createElement("button");
+deleteBtn.textContent = "🗑 Delete";
+deleteBtn.className = "copy-pgn-btn";
+
+deleteBtn.onclick = (e) => {
+  e.stopPropagation();
+
+  if (!confirm("Delete this chapter?")) return;
+
+  studyState.chapters.splice(idx, 1);
+
+  if (studyState.chapterTrees) {
+    delete studyState.chapterTrees[idx];
+  }
+
+  renderStudyChapters();
+};
+
+// ♟ FEN
+const fenBtn = document.createElement("button");
+fenBtn.textContent = "📥 FEN";
+fenBtn.className = "copy-pgn-btn";
+
+fenBtn.onclick = (e) => {
+  e.stopPropagation();
+
+  const fen = prompt("Paste FEN:");
+  if (!fen || !fen.trim()) return;
+
+  const cleanFen = fen.trim();
+
+  const testChess = new Chess();
+  if (!testChess.load(cleanFen)) {
+    alert("Invalid FEN");
+    return;
+  }
+
+  studyChess.load(cleanFen);
+  studyBoard.position(cleanFen, false);
+
+  const newRoot = {
+    id: crypto.randomUUID(),
+    move: null,
+    parent: null,
+    children: [],
+    fen: cleanFen,
+    comment: null
+  };
+
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  studyState.chapterTrees[idx] = newRoot;
+
+  studyMoveTreeRoot = newRoot;
+  studyCurrentNode = newRoot;
+
+  renderStudyNotationTree();
+};
+
+// 📥 PASTE PGN
+const pasteBtn = document.createElement("button");
+pasteBtn.textContent = "📥 PGN";
+pasteBtn.className = "copy-pgn-btn";
+
+pasteBtn.onclick = (e) => {
+  e.stopPropagation();
+
+  const raw = prompt("Paste full PGN:");
+  if (!raw || !raw.trim()) return;
+
+  const cleanPgn = raw.trim();
+
+  // 🔥 Extract FEN if exists
+  const fenMatch = cleanPgn.match(/\[FEN\s+"([^"]+)"\]/);
+  const fen = fenMatch ? fenMatch[1] : null;
+
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  // 🔥 Build full tree from PGN
+  buildStudyTreeFromPgn(cleanPgn, fen);
+
+  // 🔥 Store tree in memory
+  studyState.chapterTrees[idx] = studyMoveTreeRoot;
+
+  studyMoveTreeRoot = studyState.chapterTrees[idx];
+  studyCurrentNode = studyMoveTreeRoot;
+
+  // 🔥 Load correct start position
+  if (fen) {
+    studyChess.load(fen);
+  } else {
+    studyChess.reset();
+  }
+
+  studyBoard.position(studyChess.fen(), false);
+
+  // 🔥 Save raw PGN to chapter
+  studyState.chapters[idx].pgn = cleanPgn;
+
+  renderStudyNotationTree();
+
+  console.log("📥 PGN pasted into chapter:", ch.title);
+};
+
+// Append buttons
+actionRow.appendChild(copyBtn);
+actionRow.appendChild(deleteBtn);
+actionRow.appendChild(fenBtn);
+// 🔥 ADD PASTE BUTTON HERE
+actionRow.appendChild(pasteBtn);
+
 chapterWrapper.appendChild(div);
-chapterWrapper.appendChild(copyBtn);
+chapterWrapper.appendChild(actionRow);
 
 studyList.appendChild(chapterWrapper);
 
@@ -30455,11 +30650,27 @@ studyList.appendChild(chapterWrapper);
   div.classList.add("active");
 
   // 🔁 FULL RESET
-  studyChess.reset();
-  studyMoves.length = 0;
-  currentMoveIndex = -1;
-  studyState.currentChapterPgn = ch.pgn;
-  studyState.currentChapterIndex = idx;
+ // 🔒 HARD MEMORY MODE
+
+if (!studyState.chapterTrees) {
+  studyState.chapterTrees = {};
+}
+
+if (!studyState.chapterTrees[idx]) {
+
+  const fenFromPgn = extractFenFromPgn(ch.pgn);
+  buildStudyTreeFromPgn(ch.pgn, fenFromPgn);
+
+  studyState.chapterTrees[idx] = studyMoveTreeRoot;
+}
+
+studyMoveTreeRoot = studyState.chapterTrees[idx];
+studyCurrentNode = studyMoveTreeRoot;
+
+studyChess.load(studyCurrentNode.fen);
+studyBoard.position(studyCurrentNode.fen, false);
+
+renderStudyNotationTree();
 
   // ===============================
 // 🧠 Extract PGN Comments (per chapter)
@@ -30527,37 +30738,39 @@ function extractCommentsSequential(pgn) {
  // =========================================
 // 🌳 BUILD FULL TREE FROM PGN
 // =========================================
+/// ========================================
+// 🔒 HARD MEMORY MODE (NO REBUILD)
 // ========================================
-// 🔒 CHAPTER MEMORY CACHE SYSTEM
-// ========================================
 
-// If tree already exists in memory → reuse it
-if (studyState.chapterTrees && studyState.chapterTrees[idx]) {
-
-  studyMoveTreeRoot = studyState.chapterTrees[idx];
-  studyCurrentNode = studyMoveTreeRoot;
-
-} else {
-
-  buildStudyTreeFromPgn(ch.pgn, fen);
-
-  if (!studyState.chapterTrees) {
-    studyState.chapterTrees = {};
-  }
-
-  studyState.chapterTrees[idx] = studyMoveTreeRoot;
-  studyCurrentNode = studyMoveTreeRoot;
+// Ensure memory container exists
+if (!studyState.chapterTrees) {
+  studyState.chapterTrees = {};
 }
 
-// 🔁 Reset board position
-studyChess.reset();
-if (fen) studyChess.load(fen);
-studyBoard.position(studyChess.fen(), false);
+// 🔥 Build ONLY once when first opening chapter
+if (!studyState.chapterTrees[idx]) {
 
-// 🔁 Render notation
+  const fenFromPgn = extractFenFromPgn(ch.pgn);
+
+  buildStudyTreeFromPgn(ch.pgn, fenFromPgn);
+
+  studyState.chapterTrees[idx] = studyMoveTreeRoot;
+}
+
+// 🔥 Always reuse memory tree
+studyMoveTreeRoot = studyState.chapterTrees[idx];
+studyCurrentNode = studyMoveTreeRoot;
+
+
+// 🔁 Load board from CURRENT NODE FEN (not from PGN)
+studyChess.load(studyCurrentNode.fen);
+studyBoard.position(studyCurrentNode.fen, false);
+
+
+// 🔁 Render notation from memory
 renderStudyNotationTree();
 
-console.log("📘 Chapter selected:", ch.title);
+console.log("📘 Chapter selected (memory mode):", ch.title);
 });
 
 
@@ -52006,8 +52219,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
