@@ -25955,53 +25955,91 @@ window.loadPGNFromString = function (pgnString) {
   if (!chess || !board) return;
 
   try {
+    // ==========================================
+// 🔥 FEN-SAFE PGN PARSER
+// ==========================================
+
+// ==========================================
+    // 🔥 UNIVERSAL PGN LOADER
+    // ==========================================
+
+    const rawPGN = pgnString;
+
+    // Split possible multi-game PGN
+    const games = rawPGN
+      .split(/\n(?=\[Event)/g)
+      .filter(g => g.trim().length > 0);
+
+    // Pick first game that contains moves
+    let targetGame = games.find(g => /\d+\./.test(g));
+
+    if (!targetGame) {
+      throw new Error("No valid move section found");
+    }
+
     const tempChess = new Chess();
-    const success = tempChess.load_pgn(pgnString);
 
-    if (!success) throw new Error("Invalid PGN");
+    // Let chess.js parse everything
+    const success = tempChess.load_pgn(targetGame, { sloppy: true });
 
+    if (!success) {
+      throw new Error("Failed to parse PGN");
+    }
+
+    // Extract moves
     const moves = tempChess.history({ verbose: true });
 
-    // Reset everything
+    // Extract FEN (if exists)
+    const headerFen = tempChess.header().FEN || null;
+
+    // Extract comments from the SAME parsed game
+    const sequentialComments = extractMainCommentsSequential(targetGame);
+
+    // ==========================================
+    // 🔥 RESET STATE
+    // ==========================================
+
     chess.reset();
-    fullPGNHistory = [];
+    fullPGNHistory = moves;
     moveHistory = [];
     pgnCursor = 0;
 
-    // Load PGN into main game
-    chess.load_pgn(pgnString);
-    board.position(chess.fen());
+    // ==========================================
+    // 🔥 REBUILD MOVE TREE
+    // ==========================================
 
-    // 🔥 Rebuild move tree from PGN
-// 🔥 Extract comments first
-const sequentialComments = extractMainCommentsSequential(pgnString);
+    initMoveTree();
 
-// 🔥 Rebuild move tree WITH comments
-initMoveTree();
+    // Load correct starting position
+    if (headerFen) {
+      chess.load(headerFen);
+      moveTreeRoot.fen = headerFen;
+    } else {
+      chess.reset();
+      moveTreeRoot.fen = chess.fen();
+    }
 
-chess.reset();
+    // Rebuild tree
+    moves.forEach((m, index) => {
 
-moves.forEach((m, index) => {
+      const move = chess.move({
+        from: m.from,
+        to: m.to,
+        promotion: m.promotion
+      });
 
-  const move = chess.move({
-    from: m.from,
-    to: m.to,
-    promotion: m.promotion
-  });
+      const newNode = {
+        id: crypto.randomUUID(),
+        move,
+        parent: currentNode,
+        children: [],
+        fen: chess.fen(),
+        comment: sequentialComments[index] || null
+      };
 
-  // Create node manually instead of addMoveToTree
-  const newNode = {
-    id: crypto.randomUUID(),
-    move,
-    parent: currentNode,
-    children: [],
-    fen: chess.fen(),
-    comment: sequentialComments[index] || null
-  };
-
-  currentNode.children.push(newNode);
-  currentNode = newNode;
-});
+      currentNode.children.push(newNode);
+      currentNode = newNode;
+    });
 
 
     // Store history
@@ -26068,50 +26106,84 @@ function closeModal() {
 }
 
       try {
-        const tempChess = new Chess();
-        const success = tempChess.load_pgn(pgnInput);
-        
+        // ==========================================
+// 🔥 FEN-SAFE PGN PARSER
+// ==========================================
 
-        
-        if (!success) {
-          throw new Error('Failed to parse PGN');
-        }
-        
-        const moves = tempChess.history({verbose: true});
-        fullPGNHistory = moves;
-        
-        // Load into main chess instance
-        chess.load_pgn(pgnInput);
-        board.position(chess.fen());
-        // 🔥 Rebuild move tree from PGN
-// 🔥 Extract comments
-const sequentialComments = extractMainCommentsSequential(pgnInput);
+// ==========================================
+    // 🔥 UNIVERSAL PGN LOADER
+    // ==========================================
 
-// 🔥 Rebuild tree WITH comments
-initMoveTree();
+    const rawPGN = pgnInput;
 
-chess.reset();
+    // Split possible multi-game PGN
+    const games = rawPGN
+      .split(/\n(?=\[Event)/g)
+      .filter(g => g.trim().length > 0);
 
-moves.forEach((m, index) => {
+    // Pick first game that contains moves
+    let targetGame = games.find(g => /\d+\./.test(g));
 
-  const move = chess.move({
-    from: m.from,
-    to: m.to,
-    promotion: m.promotion
-  });
+    if (!targetGame) {
+      throw new Error("No valid move section found");
+    }
 
-  const newNode = {
-    id: crypto.randomUUID(),
-    move,
-    parent: currentNode,
-    children: [],
-    fen: chess.fen(),
-    comment: sequentialComments[index] || null
-  };
+    const tempChess = new Chess();
 
-  currentNode.children.push(newNode);
-  currentNode = newNode;
-});
+    // Let chess.js parse everything (variations, comments, NAGs)
+    const success = tempChess.load_pgn(targetGame, { sloppy: true });
+
+    if (!success) {
+      throw new Error("Failed to parse PGN");
+    }
+
+    // Extract moves
+    const moves = tempChess.history({ verbose: true });
+
+    // Extract FEN (if exists)
+    const headerFen = tempChess.header().FEN || null;
+
+    // Extract sequential comments
+    const sequentialComments = extractMainCommentsSequential(targetGame);
+
+    // Store history
+    fullPGNHistory = moves;
+
+    // ==========================================
+    // 🔥 REBUILD MOVE TREE
+    // ==========================================
+
+    initMoveTree();
+
+    // Load correct starting position
+    if (headerFen) {
+      chess.load(headerFen);
+      moveTreeRoot.fen = headerFen;
+    } else {
+      chess.reset();
+      moveTreeRoot.fen = chess.fen();
+    }
+
+    moves.forEach((m, index) => {
+
+      const move = chess.move({
+        from: m.from,
+        to: m.to,
+        promotion: m.promotion
+      });
+
+      const newNode = {
+        id: crypto.randomUUID(),
+        move,
+        parent: currentNode,
+        children: [],
+        fen: chess.fen(),
+        comment: sequentialComments[index] || null
+      };
+
+      currentNode.children.push(newNode);
+      currentNode = newNode;
+    });
 
         extractPlayersFromPGN(pgnInput);
 
@@ -26163,9 +26235,9 @@ setTimeout(() => {
   console.error("PGN load error:", error);
 
   showModal(
-    "❌ PGN Error",
-    "<p>✅ PGN loaded successfully!</p>"
-  );
+  "❌ PGN Error",
+  "<p>✅ PGN loaded successfully</p>"
+);
 
   setTimeout(closeModal, 2000);
 }
