@@ -30148,6 +30148,29 @@ window.saveCurrentChapterToSupabase = async function() {
     return;
   }
 
+  // 🔥 FORCE BUILD ALL CHAPTER TREES BEFORE SAVE
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  studyState.chapters.forEach((ch, index) => {
+
+    if (!studyState.chapterTrees[index]) {
+
+      if (!ch.pgn || !ch.pgn.trim()) {
+        console.warn("⚠️ Skipping empty chapter:", ch.title);
+        return;
+      }
+
+      const fenFromPgn = extractFenFromPgn(ch.pgn);
+      buildStudyTreeFromPgn(ch.pgn, fenFromPgn);
+
+      studyState.chapterTrees[index] = studyMoveTreeRoot;
+    }
+  });
+
+  // 👇 then your existing save logic continues here
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
@@ -30179,9 +30202,10 @@ if (tree.fen && tree.fen !== new Chess().fen()) {
 `[Event "Study: ${safeStudyTitle}"]
 [ChapterName "${ch.title}"]
 [Source "Olympus Study"]
+[Variant "From Position"]
 ${fenHeader}
 
-${chapterMoves}
+${chapterMoves} *
 
 `;
   });
@@ -30349,6 +30373,8 @@ window.loadSavedStudyChapters = async function() {
     title: titles[index]?.[1] || `Chapter ${index + 1}`,
     pgn: chapterPgn.trim()
   }));
+
+  
 
   currentStudyTitle = studyRow.title;
 
