@@ -15226,9 +15226,10 @@ body.guardians-theme .chessboard-63f37 img {
 }
 
 /* Current move highlight */
+/* Current move highlight (transparent clean) */
 .move-inline.current {
-  background: #ffd54a;
-  color: #000;
+  background: rgba(255, 213, 74, 0.15);  /* soft transparent */
+  color: #ffffff;                       /* keep move white */
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -15754,6 +15755,140 @@ body.guardians-theme .chessboard-63f37 img {
   justify-content: center;
   z-index: 999999999 !important;
 }
+
+
+
+.study-anno-badge {
+  margin-left: 0px;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 0.8px;
+}
+
+/* ========================= */
+/* MOVE QUALITY COLORS */
+/* ========================= */
+
+
+
+/* ========================= */
+/* POSITION EVALUATION */
+/* ========================= */
+
+.anno-equal { color: #ff7ab8; text-shadow: 0 0 3px #9e9e9e; }
+.anno-unclear { color: #ff7ab8;
+  }
+
+.anno-slight { color: #8bc34a; text-shadow: 0 0 3px #8bc34a;}      /* both slightly better */
+.anno-better { color: #4caf50; text-shadow: 0 0 3px #4caf50;}      /* both better */
+.anno-winning { color: #8bc34a; text-shadow: 0 0 3px #8bc34a;}        /* both winning */
+
+/* ========================= */
+/* COLOR SYSTEM */
+/* ========================= */
+
+.anno-brilliant {
+  color: #00e5ff;
+  text-shadow: 0 0 3px #00e5ff;
+}
+
+.anno-good {
+  color: #4caf50;
+  text-shadow: 0 0 3px #4caf50;
+}
+
+.anno-interesting {
+  color: #ffca28;
+  text-shadow: 0 0 1px #ffca28;
+}
+
+.anno-dubious {
+  color: #ff9800;
+  text-shadow: 0 0 1px #ff9800;
+}
+
+.anno-mistake {
+  color: #ff7043;
+  text-shadow: 0 0 1px #ff7043;
+}
+
+.anno-blunder {
+  color: #ff1744;
+  
+}
+
+.anno-only {
+  color: #9c27b0;
+  text-shadow: 0 0 3px #9c27b0;
+}
+
+.anno-zugzwang {
+  color: #9c27b0;
+  text-shadow: 0 0 3px #9c27b0;
+}
+
+
+
+
+
+/* ============================================ */
+/* 🎯 STUDY ANNOTATION MODAL (ISOLATED) */
+/* ============================================ */
+
+#studyAnnoModal {
+  position: fixed;
+  top: 180px;
+  left: 300px;
+  width: 280px;
+  background: #1c1f2e;
+  border-radius: 12px;
+  box-shadow: 0 15px 50px rgba(0,0,0,.8);
+  z-index: 9999999 !important;
+  user-select: none;
+  padding: 0;
+  
+}
+
+#studyAnnoModal.hidden {
+  display: none !important;
+}
+
+#studyAnnoModal .study-anno-header {
+  padding: 10px 14px;
+  background: #2b2f4a;
+  font-weight: bold;
+  cursor: move;
+  display: flex;
+  justify-content: space-between;
+}
+
+#studyAnnoModal .study-anno-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 14px;
+}
+
+.study-anno-item {
+  background: #2f355c;
+  padding: 12px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.study-anno-item.active {
+  background: #ffd54a;
+  color: black;
+}
+
+
+
+
+
+
 
 
 
@@ -30431,6 +30566,65 @@ const studyState = {
   chapterTrees: {}   // 🔥 ADD THIS
 };
 
+// ============================================
+// 🎯 ANNOTATION MAP
+// ============================================
+const studyAnnotations = {
+  brilliant: { symbol: "!!", class: "anno-brilliant" },
+  good: { symbol: "!", class: "anno-good" },
+  interesting: { symbol: "!?", class: "anno-interesting" },
+  dubious: { symbol: "?!", class: "anno-dubious" },
+  mistake: { symbol: "?", class: "anno-mistake" },
+  blunder: { symbol: "??", class: "anno-blunder" },
+  only: { symbol: "□", class: "anno-only" },
+  zugzwang: { symbol: "⭘", class: "anno-zugzwang" },
+  // Position evaluation
+  equal: { symbol: "=", class: "anno-equal" },
+  unclear: { symbol: "∞", class: "anno-unclear" },
+
+  slightWhite: { symbol: "⩲", class: "anno-slight" },
+slightBlack: { symbol: "⩱", class: "anno-slight" },
+
+  betterWhite:  { symbol: "±", class: "anno-better" },  // White is better
+betterBlack:  { symbol: "∓", class: "anno-better" },  // Black is better
+
+  winningWhite: { symbol: "+−", class: "anno-winning" },
+  winningBlack: { symbol: "−+", class: "anno-winning" }
+};
+
+// ============================================
+// 🔥 PGN NAG MAPPING (SAFE LAYER)
+// ============================================
+
+const annotationToNAG = {
+  good: "$1",
+  mistake: "$2",
+  brilliant: "$3",
+  blunder: "$4",
+  interesting: "$5",
+  dubious: "$6",
+
+  equal: "$10",
+  unclear: "$13",
+
+  slightWhite: "$14",
+  slightBlack: "$15",
+
+  betterWhite: "$16",
+  betterBlack: "$17",
+
+  winningWhite: "$18",
+  winningBlack: "$19",
+
+  only: "$22",
+  zugzwang: "$23"
+};
+
+const nagToAnnotation = Object.fromEntries(
+  Object.entries(annotationToNAG).map(([k, v]) => [v, k])
+);
+
+
 function clearNotationHighlights() {
   document
     .querySelectorAll(".move.active-main, .move.active-variation")
@@ -30753,6 +30947,11 @@ function buildPGNFromTree(root) {
 
     result += move.san;
 
+if (main.annotation) {
+  const nag = annotationToNAG[main.annotation];
+  if (nag) result += " " + nag;
+}
+
     if (main.comment) {
       result += ` {${main.comment}}`;
     }
@@ -30774,6 +30973,11 @@ function buildPGNFromTree(root) {
       }
 
       result += varMove.san;
+
+if (variation.annotation) {
+  const nag = annotationToNAG[variation.annotation];
+  if (nag) result += " " + nag;
+}
 
       if (variation.comment) {
         result += ` {${variation.comment}}`;
@@ -31124,6 +31328,16 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
     if (["1-0", "0-1", "1/2-1/2", "*"].includes(token)) return;
 
     // =============================
+// 🔥 NAG SUPPORT (SAFE ADD)
+// =============================
+if (token.startsWith("$")) {
+  if (currentNode !== studyMoveTreeRoot) {
+    currentNode.annotation = nagToAnnotation[token] || null;
+  }
+  return;
+}
+
+    // =============================
     // APPLY MOVE
     // =============================
     const move = chess.move(token, { sloppy: true });
@@ -31135,7 +31349,8 @@ function buildStudyTreeFromPgn(pgn, fen = null) {
       parent: currentNode,
       children: [],
       fen: chess.fen(),
-      comment: null
+      comment: null,
+      annotation: null
     };
 
     currentNode.children.push(newNode);
@@ -31225,7 +31440,38 @@ copyBtn.className = "copy-pgn-btn copy-btn";
 
 copyBtn.onclick = (e) => {
   e.stopPropagation();
-  navigator.clipboard.writeText(ch.pgn || "");
+
+  if (!studyState.chapterTrees[idx]) {
+    alert("No moves to copy.");
+    return;
+  }
+
+  const tree = studyState.chapterTrees[idx];
+
+  const moves = buildPGNFromTree(tree);
+
+  let fenHeader = "";
+
+  if (tree.fen && tree.fen !== new Chess().fen()) {
+    fenHeader =
+`[FEN "${tree.fen}"]
+[SetUp "1"]
+
+`;
+  }
+
+  const fullPGN =
+`[Event "Study: ${currentStudyTitle || "Untitled"}"]
+[ChapterName "${ch.title}"]
+[Source "Olympus Study"]
+[Variant "From Position"]
+${fenHeader}
+
+${moves} *`;
+
+  navigator.clipboard.writeText(fullPGN);
+
+  console.log("📋 Copied chapter PGN with annotations");
 };
 
 // 🗑 DELETE
@@ -31710,10 +31956,12 @@ let studyCurrentNode = null;
 function createStudyMoveNode(move, parent = null) {
   return {
     id: crypto.randomUUID(),
-    move: move,
-    parent: parent,
+    move,
+    parent,
     children: [],
-    fen: studyChess.fen()
+    fen: studyChess.fen(),
+    comment: null,
+    annotation: null   // 🔥 ADD THIS
   };
 }
 
@@ -31831,6 +32079,15 @@ function renderStudyNotationTree() {
     }
 
     span.innerHTML += move.san + " ";
+
+    if (mainChild.annotation) {
+  const badge = document.createElement("span");
+  badge.className = "study-anno-badge";
+  const anno = studyAnnotations[mainChild.annotation];
+badge.textContent = anno.symbol;
+badge.classList.add(anno.class);
+  span.appendChild(badge);
+}
 
     if (mainChild === studyCurrentNode) {
       span.classList.add("current");
@@ -52254,7 +52511,135 @@ document.addEventListener("mouseup", () => {
 
 
 
+// ============================================
+// 🎯 STUDY ANNOTATION MODAL ENGINE
+// ============================================
 
+document.addEventListener("DOMContentLoaded", () => {
+
+  const modal = document.getElementById("studyAnnoModal");
+  const grid = document.getElementById("studyAnnoGrid");
+  const closeBtn = document.getElementById("studyAnnoClose");
+
+  if (!modal || !grid) return;
+
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  // Build grid safely once
+  grid.innerHTML = "";
+
+Object.keys(studyAnnotations).forEach(key => {
+  const item = document.createElement("div");
+  item.className = "study-anno-item";
+  item.dataset.type = key;
+  item.textContent = studyAnnotations[key].symbol; // ✅ FIX
+  grid.appendChild(item);
+});
+
+  function openModal() {
+
+    if (!studyCurrentNode || !studyCurrentNode.move) return;
+
+    modal.classList.remove("hidden");
+
+    document.querySelectorAll(".study-anno-item")
+      .forEach(el => {
+        el.classList.remove("active");
+        if (studyCurrentNode.annotation === el.dataset.type) {
+          el.classList.add("active");
+        }
+      });
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+  }
+
+  if (closeBtn) closeBtn.onclick = closeModal;
+
+  // Click annotation
+  grid.addEventListener("click", (e) => {
+
+    const item = e.target.closest(".study-anno-item");
+    if (!item) return;
+
+    const type = item.dataset.type;
+
+    if (!studyCurrentNode) return;
+
+    // Toggle
+    if (studyCurrentNode.annotation === type) {
+      studyCurrentNode.annotation = null;
+    } else {
+      studyCurrentNode.annotation = type;
+    }
+
+    renderStudyNotationTree();
+    openModal();
+  });
+
+  // Keyboard open
+document.addEventListener("keydown", (e) => {
+
+  if (
+    e.target.tagName === "INPUT" ||
+    e.target.tagName === "TEXTAREA"
+  ) return;
+
+  if (e.key === "4") {
+
+    e.preventDefault();
+
+    if (modal.classList.contains("hidden")) {
+      openModal();
+    } else {
+      closeModal();
+    }
+  }
+});
+
+  // Drag logic
+  // ============================================
+// 🟢 DRAG SYSTEM (FINAL FIX)
+// ============================================
+
+// ============================================
+// 🟢 DRAG SYSTEM (BULLETPROOF)
+// ============================================
+
+let isDragging = false;
+
+
+modal.addEventListener("mousedown", (e) => {
+
+  // Only drag when clicking header
+  if (!e.target.closest(".study-anno-header")) return;
+
+  isDragging = true;
+
+  const rect = modal.getBoundingClientRect();
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+
+  document.body.style.userSelect = "none";
+});
+
+document.addEventListener("mousemove", (e) => {
+
+  if (!isDragging) return;
+
+  modal.style.left = (e.clientX - offsetX) + "px";
+  modal.style.top = (e.clientY - offsetY) + "px";
+});
+
+document.addEventListener("mouseup", () => {
+  isDragging = false;
+  document.body.style.userSelect = "";
+});
+
+});
 
 
 
@@ -53281,6 +53666,15 @@ document.addEventListener("mouseup", () => {
   <div id="diceButtons">
     <button id="diceRollBtn">🎲 Roll</button>
   </div>
+</div>
+
+
+<div id="studyAnnoModal" class="study-anno-modal hidden">
+  <div class="study-anno-header">
+    Move Annotation
+    <span id="studyAnnoClose">✖</span>
+  </div>
+  <div class="study-anno-grid" id="studyAnnoGrid"></div>
 </div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
