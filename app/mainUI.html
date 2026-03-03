@@ -31674,6 +31674,21 @@ if (e.key === "ArrowRight") {
       goToStudyTreeNode(studyCurrentNode.parent);
     }
   }
+  // ============================================
+// ⌫ BACKSPACE DELETE
+// ============================================
+if (e.key === "Backspace") {
+
+  // Prevent browser back navigation
+  e.preventDefault();
+
+  // Optional: block students
+  if (typeof isAdminUser === "function" && !isAdminUser()) {
+    return;
+  }
+
+  deleteCurrentStudyMove();
+}
 });
 
 
@@ -31742,7 +31757,40 @@ function goToStudyTreeNode(node) {
   renderStudyNotationTree();
 }
 
+// ============================================
+// ⌫ DELETE CURRENT MOVE (BACKSPACE)
+// ============================================
+function deleteCurrentStudyMove() {
 
+  if (!studyCurrentNode || !studyCurrentNode.parent) {
+    return; // don't delete root
+  }
+
+  const nodeToDelete = studyCurrentNode;
+  const parent = nodeToDelete.parent;
+
+  // Remove this node from parent's children
+  parent.children = parent.children.filter(
+    child => child !== nodeToDelete
+  );
+
+  // Move selection back to parent
+  studyCurrentNode = parent;
+
+  // Load board from parent FEN
+  studyChess.load(parent.fen);
+  studyBoard.position(parent.fen, false);
+
+  // Update memory tree
+  if (studyState.currentChapterIndex !== null) {
+    studyState.chapterTrees[studyState.currentChapterIndex] =
+      studyMoveTreeRoot;
+  }
+
+  renderStudyNotationTree();
+
+  console.log("⌫ Deleted move:", nodeToDelete.move?.san);
+}
 
 // ============================================
 // 📘 STUDY NOTATION TREE (LICHESS STYLE)
