@@ -3003,7 +3003,7 @@ body:not(.student-view) #studentProgressCard {
   color: #e5e7eb;
   font-size: 14px;
 
-  height: 180px;              /* ✅ FIXED HEIGHT */
+  height: 220px;              /* ✅ FIXED HEIGHT */
   display: flex;
   flex-direction: column;
   overflow: hidden;           /* ❌ prevent resizing */
@@ -15926,7 +15926,132 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+/* =========================
+   STUDY ENGINE BOX
+========================= */
 
+.study-engine-box {
+  background: #0f1117;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 5px;
+   height: 210px;       
+  border: 1px solid #20242f;
+}
+
+/* HEADER */
+
+.engine-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.engine-title {
+  font-weight: 600;
+  color: #d7dbe6;
+  font-size: 14px;
+}
+
+/* WASM BADGE */
+
+.wasm-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #2a2f3c;
+  border-radius: 4px;
+  color: #8fa3ff;
+}
+
+/* ENGINE BUTTON */
+
+.engine-toggle {
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.engine-toggle.on {
+  background: #2e7d32;
+  color: white;
+}
+
+.engine-toggle.off {
+  background: #5c1f1f;
+  color: white;
+}
+
+/* ENGINE STATS */
+
+.engine-stats {
+  font-size: 13px;
+  color: #9aa4b8;
+  margin-bottom: 6px;
+}
+
+/* DEPTH */
+
+#studyDepth {
+  color: #4fc3f7;
+  font-weight: 600;
+}
+
+/* EVAL COLORS */
+
+.eval-positive {
+  color: #66bb6a;
+  font-weight: 700;
+}
+
+.eval-negative {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.eval-equal {
+  color: #cfd8dc;
+}
+
+.eval-mate {
+  color: #ff4d4f;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* ENGINE LINES */
+
+.engine-lines {
+  font-size: 13px;
+  color: #d0d4dc;
+  line-height: 1.6;
+}
+
+.engine-line {
+  padding: 2px 4px;
+}
+
+/* BEST LINE */
+
+.engine-line:nth-child(1) {
+  color: #81c784;
+  font-weight: 600;
+}
+
+/* SECOND */
+
+.engine-line:nth-child(2) {
+  color: #64b5f6;
+}
+
+/* THIRD */
+
+.engine-line:nth-child(3) {
+  color: #ba68c8;
+}
 
 
 
@@ -16572,9 +16697,9 @@ body.guardians-theme .chessboard-63f37 img {
   </div>
 
   <div class="engine-stats">
-    Eval: <span id="studyEval">--</span>
+    Eval <span id="studyEval">--</span>
     &nbsp; | &nbsp;
-    Depth: <span id="studyDepth">--</span>
+    Depth <span id="studyDepth">--</span>
   </div>
 
   <div id="studyPVLines" class="engine-lines"></div>
@@ -34169,15 +34294,24 @@ function updateStudyEngineUI(line) {
 
  
 // ===== MATE (PV1 ONLY) =====
+// ===== MATE (PV1 ONLY) =====
 if (mateMatch && isPV1) {
+
   let mate = parseInt(mateMatch[1], 10);
 
   if (studyChess.turn() === "b") mate = -mate;
 
   evalBox.textContent = `M${mate}`;
-  // ❌ DO NOT return — let PV rendering continue
-}
 
+  evalBox.classList.remove(
+    "eval-positive",
+    "eval-negative",
+    "eval-equal"
+  );
+
+  evalBox.classList.add("eval-mate");
+
+}
 
   // ===== CENTIPAWN (PV1 ONLY + DEPTH GATED) =====
   if (cpMatch && isPV1) {
@@ -34188,6 +34322,23 @@ if (mateMatch && isPV1) {
 
     const evalValue = (cp / 100).toFixed(2);
     evalBox.textContent = cp > 0 ? `+${evalValue}` : evalValue;
+
+evalBox.classList.remove(
+  "eval-positive",
+  "eval-negative",
+  "eval-equal",
+  "eval-mate"
+);
+
+if (cp > 20) {
+  evalBox.classList.add("eval-positive");
+}
+else if (cp < -20) {
+  evalBox.classList.add("eval-negative");
+}
+else {
+  evalBox.classList.add("eval-equal");
+}
   }
 
   /* ================= MULTI-PV DISPLAY ================= */
@@ -53838,6 +53989,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
