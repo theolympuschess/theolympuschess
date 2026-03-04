@@ -16054,9 +16054,17 @@ body.guardians-theme .chessboard-63f37 img {
 }
 
 
+/* =========================
+   LAST MOVE HIGHLIGHT
+   ========================= */
 
-
-
+.last-move-from,
+.last-move-to {
+  background: rgba(76, 175, 80, 0.6);
+  box-shadow:
+    inset 0 0 18px rgba(76, 175, 80, 0.9),
+    0 0 8px rgba(76, 175, 80, 0.7);
+}
 
 
 
@@ -30897,6 +30905,30 @@ if (typeof loadSavedStudyChapters === "function") {
 }
 });
 
+
+// =========================
+// LAST MOVE HIGHLIGHT
+// =========================
+
+function clearLastMoveHighlight() {
+  document
+    .querySelectorAll(".last-move-from, .last-move-to")
+    .forEach(el => {
+      el.classList.remove("last-move-from", "last-move-to");
+    });
+}
+
+function highlightLastMove(from, to) {
+
+  clearLastMoveHighlight();
+
+  const fromSq = document.querySelector(`#studyBoard .square-${from}`);
+  const toSq   = document.querySelector(`#studyBoard .square-${to}`);
+
+  if (fromSq) fromSq.classList.add("last-move-from");
+  if (toSq)   toSq.classList.add("last-move-to");
+}
+
 // ===============================
 // 📘 Study PGN Import (UI only)
 // ===============================
@@ -32126,6 +32158,7 @@ if (e.key === "ArrowRight") {
     if (studyCurrentNode && studyCurrentNode.parent) {
       goToStudyTreeNode(studyCurrentNode.parent);
       clearStudyMoveMarker();
+     
     }
   }
   // ============================================
@@ -32242,15 +32275,27 @@ function addStudyMoveToTree(move) {
 function goToStudyTreeNode(node) {
   if (!node) return;
 
+  clearStudyMoveMarker();
+
   studyChess.load(node.fen);
   studyBoard.position(node.fen);
 
   studyCurrentNode = node;
 
   renderStudyNotationTree();
-  // 🔥 SHOW BOARD ANNOTATION
-  showStudyMoveMarker(node);
-  // 🧠 ENGINE HOOK (critical for navigation)
+
+  // 🔥 ensure board finished rendering
+  requestAnimationFrame(() => {
+
+    if (node.move) {
+      highlightLastMove(node.move.from, node.move.to);
+    }
+
+    // show annotation bubble
+    showStudyMoveMarker(node);
+
+  });
+
   if (studyEngineEnabled) {
     analyzeStudyPosition();
   }
@@ -32548,29 +32593,33 @@ let studyPawnViewActive = false;
 let studyMoveMarkerEl = null;
 
 function clearStudyMoveMarker() {
-  if (studyMoveMarkerEl) {
-    studyMoveMarkerEl.remove();
-    studyMoveMarkerEl = null;
-  }
-}
 
+  document
+    .querySelectorAll(".study-move-marker")
+    .forEach(el => el.remove());
+
+  studyMoveMarkerEl = null;
+}
 function showStudyMoveMarker(node) {
 
   clearStudyMoveMarker();
 
   if (!node || !node.move || !node.annotation) return;
 
-  const anno = studyAnnotations[node.annotation];
-  const cssClass = anno.class;
-  if (!anno) return;
+  // ⏱ Wait until piece finishes moving
+  setTimeout(() => {
 
-  const square = node.move.to;
+    const anno = studyAnnotations[node.annotation];
+    const cssClass = anno.class;
+    if (!anno) return;
 
-  const squareEl = document.querySelector(
-    `#studyBoard .square-${square}`
-  );
+    const square = node.move.to;
 
-  if (!squareEl) return;
+    const squareEl = document.querySelector(
+      `#studyBoard .square-${square}`
+    );
+
+    if (!squareEl) return;
 
   const marker = document.createElement("div");
 
@@ -32620,6 +32669,7 @@ text-align:center;
   squareEl.appendChild(marker);
 
   studyMoveMarkerEl = marker;
+}, 120);
 }
 // ===============================
 // ♟️ STUDY PIECE THEME RESOLVER
@@ -32897,7 +32947,7 @@ function onStudyDrop(source, target) {
   });
 
   if (!move) return "snapback";
-
+highlightLastMove(move.from, move.to);
   // =========================================
   // 🔥 NEW TREE SYSTEM (IMPORTANT)
   // =========================================
@@ -52984,6 +53034,7 @@ item.innerHTML = `
     }
 
     renderStudyNotationTree();
+    showStudyMoveMarker(studyCurrentNode);
     openModal();
   });
 
@@ -54111,6 +54162,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
