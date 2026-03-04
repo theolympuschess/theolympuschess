@@ -20505,6 +20505,9 @@ hardResetEngineForReview(reviewWaiting.fen);
 
 }
 
+
+
+
 let engineFen = null;
 
 
@@ -20574,6 +20577,7 @@ if (line === "readyok") {
       // ======================
       // HEADER EVAL (PV1 ONLY)
       // ======================
+      if (chess.fen() !== engineFen) return;
       if (cpMatch && multipvMatch && multipvMatch[1] === "1") {
   const rawCp = parseInt(cpMatch[1], 10);
 
@@ -20657,7 +20661,7 @@ function startEngine() {
 
   stockfish.postMessage("ucinewgame");
   stockfish.postMessage(`position fen ${fen}`);
-  stockfish.postMessage("go depth 14");
+  stockfish.postMessage("go infinite");
 
   document.getElementById("analyzeBtn").textContent = "🔴 Stop Analysis";
 }
@@ -20774,18 +20778,18 @@ function autoStartPiecePractice() {
 
 /* 🔥 PUT IT HERE */
 function updateEnginePosition() {
-  if (!engineRunning) return;
+  if (!engineRunning || !stockfish || !chess) return;
 
-  Object.keys(pvMap).forEach(k => delete pvMap[k]);
+  // stop previous search immediately
+  stockfish.postMessage("stop");
 
-  for (let i = 1; i <= 3; i++) {
-    document.getElementById(`engineLine${i}`).textContent =
-      `${ENGINE_BULLETS[i - 1]} –`;
-  }
+  const fen = chess.fen();
+  engineFen = fen;
 
-  
-  stockfish.postMessage(`position fen ${chess.fen()}`);
-  stockfish.postMessage("go infinite");
+  stockfish.postMessage(`position fen ${fen}`);
+
+  // fast responsive analysis
+  stockfish.postMessage("go movetime 800");
 }
 
 
@@ -25104,6 +25108,7 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
     function onSnapEnd() {
   board.position(chess.fen());
+  updateEnginePosition();
 
   // ✅ Hide drawings visually when position changes
   clearSVGOnly();
@@ -25152,7 +25157,7 @@ window.clearAllStudents = function () {
   }
 
   board.position(chess.fen());
-
+updateEnginePosition();
   updatePGNViewer();
   renderNotation();
   updateNavigationButtons();
@@ -25249,6 +25254,8 @@ function clearSVGOnly() {
           pgnCursor--;
         }
         board.position(chess.fen());
+        
+        updateEnginePosition();
         updatePGNViewer();
         updateNavigationButtons();
        renderNotationTree();
@@ -26211,7 +26218,8 @@ function goToTreeNode(node) {
 
   currentNode = node;
 
-  if (engineRunning) updateEnginePosition();
+  // 🔥 ENGINE SYNC
+updateEnginePosition();
 
   renderNotationTree();
   updateNavigationButtons();
@@ -26520,6 +26528,7 @@ function renderNotation() {
       }
       
       board.position(chess.fen());
+      updateEnginePosition();
       // Sync tree pointer to mainline position
 let temp = moveTreeRoot;
 for (let i = 0; i < targetIndex; i++) {
@@ -26530,7 +26539,7 @@ for (let i = 0; i < targetIndex; i++) {
 currentNode = temp;
 
       // 🔥 Keep engine synced during PGN navigation
-if (engineRunning) updateEnginePosition();
+updateEnginePosition();
 
       // 🔊 Play sound for PGN navigation move
 if (targetIndex > 0) {
@@ -26793,6 +26802,7 @@ window.loadPGNFromString = function (pgnString) {
     // 🔥 START FROM INITIAL POSITION (NOT LAST)
 chess.reset();
 board.position(chess.fen());
+updateEnginePosition();
 
 currentNode = moveTreeRoot;
 pgnCursor = 0;
@@ -26946,6 +26956,7 @@ function closeModal() {
         // 🔥 Start from beginning instead of last
 chess.reset();
 board.position(chess.fen());
+updateEnginePosition();
 
 currentNode = moveTreeRoot;
 pgnCursor = 0;
@@ -27008,6 +27019,8 @@ setTimeout(() => {
       try {
         chess.load(fen);
         board.position(fen);
+        updateEnginePosition();
+        
         moveHistory = [];
         fullPGNHistory = [];
         pgnCursor = 0;
@@ -31204,7 +31217,14 @@ window.createNewStudyChapter = function(title) {
   studyMoveTreeRoot = newRoot;
   studyCurrentNode = newRoot;
 
+
+
   renderStudyChapters();
+
+    // 🧠 ENGINE HOOK (NEW)
+  if (studyEngineEnabled) {
+    analyzeStudyPosition();
+  }
 
   console.log("📘 New chapter created (memory mode):", title);
 };
@@ -31224,6 +31244,11 @@ function hardResetStudyState() {
 
   studyChess.reset();
   studyBoard.position(studyChess.fen(), false);
+
+    // 🧠 ENGINE HOOK
+  if (studyEngineEnabled) {
+    analyzeStudyPosition();
+  }
 
   document.getElementById("studyTitle").textContent = "";
   document.getElementById("studyNotation").innerHTML =
@@ -31611,6 +31636,11 @@ pasteBtn.onclick = (e) => {
 
   studyBoard.position(studyChess.fen(), false);
 
+  // 🧠 ENGINE HOOK
+if (studyEngineEnabled) {
+  analyzeStudyPosition();
+}
+
   // 🔥 Save raw PGN to chapter
   studyState.chapters[idx].pgn = cleanPgn;
 
@@ -31670,6 +31700,11 @@ studyBoard.orientation(sideToMove === "b" ? "black" : "white");
 studyBoard.position(studyCurrentNode.fen, false);
 
 renderStudyNotationTree();
+
+// 🧠 ENGINE HOOK (important)
+if (studyEngineEnabled) {
+  analyzeStudyPosition();
+}
 
   // ===============================
 // 🧠 Extract PGN Comments (per chapter)
@@ -31895,6 +31930,9 @@ function jumpToMove(index) {
 
   if (index < 0) {
     studyBoard.position(studyChess.fen(), false);
+     // 🧠 ENGINE HOOK
+    if (studyEngineEnabled) analyzeStudyPosition();
+
     return;
   }
 
@@ -31910,6 +31948,8 @@ function jumpToMove(index) {
   }
 
   studyBoard.position(studyChess.fen(), false);
+   // 🧠 ENGINE HOOK
+  if (studyEngineEnabled) analyzeStudyPosition();
 }
 
 
@@ -32039,6 +32079,10 @@ function goToStudyTreeNode(node) {
   studyCurrentNode = node;
 
   renderStudyNotationTree();
+  // 🧠 ENGINE HOOK (critical for navigation)
+  if (studyEngineEnabled) {
+    analyzeStudyPosition();
+  }
 }
 
 // ============================================
@@ -32189,6 +32233,23 @@ span.addEventListener("contextmenu", (e) => {
     }
 
     span.innerHTML += move.san + " ";
+
+    // 🧠 ADD ANNOTATION SUPPORT
+if (variationNode.annotation) {
+  const badge = document.createElement("span");
+  badge.className = "study-anno-badge";
+
+  const anno = studyAnnotations[variationNode.annotation];
+  badge.textContent = anno.symbol;
+  badge.classList.add(anno.class);
+
+  span.appendChild(badge);
+}
+
+// 🔥 highlight current variation move
+if (variationNode === studyCurrentNode) {
+  span.classList.add("current");
+}
 
     span.onclick = () => {
       goToStudyTreeNode(variationNode);
@@ -32363,6 +32424,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 🔄 force re-render ONLY
     studyBoard.position(studyChess.fen(), false);
+    // 🧠 ENGINE HOOK
+    if (studyEngineEnabled) {
+      analyzeStudyPosition();
+    }
   });
 });
 
@@ -32610,6 +32675,11 @@ function onStudyDrop(source, target) {
 
   studyBoard.position(studyChess.fen(), false);
 
+  // 🧠 ENGINE HOOK
+  if (studyEngineEnabled) {
+    analyzeStudyPosition();
+  }
+
   console.log("♟️ Study move:", move.san);
 }
 
@@ -32708,6 +32778,8 @@ function studyFinishMove(source, target, promotion) {
 
   if (!move) {
     studyBoard.position(studyChess.fen(), false);
+    // 🧠 ENGINE HOOK
+    if (studyEngineEnabled) analyzeStudyPosition();
     return;
   }
 
@@ -32736,6 +32808,8 @@ renderStudyNotationTree();
   );
 
   studyBoard.position(studyChess.fen(), false);
+  // 🧠 ENGINE HOOK
+  if (studyEngineEnabled) analyzeStudyPosition();
 
   console.log("♟️ Study promotion:", move.san);
 }
@@ -34013,6 +34087,7 @@ function initStudyEngine() {
   };
 
   studyEngine.postMessage("uci");
+  studyEngine.postMessage("setoption name Hash value 64");
 
   // 🔥 ADD THIS LINE (CRITICAL)
   studyEngine.postMessage("setoption name MultiPV value 3");
@@ -34024,33 +34099,37 @@ function initStudyEngine() {
 
 
 
-
-
 function analyzeStudyPosition() {
+
   if (!studyEngine || !studyChess || !studyEngineEnabled) return;
 
-  // 🧠 reset UI + engine search state
   studyLastDepth = 0;
+  studyPV = {};
+
   document.getElementById("studyEval").textContent = "…";
   document.getElementById("studyPVLines").innerHTML = "";
 
-  // 🛑 stop any running search
+  // stop previous search
   studyEngine.postMessage("stop");
 
-  // ♻️ CRITICAL: clear hash + previous context
-  studyEngine.postMessage("ucinewgame");
+  // wait until engine is ready
+  studyEngine.postMessage("isready");
 
-  // ♟️ send current position
-  studyEngine.postMessage(
-    "position fen " + studyChess.fen()
-  );
+  const handleReady = (e) => {
 
-  // 🚀 continuous analysis (best for UI)
-  studyEngine.postMessage("go infinite");
+    if (e.data !== "readyok") return;
+
+    studyEngine.removeEventListener("message", handleReady);
+
+    studyEngine.postMessage(
+      "position fen " + studyChess.fen()
+    );
+
+    studyEngine.postMessage("go movetime 800");
+  };
+
+  studyEngine.addEventListener("message", handleReady);
 }
-
-
-
 
 
 
@@ -34058,7 +34137,7 @@ function analyzeStudyPosition() {
 
 // ===== ENGINE STATE =====
 let studyLastDepth = 0;
-const STUDY_MIN_EVAL_DEPTH = 16;
+const STUDY_MIN_EVAL_DEPTH = 6;
 
 function updateStudyEngineUI(line) {
   if (!studyEngineEnabled) return;
@@ -34243,6 +34322,7 @@ board.orientation(boardOrientation);
     
     // Update board
     board.position(chess.fen());
+    updateEnginePosition();
    
 
     // Update UI
@@ -34558,6 +34638,7 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
   // 🔥 Sync board (safety)
   board.position(chess.fen());
+  updateEnginePosition();
 
   // 🔥 Update UI
   updatePGNViewer();
@@ -34577,6 +34658,7 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
       attemptCount++;
       chess.undo();
       board.position(chess.fen());
+      updateEnginePosition();
 
       showStatus(
         `Wrong promotion. Try again. Attempts: ${attemptCount}`,
@@ -34616,6 +34698,7 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
           pgnCursor++;
           assignmentCursor++;
           board.position(chess.fen());
+          updateEnginePosition();
 
           updatePGNViewer();
           renderNotation();
@@ -34698,6 +34781,7 @@ function loadCurrentBulkPuzzle() {
   // Board setup
   board.orientation(assignmentColor === "w" ? "white" : "black");
   board.position(chess.fen());
+  updateEnginePosition();
 
   // UI updates
   updatePGNViewer();
@@ -34896,6 +34980,7 @@ updateEngineVisibility();
 
   // Render board
   board.position(chess.fen());
+  updateEnginePosition();
 
   // Show assignment UI
   document.getElementById("assignmentModeContainer").style.display = "block";
@@ -42876,6 +42961,7 @@ if (currentAssignment && expectedMoves.length > 0) {
 
   // 🧲 Force visual sync (tap mode doesn't trigger onSnapEnd)
   board.position(chess.fen());
+  updateEnginePosition();
 
   // Hide drawings like drag mode does
   clearSVGOnly();
@@ -42918,6 +43004,7 @@ pgnCursor++;
 
     // 🔄 Update board + UI
     board.position(chess.fen());
+    updateEnginePosition();
     updatePGNViewer();
     renderNotationTree();
 
