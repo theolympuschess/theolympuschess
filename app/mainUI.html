@@ -32125,6 +32125,7 @@ if (e.key === "ArrowRight") {
   if (e.key === "ArrowLeft") {
     if (studyCurrentNode && studyCurrentNode.parent) {
       goToStudyTreeNode(studyCurrentNode.parent);
+      clearStudyMoveMarker();
     }
   }
   // ============================================
@@ -32235,6 +32236,8 @@ function goToStudyTreeNode(node) {
   studyCurrentNode = node;
 
   renderStudyNotationTree();
+  // 🔥 SHOW BOARD ANNOTATION
+  showStudyMoveMarker(node);
   // 🧠 ENGINE HOOK (critical for navigation)
   if (studyEngineEnabled) {
     analyzeStudyPosition();
@@ -32525,7 +32528,87 @@ studyChess = new Chess();
 // ===============================
 let studyPawnViewActive = false;
 
+// ============================================
+// 🟢 STUDY BOARD MOVE MARKER SYSTEM
+// (visual badge like chess.com ! ? etc)
+// ============================================
 
+let studyMoveMarkerEl = null;
+
+function clearStudyMoveMarker() {
+  if (studyMoveMarkerEl) {
+    studyMoveMarkerEl.remove();
+    studyMoveMarkerEl = null;
+  }
+}
+
+function showStudyMoveMarker(node) {
+
+  clearStudyMoveMarker();
+
+  if (!node || !node.move || !node.annotation) return;
+
+  const anno = studyAnnotations[node.annotation];
+  const cssClass = anno.class;
+  if (!anno) return;
+
+  const square = node.move.to;
+
+  const squareEl = document.querySelector(
+    `#studyBoard .square-${square}`
+  );
+
+  if (!squareEl) return;
+
+  const marker = document.createElement("div");
+
+marker.className = "study-move-marker " + cssClass;
+marker.textContent = anno.symbol;
+
+// 🔥 Get the real NAG color from CSS
+const temp = document.createElement("span");
+temp.className = cssClass;
+document.body.appendChild(temp);
+
+const nagColor = getComputedStyle(temp).color;
+document.body.removeChild(temp);
+
+// Apply Lichess style
+marker.style.background = nagColor;
+marker.style.color = "#ffffff";
+
+marker.style.cssText += `
+  position:absolute;
+  top:0;
+  right:0;
+  transform:translate(40%, -40%);
+  width:36px;
+  height:36px;
+  border-radius:50%;
+
+  font-weight:900;
+font-size:22px;
+line-height:34px;
+display:flex;
+align-items:center;
+justify-content:center;
+text-align:center;
+
+  pointer-events:none;
+
+  
+
+  box-shadow:
+    0 0 3px rgba(0,0,0,0.6);
+
+  z-index:999;
+`;
+
+  squareEl.style.position = "relative";
+  squareEl.appendChild(marker);
+
+  studyMoveMarkerEl = marker;
+}
 // ===============================
 // ♟️ STUDY PIECE THEME RESOLVER
 // ===============================
@@ -32808,6 +32891,7 @@ function onStudyDrop(source, target) {
   // =========================================
   addStudyMoveToTree(move);
   renderStudyNotationTree();
+  showStudyMoveMarker(studyCurrentNode);
 
   // =========================================
   // 🔁 KEEP YOUR EXISTING ARRAY (SAFE)
@@ -32944,6 +33028,7 @@ function studyFinishMove(source, target, promotion) {
 // =========================================
 addStudyMoveToTree(move);
 renderStudyNotationTree();
+showStudyMoveMarker(studyCurrentNode);
 
   // 🔑 absolute move index
   const absoluteIndex =
