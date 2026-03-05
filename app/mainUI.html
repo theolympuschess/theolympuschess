@@ -25061,6 +25061,8 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
 
     // Correct move
+    // 🔶 highlight student move
+highlightLastMove(move.from, move.to, "chessboard");
     moveHistory.push({
       from: move.from,
       to: move.to,
@@ -25130,6 +25132,9 @@ loadMiniStats();
       setTimeout(() => {
         const autoMove = chess.move(reply.san);
         if (autoMove) {
+          // 🔶 highlight auto reply
+  highlightLastMove(autoMove.from, autoMove.to, "chessboard");
+
           // 🔊 AUTO MOVE SOUND (soft)
   if (autoMove.captured) {
     playSound('capture');
@@ -25209,7 +25214,9 @@ move = chess.move({ from: source, to: target });
 // ❌ Illegal move
 if (!move) {
   return "snapback";
+  
 }
+highlightLastMove(move.from, move.to, "chessboard");
 
 // 🔊 MOVE / CAPTURE SOUND
 if (move.flags.includes('k') || move.flags.includes('q')) {
@@ -25843,6 +25850,8 @@ async function afterVsPlayerMove(move) {
 
   if (!move) return;
 
+  highlightLastMove(move.from, move.to, "computerBoard");
+
   // ✅ 1. IMMEDIATE board sync (FIXES CASTLING ROOK ISSUE)
  
 
@@ -26071,6 +26080,8 @@ else {
 
   // ✅ SYNC BOARD
   vsBoard.position(vsChess.fen());
+  // 🔶 highlight bot move
+highlightLastMove(engineMove.from, engineMove.to, "computerBoard");
   // 🔴 LIVE UPDATE — ENGINE MOVE (FOR SPECTATOR)
 // 🔴 LIVE UPDATE — ENGINE MOVE (DELAYED FOR SPECTATOR ANIMATION)
 if (window.vsBotLiveGameId) {
@@ -26365,6 +26376,15 @@ function goToTreeNode(node) {
   board.position(node.fen);
 
   currentNode = node;
+
+  // 🔶 highlight tree move
+if (node.move) {
+  setTimeout(() => {
+    highlightLastMove(node.move.from, node.move.to, "chessboard");
+  }, 10);
+} else {
+  clearLastMoveHighlight("chessboard");
+}
 
   // 🔥 ENGINE SYNC
 updateEnginePosition();
@@ -26677,6 +26697,9 @@ function renderNotation() {
       
       board.position(chess.fen());
       updateEnginePosition();
+
+      
+      
       // Sync tree pointer to mainline position
 let temp = moveTreeRoot;
 for (let i = 0; i < targetIndex; i++) {
@@ -30925,20 +30948,22 @@ if (typeof loadSavedStudyChapters === "function") {
 // LAST MOVE HIGHLIGHT
 // =========================
 
-function clearLastMoveHighlight() {
+function clearLastMoveHighlight(boardId = "studyBoard") {
+
   document
-    .querySelectorAll(".last-move-from, .last-move-to")
+    .querySelectorAll(`#${boardId} .last-move-from, #${boardId} .last-move-to`)
     .forEach(el => {
       el.classList.remove("last-move-from", "last-move-to");
     });
+
 }
 
-function highlightLastMove(from, to) {
+function highlightLastMove(from, to, boardId = "studyBoard") {
 
-  clearLastMoveHighlight();
+  clearLastMoveHighlight(boardId);
 
-  const fromSq = document.querySelector(`#studyBoard .square-${from}`);
-  const toSq   = document.querySelector(`#studyBoard .square-${to}`);
+  const fromSq = document.querySelector(`#${boardId} .square-${from}`);
+  const toSq   = document.querySelector(`#${boardId} .square-${to}`);
 
   if (fromSq) fromSq.classList.add("last-move-from");
   if (toSq)   toSq.classList.add("last-move-to");
@@ -33148,6 +33173,10 @@ showStudyMoveMarker(studyCurrentNode);
   );
 
   studyBoard.position(studyChess.fen(), false);
+  // 🔶 highlight promotion move
+setTimeout(() => {
+  highlightLastMove(move.from, move.to, "studyBoard");
+}, 10);
   // 🧠 ENGINE HOOK
   if (studyEngineEnabled) analyzeStudyPosition();
 
@@ -35005,6 +35034,9 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
   // 🔥 Sync board (safety)
   board.position(chess.fen());
   updateEnginePosition();
+  setTimeout(() => {
+  highlightLastMove(move.from, move.to, "chessboard");
+}, 10);
 
   // 🔥 Update UI
   updatePGNViewer();
@@ -35065,6 +35097,9 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
           assignmentCursor++;
           board.position(chess.fen());
           updateEnginePosition();
+          setTimeout(() => {
+    highlightLastMove(autoMove.from, autoMove.to, "chessboard");
+  }, 10);
 
           updatePGNViewer();
           renderNotation();
@@ -51366,6 +51401,9 @@ if (trainerWrongAttempts >= 3) {
 
   return "snapback";
 }
+// 🔶 highlight player move
+highlightLastMove(move.from, move.to, "trainerBoard");
+
 
   // ✅ Correct move
   trainerMoveIndex++;
@@ -51454,6 +51492,10 @@ if (!trainerShowingSolution) {
 
   return;
 }
+
+// 🔶 highlight promotion move
+highlightLastMove(move.from, move.to, "trainerBoard");
+
 
   // ✅ CORRECT PROMOTION
   trainerMoveIndex++;
@@ -51554,6 +51596,8 @@ if (autoMove.flags.includes('k') || autoMove.flags.includes('q')) {
  showTrainerStatus(`Computer played ${autoMove.san}`, "info");
 
   trainerBoard.position(trainerChess.fen(), true);
+  // 🔶 highlight trainer auto move
+highlightLastMove(autoMove.from, autoMove.to, "trainerBoard");
 
   setTimeout(playTrainerAutoMove, 500);
 }
@@ -52187,6 +52231,7 @@ function playTrainerFullSolution() {
 
     trainerBoard.position(trainerChess.fen(), true);
     trainerMoveIndex++;
+    highlightLastMove(move.from, move.to, "trainerBoard");
 
     setTimeout(playNext, 1500);
   }
@@ -54202,7 +54247,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
