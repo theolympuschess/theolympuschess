@@ -20767,7 +20767,31 @@ if (mateMatch && multipvMatch && multipvMatch[1] === "1") {
 
       if (multipvMatch && pvMatch) {
         const index = Number(multipvMatch[1]); // 1,2,3
-        pvMap[index] = pvMatch[1].split(" ").slice(0, 10);
+        let evalText = "";
+
+// centipawn eval
+if (cpMatch) {
+  const rawCp = parseInt(cpMatch[1], 10);
+
+  if (!engineFen) return;
+  const fenTurn = engineFen.split(" ")[1];
+  const evalCp = fenTurn === "w" ? rawCp : -rawCp;
+
+  evalText = (evalCp > 0 ? "+" : "") + (evalCp / 100).toFixed(2);
+}
+
+// mate eval
+if (mateMatch) {
+  const mate = parseInt(mateMatch[1], 10);
+  evalText = "M" + mate;
+}
+
+pvMap[index] = {
+  eval: evalText,
+  moves: pvMatch[1].split(" ").slice(0, 10)
+};
+
+renderMultiPV();
         renderMultiPV();
       }
       // ======================
@@ -20937,7 +20961,7 @@ function updateEnginePosition() {
   stockfish.postMessage(`position fen ${fen}`);
 
   // fast responsive analysis
-  stockfish.postMessage("go movetime 1000");
+  stockfish.postMessage("go movetime 3000");
 }
 
 
@@ -25527,7 +25551,7 @@ function renderMultiPV() {
     let san = [];
     let moveNum = fullMoveNumber;
 
-    pvMap[i].forEach(uci => {
+    pvMap[i].moves.forEach(uci => {
       const move = temp.move({
         from: uci.slice(0, 2),
         to: uci.slice(2, 4),
@@ -25545,7 +25569,10 @@ function renderMultiPV() {
 
     });
 
-    el.textContent = `${ENGINE_BULLETS[i - 1]} ${san.join(" ")}`;
+    const evalText = pvMap[i].eval || "";
+
+el.textContent =
+  evalText + "  " + san.join(" ");
   }
 }
 
@@ -34494,7 +34521,7 @@ function analyzeStudyPosition() {
       "position fen " + studyChess.fen()
     );
 
-    studyEngine.postMessage("go movetime 1000");
+    studyEngine.postMessage("go movetime 3000");
   };
 
   studyEngine.addEventListener("message", handleReady);
@@ -34587,19 +34614,43 @@ else {
   const uciPv = pvMatch[2];
 
   const sanPv = uciLineToSAN(studyChess.fen(), uciPv);
-  studyPV[index] = sanPv;
+  let evalText = "";
+
+// centipawn
+if (cpMatch) {
+  let cp = parseInt(cpMatch[1], 10);
+  if (studyChess.turn() === "b") cp = -cp;
+  evalText = (cp > 0 ? "+" : "") + (cp / 100).toFixed(2);
+}
+
+// mate
+if (mateMatch) {
+  let mate = parseInt(mateMatch[1], 10);
+  if (studyChess.turn() === "b") mate = -mate;
+  evalText = "M" + mate;
+}
+
+studyPV[index] = {
+  eval: evalText,
+  line: sanPv
+};
 
   const pvBox = document.getElementById("studyPVLines");
   pvBox.innerHTML = "";
 
-  Object.keys(studyPV)
-    .sort((a, b) => a - b)
-    .forEach(i => {
-      const div = document.createElement("div");
-      div.className = "engine-line";
-      div.textContent = studyPV[i];
-      pvBox.appendChild(div);
-    });
+ Object.keys(studyPV)
+  .sort((a, b) => a - b)
+  .forEach(i => {
+
+    const pv = studyPV[i];
+
+    const div = document.createElement("div");
+    div.className = "engine-line";
+
+    div.textContent = pv.eval + "  " + pv.line;
+
+    pvBox.appendChild(div);
+  });
 }
 
 
