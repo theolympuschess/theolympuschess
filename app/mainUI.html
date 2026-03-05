@@ -9852,7 +9852,7 @@ No JS / No HTML changes
 
 
 /* 🚫 STUDENT — HIDE STUDY TAB (ALL DEVICES) */
-body.student-view .nav-btn[data-tab="study"] {
+/*body.student-view .nav-btn[data-tab="study"] {
   display: none !important;
 }
 
@@ -31019,6 +31019,37 @@ function showFloatingModal(title, message, onClose) {
   };
 }
 
+async function populateStudyDropdown() {
+
+  const studySelect = document.getElementById("studySelect");
+  if (!studySelect) return;
+
+  const { data, error } = await supabase
+    .from("bulk_pgn_library")
+    .select("id, title, is_visible")
+    .eq("is_active", true)
+    .order("id", { ascending: false })
+
+  if (error) {
+    console.error("Dropdown load error:", error);
+    return;
+  }
+
+  studySelect.innerHTML = '<option value="">Study</option>';
+
+  data.forEach(row => {
+
+    const icon = row.is_visible ? "🟢" : "🔴";
+
+    const option = document.createElement("option");
+    option.value = row.id;
+    option.textContent = `${icon} ${row.title}`;
+
+    studySelect.appendChild(option);
+
+  });
+
+}
 
 // ===============================
 // 📘 Study PGN Import (UI only) — FIXED
@@ -31494,18 +31525,40 @@ function hardResetStudyState() {
 // 📥 LOAD FULL STUDY (WITH MULTIPLE CHAPTERS)
 // ============================================
 window.loadSavedStudyChapters = async function() {
- hardResetStudyState();   // 🔥 ADD THIS FIRST
+
+  hardResetStudyState();   // 🔥 ADD THIS FIRST
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data, error } = await supabase
-  .from("bulk_pgn_library")
-  .select("id, title, pgn")
-  .eq("source", "study")
-  .eq("is_active", true) // 🔥 IMPORTANT
-  .order("id", { ascending: false })
- 
+  // 🔐 Detect admin
+  let isAdmin = false;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  isAdmin = profile?.role === "admin";
+
+  // ====================================
+  // 🔎 BUILD QUERY SAFELY
+  // ====================================
+
+  let query = supabase
+    .from("bulk_pgn_library")
+    .select("id, title, pgn")
+    .eq("source", "study")
+    .eq("is_active", true)
+    .order("id", { ascending: false });
+
+  // 👨‍🎓 Students only see visible studies
+  if (!isAdmin) {
+    query = query.eq("is_visible", true);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Failed to load study:", error);
@@ -31522,7 +31575,7 @@ window.loadSavedStudyChapters = async function() {
   // 🔥 Split chapters by ChapterName tag
   const chapters = fullPgn
     .split(/\[ChapterName\s+"[^"]+"\]/)
-    .slice(1); // remove first empty split
+    .slice(1);
 
   const titles = [...fullPgn.matchAll(/\[ChapterName\s+"([^"]+)"\]/g)];
 
@@ -31532,12 +31585,10 @@ window.loadSavedStudyChapters = async function() {
     pgn: chapterPgn.trim()
   }));
 
-  
-
   currentStudyTitle = studyRow.title;
 
   renderStudyChapters();
-}
+};
 
 function extractFenFromPgn(pgn) {
   const match = pgn.match(/\[FEN\s+"([^"]+)"\]/);
@@ -32857,12 +32908,34 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const { data, error } = await supabase
+    // 🔐 Check if user is admin
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    isAdmin = profile?.role === "admin";
+  }
+
+   let queryBuilder = supabase
   .from("bulk_pgn_library")
-  .select("id, title")
-  .eq("is_active", true)          // 🔥 ADD THIS
+  .select("id, title, is_visible")
+  .eq("is_active", true)
   .ilike("title", `%${query}%`)
   .order("title", { ascending: true });
+
+// 👨‍🎓 students should only see visible studies
+if (!isAdmin) {
+  queryBuilder = queryBuilder.eq("is_visible", true);
+}
+
+const { data, error } = await queryBuilder;
 
     if (error) {
       console.error("❌ PGN search error:", error);
@@ -32876,27 +32949,78 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    data.forEach(row => {
-      const item = document.createElement("div");
-      item.className = "study-search-item";
-      item.textContent = row.title;
+   data.forEach(row => {
 
-      item.onclick = () => {
-  searchBox.value = row.title;
-  dropdown.classList.add("hidden");
+  const item = document.createElement("div");
+  item.className = "study-search-item";
+  item.style.display = "flex";
+  item.style.justifyContent = "space-between";
+  item.style.alignItems = "center";
 
-  const studySelect = document.getElementById("studySelect");
-  if (!studySelect) return;
+  // Study title
+  const title = document.createElement("span");
+  title.textContent = row.title;
+  title.style.cursor = "pointer";
 
-  studySelect.value = row.id;
+  title.onclick = () => {
 
-  // 🔥 trigger your existing change listener
-  studySelect.dispatchEvent(new Event("change"));
-};
+    searchBox.value = row.title;
+    dropdown.classList.add("hidden");
 
+    const studySelect = document.getElementById("studySelect");
+    if (!studySelect) return;
 
-      dropdown.appendChild(item);
-    });
+    studySelect.value = row.id;
+
+    studySelect.dispatchEvent(new Event("change"));
+  };
+
+  // 👁 visibility button
+  const eyeBtn = document.createElement("span");
+
+eyeBtn.textContent = row.is_visible ? "🟢" : "🔴";
+
+eyeBtn.title = row.is_visible
+  ? "Visible to students"
+  : "Hidden from students";
+
+eyeBtn.style.cursor = "pointer";
+eyeBtn.style.fontSize = "18px";
+eyeBtn.style.marginLeft = "10px";
+
+  eyeBtn.onclick = async (e) => {
+
+    e.stopPropagation();
+
+    const newState = !row.is_visible;
+
+    const { error } = await supabase
+      .from("bulk_pgn_library")
+      .update({ is_visible: newState })
+      .eq("id", row.id);
+
+    if (error) {
+      console.error("❌ visibility toggle failed", error);
+      return;
+    }
+
+    row.is_visible = newState;
+
+   eyeBtn.textContent = newState ? "🟢" : "🔴";
+   // 🔄 refresh Study dropdown
+populateStudyDropdown();
+  };
+
+  item.appendChild(title);
+
+// 👁 show toggle ONLY for admin
+if (isAdmin) {
+  item.appendChild(eyeBtn);
+}
+
+dropdown.appendChild(item);
+
+});
 
     dropdown.classList.remove("hidden");
   }
@@ -32914,6 +33038,17 @@ document.addEventListener("DOMContentLoaded", () => {
       dropdown.classList.add("hidden");
     }
   });
+   // 🔥 Load studies when page starts
+populateStudyDropdown();
+
+// 🔥 Reload studies whenever dropdown is opened
+const studySelect = document.getElementById("studySelect");
+
+if (studySelect) {
+  studySelect.addEventListener("mousedown", () => {
+    populateStudyDropdown();
+  });
+}
 
 });
 
