@@ -16114,6 +16114,71 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+#studyReplayPopup {
+
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0,0,0,0.6);
+
+  z-index: 9999;
+}
+
+.study-popup-box {
+
+  background: #1f2233;
+  padding: 20px;
+
+  border-radius: 10px;
+  text-align: center;
+
+  min-width: 220px;
+}
+
+.study-popup-title {
+
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+#studyReplayOptions button {
+
+  margin: 6px;
+  padding: 6px 12px;
+
+  border: none;
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  background: #2f355c;
+  color: white;
+}
+
+#studyReplayOptions button:hover {
+  background: #ffd54a;
+  color: black;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -16726,8 +16791,14 @@ body.guardians-theme .chessboard-63f37 img {
     ></div>
 
     <div class="study-board-nav">
+      <button id="studyStartMoveBtn" class="study-move-btn">⏮</button>
   <button id="studyPrevMoveBtn" class="study-move-btn">◀</button>
+  <button id="studyPlayBtn" class="study-move-btn">▶︎▶︎</button>
+
+<button id="studyPauseBtn" class="study-move-btn">⏸</button>
   <button id="studyNextMoveBtn" class="study-move-btn">▶</button>
+  <button id="studyEndMoveBtn" class="study-move-btn">⏭</button>
+
 </div>
 
     <!-- DRAW LAYER -->
@@ -32314,7 +32385,118 @@ function studyNavigateBackward() {
 
 }
 
+// ===============================
+// ⏮ GO TO START POSITION
+// ===============================
+function studyGoToStart() {
 
+  if (!studyMoveTreeRoot) return;
+
+  goToStudyTreeNode(studyMoveTreeRoot);
+
+}
+
+
+// ===============================
+// ⏭ GO TO END OF MAINLINE
+// ===============================
+function studyGoToEnd() {
+
+  if (!studyCurrentNode) return;
+
+  let node = studyCurrentNode;
+
+  // climb to root first
+  while (node.parent) {
+    node = node.parent;
+  }
+
+  // follow mainline children
+  while (node.children && node.children.length > 0) {
+    node = node.children[0];
+  }
+
+  goToStudyTreeNode(node);
+
+}
+
+// ===============================
+// ▶ REPLAY SPEED POPUP
+// ===============================
+
+function showStudyReplayPopup() {
+
+  const popup = document.getElementById("studyReplayPopup");
+  const options = document.getElementById("studyReplayOptions");
+
+  options.innerHTML = "";
+
+  const speeds = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,];
+
+  speeds.forEach(sec => {
+
+    const btn = document.createElement("button");
+    btn.textContent = sec + "s";
+
+    btn.onclick = () => {
+
+      popup.classList.add("hidden");
+
+      studyAutoPlaySpeed = sec * 1000;
+
+      studyAutoPlayStart();
+
+    };
+
+    options.appendChild(btn);
+
+  });
+
+  popup.classList.remove("hidden");
+}
+
+// ===============================
+// ▶ AUTO PLAY MAINLINE
+// ===============================
+
+let studyAutoPlayTimer = null;
+let studyAutoPlaySpeed = 3000; // ms between moves
+
+
+function studyAutoPlayStart() {
+
+  if (studyAutoPlayTimer) return;
+
+  studyAutoPlayTimer = setInterval(() => {
+
+    if (!studyCurrentNode) {
+      studyAutoPlayStop();
+      return;
+    }
+
+    const children = studyCurrentNode.children;
+
+    if (!children || children.length === 0) {
+      studyAutoPlayStop();
+      return;
+    }
+
+    // always follow mainline
+    goToStudyTreeNode(children[0]);
+
+  }, studyAutoPlaySpeed);
+
+}
+
+
+function studyAutoPlayStop() {
+
+  if (!studyAutoPlayTimer) return;
+
+  clearInterval(studyAutoPlayTimer);
+  studyAutoPlayTimer = null;
+
+}
 // ===============================
 // ⌨️ KEYBOARD NAV — TREE BASED
 // ===============================
@@ -32414,6 +32596,47 @@ document.getElementById("studyPrevMoveBtn")?.addEventListener("click", (e) => {
   e.preventDefault();
 
   studyNavigateBackward();
+});
+
+// ⏮ Start button
+document.getElementById("studyStartMoveBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+  studyGoToStart();
+
+});
+
+// ⏭ End button
+document.getElementById("studyEndMoveBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+  studyGoToEnd();
+
+});
+
+// ▶ Start autoplay
+document.getElementById("studyPlayBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+   showStudyReplayPopup();
+
+});
+
+
+// ⏸ Pause autoplay
+document.getElementById("studyPauseBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+  studyAutoPlayStop();
+
 });
 
 function extractFenMoveIndex(pgn) {
@@ -53476,13 +53699,41 @@ document.addEventListener("mouseup", () => {
 });
 
 
+document.addEventListener("DOMContentLoaded", () => {
+
+  const cancelBtn = document.getElementById("studyReplayCancelBtn");
+
+  if (cancelBtn) {
+    cancelBtn.onclick = closeStudyReplayPopup;
+  }
+
+});
 
 
+function closeStudyReplayPopup() {
+
+  const popup = document.getElementById("studyReplayPopup");
+
+  if (!popup) return;
+
+  popup.classList.add("hidden");
+
+}
 
 
+document.addEventListener("click", (e) => {
 
+  const popup = document.getElementById("studyReplayPopup");
 
+  if (!popup || popup.classList.contains("hidden")) return;
 
+  const box = popup.querySelector(".study-popup-box");
+
+  if (!box.contains(e.target)) {
+    closeStudyReplayPopup();
+  }
+
+});
 
 
 
@@ -54523,6 +54774,22 @@ document.addEventListener("mouseup", () => {
     <span id="studyAnnoClose">✖</span>
   </div>
   <div class="study-anno-grid" id="studyAnnoGrid"></div>
+</div>
+
+<div id="studyReplayPopup" class="study-popup hidden">
+
+  <div class="study-popup-box">
+
+    <div class="study-popup-title">
+      Replay Speed
+    </div>
+
+    <div id="studyReplayOptions"></div>
+
+    <button id="studyReplayCancelBtn">Cancel</button>
+
+  </div>
+
 </div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
