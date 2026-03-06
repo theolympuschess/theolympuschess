@@ -31208,15 +31208,18 @@ document.getElementById("studySelect").addEventListener("change", async (e) => {
   console.log("📂 Study selected:", pgnId);
 
   const { data, error } = await supabase
-    .from("bulk_pgn_library")
-    .select("pgn, title")
-    .eq("id", pgnId)
-    .single();
+  .from("bulk_pgn_library")
+  .select("id, pgn, title")
+  .eq("id", pgnId)
+  .single();
 
   if (error || !data) {
     console.error("❌ Failed to load PGN:", error);
     return;
   }
+
+  // 🔥 IMPORTANT
+studyState.studyId = data.id;
 
   // 🔑 THIS IS THE MAGIC
   studyPgnInput.value = data.pgn;
@@ -31256,10 +31259,16 @@ function extractChapterName(pgn, fallback) {
 }
 
   // Confirm import
-  confirmBtn.addEventListener("click", () => {
-    hardResetStudyState();   // 🔥 ADD THIS HERE
-    const raw = studyPgnInput.value.trim();
-    if (!raw) return;
+ confirmBtn.addEventListener("click", () => {
+
+  const existingStudyId = studyState.studyId;
+
+  hardResetStudyState();
+
+  studyState.studyId = existingStudyId;
+
+  const raw = studyPgnInput.value.trim();
+  if (!raw) return;
 
     importedStudyPGN = raw;
 importedStudyTitle =
