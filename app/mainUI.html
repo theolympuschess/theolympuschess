@@ -16166,7 +16166,43 @@ body.guardians-theme .chessboard-63f37 img {
 
 
 
+.fen-editor{
+position:fixed;
+top:120px;
+left:300px;
+width:420px;
+background:#1b2035;
+border-radius:10px;
+box-shadow:0 10px 40px rgba(0,0,0,0.6);
+z-index:9999;
+padding:10px;
+}
 
+.fen-editor.hidden{
+display:none;
+}
+
+.fen-editor-header{
+font-weight:bold;
+cursor:move;
+display:flex;
+justify-content:space-between;
+padding:6px 10px;
+background:#2d3558;
+border-radius:6px;
+}
+
+#fenEditorBoard{
+width:360px;
+margin:10px auto;
+}
+
+.fen-editor-controls{
+display:flex;
+flex-wrap:wrap;
+gap:6px;
+justify-content:center;
+}
 
 
 
@@ -16806,6 +16842,10 @@ class="study-move-btn"
 title="Show / Hide notation panel"
 >
 📝
+</button>
+
+<button id="studyEditorBtn" class="study-move-btn" title="Board editor">
+🛠
 </button>
 
 </div>
@@ -32070,7 +32110,8 @@ studyList.appendChild(chapterWrapper);
     
 
    div.addEventListener("click", () => {
-
+// 🔥 set active chapter index
+  studyState.currentChapterIndex = idx;
   // 🔹 Update Study Title
   document.getElementById("studyTitle").textContent =
     `${currentStudyTitle} • ${ch.title}`;
@@ -53780,15 +53821,277 @@ document.getElementById("studyFlipBoardBtn")?.addEventListener("click", (e) => {
 
 
 
+// ======================================
+// 🛠 STUDY FEN EDITOR (FULLY ISOLATED)
+// ======================================
+
+let fenEditorChess = null;
+let fenEditorBoard = null;
 
 
+// --------------------------------------
+// INIT EDITOR BOARD (only once)
+// --------------------------------------
+function initFenEditor() {
+
+  if (fenEditorBoard) return;
+
+  fenEditorChess = new Chess();
+
+  fenEditorBoard = Chessboard("fenEditorBoard", {
+    draggable: true,
+    dropOffBoard: "trash",
+    sparePieces: true,
+    position: "start",
+    pieceTheme: getPieceThemePath(currentPieceTheme),
+
+    onDrop: (source, target, piece) => {
+
+      if (target === "offboard") return;
+
+      fenEditorChess.remove(source);
+
+      const color = piece[0];
+      const type  = piece[1].toLowerCase();
+
+      fenEditorChess.put({ type, color }, target);
+
+      syncFenEditorFEN();
+    }
+  });
+
+  setTimeout(syncFenEditorFEN, 50);
+}
 
 
+// --------------------------------------
+// OPEN POPUP EDITOR
+// --------------------------------------
+document.getElementById("studyEditorBtn")?.addEventListener("click", () => {
+
+  const modal = document.getElementById("studyFenEditor");
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+
+  initFenEditor();
+
+if (studyChess && fenEditorBoard) {
+
+  const fen = studyChess.fen();
+
+  fenEditorBoard.position(fen, false);
+  fenEditorChess.load(fen);
+
+  // ✅ sync dropdown with FEN turn
+  const turn = fen.split(" ")[1];
+  const turnSelect = document.getElementById("fenEditorTurn");
+  if (turnSelect) turnSelect.value = turn;
+
+}
+
+  syncFenEditorFEN();
+});
 
 
+// --------------------------------------
+// BUTTON HANDLERS
+// --------------------------------------
+
+document.getElementById("fenStartBtn")?.addEventListener("click", () => {
+
+  if (!fenEditorBoard) return;
+
+  fenEditorChess = new Chess();
+
+  fenEditorBoard.position(fenEditorChess.fen(), true);
+
+  syncFenEditorFEN();
+});
 
 
+document.getElementById("fenClearBtn")?.addEventListener("click", () => {
 
+  if (!fenEditorBoard) return;
+
+  fenEditorChess.clear();
+
+  fenEditorBoard.position({}, true);
+
+  syncFenEditorFEN();
+});
+
+
+document.getElementById("fenFlipBtn")?.addEventListener("click", () => {
+
+  if (!fenEditorBoard) return;
+
+  const o = fenEditorBoard.orientation();
+
+  fenEditorBoard.orientation(
+    o === "white" ? "black" : "white"
+  );
+
+});
+
+
+document.getElementById("fenCopyBtn")?.addEventListener("click", () => {
+
+  const fen = document.getElementById("editorFEN")?.value;
+
+  if (!fen) return;
+
+  navigator.clipboard.writeText(fen);
+
+});
+
+
+document.getElementById("fenApplyBtn")?.addEventListener("click", () => {
+
+  if (!fenEditorBoard) return;
+
+  // 🔒 lock the active chapter index
+  const idx = studyState.currentChapterIndex;
+
+  if (idx === null || idx === undefined) {
+    console.warn("⚠ No active chapter selected.");
+    return;
+  }
+
+  // ensure container exists
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+  // 🔥 save current tree before replacing it
+  if (studyMoveTreeRoot) {
+    studyState.chapterTrees[idx] = studyMoveTreeRoot;
+  }
+
+  // 🔥 get real board state from editor
+  const boardFen = fenEditorBoard.fen();
+
+  const turn =
+    document.getElementById("fenEditorTurn")?.value || "w";
+
+  const fullFen = `${boardFen} ${turn} KQkq - 0 1`;
+
+  // load engine
+  studyChess.load(fullFen);
+
+  // sync board from engine
+  studyBoard.position(studyChess.fen().split(" ")[0], false);
+
+  const newRoot = {
+    id: crypto.randomUUID(),
+    move: null,
+    parent: null,
+    children: [],
+    fen: fullFen,
+    comment: null
+  };
+
+  // 🔥 overwrite ONLY this chapter
+  studyState.chapterTrees[idx] = newRoot;
+
+  // activate tree
+  studyMoveTreeRoot = newRoot;
+  studyCurrentNode = newRoot;
+
+  renderStudyNotationTree();
+  clearStudyMoveMarker();
+
+  document
+    .getElementById("studyFenEditor")
+    ?.classList.add("hidden");
+
+});
+
+
+// --------------------------------------
+// TURN DROPDOWN
+// --------------------------------------
+document
+.getElementById("fenEditorTurn")
+?.addEventListener("change", syncFenEditorFEN);
+
+
+// --------------------------------------
+// CLOSE POPUP
+// --------------------------------------
+document
+.getElementById("closeFenEditor")
+?.addEventListener("click", () => {
+
+  document
+    .getElementById("studyFenEditor")
+    ?.classList.add("hidden");
+
+});
+
+
+// --------------------------------------
+// DRAGGABLE POPUP
+// --------------------------------------
+(function () {
+
+  const modal = document.getElementById("studyFenEditor");
+  if (!modal) return;
+
+  const header = modal.querySelector(".fen-editor-header");
+  if (!header) return;
+
+  let offsetX = 0;
+  let offsetY = 0;
+  let dragging = false;
+
+  header.addEventListener("mousedown", (e) => {
+
+    dragging = true;
+
+    offsetX = e.clientX - modal.offsetLeft;
+    offsetY = e.clientY - modal.offsetTop;
+
+  });
+
+  document.addEventListener("mousemove", (e) => {
+
+    if (!dragging) return;
+
+    modal.style.left = (e.clientX - offsetX) + "px";
+    modal.style.top  = (e.clientY - offsetY) + "px";
+
+  });
+
+  document.addEventListener("mouseup", () => {
+
+    dragging = false;
+
+  });
+
+})();
+
+
+// --------------------------------------
+// FEN SYNC
+// --------------------------------------
+function syncFenEditorFEN() {
+
+  const turn = document.getElementById("fenEditorTurn")?.value || "w";
+
+  console.log("TURN SELECTED:", turn);
+
+  const boardFen = fenEditorBoard.fen();
+
+  const fullFen = `${boardFen} ${turn} KQkq - 0 1`;
+
+  console.log("GENERATED FEN:", fullFen);
+
+  const fenInput = document.getElementById("editorFEN");
+
+  if (fenInput) fenInput.value = fullFen;
+
+}
 
 
 
@@ -54839,6 +55142,41 @@ document.getElementById("studyFlipBoardBtn")?.addEventListener("click", (e) => {
     <div id="studyReplayOptions"></div>
 
     <button id="studyReplayCancelBtn">Cancel</button>
+
+  </div>
+
+</div>
+
+
+<div id="studyFenEditor" class="fen-editor hidden">
+
+  <div class="fen-editor-header">
+    Board Editor
+    <span id="closeFenEditor">✖</span>
+  </div>
+
+  <div class="fen-editor-body">
+
+    <div id="fenEditorBoard"></div>
+
+    <div class="fen-editor-controls">
+
+     <button id="fenStartBtn">Starting Position</button>
+<button id="fenClearBtn">Clear Board</button>
+<button id="fenFlipBtn">Flip</button>
+<button id="fenCopyBtn">Copy FEN</button>
+
+     <select id="fenEditorTurn">
+        <option value="w">White to move</option>
+        <option value="b">Black to move</option>
+      </select>
+
+      
+      
+
+      <button id="fenApplyBtn">Apply to Study</button>
+
+    </div>
 
   </div>
 
