@@ -16074,7 +16074,29 @@ body.guardians-theme .chessboard-63f37 img {
 }
 
 
+.study-board-nav{
+  display:flex;
+  justify-content:center;
+  gap:14px;
+  margin-top:35px;
+}
 
+.study-move-btn{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  border:none;
+  font-size:18px;
+  cursor:pointer;
+  background:#2f3a5c;
+  color:white;
+  transition:all 0.2s ease;
+}
+
+.study-move-btn:hover{
+  background:#44548a;
+  transform:scale(1.05);
+}
 
 
 
@@ -16692,6 +16714,11 @@ body.guardians-theme .chessboard-63f37 img {
       id="studyBoard"
       style="width: 650px; height: 650px;"
     ></div>
+
+    <div class="study-board-nav">
+  <button id="studyPrevMoveBtn" class="study-move-btn">◀</button>
+  <button id="studyNextMoveBtn" class="study-move-btn">▶</button>
+</div>
 
     <!-- DRAW LAYER -->
     <canvas id="studyDrawLayer"></canvas>
@@ -32234,20 +32261,16 @@ function jumpToMove(index) {
 
 
 // ===============================
-// ⌨️ KEYBOARD NAV — TREE BASED
+// 🔁 SHARED NAVIGATION FUNCTIONS
 // ===============================
-document.addEventListener("keydown", (e) => {
 
-  if (
-    e.target.tagName === "INPUT" ||
-    e.target.tagName === "TEXTAREA"
-  ) return;
-
-if (e.key === "ArrowRight") {
+function studyNavigateForward() {
 
   if (!studyCurrentNode) return;
 
-  const children = studyCurrentNode.children;
+const children = studyCurrentNode.children;
+
+
   if (!children || children.length === 0) return;
 
   // 🔥 IF POPUP IS OPEN → FOLLOW TRUE MAINLINE
@@ -32269,31 +32292,57 @@ if (e.key === "ArrowRight") {
   } else {
     showStudyVariationPopup(children);
   }
+
 }
+
+function studyNavigateBackward() {
+
+  if (studyCurrentNode && studyCurrentNode.parent) {
+    goToStudyTreeNode(studyCurrentNode.parent);
+    clearStudyMoveMarker();
+  }
+
+}
+
+
+// ===============================
+// ⌨️ KEYBOARD NAV — TREE BASED
+// ===============================
+
+document.addEventListener("keydown", (e) => {
+
+  if (
+    e.target.tagName === "INPUT" ||
+    e.target.tagName === "TEXTAREA"
+  ) return;
+
+  if (e.key === "ArrowRight") {
+    studyNavigateForward();
+  }
 
   if (e.key === "ArrowLeft") {
-    if (studyCurrentNode && studyCurrentNode.parent) {
-      goToStudyTreeNode(studyCurrentNode.parent);
-      clearStudyMoveMarker();
-     
-    }
+    studyNavigateBackward();
   }
+
   // ============================================
-// ⌫ BACKSPACE DELETE
-// ============================================
-if (e.key === "Backspace") {
+  // ⌫ BACKSPACE DELETE
+  // ============================================
 
-  // Prevent browser back navigation
-  e.preventDefault();
+  if (e.key === "Backspace") {
 
-  // Optional: block students
-  if (typeof isAdminUser === "function" && !isAdminUser()) {
-    return;
+    // Prevent browser back navigation
+    e.preventDefault();
+
+    // Optional: block students
+    if (typeof isAdminUser === "function" && !isAdminUser()) {
+      return;
+    }
+
+    deleteCurrentStudyMove();
   }
 
-  deleteCurrentStudyMove();
-}
 });
+
 
 // ===============================
 // 🖱️ MOUSE WHEEL NAVIGATION (BOARDS ONLY)
@@ -32313,27 +32362,49 @@ function attachBoardWheelNavigation(boardElement) {
     e.preventDefault();
 
     if (e.deltaY > 0) {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+      studyNavigateForward();
     }
 
     if (e.deltaY < 0) {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+      studyNavigateBackward();
     }
 
   }, { passive: false });
 
 }
 
+
 // Attach to Study board
 attachBoardWheelNavigation(
   document.getElementById("studyBoardWrapper")
 );
+
 
 // Attach to Analysis board
 attachBoardWheelNavigation(
   document.getElementById("chessboard")
 );
 
+
+// ===============================
+// 🖱️ ONSCREEN BUTTON NAVIGATION
+// ===============================
+
+document.getElementById("studyNextMoveBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+  studyNavigateForward();
+});
+
+document.getElementById("studyPrevMoveBtn")?.addEventListener("click", (e) => {
+
+  e.stopPropagation();
+  e.preventDefault();
+
+  studyNavigateBackward();
+});
 
 function extractFenMoveIndex(pgn) {
   const moveMatch = pgn.match(/\n(\d+)\./);
@@ -53377,6 +53448,17 @@ document.addEventListener("mouseup", () => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
     // ============================================
     // START APP
     // ============================================
@@ -54432,6 +54514,7 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
+
 
 
 
