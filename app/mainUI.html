@@ -16213,6 +16213,31 @@ justify-content:center;
 }
 
 
+/* 🔊 Study voice selector — ultra compact */
+.study-voice-select {
+  width: 50px;          /* controls total width */
+  height: 22px;          /* smaller height */
+  font-size: 11px;       /* smaller text */
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #1c2240;
+  color: #fff;
+  border: 1px solid #3a4065;
+  outline: none;
+}
+
+/* optional hover style */
+.study-voice-select:hover {
+  border-color: #6b74b7;
+}
+
+
+
+
+
+
+
+
 
 
 
@@ -16757,6 +16782,8 @@ justify-content:center;
   Next Chapter ➡
 </span>
 
+
+
 </div>
 
 </div>
@@ -16870,6 +16897,9 @@ class="study-volume-slider"
 title="Voice volume"
 />
 
+<select id="studyVoiceSelect" class="study-voice-select" title="Voice selection">
+  <option value="">Auto Voice</option>
+</select>
 </div>
 
     <!-- DRAW LAYER -->
@@ -54185,28 +54215,54 @@ function syncFenEditorFEN() {
   let studyVoiceVolume = 1;
 
   const speech = window.speechSynthesis;
-  let studyVoice = null;
-
-function selectBestVoice() {
+  function populateVoiceSelector() {
 
   const voices = speech.getVoices();
+  const select = document.getElementById("studyVoiceSelect");
 
-  if (!voices.length) return;
+  if (!select) return;
 
-  // prefer natural voices
-  const preferred = voices.find(v =>
-    v.name.includes("Google UK English Female") ||
-    v.name.includes("Google US English") ||
-    v.name.includes("Microsoft Aria") ||
-    v.name.includes("Microsoft Jenny")
-  );
+  select.innerHTML = "";
 
-  studyVoice = preferred || voices[0];
+  voices.forEach((voice, index) => {
+
+    const option = document.createElement("option");
+
+    option.value = index;
+    option.textContent = voice.name;
+
+    select.appendChild(option);
+
+  });
 
 }
+  window.studyVoice = null;
 
-selectBestVoice();
-speech.onvoiceschanged = selectBestVoice;
+  function selectBestVoice() {
+
+    const voices = speech.getVoices();
+
+    if (!voices.length) return;
+
+    // 🧠 Priority order for most natural voices
+    window.studyVoice =
+  voices.find(v => v.name.includes("Microsoft Aria")) ||
+  voices.find(v => v.name.includes("Microsoft Jenny")) ||
+  voices.find(v => v.name.includes("Google UK English Female")) ||
+  voices.find(v => v.name.includes("Google US English")) ||
+  voices[0];
+
+    console.log("🎙 Study voice selected:", studyVoice.name);
+
+  }
+
+  selectBestVoice();
+  speech.onvoiceschanged = () => {
+
+  selectBestVoice();
+  populateVoiceSelector();
+
+};
 
   let currentText = null;
 
@@ -54242,108 +54298,100 @@ speech.onvoiceschanged = selectBestVoice;
   // ==============================
   // 🔊 SPEAK COMMENT
   // ==============================
-window.studySpeakComment = function (node) {
+  window.studySpeakComment = function (node) {
 
-  if (!studyVoiceEnabled) return;
-  if (!node) return;
+    if (!studyVoiceEnabled) return;
+    if (!node) return;
 
-  let speechText = "";
+    let speechText = "";
 
-  // ===============================
-  // Convert SAN to spoken chess
-  // ===============================
-  function speakMoveSAN(san) {
+    function speakMoveSAN(san) {
 
-    if (!san) return "";
+      if (!san) return "";
 
-    let move = san;
+      let move = san;
 
-    // Castling
-    if (move === "O-O") return "castle king side";
-    if (move === "O-O-O") return "castle queen side";
+      if (move === "O-O") return "castle king side";
+      if (move === "O-O-O") return "castle queen side";
 
-    // Piece names
-    move = move
-      .replace(/^K/, "king ")
-      .replace(/^Q/, "queen ")
-      .replace(/^R/, "rook ")
-      .replace(/^B/, "bishop ")
-      .replace(/^N/, "knight ");
+      move = move
+        .replace(/^K/, "king ")
+        .replace(/^Q/, "queen ")
+        .replace(/^R/, "rook ")
+        .replace(/^B/, "bishop ")
+        .replace(/^N/, "knight ");
 
-    // Captures
-    move = move.replace("x", " takes ");
+      move = move.replace("x", " takes ");
+      move = move.replace("+", " check");
+      move = move.replace("#", " checkmate");
 
-    // Check / mate
-    move = move.replace("+", " check");
-    move = move.replace("#", " checkmate");
+      move = move.replace(/([a-h])([1-8])/g, (m, f, r) => {
+        return f + " " + r;
+      });
 
-    // Square speech
-    move = move.replace(/([a-h])([1-8])/g, (m, f, r) => {
-      return f + " " + r;
-    });
+      return move;
+    }
 
-    return move;
-  }
+    // Speak move
+    if (node.move && node.move.san) {
 
-  // ===============================
-  // Speak move
-  // ===============================
-  if (node.move && node.move.san) {
+      const spokenMove = speakMoveSAN(node.move.san);
+      speechText += spokenMove + ", ";
 
-    const spokenMove = speakMoveSAN(node.move.san);
-    speechText += spokenMove + ", ";
-  }
+    }
 
-  // ===============================
-  // Annotation speech
-  // ===============================
-  const annotationSpeech = {
-    brilliant: "Brilliant move.",
-    good: "Good move.",
-    interesting: "Interesting move.",
-    dubious: "Dubious move.",
-    mistake: "Mistake.",
-    blunder: "Blunder.",
-    only: "Only move.",
-    zugzwang: "Zugzwang.",
+    // Annotation speech
+    const annotationSpeech = {
+      brilliant: "Brilliant move.",
+      good: "Good move.",
+      interesting: "Interesting move.",
+      dubious: "Dubious move.",
+      mistake: "Mistake.",
+      blunder: "Blunder.",
+      only: "Only move.",
+      zugzwang: "Zugzwang.",
 
-    equal: "Position is equal.",
-    unclear: "Position is unclear.",
+      equal: "Position is equal.",
+      unclear: "Position is unclear.",
 
-    slightWhite: "White is slightly better.",
-    slightBlack: "Black is slightly better.",
+      slightWhite: "White is slightly better.",
+      slightBlack: "Black is slightly better.",
 
-    betterWhite: "White is better.",
-    betterBlack: "Black is better.",
+      betterWhite: "White is better.",
+      betterBlack: "Black is better.",
 
-    winningWhite: "White is winning.",
-    winningBlack: "Black is winning."
+      winningWhite: "White is winning.",
+      winningBlack: "Black is winning."
+    };
+
+    if (node.annotation && annotationSpeech[node.annotation]) {
+
+      speechText += annotationSpeech[node.annotation] + " ";
+
+    }
+
+    // Comment speech
+    if (node.comment) {
+
+      speechText += node.comment.trim();
+
+    }
+
+    if (!speechText) return;
+
+    currentText = speechText;
+
+    const utter = new SpeechSynthesisUtterance(speechText);
+
+    utter.voice = window.studyVoice;
+    utter.rate = 0.85;
+    utter.pitch = 1;
+    utter.volume = studyVoiceVolume;
+
+    speech.cancel();
+    speech.speak(utter);
+
   };
-
-  if (node.annotation && annotationSpeech[node.annotation]) {
-
-    speechText += annotationSpeech[node.annotation] + " ";
-  }
-
-  // ===============================
-  // Comment speech
-  // ===============================
-  if (node.comment) {
-
-    speechText += node.comment.trim();
-  }
-
-  if (!speechText) return;
-
-  const utter = new SpeechSynthesisUtterance(speechText);
-utter.voice = studyVoice;
-  utter.rate = 0.85;
-  utter.pitch = 1;
-  utter.volume = studyVoiceVolume;
-
-  speech.cancel();
-  speech.speak(utter);
-};
 
 
   // ==============================
@@ -54355,14 +54403,14 @@ utter.voice = studyVoice;
 
     studyVoiceVolume = vol;
 
-    // restart current speech with new volume
     if (speech.speaking && currentText) {
 
       speech.cancel();
 
       const utter = new SpeechSynthesisUtterance(currentText);
 
-      utter.rate = 1;
+      utter.voice = window.studyVoice;
+      utter.rate = 0.85;
       utter.pitch = 1;
       utter.volume = studyVoiceVolume;
 
@@ -54375,8 +54423,29 @@ utter.voice = studyVoice;
 })();
 
 
+document.addEventListener("DOMContentLoaded", () => {
 
+  const voiceSelect = document.getElementById("studyVoiceSelect");
 
+  if (!voiceSelect) return;
+
+  voiceSelect.addEventListener("change", () => {
+
+    const voices = window.speechSynthesis.getVoices();
+
+    const selectedIndex = parseInt(voiceSelect.value);
+
+    if (!isNaN(selectedIndex)) {
+
+      window.studyVoice = voices[selectedIndex];
+
+      console.log("🎙 User selected voice:", window.studyVoice.name);
+
+    }
+
+  });
+
+});
 
 
 
@@ -55505,7 +55574,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
