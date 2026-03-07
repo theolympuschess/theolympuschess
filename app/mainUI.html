@@ -16206,7 +16206,11 @@ justify-content:center;
 
 
 
-
+.study-volume-slider{
+  width:80px;
+  margin-left:6px;
+  cursor:pointer;
+}
 
 
 
@@ -16847,6 +16851,24 @@ title="Show / Hide notation panel"
 <button id="studyEditorBtn" class="study-move-btn" title="Board editor">
 🛠
 </button>
+<button
+id="studyCommentVoiceBtn"
+class="study-move-btn"
+title="Toggle comment narration"
+>
+🔇
+</button>
+
+<input
+type="range"
+id="studyVoiceVolume"
+min="0"
+max="1"
+step="0.1"
+value="1"
+class="study-volume-slider"
+title="Voice volume"
+/>
 
 </div>
 
@@ -32526,7 +32548,7 @@ function studyAutoPlayStart() {
 
   if (studyAutoPlayTimer) return;
 
-  studyAutoPlayTimer = setInterval(() => {
+  function playNextMove() {
 
     if (!studyCurrentNode) {
       studyAutoPlayStop();
@@ -32540,19 +32562,43 @@ function studyAutoPlayStart() {
       return;
     }
 
-    // always follow mainline
-    goToStudyTreeNode(children[0]);
+    const nextNode = children[0];
 
-  }, studyAutoPlaySpeed);
+    goToStudyTreeNode(nextNode);
+
+    // 🔊 If narration is ON → wait until speech ends
+    if (speechSynthesis.speaking) {
+
+      const checkSpeech = setInterval(() => {
+
+        if (!speechSynthesis.speaking) {
+
+          clearInterval(checkSpeech);
+
+          studyAutoPlayTimer = setTimeout(playNextMove, 400);
+
+        }
+
+      }, 100);
+
+    } else {
+
+      // normal autoplay
+      studyAutoPlayTimer = setTimeout(playNextMove, studyAutoPlaySpeed);
+
+    }
+
+  }
+
+  playNextMove();
 
 }
-
 
 function studyAutoPlayStop() {
 
   if (!studyAutoPlayTimer) return;
 
-  clearInterval(studyAutoPlayTimer);
+  clearTimeout(studyAutoPlayTimer);
   studyAutoPlayTimer = null;
 
 }
@@ -32775,6 +32821,8 @@ function goToStudyTreeNode(node) {
     showStudyMoveMarker(node);
 
   });
+
+  studySpeakComment(node);
 
   if (studyEngineEnabled) {
     analyzeStudyPosition();
@@ -33199,6 +33247,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
   });
+
+  // 🔊 COMMENT VOICE BUTTON
+  const voiceBtn = document.getElementById("studyCommentVoiceBtn");
+
+  if (voiceBtn) {
+    voiceBtn.addEventListener("click", toggleStudyVoiceNarration);
+  }
+
+  // 🔊 VOICE VOLUME SLIDER
+  const volumeSlider = document.getElementById("studyVoiceVolume");
+
+  if (volumeSlider) {
+
+    volumeSlider.addEventListener("input", () => {
+
+      setStudyVoiceVolume(volumeSlider.value);
+
+      console.log("🔊 Study voice volume:", volumeSlider.value);
+
+    });
+
+  }
 
 });
 // ===============================
@@ -54097,6 +54167,229 @@ function syncFenEditorFEN() {
 
 
 
+// ==========================================
+// 🔊 STUDY COMMENT VOICE SYSTEM (ISOLATED)
+// ==========================================
+
+// ==========================================
+// 🔊 STUDY COMMENT VOICE SYSTEM (ISOLATED)
+// ==========================================
+
+// ==========================================
+// 🔊 STUDY COMMENT VOICE SYSTEM (ISOLATED)
+// ==========================================
+
+(function () {
+
+  let studyVoiceEnabled = false;
+  let studyVoiceVolume = 1;
+
+  const speech = window.speechSynthesis;
+  let studyVoice = null;
+
+function selectBestVoice() {
+
+  const voices = speech.getVoices();
+
+  if (!voices.length) return;
+
+  // prefer natural voices
+  const preferred = voices.find(v =>
+    v.name.includes("Google UK English Female") ||
+    v.name.includes("Google US English") ||
+    v.name.includes("Microsoft Aria") ||
+    v.name.includes("Microsoft Jenny")
+  );
+
+  studyVoice = preferred || voices[0];
+
+}
+
+selectBestVoice();
+speech.onvoiceschanged = selectBestVoice;
+
+  let currentText = null;
+
+  // ==============================
+  // 🔊 TOGGLE
+  // ==============================
+  window.toggleStudyVoiceNarration = function () {
+
+    studyVoiceEnabled = !studyVoiceEnabled;
+
+    const btn = document.getElementById("studyCommentVoiceBtn");
+    if (!btn) return;
+
+    if (studyVoiceEnabled) {
+
+      btn.textContent = "🔊";
+      btn.title = "Comment narration ON";
+
+    } else {
+
+      btn.textContent = "🔇";
+      btn.title = "Comment narration OFF";
+
+      speech.cancel();
+
+    }
+
+    btn.classList.toggle("active", studyVoiceEnabled);
+
+  };
+
+
+  // ==============================
+  // 🔊 SPEAK COMMENT
+  // ==============================
+window.studySpeakComment = function (node) {
+
+  if (!studyVoiceEnabled) return;
+  if (!node) return;
+
+  let speechText = "";
+
+  // ===============================
+  // Convert SAN to spoken chess
+  // ===============================
+  function speakMoveSAN(san) {
+
+    if (!san) return "";
+
+    let move = san;
+
+    // Castling
+    if (move === "O-O") return "castle king side";
+    if (move === "O-O-O") return "castle queen side";
+
+    // Piece names
+    move = move
+      .replace(/^K/, "king ")
+      .replace(/^Q/, "queen ")
+      .replace(/^R/, "rook ")
+      .replace(/^B/, "bishop ")
+      .replace(/^N/, "knight ");
+
+    // Captures
+    move = move.replace("x", " takes ");
+
+    // Check / mate
+    move = move.replace("+", " check");
+    move = move.replace("#", " checkmate");
+
+    // Square speech
+    move = move.replace(/([a-h])([1-8])/g, (m, f, r) => {
+      return f + " " + r;
+    });
+
+    return move;
+  }
+
+  // ===============================
+  // Speak move
+  // ===============================
+  if (node.move && node.move.san) {
+
+    const spokenMove = speakMoveSAN(node.move.san);
+    speechText += spokenMove + ", ";
+  }
+
+  // ===============================
+  // Annotation speech
+  // ===============================
+  const annotationSpeech = {
+    brilliant: "Brilliant move.",
+    good: "Good move.",
+    interesting: "Interesting move.",
+    dubious: "Dubious move.",
+    mistake: "Mistake.",
+    blunder: "Blunder.",
+    only: "Only move.",
+    zugzwang: "Zugzwang.",
+
+    equal: "Position is equal.",
+    unclear: "Position is unclear.",
+
+    slightWhite: "White is slightly better.",
+    slightBlack: "Black is slightly better.",
+
+    betterWhite: "White is better.",
+    betterBlack: "Black is better.",
+
+    winningWhite: "White is winning.",
+    winningBlack: "Black is winning."
+  };
+
+  if (node.annotation && annotationSpeech[node.annotation]) {
+
+    speechText += annotationSpeech[node.annotation] + " ";
+  }
+
+  // ===============================
+  // Comment speech
+  // ===============================
+  if (node.comment) {
+
+    speechText += node.comment.trim();
+  }
+
+  if (!speechText) return;
+
+  const utter = new SpeechSynthesisUtterance(speechText);
+utter.voice = studyVoice;
+  utter.rate = 0.9;
+  utter.pitch = 1;
+  utter.volume = studyVoiceVolume;
+
+  speech.cancel();
+  speech.speak(utter);
+};
+
+
+  // ==============================
+  // 🔊 REALTIME VOLUME CHANGE
+  // ==============================
+  window.setStudyVoiceVolume = function (value) {
+
+    const vol = Math.max(0, Math.min(1, parseFloat(value)));
+
+    studyVoiceVolume = vol;
+
+    // restart current speech with new volume
+    if (speech.speaking && currentText) {
+
+      speech.cancel();
+
+      const utter = new SpeechSynthesisUtterance(currentText);
+
+      utter.rate = 1;
+      utter.pitch = 1;
+      utter.volume = studyVoiceVolume;
+
+      speech.speak(utter);
+
+    }
+
+  };
+
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -55176,11 +55469,14 @@ function syncFenEditorFEN() {
 
       <button id="fenApplyBtn">Apply to Study</button>
 
+
     </div>
 
   </div>
 
 </div>
+
+
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
@@ -55209,7 +55505,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
