@@ -16233,6 +16233,173 @@ justify-content:center;
 
 
 
+/* 🚫 STUDENT – HIDE AUTO COMMENT BUTTON */
+body.student-view #studyAutoCommentBtn {
+  display: none !important;
+}
+
+
+
+
+
+/* ✨ AUTO COMMENT BUTTON – STRETCH STYLE */
+
+#studyAutoCommentBtn {
+  width: 100%;
+  height: 28px;
+
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+
+  background: linear-gradient(135deg, #2c3158, #1b1f3b);
+  color: #ffd54a;
+
+  font-size: 16px;
+  cursor: pointer;
+
+  transition: all 0.18s ease;
+}
+
+/* hover */
+#studyAutoCommentBtn:hover {
+  background: linear-gradient(135deg, #3c4180, #232866);
+  box-shadow: 0 0 8px rgba(255, 215, 90, 0.35);
+  transform: translateY(-1px);
+}
+
+/* click */
+#studyAutoCommentBtn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* optional glowing effect */
+#studyAutoCommentBtn.active {
+  background: linear-gradient(135deg, #3e3aff, #6a4cff);
+  box-shadow: 0 0 10px rgba(120,120,255,0.6);
+}
+
+
+/* ✨ sparkle particles */
+/* button must be positioning container */
+#studyAutoCommentBtn {
+  position: relative;
+  overflow: visible;
+}
+
+.sparkle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+
+  font-size: 14px;
+
+  transform: translate(-50%, -50%) scale(0.4);
+  animation: sparkle-burst 900ms ease-out forwards;
+}
+
+@keyframes sparkle-burst {
+
+  0% {
+    transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y)))
+               scale(var(--scale))
+               rotate(220deg);
+    opacity: 0;
+  }
+
+}
+
+
+
+
+/* ============================= */
+/* AUTO COMMENT MODAL */
+/* ============================= */
+
+.auto-comment-modal {
+
+  position: fixed;
+  inset: 0;
+
+  background: rgba(0,0,0,0.45);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 99999;
+
+}
+
+.auto-comment-modal.hidden {
+  display: none;
+}
+
+.auto-comment-box {
+
+  width: 280px;
+  padding: 22px;
+
+  background: #1b1f3b;
+  border-radius: 10px;
+
+  border: 1px solid rgba(255,255,255,0.12);
+
+  box-shadow: 0 0 20px rgba(0,0,0,0.4);
+
+}
+
+.auto-comment-title {
+
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 18px;
+  text-align: center;
+
+}
+
+.auto-comment-buttons {
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+}
+
+.auto-comment-choice {
+
+  height: 36px;
+  border-radius: 6px;
+
+  border: none;
+  cursor: pointer;
+
+  background: #2c3158;
+  color: white;
+
+  transition: all .15s;
+
+}
+
+.auto-comment-choice:hover {
+
+  background: #4048a8;
+  transform: translateY(-1px);
+
+}
+
+
+
+
+
+
+
 
 
 
@@ -16937,7 +17104,9 @@ title="Voice volume"
 
 </div>
 
-
+<button id="studyAutoCommentBtn" title="Auto generate comments">
+✨
+</button>
 
       <div class="study-notation">
         <strong>Notation</strong>
@@ -33297,7 +33466,19 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("🔊 Study voice volume:", volumeSlider.value);
 
     });
+    
+const autoBtn = document.getElementById("studyAutoCommentBtn");
 
+if (autoBtn) {
+  autoBtn.addEventListener("click", () => {
+
+  glitterBurst(autoBtn);
+
+  const modal = document.getElementById("autoCommentModal");
+  if (modal) modal.classList.remove("hidden");
+
+});
+}
   }
 
 });
@@ -54295,6 +54476,22 @@ function syncFenEditorFEN() {
   };
 
 
+  const annotationTone = {
+
+  brilliant: { pitch: 1.25, rate: 0.9 },
+  good: { pitch: 1.1, rate: 0.9 },
+  interesting: { pitch: 1.05, rate: 0.9 },
+
+  dubious: { pitch: 0.95, rate: 0.85 },
+  mistake: { pitch: 0.85, rate: 0.82 },
+  blunder: { pitch: 0.75, rate: 0.8 },
+
+  only: { pitch: 1.0, rate: 0.9 },
+  zugzwang: { pitch: 0.95, rate: 0.88 }
+
+};
+
+
   // ==============================
   // 🔊 SPEAK COMMENT
   // ==============================
@@ -54383,11 +54580,23 @@ function syncFenEditorFEN() {
 
     const utter = new SpeechSynthesisUtterance(speechText);
 
-    utter.voice = window.studyVoice;
-    utter.rate = 0.85;
-    utter.pitch = 1;
-    utter.volume = studyVoiceVolume;
+utter.voice = window.studyVoice;
+utter.volume = studyVoiceVolume;
 
+// default tone
+let pitch = 1;
+let rate = 0.85;
+
+// adjust tone based on annotation
+if (node.annotation && annotationTone[node.annotation]) {
+
+  pitch = annotationTone[node.annotation].pitch;
+  rate = annotationTone[node.annotation].rate;
+
+}
+
+utter.pitch = pitch;
+utter.rate = rate;
     speech.cancel();
     speech.speak(utter);
 
@@ -54448,6 +54657,388 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+function generateAutoComments(side = "both") {
+
+  if (!studyCurrentNode) return;
+
+  // go to root first
+  let root = studyCurrentNode;
+
+  while (root.parent) {
+    root = root.parent;
+  }
+
+  let node = root;
+
+  while (node.children && node.children.length > 0) {
+
+    const next = node.children[0]; // mainline only
+
+    const move = next.move;
+    const moveColor = move?.color; // "w" or "b"
+
+    // filter by selected side
+    if (side === "white" && moveColor !== "w") {
+      node = next;
+      continue;
+    }
+
+    if (side === "black" && moveColor !== "b") {
+      node = next;
+      continue;
+    }
+
+    // generate comment
+    if (!next.comment && move && move.san) {
+      next.comment = generateMoveComment(move.san);
+    }
+
+    node = next;
+
+  }
+
+  renderStudyNotationTree();
+
+}
+
+
+function generateMoveComment(san) {
+
+  if (!san) return "";
+
+  const comments = {
+
+  castleKing: [
+  "castles king side, bringing the king to safety.",
+  "King side castling improves king safety.",
+  "The king finds shelter after castling.",
+  "White castles, connecting the rooks and improving coordination.",
+  "Castling king side prepares the rooks for central activity.",
+  "secures the king with a timely castle.",
+  "The king steps to safety behind the pawn shield.",
+  "A standard king side castle to ensure king safety.",
+  "completes development on the king side with castling.",
+  "Castling improves the harmony between the pieces.",
+  "The king is safely tucked away after castling.",
+  "prioritizes king safety with this castle.",
+  "A sensible decision to castle king side.",
+  "The king is now protected and the rook becomes active.",
+  "Castling prepares the rooks to work together.",
+  "finishes development of the king side pieces with castling.",
+  "The king reaches a secure square after castling.",
+  "A natural king side castle improving the overall position.",
+  "brings the rook closer to the center by castling.",
+  "Castling completes the king's safety plan."
+],
+
+    castleQueen: [
+  "castles long, shifting the king toward the queenside.",
+  "Queenside castling brings the rook quickly into the center.",
+  "The king relocates to the queenside while the rook joins the game.",
+  "Long castling activates the rook on the d-file.",
+  "chooses an aggressive queenside castle.",
+  "The king heads to the queenside, often signaling opposite-side play.",
+  "A bold decision to castle long.",
+  "Queenside castling places the rook closer to central action.",
+  "White castles long and prepares rook activity on the center files.",
+  "The king settles on the queenside behind the pawn structure.",
+  "Long castling shifts the balance of play toward the center.",
+  "castles long, connecting the rooks quickly.",
+  "The rook immediately becomes active after long castling.",
+  "Queenside castling supports central rook pressure.",
+  "sends the king toward the queenside while mobilizing the rook.",
+  "Castling long signals potential attacking intentions.",
+  "The king heads to the queenside while the rook targets the center.",
+  "Queenside castling reorganizes the pieces for active play.",
+  "castles long, improving rook coordination.",
+  "A dynamic choice to castle on the queenside."
+],
+
+    capture: [
+  "Material is captured, slightly changing the balance on the board.",
+  "A capture that simplifies the position.",
+  "removes a piece from the board.",
+  "Exchanging material here.",
+  "A clean capture, reducing tension on the board.",
+  "The piece is taken and the position opens up a little.",
+  "Material comes off the board.",
+  "A straightforward capture.",
+  "This exchange clarifies the position.",
+  "The capture changes the structure of the position.",
+  "a piece in this exchange.",
+  "A tactical capture on the board.",
+  "Material is traded between the sides.",
+  "The piece is removed, altering the position.",
+  "An important capture affecting the balance of forces.",
+  "White eliminates a defender here.",
+  "A useful exchange of material.",
+  "The capture simplifies the position slightly.",
+  "Material is exchanged and the position becomes clearer.",
+  "takes the piece and continues the play."
+],
+
+    check: [
+  "The king is placed in check.",
+  "A direct check to the king.",
+  "The king comes under immediate pressure.",
+  "Check forces a response from the king.",
+  "The king must react to the check.",
+  "A forcing check in the position.",
+  "The king is attacked directly.",
+  "This move puts the king in check.",
+  "Check creates immediate tension on the board.",
+  "The king is driven to respond.",
+  "A check that demands attention.",
+  "The position sharpens with check.",
+  "The king is under attack.",
+  "Check forces the opponent to react.",
+  "A precise check in the position.",
+  "Pressure increases with check.",
+  "The king is exposed to check.",
+  "A forcing moment in the position with check.",
+  "The move delivers check to the king.",
+  "Check interrupts the opponent's plans."
+],
+
+    knight: [
+  "The knight develops to a more active square.",
+  "A natural move improving the knight's position.",
+  "The knight enters the game.",
+  "The knight becomes more active.",
+  "Development continues with the knight.",
+  "The knight moves toward a better square.",
+  "A typical developing move with the knight.",
+  "The knight improves its placement.",
+  "The knight steps into play.",
+  "A flexible knight maneuver.",
+  "The knight heads toward the center.",
+  "A useful improvement of the knight's position.",
+  "The knight finds a more active role.",
+  "The knight is brought into the action.",
+  "A solid developing move for the knight.",
+  "The knight prepares to influence the center.",
+  "The knight strengthens control over key squares.",
+  "The knight improves coordination with the other pieces.",
+  "The knight becomes better placed in the position.",
+  "A calm move improving the knight's activity."
+],
+
+    bishop: [
+  "The bishop develops to an active diagonal.",
+  "A natural developing move for the bishop.",
+  "The bishop becomes more active on the board.",
+  "The bishop is placed on a useful diagonal.",
+  "Development continues with the bishop.",
+  "The bishop gains better scope.",
+  "The bishop joins the game.",
+  "The bishop aims along an important diagonal.",
+  "A flexible move improving the bishop's activity.",
+  "The bishop increases pressure along the diagonal.",
+  "The bishop improves its position.",
+  "The bishop finds a more effective square.",
+  "The bishop takes aim across the board.",
+  "The bishop supports central control.",
+  "The bishop becomes better coordinated with the pieces.",
+  "A calm developing move for the bishop.",
+  "The bishop strengthens influence over key squares.",
+  "The bishop looks toward the center from this diagonal.",
+  "A useful improvement of the bishop's placement.",
+  "The bishop prepares to influence the position from afar."
+],
+
+    rook: [
+  "The rook becomes more active.",
+  "The rook moves to a more useful square.",
+  "Improving the rook's activity.",
+  "The rook enters the game.",
+  "The rook finds an open line.",
+  "The rook shifts toward the center.",
+  "A useful rook maneuver.",
+  "The rook increases pressure along the file.",
+  "The rook becomes better placed.",
+  "The rook improves coordination with the other pieces.",
+  "The rook takes control of the file.",
+  "A flexible rook move.",
+  "The rook prepares to influence the center.",
+  "The rook becomes more active on the board.",
+  "The rook supports the position from this square.",
+  "A solid rook repositioning.",
+  "The rook strengthens control of the file.",
+  "The rook prepares for future activity.",
+  "The rook improves its placement.",
+  "A calm move activating the rook."
+],
+
+    queen: [
+  "The queen becomes more active.",
+  "The queen moves to a stronger square.",
+  "The queen joins the play.",
+  "The queen improves its position.",
+  "The queen increases pressure on the board.",
+  "The queen shifts toward a more active role.",
+  "The queen steps into the game.",
+  "A flexible move with the queen.",
+  "The queen finds a useful square.",
+  "The queen improves coordination with the pieces.",
+  "The queen eyes important squares from here.",
+  "The queen becomes more influential in the position.",
+  "The queen supports the position from this square.",
+  "The queen takes a more central role.",
+  "A careful queen maneuver.",
+  "The queen increases activity across the board.",
+  "The queen prepares to support the attack.",
+  "The queen strengthens pressure in the position.",
+  "The queen improves overall piece coordination.",
+  "A calm repositioning of the queen."
+],
+
+  pawnCenter: [
+  "A central pawn advance.",
+  "Strengthening control of the center.",
+  "Fighting for space in the center.",
+  "A classic central pawn push.",
+  "This move claims space in the center.",
+  "Central control is reinforced.",
+  "A principled move occupying the center.",
+  "Expanding influence over the central squares.",
+  "The center becomes more firmly controlled.",
+  "A strong presence is established in the center.",
+  "This move challenges control of the center.",
+  "Central space is gained with this pawn advance.",
+  "A key move supporting central influence.",
+  "The pawn steps forward to contest the center.",
+  "A typical central advance in the opening.",
+  "Central tension begins to build.",
+  "The pawn supports activity in the center.",
+  "The center becomes the focus of play.",
+  "A solid move reinforcing central control.",
+  "The pawn push strengthens the central structure."
+],
+
+pawnMove: [
+  "A useful pawn advance.",
+  "Expanding space on the board.",
+  "Preparing future piece activity.",
+  "A quiet pawn move improving the structure.",
+  "A small pawn push supporting the position.",
+  "A flexible pawn advance.",
+  "The pawn steps forward to improve space.",
+  "A calm move adjusting the pawn structure.",
+  "Preparing future piece development.",
+  "A subtle pawn move reinforcing the position.",
+  "The pawn advances to support future plans.",
+  "A typical pawn move improving the setup.",
+  "Space is gained with this pawn push.",
+  "The pawn move strengthens the structure.",
+  "A useful improvement to the pawn formation.",
+  "The pawn takes a step forward, preparing future play.",
+  "A careful pawn advance.",
+  "The pawn move supports piece coordination.",
+  "A small but useful pawn improvement.",
+  "The pawn advances, improving flexibility in the position."
+],
+    general: [
+  "Improving the position.",
+  "A solid positional move.",
+  "Continuing the development of the position.",
+  "A calm move maintaining stability.",
+  "A useful move improving piece coordination.",
+  "The position is slowly improved.",
+  "A quiet move strengthening the setup.",
+  "A flexible move keeping options open.",
+  "The pieces gradually improve their placement.",
+  "A steady move maintaining the balance.",
+  "A subtle improvement in the position.",
+  "A patient move reinforcing the position.",
+  "The position is adjusted slightly.",
+  "A practical move maintaining harmony between the pieces.",
+  "The move keeps the position under control.",
+  "A natural continuation of play.",
+  "A move that keeps the position stable.",
+  "Gradually improving the overall setup.",
+  "A useful positional adjustment.",
+  "A quiet move maintaining the flow of the game."
+]
+
+  };
+
+  function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  if (san === "O-O") return pick(comments.castleKing);
+
+  if (san === "O-O-O") return pick(comments.castleQueen);
+
+  if (san.includes("+")) return pick(comments.check);
+
+  if (san.includes("x")) return pick(comments.capture);
+
+  if (san.startsWith("N")) return pick(comments.knight);
+
+  if (san.startsWith("B")) return pick(comments.bishop);
+
+  if (san.startsWith("R")) return pick(comments.rook);
+
+  if (san.startsWith("Q")) return pick(comments.queen);
+
+  // central pawn moves
+  if (/^[de][34]/.test(san)) return pick(comments.pawnCenter);
+
+  if (/^[a-h]/.test(san)) return pick(comments.pawnMove);
+
+  return pick(comments.general);
+
+}
+
+
+
+function glitterBurst(button) {
+
+  const particles = 26; // more sparkles
+
+  for (let i = 0; i < particles; i++) {
+
+    const sparkle = document.createElement("span");
+    sparkle.className = "sparkle";
+    sparkle.textContent = "✨";
+
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 60 + Math.random() * 80; // much bigger spread
+
+    const x = Math.cos(angle) * distance + "px";
+    const y = Math.sin(angle) * distance + "px";
+
+    const scale = 0.6 + Math.random() * 1.4;
+
+    sparkle.style.setProperty("--x", x);
+    sparkle.style.setProperty("--y", y);
+    sparkle.style.setProperty("--scale", scale);
+
+    button.appendChild(sparkle);
+
+    setTimeout(() => sparkle.remove(), 900);
+
+  }
+
+}
+
+
+
+document.querySelectorAll(".auto-comment-choice").forEach(btn => {
+
+  btn.addEventListener("click", () => {
+
+    const side = btn.dataset.side;
+
+    generateAutoComments(side);
+
+    const modal = document.getElementById("autoCommentModal");
+    if (modal) modal.classList.add("hidden");
+
+  });
+
+});
 
 
 
@@ -55545,7 +56136,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </div>
 
+<!-- ============================= -->
+<!-- ✨ AUTO COMMENT SIDE MODAL -->
+<!-- ============================= -->
+<div id="autoCommentModal" class="auto-comment-modal hidden">
 
+  <div class="auto-comment-box">
+
+    <div class="auto-comment-title">
+      Generate Auto Comments
+    </div>
+
+    <div class="auto-comment-buttons">
+
+      <button class="auto-comment-choice" data-side="white">
+        White Moves
+      </button>
+
+      <button class="auto-comment-choice" data-side="black">
+        Black Moves
+      </button>
+
+      <button class="auto-comment-choice" data-side="both">
+        Both Sides
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
