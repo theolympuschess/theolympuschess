@@ -16327,11 +16327,12 @@ body.student-view #studyAutoCommentBtn {
   position: fixed;
   inset: 0;
 
-  background: rgba(0,0,0,0.45);
-
   display: flex;
   align-items: center;
   justify-content: center;
+
+  background: rgba(8,10,30,0.55);
+  backdrop-filter: blur(6px);
 
   z-index: 99999;
 
@@ -16341,63 +16342,203 @@ body.student-view #studyAutoCommentBtn {
   display: none;
 }
 
+
+/* ============================= */
+/* MODAL BOX */
+/* ============================= */
+
 .auto-comment-box {
 
-  width: 280px;
-  padding: 22px;
+  width: 320px;
+  padding: 26px;
 
-  background: #1b1f3b;
-  border-radius: 10px;
+  border-radius: 14px;
 
-  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(
+    160deg,
+    #1b2147,
+    #141938
+  );
 
-  box-shadow: 0 0 20px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.65),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+
+  animation: autoModalPop 0.25s ease;
 
 }
+
+
+/* ============================= */
+/* POP ANIMATION */
+/* ============================= */
+
+@keyframes autoModalPop {
+
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+}
+
+
+/* ============================= */
+/* TITLE */
+/* ============================= */
 
 .auto-comment-title {
 
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  margin-bottom: 18px;
+
   text-align: center;
 
+  margin-bottom: 18px;
+
+  color: #ffffff;
+
+  letter-spacing: 0.4px;
+
 }
+
+
+/* ============================= */
+/* OPTIONS */
+/* ============================= */
+
+.auto-comment-options {
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 12px;
+
+  margin-bottom: 18px;
+
+}
+
+.auto-comment-row {
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  font-size: 14px;
+
+  color: #d8dcff;
+
+  padding: 6px 4px;
+
+  border-radius: 6px;
+
+  transition: background 0.15s;
+
+}
+
+.auto-comment-row:hover {
+
+  background: rgba(255,255,255,0.05);
+
+}
+
+
+/* checkbox styling */
+
+.auto-comment-row input {
+
+  width: 16px;
+  height: 16px;
+
+  accent-color: #5a63ff;
+
+  cursor: pointer;
+
+}
+
+
+/* ============================= */
+/* BUTTON AREA */
+/* ============================= */
 
 .auto-comment-buttons {
 
   display: flex;
   flex-direction: column;
+
   gap: 10px;
 
 }
 
-.auto-comment-choice {
 
-  height: 36px;
-  border-radius: 6px;
+/* GENERATE BUTTON */
+
+#autoCommentGenerate {
+
+  height: 40px;
+
+  border-radius: 8px;
 
   border: none;
-  cursor: pointer;
 
-  background: #2c3158;
+  background: linear-gradient(
+    135deg,
+    #5862ff,
+    #3943c7
+  );
+
   color: white;
 
-  transition: all .15s;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+
+  cursor: pointer;
+
+  transition: all 0.15s ease;
 
 }
 
-.auto-comment-choice:hover {
+#autoCommentGenerate:hover {
 
-  background: #4048a8;
   transform: translateY(-1px);
 
+  box-shadow: 0 6px 16px rgba(90,100,255,0.45);
+
 }
 
 
+/* CANCEL BUTTON */
 
+#autoCommentCancel {
 
+  height: 36px;
 
+  border-radius: 8px;
+
+  border: none;
+
+  background: #2a2f5c;
+
+  color: #c9ceff;
+
+  cursor: pointer;
+
+  transition: background 0.15s;
+
+}
+
+#autoCommentCancel:hover {
+
+  background: #343a72;
+
+}
 
 
 
@@ -54657,45 +54798,54 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-function generateAutoComments(side = "both") {
+function generateAutoComments(options = {}) {
 
   if (!studyCurrentNode) return;
 
-  // go to root first
   let root = studyCurrentNode;
 
   while (root.parent) {
     root = root.parent;
   }
 
-  let node = root;
+  function traverse(node, inBranch = false) {
 
-  while (node.children && node.children.length > 0) {
+    if (!node.children || node.children.length === 0) return;
 
-    const next = node.children[0]; // mainline only
+    node.children.forEach((child, index) => {
 
-    const move = next.move;
-    const moveColor = move?.color; // "w" or "b"
+      const move = child.move;
+      const moveColor = move?.color;
 
-    // filter by selected side
-    if (side === "white" && moveColor !== "w") {
-      node = next;
-      continue;
-    }
+      // if we are already inside a branch, everything remains branch
+      const isBranch = inBranch || index !== 0;
 
-    if (side === "black" && moveColor !== "b") {
-      node = next;
-      continue;
-    }
+      let allow = false;
 
-    // generate comment
-    if (!next.comment && move && move.san) {
-      next.comment = generateMoveComment(move.san);
-    }
+      // MAINLINE
+      if (!isBranch) {
+        if (moveColor === "w" && options.whiteMain) allow = true;
+        if (moveColor === "b" && options.blackMain) allow = true;
+      }
 
-    node = next;
+      // BRANCH
+      if (isBranch) {
+        if (moveColor === "w" && options.whiteBranches) allow = true;
+        if (moveColor === "b" && options.blackBranches) allow = true;
+      }
+
+      if (allow && !child.comment && move?.san) {
+        child.comment = generateMoveComment(move.san);
+      }
+
+      // propagate branch state
+      traverse(child, isBranch);
+
+    });
 
   }
+
+  traverse(root, false);
 
   renderStudyNotationTree();
 
@@ -54962,32 +55112,53 @@ pawnMove: [
 
   };
 
-  function pick(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
+ function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-  if (san === "O-O") return pick(comments.castleKing);
+if (san === "O-O") return pick(comments.castleKing);
 
-  if (san === "O-O-O") return pick(comments.castleQueen);
+if (san === "O-O-O") return pick(comments.castleQueen);
 
-  if (san.includes("+")) return pick(comments.check);
+/* CHECKMATE */
+if (san.includes("#")) {
 
-  if (san.includes("x")) return pick(comments.capture);
+  const mateComments = [
+    "Checkmate ends the game.",
+    "A decisive checkmate finishes the attack.",
+    "The king has no escape. Checkmate.",
+    "A beautiful finish.",
+    "The game ends with a mating attack.",
+    "A final blow delivers checkmate.",
+    "The king is trapped and the game is over."
+  ];
 
-  if (san.startsWith("N")) return pick(comments.knight);
+  return pick(mateComments);
+}
 
-  if (san.startsWith("B")) return pick(comments.bishop);
+/* CHECK */
+if (san.includes("+")) return pick(comments.check);
 
-  if (san.startsWith("R")) return pick(comments.rook);
+/* CAPTURE */
+if (san.includes("x")) return pick(comments.capture);
 
-  if (san.startsWith("Q")) return pick(comments.queen);
+/* PIECE MOVES */
+if (san.startsWith("N")) return pick(comments.knight);
 
-  // central pawn moves
-  if (/^[de][34]/.test(san)) return pick(comments.pawnCenter);
+if (san.startsWith("B")) return pick(comments.bishop);
 
-  if (/^[a-h]/.test(san)) return pick(comments.pawnMove);
+if (san.startsWith("R")) return pick(comments.rook);
 
-  return pick(comments.general);
+if (san.startsWith("Q")) return pick(comments.queen);
+
+/* CENTRAL PAWN */
+if (/^[de][34]/.test(san)) return pick(comments.pawnCenter);
+
+/* NORMAL PAWN */
+if (/^[a-h]/.test(san)) return pick(comments.pawnMove);
+
+/* GENERAL */
+return pick(comments.general);
 
 }
 
@@ -55025,20 +55196,68 @@ function glitterBurst(button) {
 
 
 
-document.querySelectorAll(".auto-comment-choice").forEach(btn => {
+const autoGenerateBtn = document.getElementById("autoCommentGenerate");
 
-  btn.addEventListener("click", () => {
+if (autoGenerateBtn) {
 
-    const side = btn.dataset.side;
+  autoGenerateBtn.addEventListener("click", () => {
 
-    generateAutoComments(side);
+    const options = {
+
+      whiteMain: document.getElementById("autoWhiteMain")?.checked,
+      blackMain: document.getElementById("autoBlackMain")?.checked,
+      whiteBranches: document.getElementById("autoWhiteBranches")?.checked,
+      blackBranches: document.getElementById("autoBlackBranches")?.checked
+
+    };
+
+    generateAutoComments(options);
 
     const modal = document.getElementById("autoCommentModal");
     if (modal) modal.classList.add("hidden");
 
   });
 
-});
+}
+
+
+
+const autoCancelBtn = document.getElementById("autoCommentCancel");
+
+if (autoCancelBtn) {
+
+  autoCancelBtn.addEventListener("click", () => {
+
+    const modal = document.getElementById("autoCommentModal");
+
+    if (modal) modal.classList.add("hidden");
+
+  });
+
+}
+
+
+
+const autoModal = document.getElementById("autoCommentModal");
+
+if (autoModal) {
+
+  autoModal.addEventListener("click", (e) => {
+
+    if (e.target === autoModal) {
+
+      autoModal.classList.add("hidden");
+
+    }
+
+  });
+
+}
+
+
+
+
+
 
 
 
@@ -56137,7 +56356,7 @@ document.querySelectorAll(".auto-comment-choice").forEach(btn => {
 </div>
 
 <!-- ============================= -->
-<!-- ✨ AUTO COMMENT SIDE MODAL -->
+<!-- ✨ AUTO COMMENT CONTROL MODAL -->
 <!-- ============================= -->
 <div id="autoCommentModal" class="auto-comment-modal hidden">
 
@@ -56147,18 +56366,38 @@ document.querySelectorAll(".auto-comment-choice").forEach(btn => {
       Generate Auto Comments
     </div>
 
+    <div class="auto-comment-options">
+
+      <label class="auto-comment-row">
+        <input type="checkbox" id="autoWhiteMain" checked>
+        White Mainline
+      </label>
+
+      <label class="auto-comment-row">
+        <input type="checkbox" id="autoBlackMain" checked>
+        Black Mainline
+      </label>
+
+      <label class="auto-comment-row">
+        <input type="checkbox" id="autoWhiteBranches">
+        White Branches
+      </label>
+
+      <label class="auto-comment-row">
+        <input type="checkbox" id="autoBlackBranches">
+        Black Branches
+      </label>
+
+    </div>
+
     <div class="auto-comment-buttons">
 
-      <button class="auto-comment-choice" data-side="white">
-        White Moves
+      <button id="autoCommentGenerate">
+        Generate Comments
       </button>
 
-      <button class="auto-comment-choice" data-side="black">
-        Black Moves
-      </button>
-
-      <button class="auto-comment-choice" data-side="both">
-        Both Sides
+      <button id="autoCommentCancel">
+        Cancel
       </button>
 
     </div>
@@ -56166,7 +56405,6 @@ document.querySelectorAll(".auto-comment-choice").forEach(btn => {
   </div>
 
 </div>
-
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
 
