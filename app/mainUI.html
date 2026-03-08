@@ -16332,7 +16332,7 @@ body.student-view #studyAutoCommentBtn {
   justify-content: center;
 
   background: rgba(8,10,30,0.55);
-  
+ 
 
   z-index: 99999;
 
@@ -54817,28 +54817,50 @@ function generateAutoComments(options = {}) {
       const move = child.move;
       const moveColor = move?.color;
 
-      // if we are already inside a branch, everything remains branch
       const isBranch = inBranch || index !== 0;
 
       let allow = false;
 
-      // MAINLINE
+      /* MAINLINE */
+
       if (!isBranch) {
+
         if (moveColor === "w" && options.whiteMain) allow = true;
         if (moveColor === "b" && options.blackMain) allow = true;
+
       }
 
-      // BRANCH
+      /* BRANCHES */
+
       if (isBranch) {
+
         if (moveColor === "w" && options.whiteBranches) allow = true;
         if (moveColor === "b" && options.blackBranches) allow = true;
+
       }
 
-      if (allow && !child.comment && move?.san) {
-        child.comment = generateMoveComment(move.san);
+      if (allow && move?.san) {
+
+        /* DELETE MODE */
+
+        if (options.mode === "delete") {
+
+          child.comment = "";
+
+        }
+
+        /* GENERATE MODE */
+
+        if (options.mode === "generate") {
+
+          if (!child.comment) {
+            child.comment = generateMoveComment(move.san);
+          }
+
+        }
+
       }
 
-      // propagate branch state
       traverse(child, isBranch);
 
     });
@@ -55203,7 +55225,8 @@ if (autoGenerateBtn) {
   autoGenerateBtn.addEventListener("click", () => {
 
     const options = {
-
+      
+mode: document.getElementById("autoCommentMode")?.value || "generate",
       whiteMain: document.getElementById("autoWhiteMain")?.checked,
       blackMain: document.getElementById("autoBlackMain")?.checked,
       whiteBranches: document.getElementById("autoWhiteBranches")?.checked,
@@ -56363,8 +56386,28 @@ if (autoModal) {
   <div class="auto-comment-box">
 
     <div class="auto-comment-title">
-      Generate Auto Comments
+      Auto Comment Control
     </div>
+
+    <!-- MODE SELECTOR -->
+    <div class="auto-comment-row" style="margin-bottom:14px;">
+
+      <span>Action</span>
+
+      <select id="autoCommentMode">
+
+        <option value="generate">
+          Generate Comments
+        </option>
+
+        <option value="delete">
+          Delete Comments
+        </option>
+
+      </select>
+
+    </div>
+
 
     <div class="auto-comment-options">
 
@@ -56393,7 +56436,7 @@ if (autoModal) {
     <div class="auto-comment-buttons">
 
       <button id="autoCommentGenerate">
-        Generate Comments
+        Apply
       </button>
 
       <button id="autoCommentCancel">
@@ -56432,8 +56475,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
