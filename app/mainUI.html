@@ -16615,7 +16615,219 @@ body.student-view #studyAutoCommentBtn {
 
 
 
+/* ===============================
+   🎯 OPENING TRAINER BUTTON
+================================ */
 
+#openingTrainerToggleBtn {
+
+  background: #1e2235;
+  color: #fff;
+  border: 1px solid #3c4263;
+  border-radius: 6px;
+
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  transition: all 0.2s ease;
+
+}
+
+#openingTrainerToggleBtn:hover {
+
+  background: #2b3150;
+  border-color: #5a63a5;
+
+}
+
+/* ACTIVE STATE */
+
+#openingTrainerToggleBtn.active {
+
+  background: linear-gradient(135deg,#ff6b00,#ff9a00);
+  border-color: #ff9a00;
+  color: #fff;
+
+  box-shadow:
+    0 0 6px rgba(255,140,0,0.7),
+    inset 0 0 4px rgba(255,255,255,0.25);
+
+}
+
+/* little pulse glow when active */
+
+#openingTrainerToggleBtn.active:hover {
+
+  box-shadow:
+    0 0 10px rgba(255,140,0,0.9),
+    inset 0 0 5px rgba(255,255,255,0.3);
+
+}
+
+
+
+/* ===============================
+   TRAINER SIDE SELECT
+================================ */
+
+#trainerSideSelect {
+
+  background: #1e2235;
+  color: #fff;
+  border: 1px solid #3c4263;
+  border-radius: 6px;
+  margin-top: 8px;
+ 
+
+  padding: 4px 6px;
+  font-size: 12px;
+
+  cursor: pointer;
+
+}
+
+
+/* ===============================
+   TRAINER MOVE FEEDBACK
+================================ */
+
+#trainerMoveFeedback{
+
+  position: absolute;
+
+  right: 150px;
+  top: 30px;
+
+  font-size: 42px;
+  font-weight: bold;
+
+  pointer-events: none;
+
+  opacity: 0;
+
+  transform: scale(0.6);
+  transition: all .25s ease;
+
+}
+
+#trainerMoveFeedback.show{
+  opacity:1;
+  transform:scale(1);
+}
+
+#trainerMoveFeedback.correct{
+  color:#00ff7a;
+  text-shadow:
+    0 0 10px rgba(0,255,120,.8),
+    0 0 20px rgba(0,255,120,.6);
+}
+
+#trainerMoveFeedback.wrong{
+  color:#ff3b3b;
+  text-shadow:
+    0 0 10px rgba(255,0,0,.8),
+    0 0 20px rgba(255,0,0,.6);
+}
+
+
+
+
+/* ==========================================
+TRAINER LESSON COMPLETE MODAL
+========================================== */
+
+.trainer-complete-overlay{
+
+  position: fixed;
+  inset: 0;
+
+  background: rgba(0,0,0,0.65);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  z-index: 9999;
+
+}
+
+.trainer-complete-overlay.hidden{
+  display:none;
+}
+
+.trainer-complete-box{
+
+  background:#1e2235;
+
+  border-radius:12px;
+
+  padding:28px 34px;
+
+  text-align:center;
+
+  box-shadow:
+    0 0 40px rgba(0,0,0,0.8),
+    0 0 10px rgba(255,200,0,0.2);
+
+  min-width:280px;
+
+}
+
+.trainer-complete-title{
+
+  font-size:24px;
+  font-weight:700;
+
+  margin-bottom:16px;
+
+  color:#ffd24a;
+
+}
+
+.trainer-complete-stats{
+
+  font-size:18px;
+
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+
+  margin-bottom:18px;
+
+}
+
+#trainerCompleteClose{
+
+  background:#ff8c00;
+  border:none;
+
+  padding:8px 16px;
+
+  border-radius:6px;
+
+  cursor:pointer;
+
+  font-weight:600;
+
+}
+
+
+.trainer-xp{
+
+  margin-top:6px;
+
+  font-weight:700;
+
+  color:#6dff8b;
+
+  text-shadow:0 0 6px rgba(0,255,120,0.6);
+
+}
 
 
 
@@ -17163,7 +17375,15 @@ body.student-view #studyAutoCommentBtn {
   Next Chapter ➡
 </span>
 
-<button id="coachToggleBtn" title="Toggle Chess Coach">Coach 👩‍🏫</button>
+<button id="coachToggleBtn" title="Toggle Chess Coach">Coach 🧑🏻</button>
+<button id="openingTrainerToggleBtn" title="Opening Trainer">
+🎯 Trainer
+</button>
+
+<select id="trainerSideSelect" class="study-voice-select">
+<option value="white">White</option>
+<option value="black">Black</option>
+</select>
 
 </div>
 
@@ -17324,18 +17544,19 @@ title="Voice volume"
 <div id="studyCoachContainer">
 
   <img id="coachIdle"
-       src="animations/british_male_idle.png"
+       src="animations/british_female_idle.png"
        class="coach-idle">
 
  <video id="coachTalking"
        class="coach-talking"
-       src="animations/british_male_talking.mp4"
+       src="animations/british_female_talking.mp4"
        muted
        playsinline
        loop
        preload="auto"></video>
-
+<div id="trainerMoveFeedback"></div>
 </div>
+
 <button id="studyAutoCommentBtn" title="Auto generate comments">
 ✨
 </button>
@@ -20891,6 +21112,51 @@ function renderTierBadge(rating) {
   `;
 }
 
+// ===============================
+// 🎯 OPENING TRAINER XP REWARD
+// ===============================
+
+async function grantTrainerXP(moves, accuracy) {
+
+  if (!currentProfile) return;
+
+  // base reward
+  let XP = Math.max(3, Math.floor(moves / 2));
+
+  // accuracy bonus
+  if (accuracy >= 100) XP += 5;
+  else if (accuracy >= 90) XP += 3;
+  else if (accuracy >= 75) XP += 2;
+
+  currentProfile.game_current_score =
+    (currentProfile.game_current_score || 0) + XP;
+
+  updateRatingsFromProfile(currentProfile);
+  showRatingDelta(XP);
+
+  // 📜 XP HISTORY LOG
+  if (window.logRatingEvent) {
+   const chapterName =
+  document.getElementById("studyTitle")?.textContent?.trim() ||
+  "Opening Lesson";
+
+window.logRatingEvent({
+  source: "Opening Trainer",
+  reason: `${chapterName} — ${moves} moves, ${accuracy}% accuracy`,
+  xp: XP
+});
+  }
+
+  await supabase
+    .from("profiles")
+    .update({
+      game_current_score: currentProfile.game_current_score
+    })
+    .eq("id", currentProfile.id);
+
+  console.log("🎯 Opening Trainer XP granted:", XP);
+
+}
 
 // ===============================
 // 🎨 AUTO COLOR GENERATOR
@@ -33187,7 +33453,187 @@ function extractFenMoveIndex(pgn) {
 
 let studyMoveTreeRoot = null;
 let studyCurrentNode = null;
+// ==========================================
+// 🎯 OPENING TRAINER SYSTEM
+// ==========================================
 
+let openingTrainerEnabled = false;
+let trainerSide = "white";
+let trainerNode = null;
+// ==========================================
+// 🗣 COACH TRAINER SPEECH
+// ==========================================
+
+function coachSpeak(text) {
+
+  if (!window.studyVoice) return;
+
+  const utter = new SpeechSynthesisUtterance(text);
+
+  utter.voice = window.studyVoice;
+  utter.rate = 0.9;
+  utter.pitch = 1;
+  utter.volume = 1;
+
+  utter.onstart = () => startCoachTalking();
+  utter.onend = () => setCoachIdle();
+
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+
+}
+// ==========================================
+// 🎯 START OPENING TRAINER
+// ==========================================
+
+function startOpeningTrainer() {
+  trainerMistakes = 0;
+trainerCorrectMoves = 0;
+trainerTargetMoves = calculateTrainerTargetMoves(studyMoveTreeRoot);
+
+  trainerNode = studyMoveTreeRoot;
+
+  const side = trainerSide;
+
+  if (side === "black") {
+
+    const first = trainerNode.children[0];
+
+    if (first) {
+
+      goToStudyTreeNode(first);
+
+      trainerNode = first;
+
+    }
+
+  }
+
+  coachSpeak("Play the next move");
+
+}
+// ==========================================
+// 🎯 TRAINER AUTO OPPONENT MOVE
+// ==========================================
+
+// ==========================================
+// ♟ SAN → SPOKEN CHESS MOVE
+// ==========================================
+
+function speakMoveSAN(san){
+
+  if(!san) return "";
+
+  let move = san;
+
+  if(move === "O-O") return "Castle kingside";
+  if(move === "O-O-O") return "Castle queenside";
+
+  move = move.replace(/\+/g," check");
+  move = move.replace(/#/g," checkmate");
+  move = move.replace(/x/g," takes ");
+
+  move = move.replace(/^K/,"King ");
+  move = move.replace(/^Q/,"Queen ");
+  move = move.replace(/^R/,"Rook ");
+  move = move.replace(/^B/,"Bishop ");
+  move = move.replace(/^N/,"Knight ");
+
+  if(/^[a-h][1-8]/.test(move)){
+    move = "Pawn " + move;
+  }
+
+  return move;
+
+}
+
+
+// ==========================================
+// 🎯 TRAINER AUTO OPPONENT MOVE
+// ==========================================
+
+function trainerAutoPlay() {
+
+  if (!trainerNode) return;
+
+  const children = trainerNode.children;
+
+  // 🏁 LESSON COMPLETED (player made final move)
+  if (!children || !children.length) {
+
+    coachSpeak("Congratulations. You completed the lesson.");
+
+    showTrainerFeedback("correct");
+
+    setTimeout(() => {
+
+  const accuracy = Math.max(
+    0,
+    Math.round(
+      (trainerCorrectMoves / (trainerCorrectMoves + trainerMistakes)) * 100
+    )
+  );
+
+  showTrainerCompleteModal();
+
+  grantTrainerXP(trainerCorrectMoves, accuracy);
+
+}, 900);
+
+    return;
+  }
+
+  const nextMove = children[0];
+
+  const san = nextMove.move?.san || "";
+
+  const spokenMove = speakMoveSAN(san);
+
+  // 🎙 speak opponent move first
+  coachSpeak(spokenMove);
+
+  setTimeout(() => {
+
+    trainerNode = nextMove;
+
+    goToStudyTreeNode(nextMove);
+
+    // 🏁 LESSON COMPLETED (opponent made final move)
+    if (!trainerNode.children || !trainerNode.children.length) {
+
+      setTimeout(() => {
+
+        coachSpeak("Congratulations. You completed the lesson.");
+
+       setTimeout(() => {
+
+  const accuracy = Math.max(
+    0,
+    Math.round(
+      (trainerCorrectMoves / (trainerCorrectMoves + trainerMistakes)) * 100
+    )
+  );
+
+  showTrainerCompleteModal();
+
+  grantTrainerXP(trainerCorrectMoves, accuracy);
+
+}, 800);
+
+      }, 900);
+
+      return;
+    }
+
+    setTimeout(() => {
+
+      coachSpeak("Your move");
+
+    }, 700);
+
+  }, 1200);
+
+}
 function createStudyMoveNode(move, parent = null) {
   return {
     id: crypto.randomUUID(),
@@ -33690,7 +34136,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const volumeSlider = document.getElementById("studyVoiceVolume");
 
   if (volumeSlider) {
-
     volumeSlider.addEventListener("input", () => {
 
       setStudyVoiceVolume(volumeSlider.value);
@@ -33698,20 +34143,75 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("🔊 Study voice volume:", volumeSlider.value);
 
     });
-    
-const autoBtn = document.getElementById("studyAutoCommentBtn");
-
-if (autoBtn) {
-  autoBtn.addEventListener("click", () => {
-
-  glitterBurst(autoBtn);
-
-  const modal = document.getElementById("autoCommentModal");
-  if (modal) modal.classList.remove("hidden");
-
-});
-}
   }
+
+  // ✨ AUTO COMMENT BUTTON
+  const autoBtn = document.getElementById("studyAutoCommentBtn");
+
+  if (autoBtn) {
+    autoBtn.addEventListener("click", () => {
+
+      glitterBurst(autoBtn);
+
+      const modal = document.getElementById("autoCommentModal");
+      if (modal) modal.classList.remove("hidden");
+
+    });
+  }
+
+  // ==========================================
+  // 🎯 OPENING TRAINER TOGGLE
+  // ==========================================
+
+  // ==========================================
+// 🎯 OPENING TRAINER TOGGLE
+// ==========================================
+
+const trainerBtn = document.getElementById("openingTrainerToggleBtn");
+const trainerSideSelect = document.getElementById("trainerSideSelect");
+
+if (trainerBtn) {
+
+  trainerBtn.addEventListener("click", () => {
+
+    openingTrainerEnabled = !openingTrainerEnabled;
+
+    trainerBtn.classList.toggle("active", openingTrainerEnabled);
+
+    if (openingTrainerEnabled) {
+
+      trainerSide = trainerSideSelect?.value || "white";
+
+      startOpeningTrainer();
+
+      // 🎙 Trainer instruction for students
+      setTimeout(() => {
+
+      coachSpeak(
+  "Trainer mode activated. Hide the notation panel. Now recall the moves you learned and play the correct continuation."
+);
+
+      }, 100);
+
+    } else {
+
+      coachSpeak("Trainer disabled");
+
+    }
+
+  });
+
+}
+
+if (trainerSideSelect) {
+
+  trainerSideSelect.addEventListener("change", () => {
+
+    trainerSide = trainerSideSelect.value;
+
+  });
+
+}
 
 });
 // ===============================
@@ -34050,6 +34550,99 @@ initStudyBoardDrawing(studyWrapper, studyBoardEl, studyDrawLayer);
 
 
 function onStudyDrop(source, target) {
+ // ==========================================
+// 🎯 TRAINER MODE MOVE CHECK (DELAYED)
+// ==========================================
+
+if (openingTrainerEnabled && trainerNode) {
+
+  const attemptedMove = {
+    from: source,
+    to: target,
+    promotion: "q"
+  };
+
+  const correctMove = trainerNode.children?.[0];
+
+  if (!correctMove) return "snapback";
+
+  const moveAttempt = studyChess.move(attemptedMove);
+
+  if (!moveAttempt) return "snapback";
+
+  // 🎙 RANDOM COACH LINES
+  const goodLines = [
+    "Excellent.",
+    "Very good.",
+    "Correct.",
+    "Nice play.",
+    "Perfect.",
+    "Strong move.",
+    "Well done.",
+    "That's right.",
+    "Good thinking.",
+    "Exactly."
+  ];
+
+  const wrongLines = [
+    "Wrong move. Try again.",
+    "Not quite right.",
+    "That move is incorrect.",
+    "Try a different move.",
+    "Think again.",
+    "That is not the move.",
+    "Look carefully.",
+    "That's not correct.",
+    "Almost, but not correct.",
+    "Try again."
+  ];
+
+  // ==========================================
+  // ✅ CORRECT MOVE
+  // ==========================================
+
+  if (moveAttempt.san === correctMove.move.san) {
+
+    const line = goodLines[Math.floor(Math.random() * goodLines.length)];
+      trainerCorrectMoves++;
+      showTrainerFeedback("correct");
+
+    coachSpeak(line);
+
+    trainerNode = correctMove;
+
+    highlightLastMove(moveAttempt.from, moveAttempt.to);
+
+    // ⏱ opponent move delay
+    setTimeout(() => {
+
+      trainerAutoPlay();
+
+    }, 2000);
+
+    return;
+
+  }
+
+  // ==========================================
+  // ❌ WRONG MOVE
+  // ==========================================
+
+  const line = wrongLines[Math.floor(Math.random() * wrongLines.length)];
+showTrainerFeedback("wrong");
+trainerMistakes++;
+  coachSpeak(line);
+
+  // ⏱ delayed snapback
+  setTimeout(() => {
+
+    studyChess.undo();
+    studyBoard.position(studyChess.fen(), false);
+
+  }, 2000);
+
+  return;
+}
   if (!studyChess) return "snapback";
 
   const piece = studyChess.get(source);
@@ -55428,7 +56021,7 @@ window.coachEnabled = true;
 // 🎭 COACH CHARACTER SYSTEM
 // ==============================
 
-let coachGender = "male";
+let coachGender = "female";
 
 function detectCoachGender() {
 
@@ -55517,6 +56110,124 @@ btn.addEventListener("click",toggleCoachSystem);
 }
 
 });
+
+
+// ==========================================
+// 🎯 TRAINER FEEDBACK ICON
+// ==========================================
+
+function showTrainerFeedback(type) {
+
+  const el = document.getElementById("trainerMoveFeedback");
+  if (!el) return;
+
+  el.classList.remove("correct","wrong","show");
+
+  if (type === "correct") {
+
+    el.textContent = "✓";
+    el.classList.add("correct");
+
+  } else {
+
+    el.textContent = "✗";
+    el.classList.add("wrong");
+
+  }
+
+  el.classList.add("show");
+
+  setTimeout(() => {
+
+    el.classList.remove("show");
+
+  }, 1200);
+
+}
+
+
+// ==========================================
+// 🎯 TRAINER STATS
+// ==========================================
+
+let trainerMistakes = 0;
+let trainerCorrectMoves = 0;
+let trainerTargetMoves = 0;
+
+
+function calculateTrainerTargetMoves(rootNode){
+
+  let count = 0;
+  let node = rootNode;
+
+  while(node && node.children && node.children.length){
+
+    node = node.children[0];
+
+    if(node.move){
+      count++;
+    }
+
+  }
+
+  return count;
+
+}
+
+function showTrainerCompleteModal(){
+
+  const modal = document.getElementById("trainerCompleteModal");
+
+  const moves = trainerCorrectMoves;
+
+  const accuracy = Math.max(
+    0,
+    Math.round((trainerCorrectMoves / (trainerCorrectMoves + trainerMistakes)) * 100)
+  );
+
+  // same XP logic as reward function
+  let xp = Math.max(3, Math.floor(moves / 2));
+
+  if (accuracy >= 100) xp += 5;
+  else if (accuracy >= 90) xp += 3;
+  else if (accuracy >= 75) xp += 2;
+
+  document.getElementById("trainerMovesStat").textContent = moves;
+  document.getElementById("trainerAccuracyStat").textContent = accuracy + "%";
+
+  const xpEl = document.getElementById("trainerXPStat");
+  if (xpEl) xpEl.textContent = "+" + xp;
+
+  modal.classList.remove("hidden");
+
+}
+
+
+
+const trainerModal = document.getElementById("trainerCompleteModal");
+const trainerClose = document.getElementById("trainerCompleteClose");
+
+if(trainerClose){
+
+  trainerClose.addEventListener("click",()=>{
+    trainerModal.classList.add("hidden");
+  });
+
+}
+
+if(trainerModal){
+
+  trainerModal.addEventListener("click",(e)=>{
+
+    if(e.target === trainerModal){
+      trainerModal.classList.add("hidden");
+    }
+
+  });
+
+}
+
+
 
 
 
@@ -56678,6 +57389,46 @@ btn.addEventListener("click",toggleCoachSystem);
   </div>
 
 </div>
+
+<!-- ==========================================
+🏆 TRAINER LESSON COMPLETE MODAL
+========================================== -->
+
+<div id="trainerCompleteModal" class="trainer-complete-overlay hidden">
+
+  <div class="trainer-complete-box">
+
+    <div class="trainer-complete-title">
+      🏆 Lesson Completed
+    </div>
+
+    <div class="trainer-complete-stats">
+
+      <div>
+        Moves:
+        <span id="trainerMovesStat">0</span>
+      </div>
+
+      <div>
+        Accuracy:
+        <span id="trainerAccuracyStat">100%</span>
+      </div>
+ <div class="trainer-xp">
+    XP Earned:
+    <span id="trainerXPStat">0</span>
+  </div>
+    </div>
+
+    <button id="trainerCompleteClose">
+      Close
+    </button>
+
+  </div>
+
+</div>
+
+
+
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
 
