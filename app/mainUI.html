@@ -34177,6 +34177,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // 🎯 OPENING TRAINER TOGGLE
   // ==========================================
 
+// ==========================================
+// 🎯 OPENING TRAINER TOGGLE
+// ==========================================
+
 const trainerBtn = document.getElementById("openingTrainerToggleBtn");
 const trainerSideSelect = document.getElementById("trainerSideSelect");
 
@@ -34189,6 +34193,7 @@ if (trainerBtn) {
     trainerBtn.classList.toggle("active", openingTrainerEnabled);
 
     const notationBtn = document.getElementById("toggleStudyNotationBtn");
+    const engineBtn = document.getElementById("studyEngineToggle");
 
     if (openingTrainerEnabled) {
 
@@ -34196,16 +34201,48 @@ if (trainerBtn) {
 
       startOpeningTrainer();
 
-      // 📝 AUTO HIDE NOTATION
-      if (notationBtn && !notationBtn.classList.contains("active")) {
-        notationBtn.click();
+    // 📝 AUTO HIDE NOTATION + DISABLE BUTTON
+if (notationBtn) {
+
+  if (!notationBtn.classList.contains("active")) {
+    notationBtn.click();
+  }
+
+  notationBtn.disabled = true;
+  notationBtn.style.opacity = "0.5";
+  notationBtn.style.cursor = "not-allowed";
+
+}
+
+      // 🚫 FORCE ENGINE OFF + DISABLE
+      if (engineBtn) {
+
+        if (studyEngineEnabled) {
+
+          studyEngineEnabled = false;
+
+          engineBtn.textContent = "OFF";
+          engineBtn.className = "engine-toggle off";
+
+          if (studyEngine) studyEngine.postMessage("stop");
+
+          document.getElementById("studyPVLines").innerHTML = "";
+          document.getElementById("studyEval").textContent = "--";
+          document.getElementById("studyDepth").textContent = "--";
+
+        }
+
+        engineBtn.disabled = true;
+        engineBtn.style.opacity = "0.5";
+        engineBtn.style.cursor = "not-allowed";
+
       }
 
       // 🎙 Trainer instruction for students
       setTimeout(() => {
 
         coachSpeak(
-          "Trainer mode activated. Now recall the moves you learned and play the correct continuation."
+          "Trainer mode activated. Now recall the moves you learned and play the correct continuation from the beginning."
         );
 
       }, 100);
@@ -34214,9 +34251,29 @@ if (trainerBtn) {
 
       coachSpeak("Trainer mode disabled");
 
-      // 📝 RESTORE NOTATION PANEL
-      if (notationBtn && notationBtn.classList.contains("active")) {
-        notationBtn.click();
+    // 📝 RESTORE NOTATION PANEL + ENABLE BUTTON
+  const notationBox = document.querySelector(".study-notation");
+
+  // 📝 SHOW NOTATION PANEL
+  if (notationBox) {
+    notationBox.classList.remove("hidden");
+  }
+
+  // 📝 ENABLE NOTATION BUTTON AGAIN
+  if (notationBtn) {
+    notationBtn.disabled = false;
+    notationBtn.style.opacity = "";
+    notationBtn.style.cursor = "";
+    notationBtn.classList.remove("active");
+  }
+
+      // 🔓 RE-ENABLE ENGINE
+      if (engineBtn) {
+
+        engineBtn.disabled = false;
+        engineBtn.style.opacity = "";
+        engineBtn.style.cursor = "";
+
       }
 
     }
