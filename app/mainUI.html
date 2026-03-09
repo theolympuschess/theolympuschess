@@ -2742,6 +2742,9 @@ body:not(.student-view) #studentProgressCard {
   padding: 12px;
   display: flex;
   flex-direction: column;
+  
+height: 730px;      /* same height as board */
+  max-height: 730px;
 }
 
 .study-header {
@@ -2754,8 +2757,8 @@ body:not(.student-view) #studentProgressCard {
 
 .study-list {
   flex: 1;
-  max-height: calc(100vh - 430px); /* 👈 limits height */
   overflow-y: auto;
+  min-height: 0;
   padding-right: 6px;
 }
 
@@ -2820,7 +2823,14 @@ body:not(.student-view) #studentProgressCard {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  height: 100%;
+ height: 730px;      /* same height as board */
+  max-height: 730px;
+}
+.study-notation{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* 🔽 Smaller engine */
@@ -16542,6 +16552,69 @@ body.student-view #studyAutoCommentBtn {
 
 
 
+/* =========================
+   COACH CHARACTER
+========================= */
+
+#studyCoachContainer {
+
+  position: relative;
+  width: 130px;
+  height: 130px;
+   margin: 0 auto -35px auto;   /* negative bottom margin removes the gap */
+    transform: translateY(-25px); /* move upward */
+
+}
+
+#studyCoachContainer img,
+#studyCoachContainer video {
+
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+
+}
+
+.coach-talking {
+
+  display: none;
+
+}
+
+.coach-idle {
+
+  display: block;
+
+}
+
+
+
+.coach-idle{
+  display: block;
+  transform: scale(1.04); /* zoom amount */
+}
+
+
+
+#coachToggleBtn{
+
+  margin-left:6px;
+  cursor:pointer;
+  background:#1e2746;
+  border:1px solid #394a7a;
+  color:white;
+  padding:4px 8px;
+  border-radius:6px;
+
+}
+
+#coachToggleBtn.off{
+  opacity:0.5;
+}
+
+
+
 
 
 
@@ -17090,7 +17163,7 @@ body.student-view #studyAutoCommentBtn {
   Next Chapter ➡
 </span>
 
-
+<button id="coachToggleBtn" title="Toggle Chess Coach">Coach 👩‍🏫</button>
 
 </div>
 
@@ -17244,7 +17317,25 @@ title="Voice volume"
   <div id="studyPVLines" class="engine-lines"></div>
 
 </div>
+<!-- =========================
+   CHESS COACH CHARACTER
+========================= -->
 
+<div id="studyCoachContainer">
+
+  <img id="coachIdle"
+       src="animations/british_male_idle.png"
+       class="coach-idle">
+
+ <video id="coachTalking"
+       class="coach-talking"
+       src="animations/british_male_talking.mp4"
+       muted
+       playsinline
+       loop
+       preload="auto"></video>
+
+</div>
 <button id="studyAutoCommentBtn" title="Auto generate comments">
 ✨
 </button>
@@ -54535,7 +54626,7 @@ function syncFenEditorFEN() {
 
   let studyVoiceEnabled = false;
   let studyVoiceVolume = 1;
-
+ 
   const speech = window.speechSynthesis;
   function populateVoiceSelector() {
 
@@ -54749,6 +54840,18 @@ function syncFenEditorFEN() {
     currentText = speechText;
 
     const utter = new SpeechSynthesisUtterance(speechText);
+    detectCoachGender();
+    // start talking animation
+utter.onstart = () => {
+
+  startCoachTalking();
+
+};
+utter.onend = () => {
+
+  setCoachIdle();
+
+};
 
 utter.voice = window.studyVoice;
 utter.volume = studyVoiceVolume;
@@ -55306,16 +55409,114 @@ if (autoModal) {
 
 }
 
+/* ===============================
+   INITIAL COACH STATE (STEP 7)
+================================ */
 
+document.addEventListener("DOMContentLoaded", () => {
 
+  setCoachIdle();
 
+});
 
+/* ===============================
+   GLOBAL COACH STATE
+================================ */
 
+window.coachEnabled = true;
+// ==============================
+// 🎭 COACH CHARACTER SYSTEM
+// ==============================
 
+let coachGender = "male";
 
+function detectCoachGender() {
 
+  if (!window.studyVoice) return;
 
+  const name = window.studyVoice.name.toLowerCase();
 
+  if (name.includes("female") || name.includes("jenny") || name.includes("aria")) {
+    coachGender = "female";
+  } else {
+    coachGender = "male";
+  }
+
+}
+
+function setCoachIdle() {
+if(!coachEnabled) return;
+  const idle = document.getElementById("coachIdle");
+  const talk = document.getElementById("coachTalking");
+
+  if (!idle || !talk) return;
+
+  talk.pause();
+  talk.currentTime = 0;
+
+  talk.style.display = "none";
+  idle.style.display = "block";
+
+  idle.src = `animations/british_${coachGender}_idle.png`;
+
+}
+
+function startCoachTalking() {
+
+if(!window.coachEnabled) return;
+
+const idle = document.getElementById("coachIdle");
+const talk = document.getElementById("coachTalking");
+
+if (!idle || !talk) return;
+
+talk.src = `animations/british_${coachGender}_talking.mp4`;
+
+idle.style.display = "none";
+talk.style.display = "block";
+
+talk.currentTime = 0;
+
+talk.loop = true;
+
+talk.play().catch(()=>{});
+
+}
+
+function toggleCoachSystem(){
+
+window.coachEnabled = !window.coachEnabled;
+
+const container = document.getElementById("studyCoachContainer");
+const btn = document.getElementById("coachToggleBtn");
+
+if(!container) return;
+
+if(window.coachEnabled){
+
+container.style.display = "block";
+
+if(btn) btn.classList.remove("off");
+
+}else{
+
+container.style.display = "none";
+
+if(btn) btn.classList.add("off");
+
+}
+
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+
+const btn=document.getElementById("coachToggleBtn");
+
+if(btn){
+btn.addEventListener("click",toggleCoachSystem);
+}
+
+});
 
 
 
@@ -56504,8 +56705,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
