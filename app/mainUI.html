@@ -20750,7 +20750,25 @@ async function applyQuizRating(quizScore) {
 
 
 
+// ==========================================
+// 🎯 TRAINER DAILY XP TRACKER
+// ==========================================
 
+function getTrainerXPUsedToday() {
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return Number(localStorage.getItem(`trainer_xp_${today}`) || 0);
+
+}
+
+function setTrainerXPUsedToday(val) {
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  localStorage.setItem(`trainer_xp_${today}`, val);
+
+}
 
 
 
@@ -21124,6 +21142,18 @@ function renderTierBadge(rating) {
 
 async function grantTrainerXP(moves, accuracy) {
 
+  const DAILY_CAP = 100;
+
+  const usedToday = getTrainerXPUsedToday();
+
+  if (usedToday >= DAILY_CAP) {
+
+    coachSpeak("You have reached today's trainer XP limit. Come back tomorrow for more training.");
+
+    return;
+
+  }
+
   if (!currentProfile) return;
 
   // base reward
@@ -21134,6 +21164,12 @@ async function grantTrainerXP(moves, accuracy) {
   else if (accuracy >= 90) XP += 3;
   else if (accuracy >= 75) XP += 2;
 
+  // 🔒 APPLY DAILY CAP
+  XP = Math.min(XP, DAILY_CAP - usedToday);
+
+  // 🧾 STORE DAILY USAGE
+  setTrainerXPUsedToday(usedToday + XP);
+
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + XP;
 
@@ -21142,15 +21178,17 @@ async function grantTrainerXP(moves, accuracy) {
 
   // 📜 XP HISTORY LOG
   if (window.logRatingEvent) {
-   const chapterName =
-  document.getElementById("studyTitle")?.textContent?.trim() ||
-  "Opening Lesson";
 
-window.logRatingEvent({
-  source: "Opening Trainer",
-  reason: `${chapterName} — ${moves} moves, ${accuracy}% accuracy`,
-  xp: XP
-});
+    const chapterName =
+      document.getElementById("studyTitle")?.textContent?.trim() ||
+      "Opening Lesson";
+
+    window.logRatingEvent({
+      source: "Opening Trainer",
+      reason: `${chapterName} — ${moves} moves, ${accuracy}% accuracy`,
+      xp: XP
+    });
+
   }
 
   await supabase
@@ -34208,9 +34246,9 @@ if (trainerBtn) {
     if (openingTrainerEnabled) {
 
       trainerSide = trainerSideSelect?.value || "white";
-     // 🔁 always start from beginning
+      // 🔁 always start from beginning
   studyGoToStart();
-     // 🔄 AUTO FLIP BOARD IF PLAYING BLACK
+  // 🔄 AUTO FLIP BOARD IF PLAYING BLACK
 if (trainerSide === "black") {
   studyBoard.flip();
 } else {
@@ -56276,28 +56314,40 @@ function showTrainerCompleteModal(){
   );
 
   // same XP logic as reward function
-let xp = 0;
+  let xp = 0;
 
-if (accuracy >= 80) {
+  if (accuracy >= 80) {
 
-  xp = Math.max(3, Math.floor(moves / 2));
+    xp = Math.max(3, Math.floor(moves / 2));
 
-  if (accuracy >= 100) xp += 5;
-  else if (accuracy >= 90) xp += 3;
-  else if (accuracy >= 80) xp += 2;
+    if (accuracy >= 100) xp += 5;
+    else if (accuracy >= 90) xp += 3;
+    else if (accuracy >= 80) xp += 2;
 
+  }
+
+  // 🔒 APPLY DAILY XP CAP (same as reward system)
+const DAILY_CAP = 100;
+const usedToday = getTrainerXPUsedToday();
+
+// preview how much XP can actually be granted
+const remaining = DAILY_CAP - usedToday;
+
+if (remaining <= 0) {
+  xp = 0;
+} else {
+  xp = Math.min(xp, remaining);
 }
 
   document.getElementById("trainerMovesStat").textContent = moves;
   document.getElementById("trainerAccuracyStat").textContent = accuracy + "%";
 
   const xpEl = document.getElementById("trainerXPStat");
-  if (xpEl) xpEl.textContent = "+" + xp;
+  if (xpEl) xpEl.textContent = xp > 0 ? "+" + xp : "0";
 
   modal.classList.remove("hidden");
 
 }
-
 
 
 const trainerModal = document.getElementById("trainerCompleteModal");
@@ -57552,8 +57602,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
-
 
 
 
