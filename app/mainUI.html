@@ -16864,9 +16864,65 @@ TRAINER LESSON COMPLETE MODAL
 
 
 
+.coach-panel{
+  background: linear-gradient(180deg,#0f1320,#0b0e18);
+  border:1px solid #2f3a60;
+  border-radius:10px;
+  padding:16px;
+  margin-top:12px;
+  color:#e8ecff;
+  font-size:15px;
+  min-height:90px;   /* ⭐ makes the panel taller */
+  box-shadow:0 6px 18px rgba(0,0,0,0.45);
+  transition:all 0.25s ease;
+}
 
+.coach-header{
+  font-weight:700;
+  margin-bottom:10px;
+  color:#7ec8ff;
+  font-size:16px;
+  letter-spacing:0.3px;
+}
 
+.coach-comment{
+  line-height:1.7;
+  font-weight:600;
+  color:#ffffff;
+}
 
+/* optional highlight colors for different review types */
+
+.coach-comment.blunder{
+  color:#ff5c5c;
+}
+
+.coach-comment.mistake{
+  color:#ff8c42;
+}
+
+.coach-comment.inaccuracy{
+  color:#ffd166;
+}
+
+.coach-comment.good{
+  color:#6ee7a2;
+}
+
+.coach-panel{
+  animation:coachFade 0.35s ease;
+}
+
+@keyframes coachFade{
+  from{
+    opacity:0;
+    transform:translateY(6px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
 
 
 
@@ -17429,7 +17485,9 @@ TRAINER LESSON COMPLETE MODAL
 <option value="white">White</option>
 <option value="black">Black</option>
 </select>
-
+<button id="coachReviewBtn" class="study-action-btn">
+💡 AI Review
+</button>
 </div>
 
 </div>
@@ -17580,6 +17638,21 @@ title="Voice volume"
   </div>
 
   <div id="studyPVLines" class="engine-lines"></div>
+
+</div>
+<!-- =========================
+   Review Stats
+========================= -->
+
+<div id="coachPanel" class="coach-panel" style="display:none;">
+
+  <div class="coach-header">
+    Olympus AI Coach Analysis
+  </div>
+
+  <div id="coachComment" class="coach-comment">
+    Waiting for analysis...
+  </div>
 
 </div>
 <!-- =========================
@@ -33374,6 +33447,202 @@ function studyAutoPlayStart() {
 
 }
 
+
+
+
+function startCoachReview(){
+
+  if(!studyMoveTreeRoot) return;
+
+  // ⭐ AUTO START ENGINE IF OFF
+  if(!studyEngineEnabled){
+
+    studyEngineEnabled = true;
+
+    const btn = document.getElementById("studyEngineToggle");
+
+    if(btn){
+      btn.textContent = "ON";
+      btn.className = "engine-toggle on";
+    }
+
+    initStudyEngine();
+    analyzeStudyPosition();
+  }
+
+  coachReviewRunning = true;
+
+  coachReviewNode = studyMoveTreeRoot;
+
+  coachReviewPrevEval = 0;
+
+  studyGoToStart();
+
+  coachSpeak("Starting game review.");
+
+  setTimeout(runCoachReviewStep,2000);
+}
+
+function runCoachReviewStep(){
+
+  if (!coachReviewRunning) return;
+  if (!coachReviewNode) return;
+
+  const children = coachReviewNode.children;
+
+  if (!children || !children.length) {
+
+    const summary = coachFinalEvaluation();
+
+    coachSpeak("Review completed. " + summary);
+
+    coachReviewRunning = false;
+
+    // ⭐ restore engine panel
+    const engineBox = document.querySelector(".study-engine-box");
+    if(engineBox){
+      engineBox.style.display = "block";
+    }
+
+    // ⭐ hide coach panel
+    const coachPanel = document.getElementById("coachPanel");
+    if(coachPanel){
+      coachPanel.style.display = "none";
+    }
+
+    // ⭐ reset review button
+    const reviewBtn = document.getElementById("coachReviewBtn");
+    if(reviewBtn) reviewBtn.classList.remove("active");
+
+    return;
+
+  }
+
+  const next = children[0];
+  const moveSAN = next.move.san;
+
+  const positionBefore = coachReviewNode.fen;
+
+  analyzeFenForBestMove(positionBefore, (bestMove) => {
+
+    goToStudyTreeNode(next);
+
+    setTimeout(() => {
+
+      const evalNow = getCurrentEval();
+
+      let diff = evalNow - coachReviewPrevEval;
+
+// ⭐ normalize for black moves
+if (next.move.color === "b") {
+  diff = -diff;
+}
+
+      let type = classifyMove(diff, moveSAN);
+
+// ⭐ if player played the engine best move, force best
+if (bestMove && moveSAN === bestMove) {
+  type = "best";
+}
+      // ⭐ apply NAG to notation
+const nag = nagFromType(type);
+
+if(nag && next){
+
+  const map = {
+  "!": "good",
+  "?!": "dubious",
+  "?": "mistake",
+  "??": "blunder",
+  "!!": "brilliant"
+};
+
+  const annotation = map[nag];
+
+  if(annotation){
+    next.annotation = annotation;
+    renderStudyNotationTree();
+  }
+
+}
+
+      const speech = coachReviewSpeech(moveSAN, type, bestMove);
+      // ⭐ update coach panel
+const coachComment = document.getElementById("coachComment");
+
+if(coachComment){
+
+  const evalText = document.getElementById("studyEval")?.textContent || "";
+
+  let text = "";
+
+  if(type === "blunder") text = "Blunder.";
+  if(type === "mistake") text = "Mistake.";
+  if(type === "inaccuracy") text = "Inaccuracy.";
+  if(type === "good") text = "Good move.";
+
+  if(bestMove && moveSAN !== bestMove){
+    text += " Best move was " + bestMove + " (" + evalText + ").";
+  }
+
+  text += " " + coachFinalEvaluation();
+
+  coachComment.textContent = text;
+}
+
+// ⭐ add comment to notation
+// ⭐ add comment to notation with evaluation
+if(bestMove && moveSAN !== bestMove){
+
+  const evalBox = document.getElementById("studyEval");
+let evalText = "";
+
+if(evalBox){
+  evalText = evalBox.textContent.trim();
+}
+
+// ⭐ convert Mx into mate sentence
+if(evalText.startsWith("M")){
+
+  const mateMoves = Math.abs(parseInt(evalText.replace("M","")));
+
+  if(mateMoves === 1){
+    evalText = "Mate next move";
+  } else {
+    evalText = "Mate in " + mateMoves;
+  }
+
+}
+
+next.comment = "Best move was " + bestMove + " (" + evalText + ").";
+
+  renderStudyNotationTree();
+}
+
+coachSpeak(speech);
+
+      coachReviewPrevEval = evalNow;
+
+      coachReviewNode = next;
+
+      const waitSpeech = setInterval(() => {
+
+        if (!speechSynthesis.speaking) {
+
+          clearInterval(waitSpeech);
+
+          setTimeout(runCoachReviewStep, 500);
+
+        }
+
+      }, 200);
+
+    }, 1000);
+
+  });
+
+}
+
 function studyAutoPlayStop() {
 
   if (!studyAutoPlayTimer) return;
@@ -33544,6 +33813,14 @@ function extractFenMoveIndex(pgn) {
 // ============================================
 
 let studyMoveTreeRoot = null;
+
+// ==========================================
+// 🎙 COACH REVIEW SYSTEM
+// ==========================================
+
+let coachReviewRunning = false;
+let coachReviewNode = null;
+let coachReviewPrevEval = 0;
 let studyCurrentNode = null;
 // ==========================================
 // 🎯 OPENING TRAINER SYSTEM
@@ -34258,6 +34535,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
     });
   }
+// ==========================================
+// 🎙 COACH REVIEW BUTTON
+// ==========================================
+const reviewBtn = document.getElementById("coachReviewBtn");
+
+if (reviewBtn) {
+
+  reviewBtn.addEventListener("click", () => {
+
+    const engineBox = document.querySelector(".study-engine-box");
+    const coachPanel = document.getElementById("coachPanel");
+
+    // ⭐ TOGGLE STOP REVIEW
+    if (coachReviewRunning) {
+
+      coachReviewRunning = false;
+
+      coachSpeak("Review stopped.");
+
+      reviewBtn.classList.remove("active");
+
+      // restore engine
+      if(engineBox) engineBox.style.display = "block";
+
+      // hide coach panel
+      if(coachPanel) coachPanel.style.display = "none";
+
+      return;
+    }
+
+    // ⭐ AUTO ENABLE ENGINE
+    if (!studyEngineEnabled) {
+
+      studyEngineEnabled = true;
+
+      const btn = document.getElementById("studyEngineToggle");
+
+      if (btn) {
+        btn.textContent = "ON";
+        btn.className = "engine-toggle on";
+      }
+
+      initStudyEngine();
+      analyzeStudyPosition();
+    }
+
+    // ⭐ START REVIEW
+    reviewBtn.classList.add("active");
+
+    // hide engine panel
+    if(engineBox) engineBox.style.display = "none";
+
+    // show coach panel
+    if(coachPanel) coachPanel.style.display = "block";
+
+    startCoachReview();
+
+  });
+
+}
 
   // ==========================================
   // 🎯 OPENING TRAINER TOGGLE
@@ -36266,7 +36603,8 @@ function initTrainerDrawing(wrapper, boardEl, canvas) {
 
 
 
-
+let coachWaitingBestMove = false;
+let coachBestMoveForReview = null;
 
 
 function initStudyEngine() {
@@ -36319,7 +36657,7 @@ function analyzeStudyPosition() {
       "position fen " + studyChess.fen()
     );
 
-    studyEngine.postMessage("go movetime 3000");
+    studyEngine.postMessage("go movetime 4000");
   };
 
   studyEngine.addEventListener("message", handleReady);
@@ -36403,13 +36741,45 @@ else {
   evalBox.classList.add("eval-equal");
 }
   }
-
+// ==========================================
+// 🧠 ENGINE BEST MOVE TRACKER
+// ==========================================
+if (!window.studyBestMove) {
+  window.studyBestMove = null;
+}
   /* ================= MULTI-PV DISPLAY ================= */
   const pvMatch = line.match(/multipv (\d+).* pv (.+)/);
   if (!pvMatch) return;
 
   const index = pvMatch[1];
   const uciPv = pvMatch[2];
+  // store best move from PV1
+if (index === "1") {
+
+  const bestMoveUci = uciPv.split(" ")[0];
+
+  const temp = new Chess();
+  temp.load(studyChess.fen());
+
+  const move = temp.move({
+    from: bestMoveUci.slice(0,2),
+    to: bestMoveUci.slice(2,4),
+    promotion: bestMoveUci[4]
+  });
+
+  if (move) {
+
+    window.studyBestMove = move.san;
+    window.studyBestMoveFen = studyChess.fen();
+
+    // ⭐ capture move specifically for review
+    if (coachWaitingBestMove) {
+      coachBestMoveForReview = move.san;
+    }
+
+  }
+
+}
 
   const sanPv = uciLineToSAN(studyChess.fen(), uciPv);
   let evalText = "";
@@ -36475,7 +36845,20 @@ function uciLineToSAN(fen, uciLine) {
   return sanMoves.join(" ");
 }
 
+function getCurrentEval(){
 
+  const evalBox = document.getElementById("studyEval");
+  if(!evalBox) return 0;
+
+  const text = evalBox.textContent;
+
+  if(text.startsWith("M")) return 10;
+
+  const num = parseFloat(text);
+  if(isNaN(num)) return 0;
+
+  return num;
+}
 
 
 
@@ -50249,7 +50632,72 @@ document.getElementById("vsOpenInAnalysis").onclick = () => {
   document.getElementById("vsReplayModal")?.classList.add("hidden");
 };
 
+document.getElementById("vsStartReview").onclick = () => {
 
+  if (!vsCurrentReplayGame) return;
+
+  const game = vsCurrentReplayGame;
+
+  const whiteName = game.player_color === "white"
+    ? (game.student_name || "You")
+    : (game.bot_name || "Olympus Bot");
+
+  const blackName = game.player_color === "white"
+    ? (game.bot_name || "Olympus Bot")
+    : (game.student_name || "You");
+
+  let result = "*";
+
+  if (game.result === "win") {
+    result = game.player_color === "white" ? "1-0" : "0-1";
+  }
+
+  if (game.result === "loss") {
+    result = game.player_color === "white" ? "0-1" : "1-0";
+  }
+
+  if (game.result === "draw") {
+    result = "1/2-1/2";
+  }
+
+  const date = new Date(game.created_at || Date.now())
+    .toISOString()
+    .split("T")[0];
+
+  const header =
+`[Event "Bot Game Review"]
+[Site "Olympus Chess Academy"]
+[Date "${date}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + (game.pgn || "");
+
+  // 🔥 SWITCH TO STUDY TAB
+  document.querySelector('.nav-btn[data-tab="study"]')?.click();
+
+  setTimeout(() => {
+
+    const modal = document.getElementById("studyImportModal");
+    const pgnBox = document.getElementById("studyPgnInput");
+
+    if (!modal || !pgnBox) return;
+
+    // ⭐ Fill PGN in import box
+    pgnBox.value = fullPGN;
+
+    // ⭐ Open import modal
+    modal.classList.remove("hidden");
+
+  }, 200);
+
+  // close replay modal
+  document.getElementById("vsReplayModal")?.classList.add("hidden");
+
+};
 
 async function saveVsBotGame({ result, pgn }) {
   if (!currentProfile) return;
@@ -56427,6 +56875,256 @@ window.toggleMiniScorePanel = function(){
 
 
 
+(function(){
+
+  window.coachSay = function(text){
+
+    try {
+
+      if (!text) return;
+      if (!window.coachEnabled) return;
+
+      if (typeof window.coachSpeak === "function") {
+        window.coachSpeak(text);
+        return;
+      }
+
+      if ("speechSynthesis" in window) {
+
+        const msg = new SpeechSynthesisUtterance(text);
+
+        if (window.studyVoice) {
+          msg.voice = window.studyVoice;
+        }
+
+        const vol = Number(window.studyVoiceVolume);
+        msg.volume = Number.isFinite(vol) ? Math.max(0, Math.min(1, vol)) : 1;
+
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(msg);
+
+      }
+
+    } catch(err) {
+      console.warn("coachSay error:", err);
+    }
+
+  };
+
+})();
+
+
+
+function classifyMove(evalDiff, moveSAN){
+
+  // ⭐ checkmate detection
+  if(moveSAN && moveSAN.includes("#")){
+    return "mate";
+  }
+
+  const diff = Math.abs(evalDiff);
+
+  // tuned thresholds
+  if(diff < 0.30) return "best";
+  if(diff < 0.80) return "good";
+  if(diff < 1.50) return "inaccuracy";
+  if(diff < 3.00) return "mistake";
+
+  return "blunder";
+
+}
+
+
+
+function coachReviewSpeech(moveSAN, type, bestMove){
+
+  const spokenMove = speakMoveSAN(moveSAN);
+
+  let text = spokenMove + ". ";
+
+  if(type === "mate"){
+    text += "The game is finished.";
+    return text;
+  }
+
+  if(type === "brilliant"){
+    text += "Brilliant move.";
+  }
+
+  if(type === "only"){
+    text += "This was the only move.";
+  }
+
+  if(type === "good"){
+    text += "Good move.";
+  }
+
+  if(type === "inaccuracy"){
+    text += "This move is inaccurate.";
+  }
+
+  if(type === "mistake"){
+    text += "This move is a mistake.";
+  }
+
+  if(type === "blunder"){
+    text += "Blunder.";
+  }
+
+  // ⭐ explain best move
+  if(["inaccuracy","mistake","blunder"].includes(type) && bestMove){
+
+    text += " The best move was " + speakMoveSAN(bestMove) + ".";
+
+    // ⭐ detect mate from engine evaluation
+    const evalBox = document.getElementById("studyEval");
+
+    if(evalBox){
+
+      const evalText = evalBox.textContent.trim();
+
+      if(evalText.startsWith("M")){
+
+        const mateMoves = Math.abs(parseInt(evalText.replace("M","")));
+
+        if(mateMoves === 1){
+          text += " Checkmate is coming.";
+        } else {
+          text += " Mate in " + mateMoves + " is unavoidable.";
+        }
+
+      }
+
+    }
+
+  }
+
+  return text;
+}
+
+
+
+
+
+function analyzeFenForBestMove(fen, callback){
+
+  if(!studyEngine) return;
+
+  const handleBest = (e) => {
+
+    const line = e.data;
+
+    if(typeof line !== "string") return;
+
+    if(line.startsWith("bestmove")){
+
+      studyEngine.removeEventListener("message", handleBest);
+
+      const move = line.split(" ")[1];
+
+      if(!move){
+        callback(null);
+        return;
+      }
+
+      const temp = new Chess();
+      temp.load(fen);
+
+      const san = temp.move({
+        from: move.slice(0,2),
+        to: move.slice(2,4),
+        promotion: move[4]
+      })?.san;
+
+      callback(san || null);
+    }
+
+  };
+
+  studyEngine.addEventListener("message", handleBest);
+
+  studyEngine.postMessage("position fen " + fen);
+  studyEngine.postMessage("go movetime 2000");
+
+}
+
+
+
+
+
+
+function coachFinalEvaluation(){
+
+  const evalBox = document.getElementById("studyEval");
+  if(!evalBox) return "";
+
+  const text = evalBox.textContent.trim();
+
+  // ⭐ checkmate detection
+if(text.startsWith("M")){
+
+  const mateValue = parseInt(text.replace("M",""));
+  const moves = Math.abs(mateValue);
+
+  if(mateValue > 0){
+
+    if(moves === 1){
+      return "Checkmate next move. White wins.";
+    }
+
+    return `Mate in ${moves} is unavoidable. White will win.`;
+  }
+
+  if(mateValue < 0){
+
+    if(moves === 1){
+      return "Checkmate next move. Black wins.";
+    }
+
+    return `Mate in ${moves} is unavoidable. Black will win.`;
+  }
+
+}
+
+  const evalScore = parseFloat(text);
+
+  if (Math.abs(evalScore) < 0.30) return "The position is equal.";
+
+  if (evalScore > 0 && evalScore < 1.2) return "White is slightly better.";
+
+  if (evalScore >= 1.2 && evalScore < 3) return "White is clearly better.";
+
+  if (evalScore >= 3) return "White is winning.";
+
+  if (evalScore < 0 && evalScore > -1.2) return "Black is slightly better.";
+
+  if (evalScore <= -1.2 && evalScore > -3) return "Black is clearly better.";
+
+  if (evalScore <= -3) return "Black is winning.";
+
+  return "Good game!.";
+}
+
+
+
+
+function nagFromType(type){
+
+  const map = {
+    best: "!",        // best move
+    good: "!",        // good move
+    inaccuracy: "?!", // small mistake
+    mistake: "?",     // mistake
+    blunder: "??",    // blunder
+    mate: "!!"        // checkmate
+  };
+
+  return map[type] || "";
+
+}
+
+
+
 
 
 
@@ -56873,6 +57571,9 @@ window.toggleMiniScorePanel = function(){
       <button id="vsOpenInAnalysis" class="btn-secondary">
   Analysis
 </button>
+<button id="vsStartReview" class="btn-primary">
+    ⭐ Review
+  </button>
 
     </div>
 
