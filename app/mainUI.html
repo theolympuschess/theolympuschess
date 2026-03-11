@@ -16926,6 +16926,100 @@ TRAINER LESSON COMPLETE MODAL
 
 
 
+.coach-close{
+  float:right;
+  background:transparent;
+  border:none;
+  color:#aaa;
+  font-size:16px;
+  cursor:pointer;
+}
+
+.coach-close:hover{
+  color:#fff;
+}
+
+
+
+.quick-lichess-wrapper{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-left:8px;
+}
+
+/* input */
+#quickLichessUser{
+  width:130px;
+  height:26px;
+  padding:3px 8px;
+  border-radius:6px;
+  border:1px solid #2c3350;
+  background:#1b2038;
+  color:#ddd;
+  font-size:12px;
+  outline:none;
+  margin-top: 10px;
+}
+
+#quickLichessUser::placeholder{
+  color:#8a92b5;
+}
+
+/* search button */
+#quickFetchLichessBtn{
+  height:26px;
+  padding:0 10px;
+  border-radius:6px;
+  border:1px solid #2c3350;
+  background:#2a3052;
+  color:#ddd;
+  font-size:12px;
+  cursor:pointer;
+  transition:all .15s ease;
+}
+
+#quickFetchLichessBtn:hover{
+  background:#3a4270;
+}
+
+/* dropdown */
+.quick-lichess-dropdown{
+  position:absolute;
+  top:30px;
+  left:0;
+  width:300px;
+  max-height:220px;
+  overflow:auto;
+  background:#111428;
+  border:1px solid #2c3350;
+  border-radius:8px;
+  z-index:999;
+  box-shadow:0 6px 18px rgba(0,0,0,0.5);
+}
+
+.quick-lichess-item{
+  padding:6px 10px;
+  cursor:pointer;
+  font-size:12px;
+  color:#d6dbff;
+}
+
+.quick-lichess-item:hover{
+  background:#2a3052;
+}
+
+.hidden{
+  display:none;
+}
+
+
+
+
+
+
+
 
 
 
@@ -17469,11 +17563,11 @@ TRAINER LESSON COMPLETE MODAL
   </div>
 
   <span id="prevChapterBtn" class="study-nav-btn" title="Previous Chapter">
-  ⬅ Previous Chapter
+  ⬅ Prev
 </span>
 
 <span id="nextChapterBtn" class="study-nav-btn" title="Next Chapter">
-  Next Chapter ➡
+  Next ➡
 </span>
 
 <button id="coachToggleBtn" title="Toggle Chess Coach">🧑🏻 Coach</button>
@@ -17488,6 +17582,24 @@ TRAINER LESSON COMPLETE MODAL
 <button id="coachReviewBtn" class="study-action-btn">
 💡 AI Review
 </button>
+<!-- 🔎 LICHESS QUICK FETCH -->
+<!-- 🔎 QUICK LICHESS FETCH -->
+<div class="quick-lichess-wrapper">
+
+<input
+  type="text"
+  id="quickLichessUser"
+  placeholder="Lichess username"
+  autocomplete="off"
+/>
+
+<button id="quickFetchLichessBtn">🔎</button>
+
+<div id="quickGameDropdown" class="quick-lichess-dropdown hidden">
+  <div id="quickGameList"></div>
+</div>
+
+</div>
 </div>
 
 </div>
@@ -17648,6 +17760,7 @@ title="Voice volume"
 
   <div class="coach-header">
     Olympus AI Coach Analysis
+    <button id="closeCoachPanel" class="coach-close">✕</button>
   </div>
 
   <div id="coachComment" class="coach-comment">
@@ -17655,6 +17768,7 @@ title="Voice volume"
   </div>
 
 </div>
+
 <!-- =========================
    CHESS COACH CHARACTER
 ========================= -->
@@ -33448,7 +33562,11 @@ function studyAutoPlayStart() {
 }
 
 
-
+// ⭐ REVIEW STATISTICS
+let reviewStats = {
+  white: { good:0, inaccuracy:0, mistake:0, blunder:0, total:0 },
+  black: { good:0, inaccuracy:0, mistake:0, blunder:0, total:0 }
+};
 
 function startCoachReview(){
 
@@ -33471,6 +33589,16 @@ function startCoachReview(){
   }
 
   coachReviewRunning = true;
+  // ⭐ reset coach panel text for new review
+const coachComment = document.getElementById("coachComment");
+if(coachComment){
+  coachComment.innerHTML = "Analyzing game...";
+}
+  // ⭐ reset review statistics
+reviewStats = {
+  white: { good:0, inaccuracy:0, mistake:0, blunder:0, total:0 },
+  black: { good:0, inaccuracy:0, mistake:0, blunder:0, total:0 }
+};
 
   coachReviewNode = studyMoveTreeRoot;
 
@@ -33494,7 +33622,36 @@ function runCoachReviewStep(){
 
     const summary = coachFinalEvaluation();
 
-    coachSpeak("Review completed. " + summary);
+const whiteAcc = calculateAccuracy(reviewStats.white);
+const blackAcc = calculateAccuracy(reviewStats.black);
+
+coachSpeak("Review completed. " + summary +
+". White accuracy " + whiteAcc + " percent. " +
+"Black accuracy " + blackAcc + " percent.");
+
+// ⭐ show stats in coach panel
+const coachComment = document.getElementById("coachComment");
+
+if(coachComment){
+
+coachComment.innerHTML =
+"<b>Review completed</b><br><br>" +
+
+"<b>White</b><br>" +
+"Accuracy: " + whiteAcc + "%<br>" +
+"Good moves: " + reviewStats.white.good + "<br>" +
+"Inaccuracies: " + reviewStats.white.inaccuracy + "<br>" +
+"Mistakes: " + reviewStats.white.mistake + "<br>" +
+"Blunders: " + reviewStats.white.blunder + "<br><br>" +
+
+"<b>Black</b><br>" +
+"Accuracy: " + blackAcc + "%<br>" +
+"Good moves: " + reviewStats.black.good + "<br>" +
+"Inaccuracies: " + reviewStats.black.inaccuracy + "<br>" +
+"Mistakes: " + reviewStats.black.mistake + "<br>" +
+"Blunders: " + reviewStats.black.blunder;
+
+}
 
     coachReviewRunning = false;
 
@@ -33507,7 +33664,7 @@ function runCoachReviewStep(){
     // ⭐ hide coach panel
     const coachPanel = document.getElementById("coachPanel");
     if(coachPanel){
-      coachPanel.style.display = "none";
+      coachPanel.style.display = "block";
     }
 
     // ⭐ reset review button
@@ -33544,6 +33701,26 @@ if (next.move.color === "b") {
 if (bestMove && moveSAN === bestMove) {
   type = "best";
 }
+// ⭐ collect move statistics
+const side = next.move.color === "w" ? "white" : "black";
+
+reviewStats[side].total++;
+
+if(type === "good" || type === "best"){
+  reviewStats[side].good++;
+}
+
+if(type === "inaccuracy"){
+  reviewStats[side].inaccuracy++;
+}
+
+if(type === "mistake"){
+  reviewStats[side].mistake++;
+}
+
+if(type === "blunder"){
+  reviewStats[side].blunder++;
+}
       // ⭐ apply NAG to notation
 const nag = nagFromType(type);
 
@@ -33567,6 +33744,7 @@ if(nag && next){
 }
 
       const speech = coachReviewSpeech(moveSAN, type, bestMove);
+      showStudyMoveMarker(next);   // ⭐ SHOW BOARD BUBBLE
       // ⭐ update coach panel
 const coachComment = document.getElementById("coachComment");
 
@@ -57105,7 +57283,21 @@ if(text.startsWith("M")){
   return "Good game!.";
 }
 
+function calculateAccuracy(stats){
 
+  if(stats.total === 0) return 100;
+
+  const penalty =
+    stats.inaccuracy * 5 +
+    stats.mistake * 10 +
+    stats.blunder * 20;
+
+  let accuracy = 100 - penalty;
+
+  if(accuracy < 0) accuracy = 0;
+
+  return Math.round(accuracy);
+}
 
 
 function nagFromType(type){
@@ -57126,12 +57318,193 @@ function nagFromType(type){
 
 
 
+document.getElementById("closeCoachPanel")?.addEventListener("click", () => {
+
+  const coachPanel = document.getElementById("coachPanel");
+  const engineBox = document.querySelector(".study-engine-box");
+
+  if(coachPanel){
+    coachPanel.style.display = "none";
+  }
+
+  if(engineBox){
+    engineBox.style.display = "block";
+  }
+
+});
 
 
 
+/* ======================================
+   ♟ QUICK LICHESS FETCH (ISOLATED)
+   ====================================== */
 
+let quickLichessGames = [];
 
+/* ======================================
+   POPULATE DROPDOWN
+   ====================================== */
 
+function populateQuickDropdown(games){
+
+  const dropdown = document.getElementById("quickGameDropdown");
+  const list = document.getElementById("quickGameList");
+
+  if(!dropdown || !list) return;
+
+  list.innerHTML = "";
+
+  games.forEach((g,index)=>{
+
+    const white = g.players.white.user?.name || "Anon";
+const black = g.players.black.user?.name || "Anon";
+
+const date = new Date(g.createdAt).toLocaleDateString("en-GB");
+
+const speed = g.speed || "unknown";
+
+const result =
+  g.winner === "white" ? "1-0" :
+  g.winner === "black" ? "0-1" :
+  "1/2-1/2";
+
+    const item = document.createElement("div");
+    item.className = "quick-lichess-item";
+
+    item.textContent =
+  `${date} | ${speed} | ${result} | ${white} vs ${black}`;
+
+    item.addEventListener("click", async ()=>{
+
+      const game = quickLichessGames[index];
+      if(!game?.id) return;
+
+      try{
+
+        const res = await fetch(
+          `https://lichess.org/game/export/${game.id}`,
+          { headers:{Accept:"application/x-chess-pgn"} }
+        );
+
+        if(!res.ok) throw new Error("PGN fetch failed");
+
+        const pgn = await res.text();
+
+        /* ===============================
+           INJECT INTO STUDY IMPORT BOX
+           =============================== */
+
+        const studyInput = document.getElementById("studyPgnInput");
+        const modal = document.getElementById("studyImportModal");
+
+        if(!studyInput || !modal){
+          console.error("Study import elements not found");
+          return;
+        }
+
+        // Put PGN into textarea
+        studyInput.value = pgn;
+
+        // Open import modal
+        modal.classList.remove("hidden");
+
+        // Hide dropdown
+        dropdown.classList.add("hidden");
+
+      }catch(err){
+
+        console.error(err);
+        alert("Failed to load game.");
+
+      }
+
+    });
+
+    list.appendChild(item);
+
+  });
+
+  dropdown.classList.remove("hidden");
+}
+
+/* ======================================
+   FETCH LICHESS USER
+   ====================================== */
+
+const quickFetchBtn = document.getElementById("quickFetchLichessBtn");
+const quickUserInput = document.getElementById("quickLichessUser");
+
+if(quickFetchBtn && quickUserInput){
+
+  quickFetchBtn.addEventListener("click", async ()=>{
+
+    const username = quickUserInput.value.trim();
+    if(!username) return;
+
+    quickFetchBtn.disabled = true;
+    quickFetchBtn.textContent = "Loading...";
+
+    try{
+
+      const res = await fetch(
+        `https://lichess.org/api/games/user/${username}?max=50`,
+        { headers:{Accept:"application/x-ndjson"} }
+      );
+
+      if(!res.ok) throw new Error("Fetch failed");
+
+      const text = await res.text();
+      const lines = text.trim().split("\n");
+
+      quickLichessGames = lines.map(line=>JSON.parse(line));
+
+      populateQuickDropdown(quickLichessGames);
+
+    }catch(err){
+
+      console.error(err);
+      alert("Failed to fetch games.");
+
+    }finally{
+
+      quickFetchBtn.disabled = false;
+      quickFetchBtn.textContent = "Search";
+
+    }
+
+  });
+
+}
+
+/* ======================================
+   ENTER KEY SUPPORT
+   ====================================== */
+
+quickUserInput?.addEventListener("keydown",(e)=>{
+
+  if(e.key === "Enter"){
+    e.preventDefault();
+    quickFetchBtn.click();
+  }
+
+});
+
+/* ======================================
+   CLOSE DROPDOWN ON OUTSIDE CLICK
+   ====================================== */
+
+document.addEventListener("click",(e)=>{
+
+  const dropdown = document.getElementById("quickGameDropdown");
+  const wrapper = document.querySelector(".quick-lichess-wrapper");
+
+  if(!dropdown || !wrapper) return;
+
+  if(!wrapper.contains(e.target)){
+    dropdown.classList.add("hidden");
+  }
+
+});
 
 
 
