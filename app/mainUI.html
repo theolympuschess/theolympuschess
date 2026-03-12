@@ -17109,6 +17109,53 @@ TRAINER LESSON COMPLETE MODAL
 
 
 
+#mpOpenInStudy{
+  background:#2a3b55;
+  color:#fff;
+  border:none;
+  padding:6px 10px;
+  border-radius:6px;
+  font-size:12px;
+  cursor:pointer;
+  transition:0.15s;
+}
+
+#mpOpenInStudy:hover{
+  background:#3c5375;
+}
+
+
+
+
+
+
+#dicePieceFilter{
+display:flex;
+flex-wrap:wrap;
+gap:6px;
+margin-top:6px;
+font-size:12px;
+}
+
+#dicePieceFilter label{
+background:#111;
+padding:4px 6px;
+border-radius:4px;
+cursor:pointer;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18187,6 +18234,7 @@ title="Voice volume"
         <button id="mpNextMove">Next ⏭</button>
         <button id="mpCopyReplayPGN">📋 Copy PGN</button>
         <button id="mpOpenInAnalysis" class="btn-success">🔎Analysis</button>
+        <button id="mpOpenInStudy" class="btn-warning">⭐Review</button>
       </div>
 
     </div>
@@ -55587,7 +55635,16 @@ function scrollChapterIntoPanel(target) {
   });
 }
 
+function getAllowedPieces(){
 
+  const allowed = []
+
+  pieceFilters.forEach(cb=>{
+    if(cb.checked) allowed.push(cb.value)
+  })
+
+  return allowed
+}
 /* ========================================= */
 /* 🎲 Dice Chess Luck CLEAN FINAL */
 /* ========================================= */
@@ -55605,6 +55662,7 @@ const diceResultText = document.getElementById("diceResultText")
 
 const pieceNames = ["Pawn","Knight","Bishop","Rook","Queen","King"]
 const pieceCodes = ["p","n","b","r","q","k"]
+const pieceFilters = document.querySelectorAll('#dicePieceFilter input')
 
 const SLOT_HEIGHT = 220
 
@@ -55650,7 +55708,18 @@ function startRoll() {
   const loops = 6
 
   // 🎯 Pick result FIRST
-  const randomIndex = Math.floor(Math.random() * baseCount)
+  const allowedPieces = getAllowedPieces()
+
+if(allowedPieces.length === 0){
+  diceResultText.textContent = "Select at least one piece!"
+  diceRolling = false
+  return
+}
+
+const randomCode =
+  allowedPieces[Math.floor(Math.random()*allowedPieces.length)]
+
+const randomIndex = pieceCodes.indexOf(randomCode)
 
   // 🎯 Calculate final absolute target
   const finalTarget =
@@ -57737,6 +57806,73 @@ document.addEventListener("click",(e)=>{
 
 
 
+document.getElementById("mpOpenInStudy").onclick = () => {
+
+  if (!mpCurrentReplayGame) return;
+
+  const game = mpCurrentReplayGame;
+
+  const whiteName = game.white_name || "White";
+  const blackName = game.black_name || "Black";
+
+  let result = "*";
+  if (game.winner === "w") result = "1-0";
+  if (game.winner === "b") result = "0-1";
+  if (game.winner === "draw") result = "1/2-1/2";
+
+  const date = new Date(game.ended_at || Date.now())
+    .toISOString()
+    .split("T")[0];
+
+  const header =
+`[Event "Live Match"]
+[Site "Olympus Chess Academy"]
+[Date "${date}"]
+[White "${whiteName}"]
+[Black "${blackName}"]
+[Result "${result}"]
+
+`;
+
+  const fullPGN = header + (game.pgn || "");
+
+  // ⭐ Switch to Study tab
+  document.querySelector('.nav-btn[data-tab="study"]')?.click();
+
+  setTimeout(() => {
+
+    const studyInput = document.getElementById("studyPgnInput");
+
+    if (!studyInput) return;
+
+    studyInput.value = fullPGN;
+
+    // open study import modal
+    document.getElementById("studyImportModal")?.classList.remove("hidden");
+
+  }, 200);
+
+  mpReplayModal.classList.add("hidden");
+
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -58618,6 +58754,7 @@ document.addEventListener("click",(e)=>{
  <div id="stopwatchTime">00:00:00</div>
 
   <div id="modeSelector">
+  
     <button id="modeStopwatch" class="activeMode">Stopwatch</button>
     <button id="modeCountdown">Countdown</button>
   </div>
@@ -58757,6 +58894,17 @@ document.addEventListener("click",(e)=>{
   </div>
 
   <div id="diceResultText">Press Roll or SPACE</div>
+  <!-- PIECE FILTER -->
+<div id="dicePieceFilter">
+
+<label><input type="checkbox" value="p" checked> Pawn</label>
+<label><input type="checkbox" value="n" checked> Knight</label>
+<label><input type="checkbox" value="b" checked> Bishop</label>
+<label><input type="checkbox" value="r" checked> Rook</label>
+<label><input type="checkbox" value="q" checked> Queen</label>
+<label><input type="checkbox" value="k" checked> King</label>
+
+</div>
 
   <div id="diceButtons">
     <button id="diceRollBtn">🎲 Roll</button>
