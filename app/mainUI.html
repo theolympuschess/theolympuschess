@@ -17360,6 +17360,7 @@ border-radius:6px;
 
 
 
+
 /* DESKTOP: restore original page scrolling */
 @media (min-width:769px){
 
@@ -17377,7 +17378,157 @@ border-radius:6px;
 }
 
 
-   
+
+
+
+
+
+/* ================================= */
+/* DAILY MISSIONS FLOATING WIDGET */
+/* ================================= */
+
+#dailyMissionWidget{
+
+position:fixed;
+right:20px;
+top:100px;
+
+width:230px;
+
+background:linear-gradient(180deg,#0f1c44,#08102a);
+
+border-radius:14px;
+padding:14px;
+
+box-shadow:0 0 15px rgba(0,0,0,0.6);
+
+font-family:Arial;
+z-index:9999;
+
+animation:missionPop 0.5s ease;
+
+}
+
+#missionHeader{
+font-size:16px;
+font-weight:700;
+color:#ffd34d;
+text-align:center;
+margin-bottom:10px;
+}
+
+/* ============================== */
+/* MISSION CONTAINER */
+/* ============================== */
+
+#missionContainer{
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+/* ============================== */
+/* SINGLE MISSION CARD */
+/* ============================== */
+
+.missionCard{
+
+background:#0f1c44;
+
+border-radius:10px;
+
+padding:10px;
+
+box-shadow:0 0 8px rgba(0,0,0,0.4);
+
+}
+
+.missionTitle{
+font-size:13px;
+color:white;
+text-align:center;
+margin-bottom:6px;
+}
+
+.missionProgressText{
+font-size:12px;
+text-align:center;
+color:#8fd3ff;
+margin-bottom:6px;
+}
+
+/* ============================== */
+/* PROGRESS BAR */
+/* ============================== */
+
+.missionBar{
+width:100%;
+height:6px;
+background:#1a2c66;
+border-radius:6px;
+overflow:hidden;
+}
+
+.missionFill{
+height:100%;
+background:linear-gradient(90deg,#00ff95,#00bfff);
+width:0%;
+transition:0.4s;
+}
+
+/* ============================== */
+/* ANIMATION */
+/* ============================== */
+
+@keyframes missionPop{
+
+from{
+opacity:0;
+transform:translateY(20px);
+}
+
+to{
+opacity:1;
+transform:translateY(0);
+}
+
+}
+
+
+
+#missionExpireTimer{
+
+font-size:12px;
+
+color:#00e6ff;   /* brighter cyan */
+
+font-weight:600;
+
+margin-top:4px;
+
+text-align:center;
+
+letter-spacing:0.5px;
+
+text-shadow:0 0 6px rgba(0,230,255,0.6);
+
+}
+
+
+
+/* ============================= */
+/* HIDE DAILY MISSIONS ON MOBILE */
+/* ============================= */
+
+@media (max-width: 768px) {
+
+#dailyMissionWidget{
+display:none !important;
+}
+
+}
+
+
 
 
 
@@ -21106,6 +21257,10 @@ window.saveMiniGameScore = async function (gameKey, newScore) {
   if (!currentProfile) return;
 
   console.warn("🚨 saveMiniGameScore CALLED", gameKey, newScore);
+  // 🎯 DAILY MISSION TRACKER (SAFE HOOK)
+if (typeof trackActivity === "function" && newScore > 0) {
+  trackActivity(gameKey);
+}
 
   // ❌ games that should NOT affect mini-game rating
   const NON_RATING_GAMES = [
@@ -21851,6 +22006,8 @@ async function grantTrainerXP(moves, accuracy) {
     .eq("id", currentProfile.id);
 
   console.log("🎯 Opening Trainer XP granted:", XP);
+  // 🎯 DAILY MISSION TRACKER
+trackActivity("study");
 
 }
 
@@ -27902,6 +28059,7 @@ function endPuzzleRush(reason) {
 
    // ✅ SAVE CURRENT SCORE (for rating)
   applyPuzzleRushRating(prScore);
+
 
 
 
@@ -58344,6 +58502,291 @@ startCoachFacts()
 
 
 
+/* ================================= */
+/* DAILY MISSION SYSTEM */
+/* ================================= */
+
+const missionPool = [
+
+
+
+{ key:"memory", text:"Play IQ Hunt 3 times", max:3 },
+
+{ key:"boardfreeze", text:"Solve Guess Materials 3 times", max:3 },
+
+{ key:"color", text:"Play Lab Hunt 3 times", max:3 },
+
+{ key:"knightfog", text:"Play Knight Fog Quest 3 times", max:3 },
+
+
+
+{ key:"knightpath", text:"Solve Knight Path 3 times", max:3 },
+
+{ key:"knightmonster", text:"Play Knight vs Monster 3 times", max:3 },
+
+{ key:"trainer", text:"Solve Puzzle Streak 3 times", max:3 },
+
+{ key:"knightescape", text:"Play Knight Escape 3 times", max:3 },
+
+{ key:"knightspeed", text:"Play Speed Run 3 times", max:3 },
+
+{ key:"knightlava", text:"Play Lava Knight 3 times", max:3 },
+
+{ key:"knightgps", text:"Play Knight GPS 3 times", max:3 },
+
+{ key:"kingmath", text:"Solve Chess Math 3 times", max:3 },
+
+{ key:"colorchaos", text:"Play Rainbow Mania 3 times", max:3 },
+
+{ key:"flashqueen", text:"Solve Find The Queen 3 times", max:3 },
+
+{ key:"pathfinder", text:"Solve Reach Home 3 times", max:3 },
+
+{ key:"puzzlerush", text:"Play Puzzle Rush 3 times", max:3 },
+
+{ key:"quiz", text:"Solve Quiz 3 times", max:3 },
+
+{ key:"coordinates", text:"Play Board Coordinates 3 times", max:3 },
+
+{ key:"study", text:"Complete Study Training 2 times", max:2 }
+
+];
+
+
+let activeMissions = [];
+
+
+/* SAVE MISSIONS */
+
+function saveMissions(){
+
+const today = new Date().toISOString().slice(0,10);
+
+localStorage.setItem("olympusDailyMissions", JSON.stringify({
+
+date: today,
+activeMissions: activeMissions
+
+}));
+
+}
+
+
+/* GENERATE MISSIONS */
+
+function generateMissions(){
+
+activeMissions = [];
+
+let pool = [...missionPool];
+
+for(let i=0;i<3;i++){
+
+let rand = Math.floor(Math.random()*pool.length);
+
+let m = {...pool[rand]};
+
+m.progress = 0;
+
+activeMissions.push(m);
+
+pool.splice(rand,1);
+
+}
+
+saveMissions();
+renderMissions();
+
+}
+
+
+/* SAVE MISSIONS */
+
+function loadMissions(){
+
+const saved = localStorage.getItem("olympusDailyMissions");
+
+const today = new Date().toISOString().slice(0,10);
+
+if(saved){
+
+const data = JSON.parse(saved);
+
+if(data.date === today){
+
+activeMissions = data.activeMissions || [];
+
+if(activeMissions.length === 0){
+generateMissions();
+}else{
+renderMissions();
+}
+
+}else{
+
+generateMissions();
+
+}
+
+}else{
+
+generateMissions();
+
+}
+
+startMissionTimer();
+
+}
+
+
+/* UPDATE UI */
+
+function renderMissions(){
+
+const container = document.getElementById("missionContainer");
+
+container.innerHTML = "";
+
+activeMissions.forEach((m,i)=>{
+
+let percent = (m.progress / m.max) * 100;
+
+const card = document.createElement("div");
+card.className = "missionCard";
+
+card.innerHTML = `
+<div class="missionTitle">${m.text}</div>
+
+<div class="missionProgressText">
+${m.progress} / ${m.max}
+</div>
+
+<div class="missionBar">
+  <div class="missionFill" style="width:${percent}%"></div>
+</div>
+`;
+
+container.appendChild(card);
+
+});
+
+}
+
+
+/* COMPLETE BUTTON */
+
+
+
+/* START SYSTEM */
+
+loadMissions();
+
+
+
+/* ================================= */
+/* AUTO MISSION PROGRESS */
+/* ================================= */
+
+function incrementMission(type){
+
+activeMissions.forEach(m => {
+
+if(m.key !== type) return;
+
+m.progress++;
+
+if(m.progress >= m.max){
+
+// mission completed → replace with new random mission
+replaceMission(m);
+
+}
+
+});
+
+saveMissions();
+renderMissions();
+
+}
+
+
+/* ================================= */
+/* GLOBAL ACTIVITY TRACKER */
+/* ================================= */
+
+function trackActivity(gameKey){
+
+console.log("Mission activity:", gameKey);
+
+incrementMission(gameKey);
+
+}
+
+
+function replaceMission(oldMission){
+
+let pool = missionPool.filter(
+p => !activeMissions.some(a => a.key === p.key)
+);
+
+if(pool.length === 0) return;
+
+let rand = Math.floor(Math.random()*pool.length);
+
+let newMission = {...pool[rand]};
+newMission.progress = 0;
+
+let index = activeMissions.indexOf(oldMission);
+
+activeMissions[index] = newMission;
+
+}
+
+
+
+function startMissionTimer(){
+
+const el = document.getElementById("missionExpireTimer");
+
+if(!el) return;
+
+function updateTimer(){
+
+const now = new Date();
+
+const midnight = new Date();
+
+midnight.setHours(24,0,0,0);
+
+const diff = midnight - now;
+
+const h = Math.floor(diff / 3600000);
+const m = Math.floor((diff % 3600000) / 60000);
+const s = Math.floor((diff % 60000) / 1000);
+
+el.textContent =
+"Expires in " +
+String(h).padStart(2,"0")+":"+
+String(m).padStart(2,"0")+":"+
+String(s).padStart(2,"0");
+
+}
+
+updateTimer();
+
+setInterval(updateTimer,1000);
+
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -59574,6 +60017,23 @@ startCoachFacts()
 
 </div>
 
+
+<!-- ================================= -->
+<!-- DAILY MISSIONS FLOATING SYSTEM -->
+<!-- ================================= -->
+
+<div id="dailyMissionWidget">
+
+ <div id="missionHeader">
+🎯 Daily Missions
+<div id="missionExpireTimer">Expires in 24:00:00</div>
+</div>
+
+  <!-- missions will render here -->
+  <div id="missionContainer"></div>
+
+</div>
+
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
 
@@ -59601,7 +60061,6 @@ window.addEventListener("message", e => {
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
