@@ -22057,7 +22057,10 @@ async function grantTrainerXP(moves, accuracy) {
 
   console.log("🎯 Opening Trainer XP granted:", XP);
   // 🎯 DAILY MISSION TRACKER
-trackActivity("study");
+// 🎯 DAILY MISSION TRACKER
+if (typeof trackActivity === "function") {
+  trackActivity("study");
+}
 
 }
 
@@ -23647,6 +23650,11 @@ async function checkVsGameEnd() {
       grantVsComputerXP();
      playKFQCompleteSound();
 
+     // 🎯 DAILY MISSION TRACKER
+if (typeof trackActivity === "function") {
+  trackActivity("vscomputer");
+}
+
       await saveVsBotGame({
         result: "win",
         pgn: buildVsBotPGN(finalResult, terminationText)
@@ -23657,6 +23665,10 @@ async function checkVsGameEnd() {
       // 💥 PLAYER LOSE
       showVsBotResultModal("lose");
       playRandomLoserSound();
+           // 🎯 DAILY MISSION TRACKER
+if (typeof trackActivity === "function") {
+  trackActivity("vscomputer");
+}
 
       await saveVsBotGame({
         result: "loss",
@@ -23670,6 +23682,10 @@ async function checkVsGameEnd() {
     showVsBotResultModal("draw");
     grantVsComputerDrawXP();
    playKFQCompleteSound();
+        // 🎯 DAILY MISSION TRACKER
+if (typeof trackActivity === "function") {
+  trackActivity("vscomputer");
+}
 
     await saveVsBotGame({
       result: "draw",
@@ -26924,7 +26940,10 @@ if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
     // 🏆 +1 rating for completing assignment (ONLY ONCE)
     applyAssignmentRating(currentAssignment?.title);
 
-
+    // 🎯 DAILY MISSION PROGRESS
+if (typeof trackActivity === "function") {
+  trackActivity("assignment");
+}
     // 🔥 REFRESH MINI STATS (GLOBAL, NO LOGIC CHANGE)
 loadMiniStats();
 
@@ -38222,6 +38241,10 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
           "🎉 All puzzles completed! Submit your assignment.",
           "success"
         );
+        // 🎯 DAILY MISSION PROGRESS
+if (typeof trackActivity === "function") {
+  trackActivity("assignment");
+}
         document.getElementById("submitBtn").style.display = "block";
       }
       return;
@@ -54868,7 +54891,13 @@ function trainerPuzzleSolved() {
     incrementTrainerStreak();
   }
 
-  incrementTrainerSolved();
+incrementTrainerSolved();
+
+// 🎯 DAILY MISSION PROGRESS (PUZZLE STREAK)
+// 🎯 DAILY MISSION PROGRESS (PUZZLE STREAK)
+if (typeof trackActivity === "function") {
+  trackActivity("trainer");
+}
 
   // ===============================
   // 🏆 STREAK XP REWARD SYSTEM
@@ -58567,6 +58596,11 @@ const missionPool = [
 { key:"color", text:"Play Lab Hunt 3 times", max:3 },
 
 { key:"knightfog", text:"Play Knight Fog Quest 3 times", max:3 },
+{ key:"vscomputer", text:"Play 1 Game with BOT", max:1 },
+{ key:"study", text:"Complete Study Training 2 times", max:2 },
+
+{ key:"assignment", text:"Complete 2 Assignments", max:2 },
+
 
 
 
@@ -58596,16 +58630,32 @@ const missionPool = [
 
 { key:"quiz", text:"Solve Quiz 3 times", max:3 },
 
-{ key:"coordinates", text:"Play Board Coordinates 3 times", max:3 },
+{ key:"coordtrain", text:"Play Board Coordinates 3 times", max:3 }
 
-{ key:"study", text:"Complete Study Training 2 times", max:2 }
 
 ];
 
 
 let activeMissions = [];
+let missionDeck = [];
+let missionIndex = 0;
 
+function shuffleMissions() {
 
+missionDeck = [...missionPool];
+
+for (let i = missionDeck.length - 1; i > 0; i--) {
+
+const j = Math.floor(Math.random() * (i + 1));
+
+[missionDeck[i], missionDeck[j]] =
+[missionDeck[j], missionDeck[i]];
+
+}
+
+missionIndex = 0;
+
+}
 /* SAVE MISSIONS */
 
 function saveMissions(){
@@ -58626,21 +58676,23 @@ activeMissions: activeMissions
 
 function generateMissions(){
 
-activeMissions = [];
+if(missionDeck.length === 0){
+shuffleMissions();
+}
 
-let pool = [...missionPool];
+activeMissions = [];
 
 for(let i=0;i<3;i++){
 
-let rand = Math.floor(Math.random()*pool.length);
+if(missionIndex >= missionDeck.length){
+shuffleMissions();
+}
 
-let m = {...pool[rand]};
+let m = {...missionDeck[missionIndex++]};
 
 m.progress = 0;
 
 activeMissions.push(m);
-
-pool.splice(rand,1);
 
 }
 
@@ -58665,6 +58717,10 @@ const data = JSON.parse(saved);
 if(data.date === today){
 
 activeMissions = data.activeMissions || [];
+
+if(!Array.isArray(activeMissions)){
+activeMissions = [];
+}
 
 if(activeMissions.length === 0){
 generateMissions();
@@ -58747,7 +58803,8 @@ m.progress++;
 
 if(m.progress >= m.max){
 
-// mission completed → replace with new random mission
+m.progress = m.max;
+
 replaceMission(m);
 
 }
@@ -58775,15 +58832,12 @@ incrementMission(gameKey);
 
 function replaceMission(oldMission){
 
-let pool = missionPool.filter(
-p => !activeMissions.some(a => a.key === p.key)
-);
+if(missionIndex >= missionDeck.length){
+shuffleMissions();
+}
 
-if(pool.length === 0) return;
+let newMission = {...missionDeck[missionIndex++]};
 
-let rand = Math.floor(Math.random()*pool.length);
-
-let newMission = {...pool[rand]};
 newMission.progress = 0;
 
 let index = activeMissions.indexOf(oldMission);
