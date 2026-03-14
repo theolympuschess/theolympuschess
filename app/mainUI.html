@@ -26095,8 +26095,9 @@ setTimeout(() => {
 
       } catch (error) {
         console.error('Initialization error:', error);
-        alert('Error initializing application. Please refresh.');
-        window.location.href = 'login.html';
+       alert('Initialization error. Refreshing...');
+location.reload();
+
       }
     }
 
@@ -59234,10 +59235,43 @@ btn.textContent = "−";
 
 
 
-    // ============================================
-    // START APP
-    // ============================================
-    document.addEventListener('DOMContentLoaded', initApp);
+   // ============================================
+// SAFE START APP (WAIT FOR SUPABASE SESSION)
+// ============================================
+
+async function startApp() {
+
+  console.log("⏳ Waiting for Supabase session...");
+
+  let { data: { session } } = await supabase.auth.getSession();
+
+  let tries = 0;
+
+  while (!session && tries < 10) {
+
+    await new Promise(r => setTimeout(r, 200));
+
+    const result = await supabase.auth.getSession();
+    session = result.data.session;
+
+    tries++;
+
+  }
+
+  if (!session) {
+    console.log("❌ No session → redirect login");
+    window.location.href = "login.html";
+    return;
+  }
+
+  console.log("✅ Session ready");
+
+  await initApp();
+
+}
+
+document.addEventListener("DOMContentLoaded", startApp);
+
   </script>
 
   <!-- Result Modal -->
