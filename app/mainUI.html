@@ -59236,35 +59236,41 @@ btn.textContent = "−";
 
 
  // ============================================
-// START APP (SUPABASE AUTH READY)
+// SAFE START APP (WAIT FOR SUPABASE SESSION)
 // ============================================
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function startApp() {
 
-  console.log("⏳ Checking Supabase session...");
+  console.log("⏳ Waiting for Supabase session...");
 
-  const { data: { session } } = await supabase.auth.getSession();
+  let { data: { session } } = await supabase.auth.getSession();
 
-  if (session) {
-    console.log("✅ Session found → starting app");
-    initApp();
+  let tries = 0;
+
+  while (!session && tries < 40) {
+
+    await new Promise(r => setTimeout(r, 250));
+
+    const result = await supabase.auth.getSession();
+    session = result.data.session;
+
+    tries++;
+
+  }
+
+  if (!session) {
+    console.log("❌ No session → redirect login");
+    window.location.href = "login.html";
     return;
   }
 
-  console.log("⌛ Waiting for Supabase auth state...");
+  console.log("✅ Session ready");
 
-  const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+  await initApp();
 
-    if (session) {
-      console.log("✅ Auth restored → starting app");
-      listener.subscription.unsubscribe();
-      initApp();
-    }
+}
 
-  });
-
-});
-
+document.addEventListener("DOMContentLoaded", startApp);
   </script>
 
   <!-- Result Modal -->
