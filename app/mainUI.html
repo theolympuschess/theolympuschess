@@ -17704,6 +17704,96 @@ background:rgba(255,255,255,0.1);
 
 
 
+/* ===== XP FLY ANIMATION ===== */
+
+#xpFlyLayer{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+pointer-events:none;
+z-index:99999;
+}
+
+.xpStar{
+position:absolute;
+font-size:20px;
+color:#ffd700;
+animation:xpFly 5.1s cubic-bezier(.2,.8,.2,1) forwards;
+}
+
+@keyframes xpFly{
+
+0%{
+transform:scale(0.3);
+opacity:0;
+}
+
+10%{
+opacity:1;
+}
+
+70%{
+opacity:1;
+}
+
+100%{
+transform:translate(var(--dx),var(--dy)) scale(0.8);
+opacity:0;
+}
+
+}
+
+
+
+
+
+
+/* ============================= */
+/* DAILY MISSION GLOW EFFECT */
+/* ============================= */
+
+#dailyMissionWidget.missionGlow{
+
+animation:missionGlowPulse 1.6s ease;
+
+}
+
+@keyframes missionGlowPulse{
+
+0%{
+box-shadow:0 0 0 rgba(255,215,0,0);
+transform:scale(1);
+}
+
+40%{
+box-shadow:
+0 0 18px #ffd700,
+0 0 40px #ffcc00,
+0 0 70px rgba(255,215,0,0.8);
+transform:scale(1.03);
+}
+
+100%{
+box-shadow:0 0 0 rgba(255,215,0,0);
+transform:scale(1);
+}
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -58932,7 +59022,7 @@ loadMissions();
 
 function incrementMission(type){
 
-activeMissions.forEach(m => {
+activeMissions.forEach((m,i) => {
 
 if(m.key !== type) return;
 
@@ -58942,7 +59032,12 @@ if(m.progress >= m.max){
 
 m.progress = m.max;
 
-
+// ⭐ HOOK HERE
+const card = document.querySelectorAll(".missionCard")[i];
+if(card && typeof playMissionXPAnimation === "function"){
+playMissionXPAnimation(card);
+glowDailyMissionWidget();
+}
 
 replaceMission(m);
 
@@ -59215,6 +59310,63 @@ btn.textContent = "−";
 
 
 
+function playMissionXPAnimation(cardElement){
+
+const layer = document.getElementById("xpFlyLayer");
+if(!layer) return;
+
+const ratingBar = document.getElementById("olympusRating");
+if(!ratingBar) return;
+
+const start = cardElement.getBoundingClientRect();
+const end = ratingBar.getBoundingClientRect();
+
+const dx = end.left - start.left;
+const dy = end.top - start.top;
+
+// ⭐ increase star count
+for(let i=0;i<24;i++){
+
+const star = document.createElement("div");
+star.className = "xpStar";
+star.textContent = "⭐";
+
+star.style.left = start.left + 60 + "px";
+star.style.top = start.top + 20 + "px";
+
+// random spread
+star.style.setProperty("--dx", dx + (Math.random()*120-60) + "px");
+star.style.setProperty("--dy", dy + (Math.random()*120-60) + "px");
+
+// small delay so stars launch in waves
+star.style.animationDelay = (i*0.08) + "s";
+
+layer.appendChild(star);
+
+setTimeout(()=> star.remove(),4100);
+
+}
+
+}
+
+
+
+window.glowDailyMissionWidget = function(){
+
+const widget = document.getElementById("dailyMissionWidget");
+if(!widget) return;
+
+// restart animation every time
+widget.classList.remove("missionGlow");
+void widget.offsetWidth;
+
+widget.classList.add("missionGlow");
+
+setTimeout(()=>{
+widget.classList.remove("missionGlow");
+},1600);
+
+};
 
 
 
@@ -59235,7 +59387,13 @@ btn.textContent = "−";
 
 
 
- // ============================================
+
+
+
+
+
+
+// ============================================
 // SAFE START APP (WAIT FOR SUPABASE SESSION)
 // ============================================
 
@@ -59271,6 +59429,8 @@ async function startApp() {
 }
 
 document.addEventListener("DOMContentLoaded", startApp);
+
+
   </script>
 
   <!-- Result Modal -->
@@ -60531,6 +60691,8 @@ document.addEventListener("DOMContentLoaded", startApp);
   </div>
 
 </div>
+
+<div id="xpFlyLayer"></div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
