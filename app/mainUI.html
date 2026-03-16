@@ -27076,6 +27076,7 @@ if (move.san !== expected.san) {
       `Wrong move. Attempts: ${attemptCount}`,
       "error"
     );
+    
   } else {
     
 
@@ -27084,6 +27085,7 @@ if (move.san !== expected.san) {
   `Wrong move. Try again. <span style="float:right;">Retry: ${attemptCount}</span>`,
   "error"
 );
+
 
 
   }
@@ -27154,6 +27156,9 @@ if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
     setTimeout(() => {
       playSound("next");
       loadCurrentBulkPuzzle();
+      // ⭐ ADD THIS LINE
+    restorePuzzleHeader();
+
     }, 800);
   } else {
     playSound("complete");
@@ -27373,6 +27378,8 @@ updateEnginePosition();
   updatePGNViewer();
   renderNotation();
   updateNavigationButtons();
+  // ⭐ ADD THIS
+restorePuzzleHeader();
 }
 
 
@@ -38646,21 +38653,40 @@ function updateEngineUI() {
 }
 
 
+function restorePuzzleHeader() {
+  if (!currentAssignment?.is_bulk) return;
 
+  const status = document.getElementById("gameStatus");
+  if (!status) return;
+
+  status.style.display = "block";
+  status.className = "status-indicator";
+
+  status.innerHTML = `Puzzle ${bulkIndex + 1} / ${bulkPuzzles.length}`;
+}
 
 
 function showStatus(message, type = "info", autoHide = true) {
-  const status = document.getElementById("gameStatus");
 
-  status.innerHTML = message;          // ✅ allow HTML
+  const status = document.getElementById("gameStatus");
+  if (!status) return;
+
+  status.innerHTML = message;
   status.style.display = "block";
 
   status.className = "status-indicator";
-  status.classList.add(type);          // success | error | info
+  status.classList.add(type);
 
   if (autoHide) {
     setTimeout(() => {
-      status.style.display = "none";
+
+      // ⭐ restore puzzle header instead of hiding
+      if (currentAssignment?.is_bulk) {
+        restorePuzzleHeader();
+      } else {
+        status.style.display = "none";
+      }
+
     }, 3000);
   }
 }
