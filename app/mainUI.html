@@ -17785,12 +17785,109 @@ transform:scale(1);
 
 
 
+#dailyXPWidget{
+  background:#0f172a;
+  border-radius:12px;
+  padding:12px;
+  text-align:center;
+}
+
+#dailyXPText{
+  font-size:20px;
+  margin:8px 0;
+}
+
+#openCaseBtn{
+  background:linear-gradient(45deg,#ffcc00,#ffaa00);
+  border:none;
+  padding:10px;
+  border-radius:8px;
+  cursor:pointer;
+  animation: glowPulse 1.5s infinite;
+}
+
+@keyframes glowPulse{
+  0%{box-shadow:0 0 5px gold;}
+  50%{box-shadow:0 0 20px gold;}
+  100%{box-shadow:0 0 5px gold;}
+}
 
 
 
 
 
 
+
+.case-modal{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.8);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:9999;
+}
+
+.case-box{
+  background:#020617;
+  padding:25px;
+  border-radius:16px;
+  width:650px;              /* BIGGER */
+  max-width:90%;
+  text-align:center;
+  box-shadow:0 0 40px rgba(255,215,0,0.2);
+}
+
+#caseRollWrapper{
+  overflow:hidden;
+  border:3px solid gold;
+  height:150px;             /* BIGGER */
+  margin:15px 0;
+  position:relative;
+  border-radius:10px;
+}
+
+#caseRoll{
+  display:flex;
+  gap:10px;
+  transition:transform 4s cubic-bezier(0.1,0.7,0.1,1);
+}
+
+.case-item{
+  min-width:140px;
+  height:140px;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.case-item img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.case-pointer{
+  position:absolute;
+  left:50%;
+  top:0;
+  bottom:0;
+  width:4px;
+  background:red;
+  transform:translateX(-50%);
+  box-shadow:0 0 10px red;
+}
+
+
+
+.case-item img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:10px;
+}
 
 
 
@@ -52445,7 +52542,29 @@ if (!sessionStorage.getItem("welcome_shown")) {
 
 })();
 
+/* ============================= */
+/* AVATAR STORAGE VERSION RESET */
+/* ============================= */
 
+(function(){
+
+const CURRENT_VERSION = "v2"; // 🔥 change this whenever you want reset
+
+const savedVersion = localStorage.getItem("avatarVersion");
+
+if(savedVersion !== CURRENT_VERSION){
+
+  console.log("♻️ Resetting old avatar storage...");
+
+  // ❌ CLEAR OLD DATA
+  localStorage.removeItem("ownedAvatars");
+  localStorage.removeItem("studentAvatar");
+
+  // ✅ SAVE NEW VERSION
+  localStorage.setItem("avatarVersion", CURRENT_VERSION);
+}
+
+})();
 
 /* ==================================================
    STUDENT AVATAR PICKER (NO SUPABASE)
@@ -52455,66 +52574,8 @@ if (!sessionStorage.getItem("welcome_shown")) {
   const AVATAR_PATH = "assets/targets/";
 
 const AVATARS = [
-  "among.png",
-  "ball.png",
-  "bunny.png",
-  "burger.png",
-  "chocolate.png",
-  "cube.png",
-  "dino.png",
-  "dog.png",
-  "duck.png",
-  "ele.png",
-  "frog.png",
-  "giraffe.png",
-  "lorry.png",
-  "popcorn.png",
-  "robo.png",
-  "smoke.png",
-  "star.png",
-  "truck.png",
-  "unicorn.png",
-  "tweety.png",
-  "horn.png",
-  "pirate.png",
-  "hen.png",
-  "tiger.png",
-  "anime.png",
-  "anime1.png",
-  "anime2.png",
-  "anime3.png",
-  "anime4.png",
-  "anime5.png",
-  "cow.png",
-  "zebra.png",
-  "panda.png",
-  "broly.png",
-  "goku.png",
-  "vegeta.png",
-  "chess1.png",
-    "optimus3.png",
-    "optimus2.png",
-    "optimus1.png",
-    "hulk1.png",
-    "zeus2.png",
-    "tom.png",
-    "oggy.png",
-    "spiderman2.png",
-    "spiderman1.png",
-    "ironman2.png",
-    "ironman1.png",
-    "naruto.png",
-    "vegeta2.png",
-    "goku3.png",
-    "goku2.png",
-    "opm3.png",
-    "opm2.png",
-    "opm1.png",
-    "saitama4.png",
-    "saitama3.png",
-    "saitama2.png",
-    "saitama1.png",
-    "vegeta3.png"
+  "among.png"
+ 
 ];
 
 
@@ -52535,18 +52596,41 @@ const AVATARS = [
   };
 
   // Build avatar grid
-  AVATARS.forEach(file => {
-    const img = document.createElement("img");
-    img.src = AVATAR_PATH + file;
+ window.loadAvatars = function(){
 
-    img.onclick = () => {
-      avatarImg.src = img.src;
-      localStorage.setItem("studentAvatar", img.src);
-      overlay.style.display = "none";
-    };
+grid.innerHTML = "";
 
-    grid.appendChild(img);
-  });
+// default avatars
+const defaultAvatars = AVATARS.map(a => AVATAR_PATH + a);
+
+// unlocked avatars
+const unlocked = JSON.parse(localStorage.getItem("ownedAvatars") || "[]");
+
+// merge both
+const allAvatars = [...new Set([...defaultAvatars, ...unlocked])];
+
+allAvatars.forEach(src => {
+
+  const img = document.createElement("img");
+  img.src = src;
+
+  // highlight unlocked
+  if(unlocked.includes(src)){
+    img.style.border = "2px solid gold";
+  }
+
+  img.onclick = () => {
+    avatarImg.src = src;
+    localStorage.setItem("studentAvatar", src);
+    overlay.style.display = "none";
+  };
+
+  grid.appendChild(img);
+
+});
+
+}
+loadAvatars();  // ✅ ADD HERE (initial render)
 
   closeBtn.onclick = () => {
     overlay.style.display = "none";
@@ -59174,54 +59258,69 @@ widget.classList.contains("missionCollapsed") ? "+" : "–";
 /* =================================
    DAILY XP + LOGIN STREAK SYSTEM
 ================================= */
+/* DAILY STATS TOGGLE */
 
-const DAILY_XP_LIMIT = 100;
+(function(){
+
+const btn = document.getElementById("dailyStatsToggle");
+const body = document.getElementById("dailyStatsBody");
+
+if(!btn || !body) return;
+
+let collapsed = false;
+
+btn.onclick = function(){
+
+collapsed = !collapsed;
+
+if(collapsed){
+
+body.style.display = "none";
+btn.textContent = "+";
+
+}else{
+
+body.style.display = "block";
+btn.textContent = "−";
+
+}
+
+};
+
+})();
+
 
 /* LOAD DAILY XP */
 
 function loadDailyXP(){
 
-const today = new Date().toISOString().slice(0,10);
-
 let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || "{}");
 
-if(saved.date !== today){
-
-saved = {date:today, xp:0};
-
-localStorage.setItem("olympusDailyXP",JSON.stringify(saved));
-
+if(!saved.xp){
+  saved = {xp:0};
+  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
 }
 
 updateDailyXPUI(saved.xp);
-
 }
 
 
 /* ADD XP */
-
-function addDailyXP(amount){
-
-const today = new Date().toISOString().slice(0,10);
+window.addDailyXP = function(amount){
 
 let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || "{}");
 
-if(saved.date !== today){
-
-saved = {date:today, xp:0};
-
+if(!saved.xp){
+  saved = {xp:0};
 }
 
 saved.xp += amount;
 
-if(saved.xp > DAILY_XP_LIMIT){
-saved.xp = DAILY_XP_LIMIT;
-}
-
-localStorage.setItem("olympusDailyXP",JSON.stringify(saved));
+localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
 
 updateDailyXPUI(saved.xp);
 
+checkCaseUnlock(saved.xp);
 }
 
 
@@ -59230,18 +59329,40 @@ updateDailyXPUI(saved.xp);
 function updateDailyXPUI(xp){
 
 const text = document.getElementById("dailyXPText");
-const fill = document.getElementById("dailyXPFill");
 
-if(!text || !fill) return;
+if(!text) return;
 
-text.textContent = xp + " / " + DAILY_XP_LIMIT;
+text.textContent = xp + " XP";
 
-const percent = (xp / DAILY_XP_LIMIT) * 100;
-
-fill.style.width = percent + "%";
+checkCaseUnlock(xp); // ⭐ IMPORTANT
 
 }
 
+function checkCaseUnlock(xp){
+
+const wrap = document.getElementById("caseUnlockWrap");
+const btn = document.getElementById("openCaseBtn");
+
+if(!wrap || !btn) return;
+
+wrap.style.display = "block";
+
+if(xp >= 40){
+  btn.textContent = "🎁 Unlock Avatar";
+  btn.disabled = false;
+
+  btn.style.background = "#ffc107"; // yellow
+  btn.style.color = "#000";
+
+}else{
+  btn.textContent = `Need ${40 - xp} XP to Unlock`;
+  btn.disabled = true;
+
+  btn.style.background = "#555"; // dark gray
+  btn.style.color = "#fff";
+}
+
+}
 
 /* ===============================
    LOGIN STREAK SYSTEM
@@ -59303,36 +59424,7 @@ updateLoginStreak();
 
 
 
-/* DAILY STATS TOGGLE */
 
-(function(){
-
-const btn = document.getElementById("dailyStatsToggle");
-const body = document.getElementById("dailyStatsBody");
-
-if(!btn || !body) return;
-
-let collapsed = false;
-
-btn.onclick = function(){
-
-collapsed = !collapsed;
-
-if(collapsed){
-
-body.style.display = "none";
-btn.textContent = "+";
-
-}else{
-
-body.style.display = "block";
-btn.textContent = "−";
-
-}
-
-};
-
-})();
 
 
 
@@ -59393,6 +59485,308 @@ widget.classList.remove("missionGlow");
 },1600);
 
 };
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+const btn = document.getElementById("openCaseBtn");
+if(!btn) return;
+
+btn.onclick = () => {
+
+let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || "{}");
+
+if(saved.xp < 40){
+  alert("Need 40 XP to open case!");
+  return;
+}
+
+// subtract XP
+saved.xp -= 40;
+localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
+
+updateDailyXPUI(saved.xp);
+
+// ✅ STEP 1: decide reward FIRST
+const reward = getRandomAvatar();
+
+// open modal
+document.getElementById("caseModal").style.display = "flex";
+
+// ✅ STEP 2: start roll with reward
+startCaseRoll(reward);
+
+// ✅ STEP 3: show result after animation
+// ✅ STEP 2: start roll with reward
+startCaseRoll(reward);
+
+// 🎯 PERFECT SYNC (PUT HERE)
+const roll = document.getElementById("caseRoll");
+
+roll.addEventListener("transitionend", () => {
+
+  // 🔊 STOP SOUND
+  if(typeof rollSound !== "undefined"){
+    rollSound.pause();
+    rollSound.currentTime = 0;
+  }
+
+  document.getElementById("caseResult").innerHTML = `
+    <div style="margin-top:15px;">
+      <img src="${reward}" style="width:100px;height:100px;border-radius:10px;">
+      <p>🎉 New Avatar Unlocked!</p>
+    </div>
+  `;
+
+  saveAvatar(reward);
+
+  if(window.loadAvatars){
+    loadAvatars();
+  }
+
+}, { once: true });
+
+};
+
+});
+
+const rollSound = new Audio("sounds/roll.mp3");
+rollSound.loop = true;
+rollSound.volume = 0.4; // 🔉 reduce volume (0 to 1)// 🔥 continuous while rolling
+
+function getRandomAvatar(){
+
+const normal = [
+"XP_Avatar/Normal/1.jpg",
+"XP_Avatar/Normal/2.jpg",
+"XP_Avatar/Normal/8.jpg",
+"XP_Avatar/Normal/9.jpg",
+"XP_Avatar/Normal/10.jpg",
+"assets/targets/bunny.png",
+  "assets/targets/burger.png",
+  "assets/targets/chocolate.png",
+  "assets/targets/cube.png",
+  "assets/targets/dino.png",
+  "assets/targets/dog.png",
+  "assets/targets/duck.png",
+  "assets/targets/ele.png",
+  "assets/targets/frog.png",
+  "assets/targets/giraffe.png",
+  "assets/targets/lorry.png",
+  "assets/targets/popcorn.png",
+  "assets/targets/robo.png",
+  "assets/targets/smoke.png",
+  "assets/targets/star.png",
+  "assets/targets/truck.png",
+  "assets/targets/unicorn.png",
+  "assets/targets/tweety.png",
+
+  "assets/targets/cow.png",
+  "assets/targets/zebra.png",
+  "assets/targets/panda.png",
+  "assets/targets/broly.png",
+  "assets/targets/goku.png",
+
+    "assets/targets/goku2.png",
+    "assets/targets/opm3.png",
+    "assets/targets/opm2.png",
+    "assets/targets/opm1.png",
+    "assets/targets/saitama4.png",
+    "assets/targets/saitama3.png",
+    "assets/targets/saitama2.png",
+    "assets/targets/saitama1.png",
+"XP_Avatar/Normal/11.jpg"
+];
+
+const epic = [
+"XP_Avatar/Epic/3.jpg",
+"XP_Avatar/Epic/4.jpg",
+"XP_Avatar/Epic/5.jpg",
+"XP_Avatar/Epic/6.jpg",
+  "assets/targets/horn.png",
+  "assets/targets/pirate.png",
+  "assets/targets/hen.png",
+  "assets/targets/tiger.png",
+  "assets/targets/anime.png",
+  "assets/targets/anime1.png",
+  "assets/targets/anime2.png",
+  "assets/targets/anime3.png",
+    "assets/targets/vegeta.png",
+  "assets/targets/chess1.png",
+    "assets/targets/optimus3.png",
+    "assets/targets/optimus2.png",
+    "assets/targets/optimus1.png",
+    "assets/targets/hulk1.png",
+    "assets/targets/zeus2.png",
+    "assets/targets/tom.png",
+    "assets/targets/oggy.png",
+    "assets/targets/spiderman2.png",
+    "assets/targets/spiderman1.png",
+    "assets/targets/ironman2.png",
+    "assets/targets/ironman1.png",
+    "assets/targets/naruto.png",
+    "assets/targets/vegeta2.png",
+    "assets/targets/goku3.png",
+  "assets/targets/anime4.png",
+  "assets/targets/anime5.png",
+   "ball.png",
+  
+    "vegeta3.png",
+    "XP_Avatar/Epic/11.png",
+"XP_Avatar/Epic/12.png",
+"XP_Avatar/Epic/13.png",
+"XP_Avatar/Epic/14.png",
+"XP_Avatar/Epic/15.png",
+"XP_Avatar/Epic/16.png",
+"XP_Avatar/Epic/17.png",
+"XP_Avatar/Epic/18.png",
+"XP_Avatar/Epic/19.png",
+"XP_Avatar/Epic/20.png",
+"XP_Avatar/Epic/21.png",
+"XP_Avatar/Epic/22.png",
+"XP_Avatar/Epic/23.png",
+"XP_Avatar/Epic/24.png",
+"XP_Avatar/Epic/7.jpg",
+"XP_Avatar/Epic/8.png",
+"XP_Avatar/Epic/9.png",
+"XP_Avatar/Epic/10.png"
+];
+
+
+
+// 🎯 probability
+  // 🔥 GET OWNED AVATARS
+  const owned = JSON.parse(localStorage.getItem("ownedAvatars") || "[]");
+
+  // 🎯 REMOVE OWNED FROM POOL
+  const availableNormal = normal.filter(a => !owned.includes(a));
+  const availableEpic = epic.filter(a => !owned.includes(a));
+
+  // 🎯 if all collected → fallback (allow repeat)
+  if(availableNormal.length === 0 && availableEpic.length === 0){
+    return normal[Math.floor(Math.random()*normal.length)];
+  }
+
+  const rand = Math.random();
+
+  // 🎯 PRIORITY: give new ones first
+  if(rand < 0.8 && availableNormal.length > 0){
+    return availableNormal[Math.floor(Math.random()*availableNormal.length)];
+  }
+
+  if(availableEpic.length > 0){
+    return availableEpic[Math.floor(Math.random()*availableEpic.length)];
+  }
+
+  // fallback
+  return availableNormal[Math.floor(Math.random()*availableNormal.length)];
+}
+
+function startCaseRoll(finalReward){
+  // 🔥 RESET OLD RESULT UI
+const resultBox = document.getElementById("caseResult");
+if(resultBox){
+  resultBox.innerHTML = "";
+}
+
+const roll = document.getElementById("caseRoll");
+
+roll.innerHTML = "";
+// 🔊 START SOUND
+rollSound.currentTime = 0;
+rollSound.play();
+// 🔥 RESET + REMOVE OLD ANIMATION
+roll.style.transition = "none";
+roll.style.transform = "translateX(0px)";
+
+// total items
+const total = 40;
+
+// where reward will be
+const targetIndex = 30;
+
+for(let i=0;i<total;i++){
+
+let r;
+
+if(i === targetIndex){
+  r = finalReward; // 🎯 exact position
+}else{
+  r = getRandomAvatar();
+}
+
+const div = document.createElement("div");
+div.className = "case-item";
+div.innerHTML = `<img src="${r}">`;
+
+roll.appendChild(div);
+}
+
+// 🎯 calculate exact position
+const wrapper = document.getElementById("caseRollWrapper");
+
+// get first item REAL width
+const firstItem = roll.querySelector(".case-item");
+const itemWidth = firstItem.offsetWidth;
+
+// get gap (important!)
+const style = window.getComputedStyle(roll);
+const gap = parseInt(style.gap) || 0;
+
+const totalItemWidth = itemWidth + gap;
+
+const containerWidth = wrapper.offsetWidth;
+
+// 🎯 PERFECT CENTER ALIGN
+const offset = (targetIndex * totalItemWidth) - (containerWidth / 2) + (itemWidth / 2);
+
+// animate
+setTimeout(()=>{
+
+  // 🔥 ADD LONG DURATION HERE
+  roll.style.transition = "transform 8s cubic-bezier(0.1, 0.8, 0.2, 1)";
+
+  roll.style.transform = `translateX(-${offset}px)`;
+
+},100);
+
+
+}
+
+function saveAvatar(src){
+
+let owned = JSON.parse(localStorage.getItem("ownedAvatars") || "[]");
+
+if(!owned.includes(src)){
+owned.push(src);
+localStorage.setItem("ownedAvatars", JSON.stringify(owned));
+}
+
+}
+
+function closeCase(){
+  const modal = document.getElementById("caseModal");
+  if(modal){
+    modal.style.display = "none";
+  }
+}
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+const closeBtn = document.getElementById("closeCaseBtn");
+
+if(closeBtn){
+  closeBtn.onclick = closeCase;
+}
+
+});
+
 
 
 
@@ -60693,19 +61087,25 @@ document.addEventListener("DOMContentLoaded", startApp);
 
 <div id="dailyStatsWidget">
 
+  <div id="dailyStatsWidget">
+
   <div id="dailyStatsHeader">
-    📊 Daily Stats
+    ⭐ Loot Points
     <button id="dailyStatsToggle">−</button>
   </div>
 
+  <!-- ✅ ADD THIS WRAPPER -->
   <div id="dailyStatsBody">
 
-    <div class="dailyStatCard">
-      <div class="statTitle">⚡ Daily XP</div>
-      <div id="dailyXPText">0 / 100</div>
+    <div id="dailyXPWidget">
+      <div class="daily-header">
+        ⚡ Unlock New Avatar
+      </div>
 
-      <div class="xpBar">
-        <div id="dailyXPFill"></div>
+      <div id="dailyXPText">0</div>
+
+      <div id="caseUnlockWrap" style="display:none;">
+        <button id="openCaseBtn">🎁 Unlock Avatar</button>
       </div>
     </div>
 
@@ -60719,6 +61119,26 @@ document.addEventListener("DOMContentLoaded", startApp);
 </div>
 
 <div id="xpFlyLayer"></div>
+
+
+<div id="caseModal" class="case-modal" style="display:none;">
+
+  <div class="case-box">
+
+    <h3>🎁 Opening Case...</h3>
+
+    <div id="caseRollWrapper">
+      <div id="caseRoll"></div>
+      <div class="case-pointer"></div>
+    </div>
+
+    <div id="caseResult"></div>
+
+   <button id="closeCaseBtn">Close</button>
+
+  </div>
+
+</div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
