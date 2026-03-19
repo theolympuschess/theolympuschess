@@ -17649,17 +17649,6 @@ color:#00e1ff;
 
 
 
-/* ===========================
-   HIDE DAILY STATS ON MOBILE
-=========================== */
-
-@media (max-width: 768px) {
-
-  #dailyStatsWidget{
-    display:none !important;
-  }
-
-}
 
 
 
@@ -18054,6 +18043,82 @@ transform:scale(1);
 
 
 
+.player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player .mini-avatar-wrap {
+  width: 40px;
+  height: 40px;
+  position: relative;
+}
+
+.player .mini-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.player .avatar-effect {
+  position: absolute;
+  width: 55px;
+  height: 55px;
+  top: -7px;
+  left: -7px;
+  pointer-events: none;
+}
+
+
+
+
+
+/* hide by default */
+.mobile-loot-btn {
+  display: none;
+}
+
+/* show only on mobile */
+@media (max-width: 768px) {
+
+  .mobile-loot-btn {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 6px 10px;
+    background: linear-gradient(135deg, #facc15, #f59e0b);
+    color: black;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+
+}
+
+
+@media (max-width: 768px) {
+
+  #dailyStatsWidget {
+    position: fixed;
+    bottom: -100%; /* 🔥 hidden below */
+    left: 10px;
+    right: 10px;
+
+    z-index: 9999;
+
+    transition: bottom 0.35s ease;
+    border-radius: 18px 18px 0 0;
+  }
+
+  /* 🔥 ACTIVE STATE (VISIBLE) */
+  #dailyStatsWidget.show {
+    bottom: 180px;
+  }
+
+}
+
+
+
 
 
 
@@ -18334,6 +18399,12 @@ transform:scale(1);
   class="mobile-my-history-btn"
 >
   🌐 My Profile
+</span>
+<span
+  id="mobileLootBtn"
+  class="mobile-loot-btn"
+>
+  ⭐ Loot
 </span>
   <!-- CENTER -->
   <div class="rating-center">
@@ -19539,15 +19610,42 @@ title="Voice volume"
       
 
       <!-- CLOCKS -->
-      <div class="player-bar clock-bar">
+     <div class="player-bar clock-bar">
+
+  <!-- WHITE PLAYER -->
   <div class="player white active">
-    ♔ You — <span id="whiteClock">60:00</span>
+
+    <div class="mini-avatar-wrap">
+
+      <!-- EFFECT -->
+      <img id="whiteAvatarEffect" class="avatar-effect" src="" />
+
+      <!-- AVATAR -->
+      <img
+        id="whitePlayerAvatar"
+        class="mini-avatar"
+        src="assets/avatar-default.png"
+      />
+
+    </div>
+
+    <div class="player-info">
+      ♔ You — <span id="whiteClock">60:00</span>
+    </div>
+
   </div>
+
+  <!-- BLACK PLAYER (BOT) -->
   <div class="player black">
-    🤖 BOT — <span id="blackClock">60:00</span>
+
+    
+
+    <div class="player-info">
+      🤖 BOT — <span id="blackClock">60:00</span>
+    </div>
+
   </div>
-  
-  
+
 </div>
 
 
@@ -52806,6 +52904,9 @@ if(unlocked.includes(src)){
   img.onclick = () => {
     avatarImg.src = src;
     localStorage.setItem("studentAvatar", src);
+    // 🔥 ADD THIS LINE (VERY IMPORTANT)
+  localStorage.setItem("selectedAvatar", src);
+  window.dispatchEvent(new Event("avatarChanged"));
     overlay.style.display = "none";
   };
 
@@ -59850,7 +59951,7 @@ const epic = [
 "XP_Avatar/Epic/8.png",
 "XP_Avatar/Epic/9.png",
 "XP_Avatar/Epic/10.png",
- "XP_Avatar/Epic/26.gif",
+"XP_Avatar/Epic/26.gif",
 "XP_Avatar/Epic/27.gif",
 "XP_Avatar/Epic/28.gif",
 "XP_Avatar/Epic/29.gif",
@@ -59860,7 +59961,7 @@ const epic = [
 "XP_Avatar/Epic/33.gif",
 "XP_Avatar/Epic/34.gif",
 "XP_Avatar/Epic/35.gif",
- "XP_Avatar/Epic/36.gif",
+"XP_Avatar/Epic/36.gif",
 "XP_Avatar/Epic/37.gif",
 "XP_Avatar/Epic/38.gif",
 "XP_Avatar/Epic/39.gif",
@@ -59877,6 +59978,7 @@ const epic = [
 "XP_Avatar/Epic/50.gif",
 "XP_Avatar/Epic/51.gif",
 "XP_Avatar/Epic/52.gif"
+
 ];
 
 
@@ -59963,7 +60065,7 @@ const epicList = [
 "XP_Avatar/Epic/8.png",
 "XP_Avatar/Epic/9.png",
 "XP_Avatar/Epic/10.png",
- "XP_Avatar/Epic/26.gif",
+"XP_Avatar/Epic/26.gif",
 "XP_Avatar/Epic/27.gif",
 "XP_Avatar/Epic/28.gif",
 "XP_Avatar/Epic/29.gif",
@@ -60253,7 +60355,7 @@ const effects = [
 "add_on/animation/add_on49.gif",
 "add_on/animation/add_on50.gif",
 "add_on/animation/add_on51.gif",
- "add_on/animation/add_on52.gif",
+"add_on/animation/add_on52.gif",
 "add_on/animation/add_on53.gif",
 "add_on/animation/add_on54.gif",
 "add_on/animation/add_on55.gif",
@@ -60343,7 +60445,101 @@ effects.forEach(src => {
 
 
 
+// WHITE = student (FIXED ✅)
+let avatar = localStorage.getItem("studentAvatar");
 
+if (!avatar || avatar === "null") {
+  avatar = "assets/avatar-default.png";
+}
+
+const effect = localStorage.getItem("selectedEffect") || "";
+
+// apply
+const whiteAvatarImg = document.getElementById("whitePlayerAvatar");
+const whiteEffectImg = document.getElementById("whiteAvatarEffect");
+
+if (whiteAvatarImg) whiteAvatarImg.src = avatar;
+if (whiteEffectImg) whiteEffectImg.src = effect;
+
+
+
+
+function updateBotGameAvatar() {
+
+  // ✅ AVATAR
+  let avatar = localStorage.getItem("studentAvatar");
+
+  if (!avatar || avatar === "null") {
+    avatar = "assets/avatar-default.png";
+  }
+
+  const avatarImg = document.getElementById("whitePlayerAvatar");
+  if (avatarImg) {
+    avatarImg.src = avatar;
+
+    // 🔥 SMOOTH UPDATE ANIMATION
+    avatarImg.style.transform = "scale(0.8)";
+    avatarImg.style.opacity = "0";
+
+    setTimeout(() => {
+      avatarImg.style.transform = "scale(1)";
+      avatarImg.style.opacity = "1";
+    }, 100);
+  }
+
+
+  // ✅ EFFECT (ANIMATION)
+  const effect = localStorage.getItem("selectedEffect") || "";
+  const effectImg = document.getElementById("whiteAvatarEffect");
+
+  if (effectImg) {
+    if (effect) {
+      effectImg.src = effect;
+      effectImg.style.display = "block";
+
+      // 🔥 RESTART GIF ANIMATION
+      effectImg.src = "";
+      setTimeout(() => {
+        effectImg.src = effect;
+      }, 50);
+
+    } else {
+      effectImg.style.display = "none";
+    }
+  }
+
+}
+
+// initial load
+updateBotGameAvatar();
+
+// listen for change
+window.addEventListener("avatarChanged", updateBotGameAvatar);
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const lootBtn = document.getElementById("mobileLootBtn");
+  const widget = document.getElementById("dailyStatsWidget");
+
+  if (lootBtn && widget) {
+
+    lootBtn.onclick = () => {
+
+      // toggle open
+      if (widget.style.display === "block") {
+        widget.style.display = "none";
+      } else {
+        widget.style.display = "block";
+      }
+
+    };
+
+  }
+
+});
 
 
 
