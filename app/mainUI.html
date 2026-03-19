@@ -19738,7 +19738,6 @@ title="Voice volume"
 <select id="vsBotMode">
   <option value="normal">Normal Mode 🎧</option>
  <option value="dice">Dice Mode 🎲</option>
-  
 </select>
    <h4>♟ Starting Position</h4>
 <select id="vsCustomPosition">
@@ -60252,7 +60251,18 @@ if(closeBtn){
 });
 
 
+function getEffectPrice(effectSrc){
 
+  const index = effects.indexOf(effectSrc);
+
+  if(index === -1) return 80;
+
+  const group = Math.floor(index / 13); // 0 to 4
+
+  const prices = [80, 100, 120, 140, 160];
+
+  return prices[group] || 80;
+}
 
 window.buyEffect = function(effectSrc){
 
@@ -60282,13 +60292,15 @@ if(owned.includes(effectSrc)){
 }
 
 // ❌ NOT OWNED → CHECK XP
-if(saved.xp < 80){
-  alert("Need 80 XP!");
+const price = getEffectPrice(effectSrc);
+
+if(saved.xp < price){
+  alert(`Need ${price} XP!`);
   return;
 }
 
 // 💰 deduct XP
-saved.xp -= 80;
+saved.xp -= price;
 localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
 
 updateDailyXPUI(saved.xp);
@@ -60472,11 +60484,11 @@ effects.forEach(src => {
       onclick="buyEffect('${src}')"
       ${isOwned ? '' : ''}
       style="${isEquipped ? 'background:#facc15;color:black;' : isOwned ? 'background:#64748b;' : ''}">
-      ${
-        isEquipped ? "Equipped ⭐" :
-        isOwned ? "Owned" :
-        "Buy (80 XP)"
-      }
+    ${
+  isEquipped ? "Equipped ⭐" :
+  isOwned ? "Owned" :
+  "Buy (" + getEffectPrice(src) + " XP)"
+}
     </button>
   `;
 
