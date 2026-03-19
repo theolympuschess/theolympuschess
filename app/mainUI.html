@@ -12623,7 +12623,7 @@ body {
   color: #ffffff;           /* stronger contrast */
   margin-top: 2px;
   letter-spacing: 0.2px;
- margin-left: 20px;
+  margin-left: 20px;
 }
 
 
@@ -22520,12 +22520,14 @@ addDailyXP(XP); // ⭐ ADD THIS
 // 🤖 VS COMPUTER XP REWARD
 // ===============================
 let vsComputerXPGranted = false;
+
 async function grantVsComputerXP() {
 
-  // 🔥 DIRECT MODE CHECK (BULLETPROOF)
   const mode = document.getElementById("vsBotMode")?.value;
-  if (mode === "dice") {
-    console.log("🎲 Dice Mode → XP BLOCKED");
+
+  // 🚫 BLOCK Dice + Custom Position (FINAL FIX)
+  if (mode === "dice" || !vsStartedFromStandard) {
+    console.log("🚫 XP BLOCKED (Dice or Custom Position)");
     return;
   }
 
@@ -22564,10 +22566,11 @@ async function grantVsComputerXP() {
 
 async function grantVsComputerDrawXP() {
 
-  // 🔥 DIRECT MODE CHECK (BULLETPROOF)
   const mode = document.getElementById("vsBotMode")?.value;
-  if (mode === "dice") {
-    console.log("🎲 Dice Mode → XP BLOCKED");
+
+  // 🚫 BLOCK Dice + Custom Position (FINAL FIX)
+  if (mode === "dice" || !vsStartedFromStandard) {
+    console.log("🚫 XP BLOCKED (Dice or Custom Position)");
     return;
   }
 
@@ -54594,7 +54597,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 });
 
-
+let vsStartedFromStandard = true;
 // ======================================
 // 🎯 INSTANT CUSTOM POSITION PREVIEW
 // ======================================
@@ -54608,17 +54611,23 @@ document.getElementById("vsCustomPosition")
 
     if (selected === "start") {
       vsChess.reset();
+      vsStartedFromStandard = true; // ✅ STANDARD
     } else {
       const loaded = vsChess.load(selected);
       if (!loaded) {
         console.warn("Invalid FEN selected");
         return;
       }
+
+      vsStartedFromStandard = false; // ❌ CUSTOM
     }
 
-    // 🔥 Immediately update board
-    vsBoard.position(vsChess.fen(), false);
+    // 🔥 Clear manual FEN input (important sync)
+    const input = document.getElementById("vsCustomFenInput");
+    if (input) input.value = "";
 
+    // 🔥 Update board instantly
+    vsBoard.position(vsChess.fen(), false);
 });
 
 
@@ -54644,12 +54653,22 @@ document.getElementById("applyCustomFen")
       return;
     }
 
+    vsStartedFromStandard = false; // ❌ CUSTOM FEN
+
+    // 🔥 Reset dropdown to avoid mismatch
+    const select = document.getElementById("vsCustomPosition");
+    if (select) select.value = "";
+
     // 🔥 Update board instantly
     vsBoard.position(vsChess.fen(), false);
 
     console.log("🧩 Custom FEN applied");
 });
 
+
+// ======================================
+// 🔄 AUTO APPLY FEN ON INPUT CHANGE
+// ======================================
 
 document.getElementById("vsCustomFenInput")
   .addEventListener("change", function () {
@@ -54658,6 +54677,13 @@ document.getElementById("vsCustomFenInput")
     if (!fen || !vsChess || !vsBoard) return;
 
     if (vsChess.load(fen)) {
+
+      vsStartedFromStandard = false; // ❌ CUSTOM
+
+      // 🔥 Reset dropdown to avoid mismatch
+      const select = document.getElementById("vsCustomPosition");
+      if (select) select.value = "";
+
       vsBoard.position(vsChess.fen(), false);
     }
 });
