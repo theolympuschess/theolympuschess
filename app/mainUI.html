@@ -17895,15 +17895,19 @@ transform:scale(1);
 
 .effect-modal-box{
   background:#020617;
-  padding:25px;
-  border-radius:18px;
 
-  width:600px;          /* 🔥 BIGGER WIDTH */
-  max-width:95%;
+  padding:18px;              /* 🔽 reduced */
+  border-radius:16px;
+
+  width:600px;               /* 🔥 smaller width */
+  max-width:90%;
 
   text-align:center;
 
-  box-shadow:0 0 50px rgba(0,255,255,0.25);
+  box-shadow:0 0 35px rgba(0,255,255,0.2);
+
+  height:75vh;           /* 🔥 FIX HEIGHT */
+  overflow-y:auto;           /* scroll inside */
 }
 
 /* SCROLL GRID */
@@ -18447,8 +18451,163 @@ table,
 
 
 
+/* ===============================
+   🖱️ CURSOR TRAIL SYSTEM
+================================ */
+
+#cursorTrailLayer{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  z-index:99999;
+}
+
+/* base particle */
+.cursor-dot{
+  position:absolute;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  pointer-events:none;
+  animation: cursorFade 0.8s linear forwards;
+}
+
+@keyframes cursorFade{
+  0%{
+    opacity:1;
+    transform:scale(1);
+  }
+  100%{
+    opacity:0;
+    transform:scale(0.2);
+  }
+}
+
+/* sparkle */
+.cursor-sparkle{
+  font-size:10px;
+  position:absolute;
+  animation: cursorFade 1s linear forwards;
+}
+
+/* fire glow */
+.cursor-fire{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:orange;
+  box-shadow:0 0 12px orange, 0 0 20px red;
+  animation: cursorFade 0.6s linear forwards;
+}
+
+.cursor-neon{
+  position:absolute;
+
+  width:10px;
+  height:10px;
+
+  border-radius:50%;
+
+  background:#00eaff;
+
+  box-shadow:
+    0 0 8px #00eaff,
+    0 0 16px #00eaff,
+    0 0 24px rgba(0,234,255,0.7);
+
+  pointer-events:none;
+
+  transform: translate(-50%, -50%); /* 🔥 CENTER FIX */
+
+  animation: cursorFade 0.7s linear forwards;
+}
 
 
+
+
+.cursor-preview{
+  font-size:28px;
+  margin-bottom:6px;
+}
+
+
+
+
+#cursorModalGrid{
+  display:flex;
+  overflow-x:auto;
+  gap:12px;
+  padding:10px;
+
+  scroll-behavior:smooth;
+}
+
+/* scrollbar */
+#cursorModalGrid::-webkit-scrollbar{
+  height:6px;
+}
+#cursorModalGrid::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:10px;
+}
+
+/* each card */
+.cursor-item{
+  min-width:120px;   /* 🔥 important for horizontal */
+  flex-shrink:0;
+
+  background:rgba(255,255,255,0.06);
+  border-radius:12px;
+  padding:10px;
+
+  text-align:center;
+}
+
+
+
+.cursor-fire{
+  position:absolute;
+  border-radius:50%;
+
+  background: radial-gradient(circle, #ffcc00, #ff5722, #ff0000);
+
+  box-shadow:
+    0 0 10px #ff5722,
+    0 0 20px #ff0000;
+
+  pointer-events:none;
+
+  animation: cursorFade 0.6s linear forwards;
+}
+
+
+
+
+
+/* 💡 BULB CURSOR (SOFT GLOW LIGHT) */
+.cursor-bulb{
+  position:absolute;
+
+  width:10px;
+  height:10px;
+  border-radius:50%;
+
+  /* 🔥 soft light center */
+  background: radial-gradient(circle, #fff9c4 0%, #ffd700 60%, rgba(255,215,0,0) 100%);
+
+  /* 🔥 glow aura */
+  box-shadow:
+    0 0 8px #ffd700,
+    0 0 16px #ffea00,
+    0 0 24px rgba(255,215,0,0.6);
+
+  pointer-events:none;
+
+  animation: cursorFade 0.7s linear forwards;
+}
 
 
 
@@ -22827,7 +22986,7 @@ async function grantVsComputerXP() {
 
   vsComputerXPGranted = true;
 
-  const XP = 5;
+  const XP = 10;
 
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + XP;
@@ -22870,7 +23029,7 @@ async function grantVsComputerDrawXP() {
 
   vsComputerXPGranted = true;
 
-  const XP = 3;
+  const XP = 5;
 
   currentProfile.game_current_score =
     (currentProfile.game_current_score || 0) + XP;
@@ -24427,13 +24586,13 @@ function showVsBotResultModal(type) {
 
   if (type === "win") {
     title.textContent = "🏆 You Win!";
-    body.textContent  = "Fantastic play! You defeated Olympus AI +5XP! 💪";
+    body.textContent  = "Fantastic play! You defeated Olympus AI +10XP! 💪";
     card.classList.add("win");
   }
 
   if (type === "draw") {
     title.textContent = "🤝 Draw!";
-    body.textContent  = "Great fight! You held your ground +3XP! 👏";
+    body.textContent  = "Great fight! You held your ground +5XP! 👏";
     card.classList.add("draw");
   }
 
@@ -60775,6 +60934,7 @@ if(openBtn){
     modal.style.display = "flex";
     loadEffectModal();
      loadBadgeShop(); // 🔥 THIS LINE
+     loadCursorShop();   // ✅ ADD THIS
 
   };
 }
@@ -61264,6 +61424,265 @@ function loadBadgeShop(){
 
 
 
+
+// ===============================
+// 🖱️ CURSOR TRAILS SYSTEM
+// ===============================
+
+let currentTrail = localStorage.getItem("selectedCursor") || "none";
+
+const cursorTrails = [
+  "default",
+ 
+  
+  
+  "neon",
+  "matrix",
+  "ice",
+   "blue",
+  "pink",
+  "gold",
+
+  
+  
+  "sparkle",
+  
+   "bulb",
+   "rainbow",
+  "fire",
+  
+];
+
+// 🎯 PRICE SYSTEM
+function getCursorPrice(trail){
+  const index = cursorTrails.indexOf(trail);
+  return 100 + (index * 40);
+}
+
+// 🛒 BUY SYSTEM
+window.buyCursor = function(trail){
+
+  if(trail === "none"){
+    localStorage.setItem("selectedCursor", "none");
+    currentTrail = "none";
+    return;
+  }
+
+  let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || '{"xp":0}');
+  let owned = JSON.parse(localStorage.getItem("ownedCursor") || "[]");
+
+  if(owned.includes(trail)){
+    localStorage.setItem("selectedCursor", trail);
+    currentTrail = trail;
+    return;
+  }
+
+  const price = getCursorPrice(trail);
+
+  if(saved.xp < price){
+    alert(`Need ${price} XP!`);
+    return;
+  }
+
+  saved.xp -= price;
+  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
+  updateDailyXPUI(saved.xp);
+
+  owned.push(trail);
+  localStorage.setItem("ownedCursor", JSON.stringify(owned));
+
+  localStorage.setItem("selectedCursor", trail);
+  currentTrail = trail;
+};
+
+// 🎨 TRAIL ENGINE
+let lastMove = 0;
+
+document.addEventListener("mousemove", (e) => {
+
+  const now = Date.now();
+
+  // 🔥 LIMIT FPS (ANTI-LAG)
+  if(now - lastMove < 10) return;
+  lastMove = now;
+
+  if(currentTrail === "none" || currentTrail === "default") return;
+
+  const layer = document.getElementById("cursorTrailLayer");
+  if(!layer) return;
+  let el;
+
+  switch(currentTrail){
+
+    case "blue":
+      el = createDot("#00eaff");
+      break;
+
+    case "pink":
+      el = createDot("#ff6bff");
+      break;
+
+    case "gold":
+      el = createDot("#ffd700");
+      break;
+
+    
+
+  
+
+    case "neon":
+      el = document.createElement("div");
+      el.className = "cursor-neon";
+      break;
+
+    case "matrix":
+      el = document.createElement("div");
+      el.className = "cursor-sparkle";
+      el.innerText = "0";
+      el.style.color = "#00ff00";
+      break;
+
+    case "ice":
+      el = createDot("#8fe3ff");
+      el.style.boxShadow = "0 0 12px #8fe3ff";
+      break;
+        case "sparkle":
+      el = document.createElement("div");
+      el.className = "cursor-sparkle";
+      el.innerText = ["✨","⭐","💫"][Math.floor(Math.random()*3)];
+      break;
+
+      case "rainbow":
+      el = createDot(randomColor());
+      break;
+
+   case "fire":
+  el = document.createElement("div");
+  el.className = "cursor-fire";
+
+  // 🔥 random size for natural flame
+  const size = Math.random() * 6 + 6;
+  el.style.width = size + "px";
+  el.style.height = size + "px";
+
+  break;
+
+ case "bulb":
+  el = document.createElement("div");
+  el.className = "cursor-bulb";
+  break;
+
+    default:
+  return; // ❌ no fallback trail
+  }
+
+  el.style.left = e.clientX + "px";
+  el.style.top = e.clientY + "px";
+
+  layer.appendChild(el);
+
+  setTimeout(() => el.remove(), 800);
+
+});
+
+// 🔧 HELPERS
+function createDot(color){
+  const d = document.createElement("div");
+  d.className = "cursor-dot";
+  d.style.background = color;
+  d.style.boxShadow = `0 0 10px ${color}`;
+  return d;
+}
+
+function randomColor(){
+  const colors = ["#ff0000","#00ff00","#00eaff","#ff6bff","#ffd700"];
+  return colors[Math.floor(Math.random()*colors.length)];
+}
+
+
+
+
+
+function loadCursorShop(){
+
+  const grid = document.getElementById("cursorModalGrid");
+  if(!grid) return;
+
+  grid.innerHTML = "";
+
+  let owned = JSON.parse(localStorage.getItem("ownedCursor") || "[]");
+  let selected = localStorage.getItem("selectedCursor");
+
+  // 🔥 NONE OPTION
+  const noneDiv = document.createElement("div");
+  noneDiv.className = "cursor-item";
+
+  noneDiv.innerHTML = `
+    <div class="effect-none">🚫</div>
+    <button onclick="buyCursor('none')">Default</button>
+  `;
+
+  grid.appendChild(noneDiv);
+
+  // 🎯 LOAD CURSORS
+  cursorTrails.forEach(trail => {
+
+    if(trail === "default" || trail === "none") return; // skip default
+
+    const div = document.createElement("div");
+    div.className = "cursor-item";
+
+    const isOwned = owned.includes(trail);
+    const isSelected = selected === trail;
+
+   const preview = getCursorPreview(trail);
+
+div.innerHTML = `
+  ${preview ? `<div class="cursor-preview">${preview}</div>` : ""}
+  
+  <button onclick="buyCursor('${trail}')"
+    style="${
+      isSelected ? 'background:#facc15;color:black;' :
+      isOwned ? 'background:#64748b;' :
+      'background:#22c55e;color:white;'
+    }">
+
+    ${
+      isSelected ? "Equipped ⭐" :
+      isOwned ? "Owned" :
+      "Buy (" + getCursorPrice(trail) + " XP)"
+    }
+
+  </button>
+`;
+
+    grid.appendChild(div);
+
+  });
+}
+
+
+
+function getCursorPreview(trail){
+
+  switch(trail){
+    case "matrix": return "🍀";
+    case "ice": return "❄️";
+    case "blue": return "💙";
+     case "neon": return "💠";   // ✅ THIS WAS MISSING
+    case "pink": return "🌺";
+    case "gold": return "💛";
+    
+    case "sparkle": return "✨";
+    case "bulb": return "💡";
+   
+    
+    case "rainbow": return "🌈";
+    case "fire": return "🔥";
+    default: return null;
+  }
+
+}
 
 
 
@@ -62576,7 +62995,7 @@ document.addEventListener("DOMContentLoaded", startApp);
       </div>
       <!-- EFFECT SHOP DROPDOWN -->
 <button id="openEffectModalBtn" class="effect-toggle-btn">
-  🎁 Buy Animation
+  🎁 Buy Artworks
 </button>
  <div class="dailyStatCard">
       <div class="statTitle">🔥 Login Streak</div>
@@ -62612,22 +63031,27 @@ document.addEventListener("DOMContentLoaded", startApp);
 
   <div class="effect-modal-box">
 
-    <h3>✨ Animation Shop</h3>
+    <h3>✨ Artwork Shop</h3>
 
-    <h4 style="margin-top:10px;">Avatar Frame Artworks</h4>
+    <h4 style="margin-top:10px;">Buy Frames</h4>
 <div id="effectModalGrid"></div>
 
-<h4 style="margin-top:20px;">Olympus Badges</h4>
+<h4 style="margin-top:20px;">Buy Badges</h4>
 <div id="badgeModalGrid"></div>
 
-<h4 style="margin-top:20px;">Olympus Wallpapers</h4>
+<h4 style="margin-top:20px;">Buy Wallpapers</h4>
 <div id="backgroundModalGrid"></div>
+
+<h4 style="margin-top:20px;">Buy Cursors</h4>
+<div id="cursorModalGrid"></div>
 
     <button id="closeEffectModal">Close</button>
 
   </div>
 
 </div>
+
+<div id="cursorTrailLayer"></div>
 
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
