@@ -18375,6 +18375,79 @@ table,
 
 
 
+/* 🏅 BADGE UNDER AVATAR */
+/* 🏅 BADGE BELOW AVATAR (CLEAN) */
+.avatar-badge{
+  position:absolute;
+
+  bottom:-80px;   /* 🔥 move down to red mark */
+  left:50%;
+  transform:translateX(-50%);
+
+  width:51px;
+  height:51px;
+
+  object-fit:contain;
+
+  /* ❌ REMOVE ALL DECORATION */
+  background:none;
+  border:none;
+  box-shadow:none;
+  border-radius:0;
+
+  z-index:3;
+}
+
+
+/* 🏅 BADGE SCROLL (HORIZONTAL) */
+#badgeModalGrid{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  padding:10px 0;
+
+  scroll-behavior:smooth;
+}
+
+/* scrollbar style (optional clean look) */
+#badgeModalGrid::-webkit-scrollbar{
+  height:6px;
+}
+
+#badgeModalGrid::-webkit-scrollbar-thumb{
+  background:#334155;
+  border-radius:10px;
+}
+
+
+/* 🏅 badge item sizing */
+#badgeModalGrid .effect-item{
+  min-width:110px;   /* 🔥 same as avatar */
+  flex-shrink:0;
+}
+
+
+
+
+.effect-none{
+  width:70px;
+  height:70px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:28px;
+  border-radius:12px;
+  background:rgba(255,0,0,0.1);
+  color:#ff4d4d;
+  box-shadow:0 0 10px rgba(255,0,0,0.4);
+}
+
+
+
+
+
+
+
 
 
 
@@ -18459,6 +18532,9 @@ table,
     class="mini-avatar"
     src="assets/avatar-default.png"
   />
+
+  <!-- 🏅 BADGE -->
+  <img id="avatarBadge" class="avatar-badge" src="" />
 
 </div>
 
@@ -18670,8 +18746,8 @@ table,
   <span class="rating-elo">Elo</span>
   <span class="rating-delta" id="ratingDelta"></span>
 
-  <span class="rating-main" id="olympusRating">1490</span>
-  <span class="rating-tier" id="ratingTier">Rook</span>
+  <span class="rating-main" id="olympusRating">0</span>
+  <span class="rating-tier" id="ratingTier">ELO</span>
 
   
 
@@ -60698,6 +60774,8 @@ if(openBtn){
   openBtn.onclick = () => {
     modal.style.display = "flex";
     loadEffectModal();
+     loadBadgeShop(); // 🔥 THIS LINE
+
   };
 }
 
@@ -61049,7 +61127,137 @@ function applyBackground(){
 
 
 
+// ===============================
+// 🏅 BADGES
+// ===============================
 
+const badges = [
+  "assets/badge/bd3.gif",
+  "assets/badge/bd4.gif",
+  "assets/badge/bd5.gif",
+  "assets/badge/bd6.gif",
+  "assets/badge/bd7.gif",
+  "assets/badge/bd8.gif",
+  "assets/badge/bd9.gif",
+  "assets/badge/bd10.gif"
+];
+
+function applyBadge(){
+  const badge = localStorage.getItem("selectedBadge");
+  const img = document.getElementById("avatarBadge");
+
+  if(badge && img){
+    img.src = badge;
+    img.style.display = "block";
+  } else if(img){
+    img.style.display = "none";
+  }
+}
+
+// 🔥 run on load
+document.addEventListener("DOMContentLoaded", applyBadge);
+
+
+
+function getBadgePrice(badge){
+  const index = badges.indexOf(badge);
+
+  console.log("Badge:", badge, "Index:", index); // 🔥 DEBUG
+
+  if(index === -1) return 100;
+
+  return 100 + (index * 20);
+}
+
+window.buyBadge = function(badge){
+
+  // 🔥 HANDLE REMOVE
+  if(badge === "none"){
+    localStorage.removeItem("selectedBadge");
+    applyBadge();
+    return;
+  }
+
+  let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || '{"xp":0}');
+  let owned = JSON.parse(localStorage.getItem("ownedBadges") || "[]");
+
+  if(owned.includes(badge)){
+    localStorage.setItem("selectedBadge", badge);
+    applyBadge();
+    return;
+  }
+
+  const price = getBadgePrice(badge);
+
+  if(saved.xp < price){
+    alert(`Need ${price} XP!`);
+    return;
+  }
+
+  saved.xp -= price;
+  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
+  updateDailyXPUI(saved.xp);
+
+  owned.push(badge);
+  localStorage.setItem("ownedBadges", JSON.stringify(owned));
+
+  localStorage.setItem("selectedBadge", badge);
+  applyBadge();
+};
+
+
+
+function loadBadgeShop(){
+
+  const grid = document.getElementById("badgeModalGrid");
+  if(!grid) return;
+
+  grid.innerHTML = "";
+
+  // ✅ GET DATA
+  let owned = JSON.parse(localStorage.getItem("ownedBadges") || "[]");
+  let selected = localStorage.getItem("selectedBadge");
+
+  // 🔥 👇 PUT HERE (NONE OPTION)
+  const noneDiv = document.createElement("div");
+  noneDiv.className = "effect-item";
+
+  noneDiv.innerHTML = `
+    <div class="effect-none">🚫</div>
+    <button onclick="buyBadge('none')">Remove</button>
+  `;
+
+  grid.appendChild(noneDiv);
+
+  // 🔥 THEN NORMAL BADGES LOAD
+  badges.forEach(src => {
+
+    const div = document.createElement("div");
+    div.className = "effect-item";
+
+    const isOwned = owned.includes(src);
+    const isSelected = selected === src;
+
+    div.innerHTML = `
+      <img src="${src}" class="effect-preview">
+      <button onclick="buyBadge('${src}')"
+        style="${
+          isSelected ? 'background:#facc15;color:black;' :
+          isOwned ? 'background:#64748b;' :
+          'background:#22c55e;color:white;'
+        }">
+        ${
+          isSelected ? "Equipped ⭐" :
+          isOwned ? "Owned" :
+          "Buy (" + getBadgePrice(src) + " XP)"
+        }
+      </button>
+    `;
+
+    grid.appendChild(div);
+
+  });
+}
 
 
 
@@ -62406,8 +62614,11 @@ document.addEventListener("DOMContentLoaded", startApp);
 
     <h3>✨ Animation Shop</h3>
 
-    <h4 style="margin-top:10px;">Avatar Frame Artwork</h4>
+    <h4 style="margin-top:10px;">Avatar Frame Artworks</h4>
 <div id="effectModalGrid"></div>
+
+<h4 style="margin-top:20px;">Olympus Badges</h4>
+<div id="badgeModalGrid"></div>
 
 <h4 style="margin-top:20px;">Olympus Wallpapers</h4>
 <div id="backgroundModalGrid"></div>
