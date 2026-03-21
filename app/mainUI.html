@@ -18663,6 +18663,21 @@ table,
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -61594,6 +61609,12 @@ window.buyCursor = function(trail){
   currentTrail = trail;
 };
 
+// 🔥 TRAIL CONFIG (UPGRADED)
+const TRAIL_LIFE = 3000;     // was 800 → longer trail
+const TRAIL_SIZE_MIN = 8;    // thickness min
+const TRAIL_SIZE_MAX = 16;   // thickness max
+const TRAIL_DENSITY = 3;     // particles per move (1 → 2 = denser)
+
 // 🎨 TRAIL ENGINE
 let lastMove = 0;
 
@@ -61609,78 +61630,83 @@ document.addEventListener("mousemove", (e) => {
 
   const layer = document.getElementById("cursorTrailLayer");
   if(!layer) return;
-  let el;
 
-  switch(currentTrail){
+  // 🔥 DENSITY LOOP
+  for(let i = 0; i < TRAIL_DENSITY; i++){
 
-    case "blue":
-      el = createDot("#00eaff");
-      break;
+    let el;
 
-    case "pink":
-      el = createDot("#ff6bff");
-      break;
+    switch(currentTrail){
 
-    case "gold":
-      el = createDot("#ffd700");
-      break;
+      case "blue":
+        el = createDot("#00eaff");
+        break;
 
-    
+      case "pink":
+        el = createDot("#ff6bff");
+        break;
 
-  
+      case "gold":
+        el = createDot("#ffd700");
+        break;
 
-    case "neon":
-      el = document.createElement("div");
-      el.className = "cursor-neon";
-      break;
+      case "neon":
+        el = document.createElement("div");
+        el.className = "cursor-neon";
+        break;
 
-    case "matrix":
-      el = document.createElement("div");
-      el.className = "cursor-sparkle";
-      el.innerText = "0";
-      el.style.color = "#00ff00";
-      break;
+      case "matrix":
+        el = document.createElement("div");
+        el.className = "cursor-sparkle";
+        el.innerText = "0";
+        el.style.color = "#00ff00";
+        break;
 
-    case "ice":
-      el = createDot("#8fe3ff");
-      el.style.boxShadow = "0 0 12px #8fe3ff";
-      break;
-        case "sparkle":
-      el = document.createElement("div");
-      el.className = "cursor-sparkle";
-      el.innerText = ["✨","⭐","💫"][Math.floor(Math.random()*3)];
-      break;
+      case "ice":
+        el = createDot("#8fe3ff");
+        el.style.boxShadow = "0 0 16px #8fe3ff";
+        break;
+
+      case "sparkle":
+        el = document.createElement("div");
+        el.className = "cursor-sparkle";
+        el.innerText = ["✨","⭐","💫"][Math.floor(Math.random()*3)];
+        break;
 
       case "rainbow":
-      el = createDot(randomColor());
-      break;
+        el = createDot(randomColor());
+        break;
 
-   case "fire":
-  el = document.createElement("div");
-  el.className = "cursor-fire";
+      case "fire":
+        el = document.createElement("div");
+        el.className = "cursor-fire";
 
-  // 🔥 random size for natural flame
-  const size = Math.random() * 6 + 6;
-  el.style.width = size + "px";
-  el.style.height = size + "px";
+        const size = Math.random() * (TRAIL_SIZE_MAX - TRAIL_SIZE_MIN) + TRAIL_SIZE_MIN;
+        el.style.width = size + "px";
+        el.style.height = size + "px";
+        break;
 
-  break;
+      case "bulb":
+        el = document.createElement("div");
+        el.className = "cursor-bulb";
+        break;
 
- case "bulb":
-  el = document.createElement("div");
-  el.className = "cursor-bulb";
-  break;
+      default:
+        return;
+    }
 
-    default:
-  return; // ❌ no fallback trail
+    // 🔥 RANDOM OFFSET → smoother thick trail
+    const offsetX = (Math.random() - 0.5) * 8;
+    const offsetY = (Math.random() - 0.5) * 8;
+
+    el.style.left = (e.clientX + offsetX) + "px";
+    el.style.top = (e.clientY + offsetY) + "px";
+
+    layer.appendChild(el);
+
+    // 🔥 LONGER LIFE
+    setTimeout(() => el.remove(), TRAIL_LIFE);
   }
-
-  el.style.left = e.clientX + "px";
-  el.style.top = e.clientY + "px";
-
-  layer.appendChild(el);
-
-  setTimeout(() => el.remove(), 800);
 
 });
 
@@ -61688,8 +61714,15 @@ document.addEventListener("mousemove", (e) => {
 function createDot(color){
   const d = document.createElement("div");
   d.className = "cursor-dot";
+
+  const size = Math.random() * (TRAIL_SIZE_MAX - TRAIL_SIZE_MIN) + TRAIL_SIZE_MIN;
+
+  d.style.width = size + "px";
+  d.style.height = size + "px";
+
   d.style.background = color;
-  d.style.boxShadow = `0 0 10px ${color}`;
+  d.style.boxShadow = `0 0 14px ${color}`;
+
   return d;
 }
 
