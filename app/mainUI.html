@@ -18734,7 +18734,9 @@ table,
   ✕
 </button>
 
-    
+   <button id="performanceToggleBtn" class="perf-btn">
+⚡ Performance: ON
+</button> 
 <button id="xpHistoryBtn" class="xp-history-btn">
   📜 My XP History
 </button>
@@ -60425,7 +60427,85 @@ widget.classList.remove("missionGlow");
 };
 
 
+// 🔥 GLOBAL PERFORMANCE MODE
+let performanceMode = localStorage.getItem("perfMode") === "off";
 
+// APPLY ON LOAD
+document.addEventListener("DOMContentLoaded", () => {
+
+  const btn = document.getElementById("performanceToggleBtn");
+
+  updatePerfUI();
+
+  if(btn){
+    btn.onclick = () => {
+      performanceMode = !performanceMode;
+
+      localStorage.setItem("perfMode", performanceMode ? "off" : "on");
+
+      updatePerfUI();
+      applyPerformanceMode();
+    };
+  }
+
+  applyPerformanceMode();
+});
+
+function updatePerfUI(){
+  const btn = document.getElementById("performanceToggleBtn");
+  if(!btn) return;
+
+  if(performanceMode){
+    btn.innerText = "⚡ Performance: OFF";
+    btn.style.background = "#ef4444";
+  }else{
+    btn.innerText = "⚡ Performance: ON";
+    btn.style.background = "#22c55e";
+  }
+}
+
+
+function applyPerformanceMode(){
+
+  // 🔥 DISABLE EVERYTHING HEAVY
+  if(performanceMode){
+
+    
+
+    // ❌ cursor trails
+    currentTrail = "none";
+
+    // ❌ avatar effect
+    localStorage.removeItem("selectedEffect");
+    loadAvatarEffect();
+
+    // ❌ background
+    document.body.style.backgroundImage = "";
+
+    // ❌ stop roll sound
+    if(typeof rollSound !== "undefined"){
+      rollSound.pause();
+      rollSound.currentTime = 0;
+    }
+
+    // ❌ remove all trail particles instantly
+    const layer = document.getElementById("cursorTrailLayer");
+    if(layer) layer.innerHTML = "";
+
+    // ❌ hide badge
+const badge = document.getElementById("avatarBadge");
+if(badge) badge.style.display = "none";
+
+  }else{
+
+    // ✅ restore background
+    applyBackground();
+
+    // ✅ restore avatar effect
+    loadAvatarEffect();
+
+  }
+}
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -60749,6 +60829,10 @@ return epicList.includes(src) ? "epic" : "common";
 }
 
 function startCaseRoll(finalReward){
+  if(performanceMode){
+  roll.innerHTML = "";
+  return; // ❌ skip animation
+}
   // 🔥 RESET OLD RESULT UI
 const resultBox = document.getElementById("caseResult");
 if(resultBox){
@@ -60933,6 +61017,11 @@ if(modal){
 
 
 function loadAvatarEffect(){
+  if(performanceMode){
+  const img = document.getElementById("avatarEffect");
+  if(img) img.style.display = "none";
+  return;
+}
 
 const effect = localStorage.getItem("selectedEffect");
 const img = document.getElementById("avatarEffect");
@@ -61381,6 +61470,10 @@ if(bg === "none"){
 };
 
 function applyBackground(){
+  if(performanceMode){
+  document.body.style.backgroundImage = "";
+  return;
+}
   const bg = localStorage.getItem("selectedBackground");
 
   if(bg && bg !== "none"){
@@ -61415,6 +61508,14 @@ const badges = [
 ];
 
 function applyBadge(){
+  // 🔥 PERFORMANCE MODE BLOCK
+  if(performanceMode){
+    const img = document.getElementById("avatarBadge");
+    if(img){
+      img.style.display = "none";
+    }
+    return;
+  }
   const badge = localStorage.getItem("selectedBadge");
   const img = document.getElementById("avatarBadge");
 
@@ -61617,6 +61718,7 @@ const TRAIL_DENSITY = 3;     // particles per move (1 → 2 = denser)
 let lastMove = 0;
 
 document.addEventListener("mousemove", (e) => {
+  if(performanceMode) return;
 
   const now = Date.now();
 
