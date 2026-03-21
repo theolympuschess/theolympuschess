@@ -60457,8 +60457,6 @@ document.getElementById("caseModal").style.display = "flex";
 // ✅ STEP 2: start roll with reward
 startCaseRoll(reward);
 
-// ✅ STEP 3: show result after animation
-// ✅ STEP 2: start roll with reward
 
 
 // 🎯 PERFECT SYNC (PUT HERE)
@@ -60939,18 +60937,10 @@ function loadAvatarEffect(){
 const effect = localStorage.getItem("selectedEffect");
 const img = document.getElementById("avatarEffect");
 
-if(!img) return;
-
-// 🔥 LOW-END DEVICE → DISABLE EFFECT
-if(navigator.hardwareConcurrency <= 4){
-  img.style.display = "none";
-  return;
-}
-
-if(effect){
+if(effect && img){
   img.src = effect;
   img.style.display = "block";
-}else{
+}else if(img){
   img.style.display = "none";
 }
 
@@ -61391,15 +61381,7 @@ if(bg === "none"){
 };
 
 function applyBackground(){
-
   const bg = localStorage.getItem("selectedBackground");
-
-  // 🔥 LOW-END DEVICE → REMOVE HEAVY BACKGROUND
-  if(navigator.hardwareConcurrency <= 4){
-    document.body.style.backgroundImage = "";
-    document.body.style.backgroundAttachment = "";
-    return;
-  }
 
   if(bg && bg !== "none"){
     document.body.style.backgroundImage = `url('${bg}')`;
@@ -61408,6 +61390,7 @@ function applyBackground(){
     document.body.style.backgroundRepeat = "no-repeat";
     document.body.style.backgroundAttachment = "fixed";
   } else {
+    // 🔥 RESET TO DEFAULT
     document.body.style.backgroundImage = "";
     document.body.style.backgroundAttachment = "";
   }
@@ -61631,19 +61614,14 @@ const TRAIL_SIZE_MAX = 16;   // thickness max
 const TRAIL_DENSITY = 3;     // particles per move (1 → 2 = denser)
 
 // 🎨 TRAIL ENGINE
-// 🎨 TRAIL ENGINE (OPTIMIZED)
 let lastMove = 0;
-const isLowEnd = navigator.hardwareConcurrency <= 4;
 
 document.addEventListener("mousemove", (e) => {
 
-  // 🔥 disable completely on low-end devices
-  if(isLowEnd) return;
-
   const now = Date.now();
 
-  // 🔥 reduce frequency (VERY IMPORTANT)
-  if(now - lastMove < 30) return;
+  // 🔥 LIMIT FPS (ANTI-LAG)
+  if(now - lastMove < 10) return;
   lastMove = now;
 
   if(currentTrail === "none" || currentTrail === "default") return;
@@ -61651,16 +61629,24 @@ document.addEventListener("mousemove", (e) => {
   const layer = document.getElementById("cursorTrailLayer");
   if(!layer) return;
 
-  // 🔥 REDUCE PARTICLES (was 3)
-  for(let i = 0; i < 1; i++){
+  // 🔥 DENSITY LOOP
+  for(let i = 0; i < TRAIL_DENSITY; i++){
 
     let el;
 
     switch(currentTrail){
 
-      case "blue": el = createDot("#00eaff"); break;
-      case "pink": el = createDot("#ff6bff"); break;
-      case "gold": el = createDot("#ffd700"); break;
+      case "blue":
+        el = createDot("#00eaff");
+        break;
+
+      case "pink":
+        el = createDot("#ff6bff");
+        break;
+
+      case "gold":
+        el = createDot("#ffd700");
+        break;
 
       case "neon":
         el = document.createElement("div");
@@ -61676,12 +61662,13 @@ document.addEventListener("mousemove", (e) => {
 
       case "ice":
         el = createDot("#8fe3ff");
+        el.style.boxShadow = "0 0 16px #8fe3ff";
         break;
 
       case "sparkle":
         el = document.createElement("div");
         el.className = "cursor-sparkle";
-        el.innerText = "✨";
+        el.innerText = ["✨","⭐","💫"][Math.floor(Math.random()*3)];
         break;
 
       case "rainbow":
@@ -61691,8 +61678,10 @@ document.addEventListener("mousemove", (e) => {
       case "fire":
         el = document.createElement("div");
         el.className = "cursor-fire";
-        el.style.width = "8px";
-        el.style.height = "8px";
+
+        const size = Math.random() * (TRAIL_SIZE_MAX - TRAIL_SIZE_MIN) + TRAIL_SIZE_MIN;
+        el.style.width = size + "px";
+        el.style.height = size + "px";
         break;
 
       case "bulb":
@@ -61704,15 +61693,17 @@ document.addEventListener("mousemove", (e) => {
         return;
     }
 
-    el.style.left = e.clientX + "px";
-    el.style.top = e.clientY + "px";
+    // 🔥 RANDOM OFFSET → smoother thick trail
+    const offsetX = (Math.random() - 0.5) * 8;
+    const offsetY = (Math.random() - 0.5) * 8;
+
+    el.style.left = (e.clientX + offsetX) + "px";
+    el.style.top = (e.clientY + offsetY) + "px";
 
     layer.appendChild(el);
 
-    // 🔥 SHORT LIFE (was 3000)
-    setTimeout(() => {
-      if(el && el.parentNode) el.remove();
-    }, 300);
+    // 🔥 LONGER LIFE
+    setTimeout(() => el.remove(), TRAIL_LIFE);
   }
 
 });
@@ -61722,10 +61713,13 @@ function createDot(color){
   const d = document.createElement("div");
   d.className = "cursor-dot";
 
-  d.style.width = "6px";
-  d.style.height = "6px";
+  const size = Math.random() * (TRAIL_SIZE_MAX - TRAIL_SIZE_MIN) + TRAIL_SIZE_MIN;
+
+  d.style.width = size + "px";
+  d.style.height = size + "px";
 
   d.style.background = color;
+  d.style.boxShadow = `0 0 14px ${color}`;
 
   return d;
 }
