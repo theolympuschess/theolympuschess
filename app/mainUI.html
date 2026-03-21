@@ -18612,6 +18612,51 @@ table,
 
 
 
+/* 🔙 TAKEBACK MODAL COMPACT FIX */
+/* 🔙 TAKEBACK MODAL COMPACT */
+.takeback-box{
+  max-width:340px;
+  width:90%;
+
+  padding:20px;
+
+  height:auto !important;
+  min-height:unset !important;
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+
+  gap:10px;
+}
+
+/* buttons layout */
+.takeback-actions{
+  display:flex;
+  gap:10px;
+  width:100%;
+}
+
+.takeback-actions button{
+  flex:1;
+}
+
+
+.takeback-box{
+  animation: popIn 0.25s ease;
+}
+
+@keyframes popIn{
+  from{transform:scale(0.9);opacity:0;}
+  to{transform:scale(1);opacity:1;}
+}
+
+
+
+
+
+
 
 
 
@@ -18897,7 +18942,7 @@ table,
   id="mobileLootBtn"
   class="mobile-loot-btn"
 >
-  ⭐ Loot
+  ⭐ XP
 </span>
 <span id="mobileMissionBtn" class="mobile-mission-btn">🎯 Missions</span>
   <!-- CENTER -->
@@ -24400,29 +24445,69 @@ function startBlackClock() {
 }
 
 document.getElementById("takeBackBtn").addEventListener("click", () => {
+
   if (!vsGameActive) return;
 
-  // 🛑 stop engine & clock
+  const modal = document.getElementById("takebackModal");
+  if(modal){
+    modal.style.display = "flex";
+
+    // 🔥 RESET ERROR MESSAGE HERE
+    const err = document.getElementById("takebackError");
+    if(err) err.style.display = "none";
+  }
+
+});
+
+// 🔥 TAKEBACK CONFIRM SYSTEM
+document.getElementById("confirmTakebackBtn").onclick = () => {
+
+  let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || '{"xp":0}');
+
+  // ❌ NOT ENOUGH XP
+if(saved.xp < 10){
+
+  const err = document.getElementById("takebackError");
+  if(err){
+    err.style.display = "block";
+
+    // 🔥 auto hide after 2s
+    setTimeout(() => {
+      err.style.display = "none";
+    }, 2000);
+  }
+
+  return;
+}
+
+  // 💰 deduct XP
+  saved.xp -= 10;
+  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
+  updateDailyXPUI(saved.xp);
+
+  // 🔙 DO ORIGINAL TAKEBACK LOGIC
   clearInterval(clockInterval);
   engineThinking = false;
 
-  // 🔙 undo engine move (if exists)
   const lastMove = vsChess.history().length;
-  if (lastMove >= 1) vsChess.undo(); // engine move
-  if (lastMove >= 2) vsChess.undo(); // player move
+  if (lastMove >= 1) vsChess.undo();
+  if (lastMove >= 2) vsChess.undo();
 
-  // ♟ sync board
   vsBoard.position(vsChess.fen());
-  
 
-  // ▶️ restart correct clock
   if (vsPlayerColor === "white") {
     startWhiteClock();
   } else {
     startBlackClock();
   }
-});
 
+  // ❌ CLOSE MODAL
+  document.getElementById("takebackModal").style.display = "none";
+};
+
+document.getElementById("cancelTakebackBtn").onclick = () => {
+  document.getElementById("takebackModal").style.display = "none";
+};
 
 document.addEventListener("click", () => {
   if (!window._audioUnlocked) {
@@ -61699,6 +61784,15 @@ function getCursorPreview(trail){
 
 
 
+
+
+
+
+
+
+
+
+
 // ============================================
 // SAFE START APP (WAIT FOR SUPABASE SESSION)
 // ============================================
@@ -62976,7 +63070,7 @@ document.addEventListener("DOMContentLoaded", startApp);
   <div id="dailyStatsWidget">
 
   <div id="dailyStatsHeader">
-    ⭐ Loot Points
+    ⭐ XP Wallet
     <button id="dailyStatsToggle">−</button>
   </div>
 
@@ -63048,6 +63142,38 @@ document.addEventListener("DOMContentLoaded", startApp);
     <button id="closeEffectModal">Close</button>
 
   </div>
+
+</div>
+
+<!-- 🔙 TAKEBACK CONFIRM MODAL -->
+<div id="takebackModal" class="effect-modal" style="display:none;">
+
+  <div class="effect-modal-box takeback-box">
+
+  <h3 style="margin-bottom:5px;">♻️ Take Back Move</h3>
+
+  <p style="margin:8px 0 10px; font-size:14px; text-align:center;">
+    This will cost <b style="color:#22c55e;">10 XP</b>.<br>
+    Do you want to proceed?
+  </p>
+
+  <!-- 🔥 ERROR MESSAGE -->
+  <div id="takebackError" style="
+    display:none;
+    color:#ff4d4d;
+    font-size:13px;
+    margin-bottom:8px;
+    text-align:center;
+  ">
+    ❌ Not enough XP!
+  </div>
+
+  <div class="takeback-actions">
+    <button id="confirmTakebackBtn" class="btn-success">Yes</button>
+    <button id="cancelTakebackBtn" class="btn-danger">No</button>
+  </div>
+
+</div>
 
 </div>
 
