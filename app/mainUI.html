@@ -27021,7 +27021,17 @@ async function checkStudentLiveAccess() {
   }
 }
 
+function restorePuzzleHeader() {
+  if (!currentAssignment?.is_bulk) return;
 
+  const status = document.getElementById("gameStatus");
+  if (!status) return;
+
+  status.style.display = "block";
+  status.className = "status-indicator";
+
+  status.innerHTML = `Puzzle ${bulkIndex + 1} / ${bulkPuzzles.length}`;
+}
 
 
     function onDrop(source, target) {
@@ -27162,6 +27172,7 @@ if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
     setTimeout(() => {
       playSound("next");
       loadCurrentBulkPuzzle();
+      restorePuzzleHeader(); // ⭐ ADD THIS
     }, 800);
   } else {
     playSound("complete");
@@ -38658,17 +38669,26 @@ function updateEngineUI() {
 
 
 function showStatus(message, type = "info", autoHide = true) {
-  const status = document.getElementById("gameStatus");
 
-  status.innerHTML = message;          // ✅ allow HTML
+  const status = document.getElementById("gameStatus");
+  if (!status) return;
+
+  status.innerHTML = message;
   status.style.display = "block";
 
   status.className = "status-indicator";
-  status.classList.add(type);          // success | error | info
+  status.classList.add(type);
 
   if (autoHide) {
     setTimeout(() => {
-      status.style.display = "none";
+
+      // ⭐ IMPORTANT FIX
+      if (currentAssignment?.is_bulk) {
+        restorePuzzleHeader(); // instead of hiding
+      } else {
+        status.style.display = "none";
+      }
+
     }, 3000);
   }
 }
