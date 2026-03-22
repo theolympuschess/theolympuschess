@@ -50920,24 +50920,20 @@ async function loadBroadcast() {
      LOAD PRIVATE CHAT
   =============================== */
 async function loadPrivateChat() {
+  if (!activeReceiver) return
 
-  if (!activeReceiver) return;
-
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('chat_messages')
     .select('*')
-    .or(`and(sender_id.eq.${user.id},receiver_id.eq.${activeReceiver}),and(sender_id.eq.${activeReceiver},receiver_id.eq.${user.id})`)
-    .eq('deleted', false) // 🔥 IMPORTANT FIX
-    .order('created_at', { ascending: true });
+    .or(
+      `and(sender_id.eq.${user.id},receiver_id.eq.${activeReceiver}),
+       and(sender_id.eq.${activeReceiver},receiver_id.eq.${user.id})`
+    )
+    .order('created_at', { ascending: true })
 
-  if (error) {
-    console.error("❌ Private chat error:", error);
-    return;
-  }
+ privateCache[activeReceiver] = Array.isArray(data) ? data : []
+renderMessages(privateCache[activeReceiver])
 
-  privateCache[activeReceiver] = Array.isArray(data) ? data : [];
-
-  renderMessages(privateCache[activeReceiver]);
 }
 
 async function markPrivateAsRead(otherUserId) {
@@ -51208,7 +51204,38 @@ if (msg.receiver_id !== null) {
 
 }
 
+async function preloadPrivateChats() {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .eq('deleted', false)
+    .order('created_at', { ascending: true })
 
+  if (error) {
+    console.error('[CHAT] Preload error:', error)
+    return
+  }
+
+  if (!Array.isArray(data)) return
+
+  data.forEach(msg => {
+    const other =
+      msg.sender_id === user.id
+        ? msg.receiver_id
+        : msg.sender_id
+
+    if (!other) return
+
+    if (!privateCache[other]) {
+      privateCache[other] = []
+    }
+
+    privateCache[other].push(msg)
+  })
+
+  console.log('[CHAT] Preloaded private chats:', Object.keys(privateCache))
+}
 
 
 
@@ -51220,7 +51247,7 @@ if (msg.receiver_id !== null) {
   chat.style.display = 'none'
  if(!LOW_END_DEVICE){
   await preloadUsers()
- 
+  await preloadPrivateChats()
   await preloadUnreadCounts()
   await preloadBroadcastUnread()
 }else{
