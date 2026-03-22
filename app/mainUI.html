@@ -61722,37 +61722,62 @@ function getCursorPreview(trail){
 
 
 // ============================================
-// SAFE START APP (WAIT FOR SUPABASE SESSION)
+// ⚡ OPTIMIZED START APP (LOW-END SAFE)
 // ============================================
 
-async function startApp() {
+function startApp() {
 
-  console.log("⏳ Waiting for Supabase session...");
+  console.log("⏳ Starting app...");
 
-  let { data: { session } } = await supabase.auth.getSession();
+  let appStarted = false;
 
-  let tries = 0;
+  // 🔥 SAFE INIT (RUN ONLY ONCE)
+  function safeInit(){
+    if(appStarted) return;
+    appStarted = true;
 
-  while (!session && tries < 40) {
-
-    await new Promise(r => setTimeout(r, 250));
-
-    const result = await supabase.auth.getSession();
-    session = result.data.session;
-
-    tries++;
-
+    console.log("✅ Init App Triggered");
+    initApp(); // ❗ NO await
   }
 
-  if (!session) {
-    console.log("❌ No session → redirect login");
-    window.location.href = "login.html";
-    return;
-  }
+  // 1️⃣ Try instant session
+  supabase.auth.getSession().then(({ data: { session } }) => {
 
-  console.log("✅ Session ready");
+    if(session){
+      console.log("✅ Session ready (instant)");
+      safeInit();
+    }
 
-  await initApp();
+  });
+
+  // 2️⃣ Listen for session (NON-BLOCKING)
+  const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+
+    if(session){
+      console.log("✅ Session from listener");
+
+      listener.subscription.unsubscribe();
+      safeInit();
+    }
+
+  });
+
+  // 3️⃣ FINAL FALLBACK (VERY IMPORTANT)
+  setTimeout(async () => {
+
+    if(appStarted) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if(session){
+      console.log("✅ Session from fallback");
+      safeInit();
+    }else{
+      console.log("❌ No session → redirect");
+      window.location.href = "login.html";
+    }
+
+  }, 3000); // 🔥 3s max wait
 
 }
 
