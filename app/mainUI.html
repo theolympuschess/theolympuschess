@@ -50747,17 +50747,19 @@ toggleBtn?.addEventListener('click', async () => {
     chat.style.display = chat.classList.contains('chat-hidden') ? 'none' : 'flex'
   }
 
- bubble.onclick = async (e) => {
+bubble.onclick = (e) => {
   e.stopPropagation()
   toggleChat()
 
-  // ✅ If chat just opened AND broadcast is the active tab
   if (
     !chat.classList.contains('chat-hidden') &&
     currentMode === 'global'
   ) {
-  renderMessages(broadcastCache) // 👈 THIS LINE FIXES IT
-    await supabase
+
+    // ⚡ no await (important)
+    renderMessages(broadcastCache)
+
+    supabase
       .from('profiles')
       .update({ last_broadcast_read_at: new Date().toISOString() })
       .eq('id', user.id)
@@ -50766,7 +50768,6 @@ toggleBtn?.addEventListener('click', async () => {
     updateBadges()
   }
 }
-
 
   minimize.onclick = (e) => {
     e.stopPropagation()
@@ -50824,6 +50825,7 @@ updateBadges()
      LOAD USERS (FROM PROFILES)
   =============================== */
 async function loadUsers() {
+  if(LOW_END_DEVICE && isLoadingUsers) return;
   // ⛔ prevent parallel executions
   if (isLoadingUsers) return
   isLoadingUsers = true
@@ -50842,7 +50844,7 @@ async function loadUsers() {
     return
   }
 
-  data.forEach(p => {
+  data.slice(0, 20).forEach(p => {
     if (p.id === user.id) return
 
     const div = document.createElement('div')
@@ -51094,14 +51096,21 @@ supabase
   userUnreadMap[other] = (userUnreadMap[other] || 0) + 1
   updateBadges()
   playMessageSound()
-  loadUsers()
+ if(!LOW_END_DEVICE){
+  safeLoadUsers()
+}
 }
 
   })
   .subscribe()
 
 
+let userReloadTimeout;
 
+function safeLoadUsers(){
+  clearTimeout(userReloadTimeout);
+  userReloadTimeout = setTimeout(loadUsers, 300);
+}
 
 
   /* ===============================
@@ -51236,10 +51245,18 @@ async function preloadPrivateChats() {
   =============================== */
   chat.classList.add('chat-hidden')
   chat.style.display = 'none'
+ if(!LOW_END_DEVICE){
   await preloadUsers()
-await preloadPrivateChats()
-await preloadUnreadCounts() // 👈 PERSIST ALERTS
-await preloadBroadcastUnread()
+  await preloadPrivateChats()
+  await preloadUnreadCounts()
+  await preloadBroadcastUnread()
+}else{
+  console.log("⚡ Chat lite mode (low-end)");
+
+  // only minimal
+  preloadUnreadCounts()
+  preloadBroadcastUnread()
+}
 
 loadBroadcast()
 await applyStudentPrivateUI()
