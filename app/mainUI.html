@@ -18515,9 +18515,143 @@ transform:scale(1);
 
 
 
+/* 🔥 Horizontal scroll container */
+#pieceThemeGrid {
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding: 10px 5px;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar (optional clean look) */
+#pieceThemeGrid::-webkit-scrollbar {
+  height: 6px;
+}
+#pieceThemeGrid::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 10px;
+}
+
+/* 🎴 Card style (same as others) */
+.shop-card {
+  min-width: 120px;
+  background: #111;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+
+/* Title */
+.shop-card-title {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+/* Buttons */
+.buy-btn {
+  background: #0a84ff;
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.use-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.equipped-btn {
+  background: #ffaa00;
+  color: black;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
 
 
 
+
+
+
+/* 🔥 Piece preview grid */
+.piece-preview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin: 6px 0;
+}
+
+/* Piece images */
+.piece-preview img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+}
+
+
+
+
+
+
+
+
+
+/* 🔥 CLOSE BUTTON STYLING */
+#closeEffectModal {
+  margin-top: 15px;
+  padding: 8px 18px;
+
+  background: linear-gradient(135deg, #0a84ff, #00c6ff);
+  color: white;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  box-shadow: 0 0 10px rgba(0, 132, 255, 0.5);
+
+  transition: all 0.25s ease;
+}
+
+/* ✨ HOVER EFFECT */
+#closeEffectModal:hover {
+  transform: translateY(-2px) scale(1.05);
+
+  box-shadow: 0 0 15px rgba(0, 132, 255, 0.9),
+              0 0 25px rgba(0, 198, 255, 0.6);
+}
+
+/* 💥 CLICK EFFECT */
+#closeEffectModal:active {
+  transform: scale(0.95);
+
+  box-shadow: 0 0 5px rgba(0, 132, 255, 0.5);
+}
+
+
+
+
+
+
+.shop-card:first-child {
+  border: 1px solid #00c6ff;
+  box-shadow: 0 0 10px rgba(0,198,255,0.6);
+}
 
 
 
@@ -44757,13 +44891,6 @@ function showKGGameOverModal() {
 
 
 
-
-
-
-
-
-
-
 (() => {
   const btn = document.getElementById("userMenuBtn");
   const dropdown = document.getElementById("userDropdown");
@@ -44825,7 +44952,68 @@ function showKGGameOverModal() {
 
 
 
+
+
+
+
+
+
+// ================================
+// 🎨 OWNED THEMES SYSTEM (FIXED)
+// ================================
+
+const DEFAULT_THEME = "merida";
+
+// Always ensure default exists
+function getOwnedThemes() {
+  let data = localStorage.getItem("ownedThemes");
+
+  if (!data) {
+    const base = [DEFAULT_THEME];
+    localStorage.setItem("ownedThemes", JSON.stringify(base));
+    return base;
+  }
+
+  try {
+    const parsed = JSON.parse(data);
+
+    // Ensure merida always exists
+    if (!parsed.includes(DEFAULT_THEME)) {
+      parsed.push(DEFAULT_THEME);
+      localStorage.setItem("ownedThemes", JSON.stringify(parsed));
+    }
+
+    return parsed;
+
+  } catch (e) {
+    const base = [DEFAULT_THEME];
+    localStorage.setItem("ownedThemes", JSON.stringify(base));
+    return base;
+  }
+}
+
+// Unlock theme
+function unlockTheme(theme) {
+  const owned = getOwnedThemes();
+
+  if (!owned.includes(theme)) {
+    owned.push(theme);
+    localStorage.setItem("ownedThemes", JSON.stringify(owned));
+  }
+}
+
+// Check ownership
+function isThemeOwned(theme) {
+  return getOwnedThemes().includes(theme);
+}
+
+
 window.setPieceTheme = function (theme) {
+  // 🔒 LOCK CHECK (ADD THIS FIRST)
+if (!isThemeOwned(theme)) {
+  alert("🔒 Theme locked! Buy from shop.");
+  return;
+}
   currentPieceTheme = theme;
   localStorage.setItem("pieceTheme", theme);
 
@@ -59989,6 +60177,7 @@ if(openBtn){
     loadEffectModal();
      loadBadgeShop(); // 🔥 THIS LINE
      loadCursorShop(); // 🔥 ADD THIS LINE
+     renderPieceShop();
     
 
   };
@@ -60000,7 +60189,9 @@ if(closeBtn){
   };
 }
 
+
 });
+
 
 function loadEffectModal(){
 
@@ -60755,6 +60946,107 @@ function getCursorPreview(trail){
 
 }
 
+
+
+// ================================
+// 🛒 PIECE SHOP DATA
+// ================================
+
+const pieceShopItems = [
+   { id: "merida", name: "Default", price: 0 }, // ✅ ADD THIS LINE FIRST
+  { id: "alpha", name: "Alpha", price: 100 },
+  { id: "cburnett", name: "Classic", price: 150 },
+  { id: "pirouetti", name: "Pirouetti", price: 200 },
+  { id: "chessnut", name: "Chessnut", price: 200 },
+  { id: "pixel", name: "Pixel", price: 120 },
+  { id: "cardinal", name: "Cardinal", price: 180 },
+  { id: "fantasy", name: "Fantasy", price: 220 },
+  { id: "spatial", name: "Spatial", price: 220 },
+  { id: "Guardians", name: "Guardians", price: 300 },
+  { id: "olympus-kiwen", name: "Thomas", price: 250 },
+  { id: "evergreen", name: "Hunter", price: 250 }
+];
+
+
+
+
+function renderPieceShop() {
+  const grid = document.getElementById("pieceThemeGrid");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+
+  // 🔥 Always get fresh data
+  const ownedThemes = getOwnedThemes();
+  const current = localStorage.getItem("pieceTheme") || "merida";
+
+  pieceShopItems.forEach(item => {
+
+    const owned = ownedThemes.includes(item.id);
+
+    const div = document.createElement("div");
+    div.className = "shop-card";
+
+    const piecePath = getPieceThemePath(item.id);
+
+div.innerHTML = `
+  <div class="shop-card-title">${item.name}</div>
+
+  <!-- 🔥 PIECE PREVIEW -->
+  <div class="piece-preview">
+    <img src="${piecePath.replace('{piece}', 'wK')}" />
+    <img src="${piecePath.replace('{piece}', 'wQ')}" />
+    <img src="${piecePath.replace('{piece}', 'wR')}" />
+    <img src="${piecePath.replace('{piece}', 'wB')}" />
+    <img src="${piecePath.replace('{piece}', 'wN')}" />
+    <img src="${piecePath.replace('{piece}', 'wP')}" />
+  </div>
+
+ ${
+  item.id === "merida"
+    ? current === "merida"
+      ? `<button class="equipped-btn">✔ Default</button>`
+      : `<button class="use-btn" onclick="setPieceTheme('merida')">Use Default</button>`
+    : owned
+      ? current === item.id
+        ? `<button class="equipped-btn">✔ Equipped</button>`
+        : `<button class="use-btn" onclick="setPieceTheme('${item.id}')">Use</button>`
+      : `<button class="buy-btn" onclick="buyTheme('${item.id}', ${item.price})">Buy ${item.price} XP</button>`
+}
+`;
+
+    grid.appendChild(div);
+  });
+}
+
+
+window.buyTheme = function(theme, price) {
+
+  // 🔥 USE SAME XP SYSTEM AS REST OF APP
+  let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || '{"xp":0}');
+
+  let xp = saved.xp || 0;
+
+  console.log("XP detected:", xp); // debug
+
+  if (xp < price) {
+    alert("❌ Not enough XP");
+    return;
+  }
+
+  // 💰 deduct XP
+  saved.xp -= price;
+  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
+
+  // 🔥 update UI like other systems
+  updateDailyXPUI(saved.xp);
+
+  unlockTheme(theme);
+
+  alert("✅ Purchased!");
+
+  renderPieceShop();
+};
 
 
 
@@ -62045,6 +62337,9 @@ document.addEventListener("DOMContentLoaded", startApp);
   <div class="effect-modal-box">
 
     <h3>✨ Artwork Shop</h3>
+
+    <h4 style="margin-top:20px;">Buy Piece Themes</h4>
+<div id="pieceThemeGrid"></div>
 
     <h4 style="margin-top:10px;">Buy Frames</h4>
 <div id="effectModalGrid"></div>
