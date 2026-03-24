@@ -17,7 +17,7 @@
 
   const FORCE_LOW = localStorage.getItem("forceLowMode") === "true";
 
- const low = FORCE_LOW || (ram <= 2 || cores <= 2 || (isMobile && (ram <= 4 || cores <= 4)));
+ const low = FORCE_LOW || (ram <= 3 || cores <= 2 || (isMobile && (ram <= 4 || cores <= 4)));
 
   const link = document.createElement("link");
   link.rel = "stylesheet";
@@ -17278,44 +17278,14 @@ filter: drop-shadow(0 0 4px #ffd700)
 
 
 /* ===============================
-   MOBILE COACH WIDGET
+   MOBILE COACH WIDGET (DISABLED)
 ================================ */
 
 @media (max-width: 768px){
 
-#chessCoachWidget{
-
-bottom:70px;        /* move near puzzle controls */
-left:10px;
-top:auto;
-right:auto;
-
-transform:none;
-
-flex-direction:row;
-
-gap:6px;
-
-}
-
-/* smaller avatar */
-
-#coachAvatar{
-width:42px;
-}
-
-/* smaller bubble */
-
-#coachBubble{
-max-width:150px;
-font-size:12px;
-padding:8px 10px;
-border-radius:12px;
-}
-
-.factBulb{
-font-size:16px;
-}
+  #chessCoachWidget{
+    display: none !important;
+  }
 
 }
 
@@ -17397,7 +17367,7 @@ border-radius:6px;
 
 position:fixed;
 right:20px;
-top:70px;
+top:80px;
 
 width:230px;
 
@@ -17573,7 +17543,7 @@ position:fixed;
 
 right:20px;
 
-top:590px;   /* position under Daily Missions */
+top:600px;   /* position under Daily Missions */
 
 width:230px;
 
@@ -40485,7 +40455,8 @@ function updateBulkLabel(i) {
         const { data: attempts, error } = await supabase
           .from('attempts')
           .select(`*, assignments (title), profiles (username)`)
-          .order('id', { ascending: false });
+          .order('id', { ascending: false })
+          .limit(100);
         if (error) throw error;
 
         
@@ -52747,7 +52718,7 @@ async function openXpHistory(e) {
     .select("*")
     .eq("student_id", currentProfile.id)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(50);
 
   if (error) {
     list.innerHTML = "Failed to load history";
@@ -58956,7 +58927,7 @@ const LOW_END_DEVICE = (function(){
   if (FORCE_LOW) return true;
 
   // 🔥 STRICT LOW-END DETECTION
-  if (ram <= 2 || cores <= 2) return true;
+  if (ram <= 3 || cores <= 2) return true;
 
   // 🔥 MOBILE = usually weaker
   if (isMobile && (ram <= 4 || cores <= 4)) return true;
@@ -60984,42 +60955,48 @@ function renderPieceShop() {
   const grid = document.getElementById("pieceThemeGrid");
   if (!grid) return;
 
+  // 🔥 BLOCK FOR LOW-END
+  if (LOW_END_DEVICE) {
+    grid.innerHTML = `
+      <div style="padding:10px; text-align:center; color:#aaa;">
+        ⚡ Shop disabled on low-end device
+      </div>
+    `;
+    return;
+  }
+
   grid.innerHTML = "";
 
-  // 🔥 Always get fresh data
   const ownedThemes = getOwnedThemes();
   const current = localStorage.getItem("pieceTheme") || "merida";
 
   pieceShopItems.forEach(item => {
 
     const owned = ownedThemes.includes(item.id);
-
     const div = document.createElement("div");
     div.className = "shop-card";
 
     const piecePath = getPieceThemePath(item.id);
 
-div.innerHTML = `
-  <div class="shop-card-title">${item.name}</div>
+    div.innerHTML = `
+      <div class="shop-card-title">${item.name}</div>
 
-  <!-- 🔥 PIECE PREVIEW -->
-  <div class="piece-preview">
-    <img src="${piecePath.replace('{piece}', 'wK')}" />
-   
-  </div>
+      <div class="piece-preview">
+        <img loading="lazy" src="${piecePath.replace('{piece}', 'wK')}" />
+      </div>
 
- ${
-  item.id === "merida"
-    ? current === "merida"
-      ? `<button class="equipped-btn">✔ Default</button>`
-      : `<button class="use-btn" onclick="setPieceTheme('merida')">Use Default</button>`
-    : owned
-      ? current === item.id
-        ? `<button class="equipped-btn">✔ Equipped</button>`
-        : `<button class="use-btn" onclick="setPieceTheme('${item.id}')">Use</button>`
-      : `<button class="buy-btn" onclick="buyTheme('${item.id}', ${item.price})">Buy ${item.price} XP</button>`
-}
-`;
+      ${
+        item.id === "merida"
+          ? current === "merida"
+            ? `<button class="equipped-btn">✔ Default</button>`
+            : `<button class="use-btn" onclick="setPieceTheme('merida')">Use Default</button>`
+          : owned
+            ? current === item.id
+              ? `<button class="equipped-btn">✔ Equipped</button>`
+              : `<button class="use-btn" onclick="setPieceTheme('${item.id}')">Use</button>`
+            : `<button class="buy-btn" onclick="buyTheme('${item.id}', ${item.price})">Buy ${item.price} XP</button>`
+      }
+    `;
 
     grid.appendChild(div);
   });
@@ -61028,23 +61005,23 @@ div.innerHTML = `
 
 window.buyTheme = function(theme, price) {
 
-  // 🔥 USE SAME XP SYSTEM AS REST OF APP
+  // 🔥 BLOCK LOW-END
+  if (LOW_END_DEVICE) {
+    alert("⚡ Shop disabled on low-end device");
+    return;
+  }
+
   let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || '{"xp":0}');
-
   let xp = saved.xp || 0;
-
-  console.log("XP detected:", xp); // debug
 
   if (xp < price) {
     alert("❌ Not enough XP");
     return;
   }
 
-  // 💰 deduct XP
   saved.xp -= price;
   localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
 
-  // 🔥 update UI like other systems
   updateDailyXPUI(saved.xp);
 
   unlockTheme(theme);
@@ -61053,7 +61030,6 @@ window.buyTheme = function(theme, price) {
 
   renderPieceShop();
 };
-
 
 
 
