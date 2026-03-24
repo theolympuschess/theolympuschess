@@ -31927,72 +31927,7 @@ function calculateRatings(profile) {
   };
 }
 
-// ===============================
-// 🔥 FULL HEARTBEAT UPTIME SYSTEM
-// ===============================
 
-let currentAppSessionId = null;
-
-async function startAppSession(userId) {
-  const { data, error } = await supabase
-    .from("app_sessions")
-    .insert({
-      student_id: userId
-    })
-    .select()
-    .single();
-
-  if (error || !data) return;
-
-  currentAppSessionId = data.id;
-
-  // 🔥 HEARTBEAT every 30 seconds
-  setInterval(async () => {
-    await supabase
-      .from("app_sessions")
-      .update({
-        last_seen: new Date().toISOString()
-      })
-      .eq("id", currentAppSessionId);
-  }, 60000); // 30 seconds
-}
-
-async function getStudentTotalUptime(studentId) {
-  const { data, error } = await supabase
-    .from("app_sessions")
-    .select("login_time, last_seen")
-    .eq("student_id", studentId);
-
-  if (error || !data) return 0;
-
-  let total = 0;
-
-  data.forEach(session => {
-    if (!session.login_time || !session.last_seen) return;
-
-    const start = new Date(session.login_time).getTime();
-    const end = new Date(session.last_seen).getTime();
-
-    if (end > start) {
-      total += Math.floor((end - start) / 1000);
-    }
-  });
-
-  return total;
-}
-
-// ===============================
-// ⏳ FORMAT UPTIME
-// ===============================
-function formatUptime(seconds) {
-  if (!seconds || isNaN(seconds)) return "0h 0m 0s";
-
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-
-  return `${h}h ${m}m ${s}s`;
-}
 
 async function loadStudentFullDetails(studentId) {
   try {
@@ -32030,8 +31965,8 @@ async function loadStudentFullDetails(studentId) {
 `)
 
       .eq("student_id", studentId)
-      .order("submitted_at", { ascending: false });
-
+      .order("submitted_at", { ascending: false })
+.limit(60);
     if (attemptsError) throw attemptsError;
 
     // 3️⃣ Mini-game highscores
@@ -32040,7 +31975,7 @@ const { data: miniScores, error: miniError } = await supabase
   .select("game_key, score")
   .eq("student_id", studentId)
   .order("score", { ascending: false })
-.limit(30);
+
 if (miniError) throw miniError;
 
 
@@ -32050,22 +31985,14 @@ if (miniError) throw miniError;
   
    window.currentStudentAttempts = attempts || [];
 
-// 🔥 SAFELY CALCULATE UPTIME
-let formattedUptime = "0h 0m 0s";
 
-try {
-  const totalUptimeSeconds = await getStudentTotalUptime(studentId);
-  formattedUptime = formatUptime(totalUptimeSeconds);
-} catch (e) {
-  console.warn("Uptime load failed:", e.message);
-}
 renderStudentModal(
   profile,
   attempts || [],
   miniScores || [],
   vsBotSummary,
   liveMatchSummary,
-  formattedUptime
+  
 );
 
 // ✅ load XP history AFTER modal content exists
@@ -33549,7 +33476,7 @@ async function loadStudentXpHistory(studentId) {
     .select("source, reason, xp, created_at")
     .eq("student_id", studentId)
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(60);
 
   if (error) {
     console.error("❌ Student XP history load failed:", error);
@@ -33597,7 +33524,7 @@ async function loadStudentXpHistory(studentId) {
 
 
 
-function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary, formattedUptime = "0h 0m 0s") {
+function renderStudentModal(profile, attempts, miniScores, vsBotSummary, liveMatchSummary) {
 
 // 🔢 COUNT TOTAL PUZZLES (BULK + SINGLE)
 let totalPuzzles = 0;
@@ -33731,7 +33658,7 @@ const liveMatchHTML = `
       <p><strong>Correct:</strong> ${correct}</p>
       <p><strong>Incorrect:</strong> ${incorrect}</p>
       <p><strong>Total Time Spent On Assignments:</strong> ${formatTime(totalTime)}</p>
-      <p><strong>Total App Uptime:</strong> ${formattedUptime}</p>
+     
 
       <p>
         <strong>🏅 Achievements unlocked:</strong>
@@ -40456,7 +40383,7 @@ function updateBulkLabel(i) {
           .from('attempts')
           .select(`*, assignments (title), profiles (username)`)
           .order('id', { ascending: false })
-          .limit(100);
+          .limit(60);
         if (error) throw error;
 
         
@@ -45374,7 +45301,7 @@ if (studentId) {
     .select("source, reason, xp, created_at")
     .eq("student_id", studentId)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(60);
 
   if (!error && data) {
     xpHistory = data;
@@ -45462,8 +45389,8 @@ lines.forEach(l => {
     l.startsWith("Total assignments") ||
     l.startsWith("Correct") ||
     l.startsWith("Incorrect") ||
-    l.startsWith("Total time") ||
-    l.startsWith("Total App Uptime")
+    l.startsWith("Total time") 
+    
   ) {
     pdf.text(l, 20, y);
     y += 6;
@@ -48377,7 +48304,7 @@ async function loadGameLeaderboard(gameKey) {
     .select("student_id, score")
     .eq("game_key", gameKey)
     .order("score", { ascending: false })
-    .limit(500);
+    .limit(30);
 
   if (error || !scores) {
     console.error("Leaderboard error:", error);
@@ -52718,7 +52645,7 @@ async function openXpHistory(e) {
     .select("*")
     .eq("student_id", currentProfile.id)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(60);
 
   if (error) {
     list.innerHTML = "Failed to load history";
