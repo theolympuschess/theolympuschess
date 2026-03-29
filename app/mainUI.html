@@ -20864,6 +20864,10 @@ title="Voice volume"
     <div class="memory-top">
   <div class="lm-round">🧪 Round: <span id="lmRound">1</span></div>
 
+  <div class="lm-wrong">
+    
+    <span id="lmWrongDisplay">⚪ ⚪ ⚪</span>
+  </div>
 </div>
 
 <div class="lm-find-banner">
@@ -41437,6 +41441,7 @@ let lmTotalQuestions = 8;
 let lmMap = [];           // [{x,y,color}]
 let lmTargetColor = null;
 let lmWaitingForClick = false;
+let lmWrongCount = 0;
 
 
 const LM_COLORS = ["red", "green", "blue", "yellow", "orange", "violet"];
@@ -41454,7 +41459,9 @@ window.startLabMixer = function (mode) {
   lmMode = mode;
   lmRound = 1;
   lmQuestionIndex = 0;
-
+  lmWrongCount = 0;
+lmWrongCount = 0;
+updateWrongDisplay();
   document.getElementById("lmMenu").classList.add("hidden");
   document.getElementById("lmGame").classList.remove("hidden");
 
@@ -41508,6 +41515,11 @@ function generateLabColors() {
   const cfg = LM_DIFFICULTY[lmMode];
   const used = new Set();
 
+  // ✅ pick target color first
+  lmTargetColor = LM_COLORS[Math.floor(Math.random() * LM_COLORS.length)];
+
+  let targetPlaced = false;
+
   while (lmMap.length < cfg.squares) {
     const x = Math.floor(Math.random() * 8);
     const y = Math.floor(Math.random() * 8);
@@ -41515,52 +41527,60 @@ function generateLabColors() {
     if (used.has(key)) continue;
     used.add(key);
 
-    const color = LM_COLORS[Math.floor(Math.random() * LM_COLORS.length)];
+    let color;
+
+    // ✅ ONLY ONE target color allowed
+    if (!targetPlaced) {
+      color = lmTargetColor;
+      targetPlaced = true;
+    } else {
+      const otherColors = LM_COLORS.filter(c => c !== lmTargetColor);
+      color = otherColors[Math.floor(Math.random() * otherColors.length)];
+    }
+
     lmMap.push({ x, y, color });
   }
+  // 🔀 SHUFFLE lmMap
+for (let i = lmMap.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  [lmMap[i], lmMap[j]] = [lmMap[j], lmMap[i]];
+}
 
-  lmTargetColor = lmMap[Math.floor(Math.random() * lmMap.length)].color;
+  // 🎨 UI UPDATE (KEEP SAME)
+  const banner = document.querySelector("#color-section .lm-find-banner");
 
-const banner = document.querySelector("#color-section .lm-find-banner");
+  banner.classList.remove(
+    "find-red",
+    "find-green",
+    "find-blue",
+    "find-yellow",
+    "find-orange",
+    "find-violet"
+  );
 
-// remove old color classes
-banner.classList.remove(
-  "find-red",
-  "find-green",
-  "find-blue",
-  "find-yellow",
-  "find-orange",
-  "find-violet"
-);
+  banner.classList.add(`find-${lmTargetColor}`);
 
-// apply new color
-banner.classList.add(`find-${lmTargetColor}`);
-
-document.getElementById("lmTarget").textContent = lmTargetColor.toUpperCase();
-
+  document.getElementById("lmTarget").textContent = lmTargetColor.toUpperCase();
 }
 
 
 function flashLabColors(i = 0) {
-  if (i >= lmMap.length) {
-    lmWaitingForClick = true;
-    return;
-  }
+ if (i >= lmMap.length) {
+  lmWaitingForClick = true;
 
+  // 🧠 Coach speaks AFTER flash ends
+  setTimeout(() => {
+    coachSay(`Find the ${lmTargetColor} square`);
+  }, 70); // slight delay for smooth UX
+
+  return;
+}
   const { x, y, color } = lmMap[i];
   const sq = document.querySelector(`#lmBoard [data-pos="${x}-${y}"]`);
   if (!sq) return;
 
   const overlay = sq.querySelector(".lm-overlay");
   const { flashOn, flashOff } = LM_DIFFICULTY[lmMode];
-
-  // 🛑 Prevent re-flashing same square
-  if (overlay.dataset.flashed === "1") {
-    flashLabColors(i + 1);
-    return;
-  }
-
-  overlay.dataset.flashed = "1"; // mark as flashed
 
   overlay.className = `lm-overlay lm-${color} show`;
   playLabFlashSound();
@@ -41580,6 +41600,9 @@ function handleLabClick(x, y) {
   const hit = lmMap.find(p => p.x === x && p.y === y);
 
   if (hit && hit.color === lmTargetColor) {
+    lmWrongCount = 0;
+updateWrongDisplay();
+    lmWrongCount = 0;
   playLabNextSound();
 
   lmWaitingForClick = false;
@@ -41609,11 +41632,31 @@ if (roundEl) {
   }, 600);
   }
   // ❌ WRONG CLICK
-  else {
-    playLabWrongSound(); // 🔊 wrong.mp3
+ else {
+  playLabWrongSound();
+
+  lmWrongCount++;
+  updateWrongDisplay();
+
+  if (lmWrongCount >= 3) {
+    labGameOver();
+    return;
+  }
 }
 
 
+}
+
+function labGameOver() {
+  alert("Game Over! ❌ You made 3 wrong attempts");
+
+  // reset everything
+  lmWrongCount = 0;
+  lmRound = 1;
+  lmQuestionIndex = 0;
+
+  exitLabMixer();
+  updateWrongDisplay();
 }
 
 
@@ -41671,7 +41714,22 @@ window.exitLabMixer = function () {
   
 }
 
+function updateWrongDisplay() {
+  const el = document.getElementById("lmWrongDisplay");
+  if (!el) return;
 
+  let display = "";
+
+  for (let i = 0; i < 3; i++) {
+    if (i < lmWrongCount) {
+      display += "❌ ";
+    } else {
+      display += "⚪ ";
+    }
+  }
+
+  el.textContent = display.trim();
+}
 
 
 
