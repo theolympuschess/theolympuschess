@@ -44029,6 +44029,7 @@ let ctScore = 0;
 let ctMiss = 0;
 const CT_MAX_MISS = 3;
 let ctFlipped = false;
+let ctRatingEligible = false;
 
 // ================================
 // 🔊 COORD TRAINING SOUNDS (ISOLATED)
@@ -44062,14 +44063,33 @@ window.startCT = function () {
   ctGame.classList.remove("hidden");
 
   drawCTBoard();
-  updateCTCoordinates();   // 👈 PUT IT HERE
+  updateCTCoordinates();
+
+  // ✅ FORCE coordinates OFF at start (IMPORTANT)
+  ctCoordsVisible = false;
+
+  const ranks = document.querySelector("#coordtrain-section .cfc-ranks");
+  const files = document.querySelector("#coordtrain-section .cfc-files");
+  const btn = document.getElementById("ctToggleCoords");
+
+  if (ranks && files && btn) {
+    ranks.style.visibility = "hidden";
+    files.style.visibility = "hidden";
+    btn.textContent = "🙈 Show Files & Ranks";
+  }
+
+  // ✅ Rating starts as eligible (since coords are OFF)
+  ctRatingEligible = true;
+
   nextCTTarget();
 };
 
 // EXIT
 window.exitCT = function () {
   // 🏆 SAVE BEST SCORE (Board Coordinate Training)
+ if (ctRatingEligible) {
   saveMiniGameScore("coordtrain", ctScore);
+}
   ctGame.classList.add("hidden");
   ctMenu.classList.remove("hidden");
 };
@@ -44176,7 +44196,9 @@ function handleCTClick(coord, sq) {
       setTimeout(() => {
 
         // 🏆 Save best score
-        saveMiniGameScore("coordtrain", ctScore);
+       if (ctRatingEligible) {
+  saveMiniGameScore("coordtrain", ctScore);
+}
         playKGCompleteSound()
 
         // 🎬 Show result (use your modal if preferred)
@@ -44203,6 +44225,15 @@ window.toggleCTCoords = function () {
     ranks.style.visibility = "visible";
     files.style.visibility = "visible";
     btn.textContent = "👀 Hide Files & Ranks";
+
+    // ❌ disable rating permanently
+    if (ctRatingEligible) {
+      alert("⚠️ Coordinates turned ON!\n\nThis round will NOT count for XP.\nTry without help to earn XP");
+    }
+
+    // ❌ If turned ON during game → rating disabled forever
+    ctRatingEligible = false;
+
   } else {
     ranks.style.visibility = "hidden";
     files.style.visibility = "hidden";
