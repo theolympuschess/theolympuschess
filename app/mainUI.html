@@ -42768,20 +42768,42 @@ function handleKLFMove(x, y) {
 // LAVA LOGIC
 // =================================
 function spreadKlfLava() {
-  let added = 0;
 
-  while (added < KLF_LAVA_PER_TURN) {
-    const x = Math.floor(Math.random() * KLF_SIZE);
-    const y = Math.floor(Math.random() * KLF_SIZE);
+  let newLava = [];
+
+  klfLava.forEach(l => {
+
+    // 🔥 move toward knight (AI pressure)
+    let dx = klfKnight.x - l.x;
+    let dy = klfKnight.y - l.y;
+
+    let moveX = dx === 0 ? 0 : dx / Math.abs(dx);
+    let moveY = dy === 0 ? 0 : dy / Math.abs(dy);
+
+    const nx = l.x + moveX;
+    const ny = l.y + moveY;
 
     if (
-      !isKlfLava(x, y) &&
-      !(x === klfKnight.x && y === klfKnight.y)
+      nx >= 0 && ny >= 0 &&
+      nx < KLF_SIZE && ny < KLF_SIZE &&
+      !isKlfLava(nx, ny)
     ) {
-      klfLava.push({ x, y });
-      added++;
+      newLava.push({ x: nx, y: ny });
+    }
+
+  });
+
+  // also random spawn (pressure)
+  for (let i = 0; i < 2; i++) {
+    const rx = Math.floor(Math.random() * KLF_SIZE);
+    const ry = Math.floor(Math.random() * KLF_SIZE);
+
+    if (!isKlfLava(rx, ry)) {
+      newLava.push({ x: rx, y: ry });
     }
   }
+
+  klfLava = [...klfLava, ...newLava];
 }
 
 function isKlfLava(x, y) {
