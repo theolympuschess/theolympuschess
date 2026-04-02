@@ -47313,7 +47313,7 @@ async function loadRatingLeaderboard() {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("username, puzzle_current_score, quiz_current_score, game_current_score");
+    .select("username, puzzle_current_score, quiz_current_score, game_current_score, active");
 
   if (error || !data) {
     ratingList.innerHTML = `<p class="lb-muted">Failed to load</p>`;
@@ -47321,7 +47321,10 @@ async function loadRatingLeaderboard() {
   }
 
 const ranked = data
-  .filter(p => !HIDDEN_USERNAMES.includes((p.username || "").toLowerCase()))
+  .filter(p => 
+  p.active === true && 
+  !HIDDEN_USERNAMES.includes((p.username || "").toLowerCase())
+)
   .map(p => {
     const raw = (
       (p.puzzle_current_score || 0) +
@@ -47420,11 +47423,14 @@ async function loadGameLeaderboard(gameKey) {
 
  const { data: users } = await supabase
   .from("profiles")
-  .select("id, username, puzzle_current_score, quiz_current_score, game_current_score")
+  .select("id, username, puzzle_current_score, quiz_current_score, game_current_score, active")
   .in("id", ids);
 
  const userMap = {};
 users?.forEach(u => {
+
+  // ❌ SKIP INACTIVE USERS
+  if (!u.active) return;
 
   const raw =
     ((u.puzzle_current_score || 0) +
@@ -47445,7 +47451,9 @@ users?.forEach(u => {
   // 3️⃣ Render leaderboard
   gameList.innerHTML = "";
 
- scores.forEach((row, i) => {
+ scores
+  .filter(row => userMap[row.student_id]) // only active users
+  .forEach((row, i) => {
   const div = document.createElement("div");
 
   let rankClass = "";
