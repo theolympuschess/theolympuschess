@@ -28067,9 +28067,24 @@ move = chess.move({
 
 // ❗ correct check
 if (!move) return "snapback";
+// 🔥 TRACK MOVE (CRITICAL FIX)
+currentAttemptMoves.push(move.san);
 
 // Check if move matches expected move
 if (move.san !== expected.san) {
+
+  // 🔥 SAVE FAILED ATTEMPT
+  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+
+  // ✅ SAVE LIVE INTO GLOBAL STORAGE (CRITICAL FIX)
+ bulkAttemptsData[currentPuzzleIndex] = JSON.parse(
+  JSON.stringify(allAttemptsForThisPuzzle)
+);
+
+  currentAttemptMoves = [];
+  // 🔥 EXTRA SAFETY (VERY IMPORTANT)
+
+
   attemptCount++;
 
    // ✅ TRACK PER-PUZZLE ATTEMPTS
@@ -28168,6 +28183,12 @@ if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
   bulkResults[bulkIndex].correct = true;
   bulkResults[bulkIndex].attempts =
     bulkResults[bulkIndex].attempts || 1;
+     // 🔥 SAVE USING CURRENT INDEX (SAFE)
+  const currentIdx = bulkIndex;
+
+  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+
+  bulkAttemptsData[currentIdx] = JSON.parse(JSON.stringify(allAttemptsForThisPuzzle));
 
   bulkIndex++;
 
@@ -38990,6 +39011,8 @@ function getCurrentEval(){
 
     // Reset all assignment state
     currentAssignment = assignment;
+    // 🔥 RESET ALL BULK ATTEMPT DATA
+bulkAttemptsData = {};
     expectedMoves = [];
     assignmentCursor = 0;
     attemptCount = 0;
@@ -39341,6 +39364,9 @@ window.completePromotion = function (piece) {
     to,
     promotion: piece
   });
+  if (move) {
+  currentAttemptMoves.push(move.san); // 🔥 TRACK MOVE
+}
 
   pendingPromotion = null;
   document.getElementById("promotionModal").classList.add("hidden");
@@ -39396,6 +39422,16 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
     // ❌ wrong promotion choice
     if (move.san !== expected.san) {
+      // 🔥 SAVE FAILED ATTEMPT
+  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+
+// ✅ ADD THIS LINE
+bulkAttemptsData[currentPuzzleIndex] = JSON.parse(
+  JSON.stringify(allAttemptsForThisPuzzle)
+);
+
+currentAttemptMoves = [];
+
       attemptCount++;
       chess.undo();
       board.position(chess.fen());
@@ -39414,6 +39450,12 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 
     // 🔁 BULK CHECK
     if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
+        // 🔥 SAVE USING CURRENT INDEX (SAFE)
+  const currentIdx = bulkIndex;
+
+  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+
+  bulkAttemptsData[currentIdx] = JSON.parse(JSON.stringify(allAttemptsForThisPuzzle));
       bulkIndex++;
 
       if (bulkIndex < bulkPuzzles.length) {
@@ -39500,6 +39542,13 @@ function splitBulkPGNIntoPuzzles(rawPGN) {
 }
 
 function loadCurrentBulkPuzzle() {
+  // 🔥 LOCK CURRENT PUZZLE INDEX (CRITICAL FIX)
+  window.currentPuzzleIndex = bulkIndex;
+
+  // 🔥 ALWAYS RESET (NO CONDITIONS)
+  currentAttemptMoves = [];
+  allAttemptsForThisPuzzle = [];
+
   // 🔴 HARD RESET (VERY IMPORTANT)
   assignmentCursor = 0;
   attemptCount = 0;
@@ -39653,6 +39702,10 @@ function refreshStudentList() {
 
 
     function startInteractiveAssignment(assignment) {
+      // 🔥 HARD RESET EVERYTHING
+bulkAttemptsData = {};
+currentAttemptMoves = [];
+allAttemptsForThisPuzzle = [];
       isAssignmentMode = true;
 updateEngineVisibility();
 
@@ -39770,6 +39823,10 @@ updateEngineVisibility();
     
 
     window.submitSolution = async function() {
+      // 🔥 SAFETY RESET (prevents previous assignment leak)
+if (!currentAssignment?.is_bulk) {
+  bulkAttemptsData = {};
+}
   if (!currentAssignment || !chess) {
     alert('No active assignment');
     return;
@@ -39801,7 +39858,10 @@ return {
   attempts: r?.attempts ?? 0,
   result: r
     ? (r.correct ? "correct" : "wrong")
-    : "skipped"
+    : "skipped",
+
+  // 🔥 MAIN FEATURE
+  tries: bulkAttemptsData[i] ? [...bulkAttemptsData[i]] : []
 };
 
 
@@ -40320,6 +40380,18 @@ function renderBulkAnswers(attempt) {
         <span>Attempts:</span>
         <span>${a.attempts ?? 0}</span>
       </div>
+      <div class="row" style="flex-direction:column; align-items:flex-start">
+  <span><strong>Attempt History:</strong></span>
+  <div>
+    ${
+      a.tries && a.tries.length
+        ? a.tries.map((t, i) => `
+            <div>👉 #${i+1}: ${t.join(" ")}</div>
+          `).join("")
+        : "<i>No attempts</i>"
+    }
+  </div>
+</div>
 
       <!-- ♟ MINI CHESS BOARD (ADDED) -->
       <div class="row" style="justify-content:center; flex-direction:column">
@@ -40348,7 +40420,12 @@ function renderBulkAnswers(attempt) {
 
 
 
-
+// ================================
+// 🔥 ATTEMPT TRACKING SYSTEM
+// ================================
+let currentAttemptMoves = [];
+let allAttemptsForThisPuzzle = [];
+let bulkAttemptsData = {}; // store per puzzle
 
 // ================================
 // BULK MINI BOARD SYSTEM
