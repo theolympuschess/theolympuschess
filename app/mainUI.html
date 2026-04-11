@@ -18869,9 +18869,158 @@ input:checked + .slider:before {
 
 
 
+/* =========================
+   ♟️ Pairing System UI
+========================= */
+.pairing-box {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.pairing-box input {
+  padding: 6px;
+  flex: 1;
+}
+
+.pairing-list {
+  margin-bottom: 10px;
+}
+
+.pairing-player {
+  display: flex;
+  justify-content: space-between;
+  background: #111;
+  padding: 6px;
+  margin: 3px 0;
+  border-radius: 6px;
+}
+
+.pairing-controls {
+  margin: 10px 0;
+}
+
+.pairing-match {
+  background: #1a1a1a;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+}
+
+.pairing-match select {
+  margin-left: 10px;
+}
 
 
 
+
+/* =============================
+   PCS MODAL (FULLY ISOLATED)
+============================= */
+#pcs-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+/* =============================
+   PCS MODAL (UPGRADED SIZE)
+============================= */
+#pcs-modal {
+  background: #111;
+  padding: 25px;
+  border-radius: 12px;
+
+  width: 600px;          /* 🔥 bigger width */
+  max-width: 90%;        /* responsive for small screens */
+
+  max-height: 85%;
+  overflow-y: auto;
+
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+}
+
+#pcs-modal h2 {
+  margin-bottom: 10px;
+  color: gold;
+}
+
+
+.pcs-hidden {
+  display: none !important;
+}
+
+
+
+
+
+/* =============================
+   PCS PROFESSIONAL VIEW
+============================= */
+
+.pcs-match-line {
+  padding: 14px;
+  border-bottom: 1px solid #333;
+  font-size: 22px; /* bigger text */
+}
+
+.pcs-match-line b {
+  color: #fff;
+}
+
+.pcs-result {
+  color: gold;
+  font-weight: bold;
+  margin: 0 8px;
+}
+
+.pcs-score {
+  color: #aaa;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.pcs-empty {
+  padding: 20px;
+  color: #777;
+  text-align: center;
+}
+
+
+
+
+/* =============================
+   PCS STANDINGS TABLE
+============================= */
+
+.pcs-stand-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 80px 100px;
+  padding: 10px;
+  border-bottom: 1px solid #333;
+  align-items: center;
+}
+
+.pcs-stand-head {
+  font-weight: bold;
+  color: gold;
+  border-bottom: 2px solid gold;
+}
+
+
+
+/* 🚫 STUDENT — HIDE PAIRING TAB */
+body.student-view .nav-btn[data-tab="pairing"] {
+  display: none !important;
+}
 
 
 
@@ -19014,6 +19163,7 @@ input:checked + .slider:before {
 </div>
 
 <button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
+<button class="nav-btn" data-tab="pairing">🆚 Pairing</button>
 
 <button class="nav-btn" data-tab="livematch" id="navLiveMatch">
  ▶️ Play Online
@@ -19292,6 +19442,36 @@ input:checked + .slider:before {
 </div>
 
  
+
+<section id="pairing-section" class="section hidden">
+  <h2>♟️ Olympus Swiss Pairing System</h2>
+
+  <div class="pairing-box">
+  <input id="pairing-tournament-name" placeholder="Enter Tournament Name">
+</div>
+
+  <!-- Add Players -->
+  <div class="pairing-box">
+    <input id="pairing-name-input" placeholder="Enter player name">
+    <button onclick="PCS.addPlayer()">➕ Add</button>
+    <button onclick="PCS.resetTournament()">🔄 Reset</button>
+  </div>
+
+  <!-- Player List -->
+  <div id="pairing-player-list" class="pairing-list"></div>
+
+  <!-- Controls -->
+  <div class="pairing-controls">
+  <button onclick="PCS.generatePairings()">⚡ Generate Round</button>
+  <button onclick="PCS.openPreview()">📊 View Round</button>
+  <button onclick="PCS.openStandings()">🏆 Standings</button>
+</div>
+
+  <!-- Pairings -->
+  <div id="pairing-matches"></div>
+</section>
+
+
 
 <!-- ========================= -->
 <!-- 📸 GALLERY TAB -->
@@ -60736,6 +60916,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ============================================
 // SAFE START APP (WAIT FOR SUPABASE SESSION)
 // ============================================
@@ -62058,6 +62257,14 @@ document.addEventListener("DOMContentLoaded", startApp);
 
 <div id="cursorTrailLayer"></div>
 
+<div id="pcs-modal-overlay" class="pcs-hidden">
+  <div id="pcs-modal">
+    <h2 id="pcs-modal-title"></h2>
+    <div id="pcs-modal-content"></div>
+    <button onclick="PCS.closePreview()">❌ Close</button>
+  </div>
+</div>
+
 <script src="analysis-pdf/pdf-fen-editor.js"></script>
 
 
@@ -62076,6 +62283,425 @@ window.addEventListener("message", e => {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+
+<!-- ALL YOUR OTHER SCRIPTS ABOVE -->
+
+<script>
+/* =====================================
+   ♟️ PAIRING CORE SYSTEM (PCS)
+===================================== */
+const PCS = (function(){
+  let players = [];
+  let round = 0;
+  let matches = [];
+
+  function addPlayer(){
+    const input = document.getElementById("pairing-name-input");
+    const name = input.value.trim();
+    if(!name) return;
+
+    players.push({
+      name,
+      score: 0,
+      opponents: []
+    });
+
+    input.value = "";
+    renderPlayers();
+  }
+
+  function resetTournament(){
+    players = [];
+    matches = [];
+    round = 0;
+    renderPlayers();
+    document.getElementById("pairing-matches").innerHTML = "";
+  }
+
+function renderPlayers(){
+  const list = document.getElementById("pairing-player-list");
+  list.innerHTML = "";
+
+  players.forEach((p, index)=>{
+    const div = document.createElement("div");
+    div.className = "pairing-player";
+
+    div.innerHTML = `
+      <span>${p.name}</span>
+
+      <input 
+        type="number" 
+        step="0.5" 
+        value="${p.score}" 
+        onchange="PCS.updateScore(${index}, this.value)"
+        style="width:60px; text-align:center;"
+      >
+
+      <button onclick="PCS.deletePlayer(${index})">❌</button>
+    `;
+
+    list.appendChild(div);
+  });
+}
+
+// =============================
+// ✏️ Manual Score Update
+// =============================
+function updateScore(index, value){
+  let newScore = parseFloat(value);
+
+  if(isNaN(newScore) || newScore < 0){
+    alert("Invalid score");
+    return;
+  }
+
+  players[index].score = newScore;
+
+  renderPlayers();
+}
+
+// =============================
+// ❌ Delete Player
+// =============================
+function deletePlayer(index){
+  players.splice(index, 1);
+  renderPlayers();
+}
+
+  function generatePairings(){
+    // =============================
+// 🚫 BLOCK NEXT ROUND IF RESULTS PENDING
+// =============================
+if(matches.length > 0){
+  for(let m of matches){
+    if(m.result === null || m.result === ""){
+      alert("⚠️ Please enter all results before generating next round");
+      return;
+    }
+  }
+}
+  if(players.length < 2) return alert("Need at least 2 players");
+
+  round++;
+
+  players.sort((a,b)=>b.score - a.score);
+
+  matches = [];
+  let used = new Set();
+
+  // =============================
+  // 🎯 HANDLE BYE (ODD PLAYERS)
+  // =============================
+  if(players.length % 2 !== 0){
+    for(let i = players.length - 1; i >= 0; i--){
+      if(!players[i].hadBye){
+        players[i].score += 1;
+        players[i].hadBye = true;
+
+        matches.push({
+          p1: players[i],
+          p2: null,
+          result: "BYE"
+        });
+
+        used.add(i);
+        break;
+      }
+    }
+  }
+
+  // =============================
+  // NORMAL PAIRING
+  // =============================
+  for(let i=0;i<players.length;i++){
+    if(used.has(i)) continue;
+
+    let p1 = players[i];
+    let opponentIndex = -1;
+
+    for(let j=i+1;j<players.length;j++){
+      if(!used.has(j) && !p1.opponents.includes(players[j].name)){
+        opponentIndex = j;
+        break;
+      }
+    }
+
+    if(opponentIndex === -1){
+      for(let j=i+1;j<players.length;j++){
+        if(!used.has(j)){
+          opponentIndex = j;
+          break;
+        }
+      }
+    }
+
+    if(opponentIndex !== -1){
+      let p2 = players[opponentIndex];
+
+      matches.push({ p1, p2, result: null });
+
+      used.add(i);
+      used.add(opponentIndex);
+    }
+  }
+
+  renderMatches();
+}
+
+function renderMatches(){
+  const container = document.getElementById("pairing-matches");
+  container.innerHTML = `<h3>Round ${round}</h3>`;
+
+  matches.forEach((m, idx)=>{
+    const div = document.createElement("div");
+    div.className = "pairing-match";
+
+    // BYE case
+    if(m.result === "BYE"){
+      div.innerHTML = `
+        <b>${m.p1.name}</b> gets BYE (+1 point)
+      `;
+    } else {
+      div.innerHTML = `
+        <b>${m.p1.name}</b> vs <b>${m.p2.name}</b>
+        <select onchange="PCS.setResult(${idx}, this.value)">
+          <option value="">Result</option>
+          <option value="1-0">1-0</option>
+          <option value="0-1">0-1</option>
+          <option value="0.5-0.5">½-½</option>
+        </select>
+      `;
+    }
+
+    container.appendChild(div);
+  });
+}
+
+// =============================
+// 🧮 Set / Update Result (FIXED)
+// =============================
+function setResult(index, result){
+  let match = matches[index];
+  if(!match) return;
+
+  const {p1, p2} = match;
+
+  // 🔁 REMOVE OLD RESULT EFFECT (VERY IMPORTANT)
+  if(match.result){
+    if(match.result === "1-0"){
+      p1.score -= 1;
+    } else if(match.result === "0-1"){
+      p2.score -= 1;
+    } else if(match.result === "0.5-0.5"){
+      p1.score -= 0.5;
+      p2.score -= 0.5;
+    }
+  }
+
+  // ✅ APPLY NEW RESULT
+  match.result = result;
+
+  if(result === "1-0"){
+    p1.score += 1;
+  } 
+  else if(result === "0-1"){
+    p2.score += 1;
+  } 
+  else if(result === "0.5-0.5"){
+    p1.score += 0.5;
+    p2.score += 0.5;
+  }
+
+  // 🧠 STORE OPPONENT (ONLY ONCE)
+  if(!p1.opponents.includes(p2.name)){
+    p1.opponents.push(p2.name);
+    p2.opponents.push(p1.name);
+  }
+
+  renderPlayers();
+}
+
+  // =============================
+// 📊 OPEN PREVIEW (MODAL)
+// =============================
+function openPreview(){
+  const nameInput = document.getElementById("pairing-tournament-name");
+  const tournamentName = nameInput.value || "Olympus Tournament";
+
+  const overlay = document.getElementById("pcs-modal-overlay");
+  const title = document.getElementById("pcs-modal-title");
+  const content = document.getElementById("pcs-modal-content");
+
+  title.innerText = `${tournamentName} - Round ${round}`;
+  content.innerHTML = "";
+
+  // 🚫 BEFORE PAIRING
+  if(matches.length === 0){
+    content.innerHTML = `<div class="pcs-empty">No pairings yet</div>`;
+    overlay.classList.remove("pcs-hidden");
+    return;
+  }
+
+  matches.forEach(m=>{
+    let line = document.createElement("div");
+    line.className = "pcs-match-line";
+
+    // 🟡 BYE CASE
+    if(m.result === "BYE"){
+      line.innerHTML = `
+        <b>${m.p1.name}</b> 
+        <span class="pcs-result">1-0</span> 
+        <span>(BYE)</span>
+      `;
+    } 
+    else {
+      let result = m.result || "vs";
+
+      // 🎯 DEFAULT (ROUND 1)
+      let player1 = `<b>${m.p1.name}</b>`;
+      let player2 = `<b>${m.p2.name}</b>`;
+
+      // ⭐ FROM ROUND 2 → SHOW SCORE LIKE FIDE
+      if(round > 1){
+        player1 = `<b>${m.p1.name} (${m.p1.score})</b>`;
+        player2 = `<b>${m.p2.name} (${m.p2.score})</b>`;
+      }
+
+      line.innerHTML = `
+        ${player1}
+        <span class="pcs-result">${result}</span>
+        ${player2}
+      `;
+    }
+
+    content.appendChild(line);
+  });
+
+  overlay.classList.remove("pcs-hidden");
+}
+
+// =============================
+// ❌ CLOSE PREVIEW
+// =============================
+function closePreview(){
+  document.getElementById("pcs-modal-overlay")
+    .classList.add("pcs-hidden");
+}
+
+// =============================
+// 🏆 OPEN STANDINGS
+// =============================
+function openStandings(){
+  const nameInput = document.getElementById("pairing-tournament-name");
+  const tournamentName = nameInput.value || "Olympus Tournament";
+
+  const overlay = document.getElementById("pcs-modal-overlay");
+  const title = document.getElementById("pcs-modal-title");
+  const content = document.getElementById("pcs-modal-content");
+
+  title.innerText = `${tournamentName} - Standings`;
+  content.innerHTML = "";
+
+  // sort by score DESC
+  let sorted = [...players].sort((a,b)=>{
+  // 1️⃣ Points
+  if(b.score !== a.score) return b.score - a.score;
+
+  // 2️⃣ Buchholz
+  let buchA = calculateBuchholz(a);
+  let buchB = calculateBuchholz(b);
+  if(buchB !== buchA) return buchB - buchA;
+
+  // 3️⃣ Wins
+  let winsA = a.score; // since win = 1
+  let winsB = b.score;
+  return winsB - winsA;
+});
+
+  // table header
+let table = document.createElement("div");
+table.innerHTML = `
+  <div class="pcs-stand-row pcs-stand-head">
+    <span>#</span>
+    <span>Player</span>
+    <span>Points</span>
+    <span>Buchholz</span>
+  </div>
+`;
+
+  // rows
+  sorted.forEach((p, index)=>{
+    let row = document.createElement("div");
+    row.className = "pcs-stand-row";
+
+  let buchholz = calculateBuchholz(p);
+
+row.innerHTML = `
+  <span>${index + 1}</span>
+  <span>${p.name}</span>
+  <span>${p.score}</span>
+  <span>${buchholz}</span>
+`;
+    table.appendChild(row);
+  });
+
+  content.appendChild(table);
+
+  overlay.classList.remove("pcs-hidden");
+}
+
+// =============================
+// 🧠 Calculate Buchholz (FIXED)
+// =============================
+function calculateBuchholz(player){
+  let sum = 0;
+
+  matches.forEach(m => {
+    // skip BYE
+    if(m.result === "BYE") return;
+
+    if(m.p1 === player && m.p2){
+      sum += m.p2.score;
+    }
+    else if(m.p2 === player && m.p1){
+      sum += m.p1.score;
+    }
+  });
+
+  return sum;
+}
+return {
+  addPlayer,
+  resetTournament,
+  generatePairings,
+  setResult,
+  deletePlayer,
+  updateScore,
+  openPreview,
+  closePreview,
+  openStandings
+};
+
+  
+
+})();
+// =============================
+// ⌨️ ENTER KEY = ADD PLAYER (FIXED)
+// =============================
+const pairingInput = document.getElementById("pairing-name-input");
+
+if (pairingInput) {
+  pairingInput.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      PCS.addPlayer();
+
+      // 🔥 auto focus again (smooth UX)
+      this.focus();
+    }
+  });
+}
+</script>
 
 
 
