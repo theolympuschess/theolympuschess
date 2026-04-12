@@ -62287,6 +62287,7 @@ window.addEventListener("message", e => {
 <!-- ALL YOUR OTHER SCRIPTS ABOVE -->
 
 <script>
+  
 /* =====================================
    ♟️ PAIRING CORE SYSTEM (PCS)
 ===================================== */
@@ -62294,6 +62295,7 @@ const PCS = (function(){
   let players = [];
   let round = 0;
   let matches = [];
+  let allMatches = []; // ✅ stores ALL rounds
 
   function addPlayer(){
     const input = document.getElementById("pairing-name-input");
@@ -62310,13 +62312,14 @@ const PCS = (function(){
     renderPlayers();
   }
 
-  function resetTournament(){
-    players = [];
-    matches = [];
-    round = 0;
-    renderPlayers();
-    document.getElementById("pairing-matches").innerHTML = "";
-  }
+function resetTournament(){
+  players = [];
+  matches = [];
+  allMatches = []; // 🔥 VERY IMPORTANT
+  round = 0;
+  renderPlayers();
+  document.getElementById("pairing-matches").innerHTML = "";
+}
 
 function renderPlayers(){
   const list = document.getElementById("pairing-player-list");
@@ -62386,7 +62389,12 @@ if(matches.length > 0){
 
   players.sort((a,b)=>b.score - a.score);
 
-  matches = [];
+// before clearing matches, store old ones
+if(matches.length > 0){
+  allMatches.push(...matches);
+}
+
+matches = [];
   let used = new Set();
 
   // =============================
@@ -62651,19 +62659,18 @@ row.innerHTML = `
 }
 
 // =============================
-// 🧠 Calculate Buchholz (FIXED)
+// 🧠 TRUE BUCHHOLZ (ALL ROUNDS)
 // =============================
 function calculateBuchholz(player){
   let sum = 0;
 
-  matches.forEach(m => {
-    // skip BYE
+  allMatches.forEach(m => {
     if(m.result === "BYE") return;
 
-    if(m.p1 === player && m.p2){
+    if(m.p1.name === player.name){
       sum += m.p2.score;
     }
-    else if(m.p2 === player && m.p1){
+    else if(m.p2.name === player.name){
       sum += m.p1.score;
     }
   });
