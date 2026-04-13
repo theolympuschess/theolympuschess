@@ -34671,22 +34671,42 @@ ${chapterMoves} *
   // =============================
   // 🟢 UPDATE EXISTING STUDY
   // =============================
-  if (studyState.studyId) {
+if (studyState.studyId) {
 
-    const { error } = await supabase
-      .from("bulk_pgn_library")
-      .update({ pgn: combinedPgn })
-      .eq("id", studyState.studyId);
+  // 🟡 Ask user if they want to rename
+  let newTitle = currentStudyTitle;
 
-    if (error) {
-      console.error(error);
-      alert("❌ Study update failed.");
-      return;
+  const wantRename = confirm("Do you want to rename this study?");
+
+  if (wantRename) {
+    const input = prompt("Enter new study name:", currentStudyTitle);
+
+    if (input && input.trim()) {
+      newTitle = input.trim();
     }
+  }
 
-    alert("✅ Study updated successfully!");
+  const { error } = await supabase
+    .from("bulk_pgn_library")
+    .update({
+      pgn: combinedPgn,
+      title: newTitle   // 🔥 IMPORTANT ADD
+    })
+    .eq("id", studyState.studyId);
+
+  if (error) {
+    console.error(error);
+    alert("❌ Study update failed.");
     return;
   }
+
+  // 🔥 Update local title also
+  currentStudyTitle = newTitle;
+  document.getElementById("studyTitle").textContent = newTitle;
+
+  alert("✅ Study updated successfully!");
+  return;
+}
 
   // =============================
   // 🔵 CREATE NEW STUDY
