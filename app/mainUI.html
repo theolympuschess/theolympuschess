@@ -19046,7 +19046,9 @@ body.student-view .nav-btn[data-tab="pairing"] {
 }
 
 
-
+.check-square {
+  box-shadow: inset 0 0 0 4px red !important;
+}
 
 
 
@@ -22785,7 +22787,53 @@ let currentPieceTheme =
   localStorage.getItem("pieceTheme") || "merida";
 
 
+function highlightCheckSquare(chessInstance, boardId) {
+  const boardEl = document.getElementById(boardId);
+  if (!boardEl || !chessInstance) return;
 
+  // clear old
+  boardEl.querySelectorAll(".check-square").forEach(el => {
+    el.classList.remove("check-square");
+  });
+
+  if (!chessInstance.in_check()) return;
+
+  const turn = chessInstance.turn();
+  const board = chessInstance.board();
+
+  let kingSquare = null;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (p && p.type === "k" && p.color === turn) {
+        kingSquare = String.fromCharCode(97 + c) + (8 - r);
+      }
+    }
+  }
+
+  if (!kingSquare) return;
+
+  // 🔥 SAME METHOD AS YOUR LAST MOVE SYSTEM
+  const el = document.querySelector(`#${boardId} .square-${kingSquare}`);
+  if (el) el.classList.add("check-square");
+}
+
+function attachCheckHook(boardObj, chessObj, boardId) {
+  if (!boardObj || !chessObj) return;
+
+  const originalPosition = boardObj.position;
+
+  boardObj.position = function (...args) {
+    const result = originalPosition.apply(this, args);
+
+    setTimeout(() => {
+      highlightCheckSquare(chessObj, boardId);
+    }, 0);
+
+    return result;
+  };
+}
 
 
 // 🌍 MAKE IT GLOBAL (CRITICAL)
@@ -25461,6 +25509,7 @@ function initPuzzleRushBoard() {
 
 
   });
+  
  // 📱 ENABLE TAP MODE — HERE, ONCE
   enablePuzzleRushTapMove();
 }
@@ -28179,6 +28228,7 @@ function resolveMainPieceTheme(piece) {
       
 
       board = Chessboard('chessboard', cfg);
+      attachCheckHook(board, chess, "chessboard");
      // 📱 Enable mobile swipe flip
 enableMobileBoardFlip();
      enableMobileTapMove();
@@ -29117,6 +29167,7 @@ function initVsComputerBoard() {
   vsChess = new Chess();
 
   vsBoard = Chessboard("computerBoard", {
+    
     position: "start",
     draggable: true,
     pieceTheme: getPieceThemePath(currentPieceTheme),
@@ -29179,11 +29230,16 @@ function initVsComputerBoard() {
 // ✅ FIX CASTLING ROOK STUCK ISSUE (PASTE HERE)
 onSnapEnd: () => {
   vsBoard.position(vsChess.fen());
+  setTimeout(() => {
+      highlightCheckSquare(vsChess, "computerBoard");
+    }, 0);
   
 }
 
 
   });
+  // ✅ ✅ ✅ PLACE HERE (OUTSIDE)
+attachCheckHook(vsBoard, vsChess, "computerBoard");
   initVsBoardColorSystem();
 
   
@@ -37202,6 +37258,8 @@ function initStudyBoard() {
 
     onDrop: onStudyDrop
   });
+  // 🔥 ADD THIS LINE (IMPORTANT)
+attachCheckHook(studyBoard, studyChess, "studyBoard");
   initStudyBoardColorSystem();
 
 }
@@ -49057,6 +49115,8 @@ function initLiveMatchBoard() {
     onDragStart: mpOnDragStart,
     onDrop: onLiveMatchDrop
   })
+  // ✅ ADD HERE (OUTSIDE)
+attachCheckHook(mpBoard, mpChess, "mpBoard");
 
   initMpBoardColorSystem(); // 👈 add this
 
