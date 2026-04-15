@@ -10482,12 +10482,13 @@ No JS / No HTML changes
 
 /* PLAYER DOT MODE */
 .mp-player span:first-child {
-  display: none; /* Hide name text */
+  display: inline;
+  margin-left: 6px;
 }
 
 .mp-player::before {
-  content: "🟢 Connected";
-  font-size: 16px;
+  content: "🟢";
+  margin-right: 4px;
 }
 
 
@@ -20181,10 +20182,10 @@ title="Voice volume"
       <div class="mp-board-area">
 
         <!-- OPPONENT -->
-        <div class="mp-player mp-opponent">
-          <span id="mpOppName">Opponent</span>
-          <span id="clockBlack" class="mp-clock">0:00</span>
-        </div>
+   <div class="mp-player mp-opponent">
+  <span id="mpOppName">🟢 Connected - Waiting...</span>
+  <span id="clockBlack" class="mp-clock">0:00</span>
+</div>
 
         <div id="mpBoard"></div>
 
@@ -20196,10 +20197,10 @@ title="Voice volume"
         </div>
 
         <!-- YOU -->
-        <div class="mp-player mp-you">
-          <span id="mpYouName">You</span>
-          <span id="clockWhite" class="mp-clock">0:00</span>
-        </div>
+     <div class="mp-player mp-you">
+  <span id="mpYouName">🟢 Connected - You</span>
+  <span id="clockWhite" class="mp-clock">0:00</span>
+</div>
 
       </div>
     </div>
@@ -48031,6 +48032,15 @@ function updateTop3Showcase(rankedList) {
 ================================ */
 
 let mpChess = new Chess()
+// 🔥 DEBUG ACCESS (SAFE)
+window.supabaseClient = supabase
+window.mpDebug = () => ({
+  mpWhiteName,
+  mpBlackName,
+  mySide,
+  roomId
+})
+
 let mpBoard = null
 let mpWhiteName = 'White'
 let mpBlackName = 'Black'
@@ -49110,17 +49120,25 @@ function clearMpHighlights() {
 }
 
 function updateMpPlayerLabels() {
-  const you = document.getElementById('mpYouName')
-  const opp = document.getElementById('mpOppName')
+  const myName = currentProfile?.username || "You"
 
-  if (!you || !opp) return
+  const opponentEl = document.querySelector(".mp-opponent span")
+  const youEl = document.querySelector(".mp-you span")
+
+  if (!opponentEl || !youEl) return
+
+  // 🔥 Determine both names with roles
+  const whiteName = mpWhiteName || "Waiting..."
+  const blackName = mpBlackName || "Waiting..."
 
   if (mySide === 'w') {
-    you.textContent = 'You (White)'
-    opp.textContent = 'Black'
+    // YOU are white
+    youEl.textContent = `Connected - ${whiteName} (White)`
+    opponentEl.textContent = `Connected - ${blackName} (Black)`
   } else {
-    you.textContent = 'You (Black)'
-    opp.textContent = 'White'
+    // YOU are black
+    youEl.textContent = `Connected - ${blackName} (Black)`
+    opponentEl.textContent = `Connected - ${whiteName} (White)`
   }
 }
 
@@ -49539,6 +49557,9 @@ mpCreateBtn.onclick = async () => {
   }
 
   roomId = data.id
+  mpWhiteName = data.white_name || "Waiting..."
+mpBlackName = data.black_name || "Waiting..."
+updateMpPlayerLabels()
 mySide = mpSideSelect.value
 sessionStorage.setItem('mpRole', 'host')
 sessionStorage.setItem('mpSide', mySide)
@@ -49601,6 +49622,9 @@ updateMpPlayerLabels()
 
 
   mpChess.load(data.fen)
+  mpWhiteName = data.white_name || "Waiting..."
+mpBlackName = data.black_name || "Waiting..."
+updateMpPlayerLabels()
 
   
 
@@ -49616,6 +49640,18 @@ await supabase
     black_name: mySide === 'b' ? myName : data.black_name
   })
   .eq('id', roomId)
+  // ✅ FORCE FETCH CORRECT DATA
+const { data: fresh } = await supabase
+  .from('live_match_rooms')
+  .select('white_name, black_name')
+  .eq('id', roomId)
+  .single()
+
+if (fresh) {
+  mpWhiteName = fresh.white_name || "Waiting..."
+  mpBlackName = fresh.black_name || "Waiting..."
+  updateMpPlayerLabels()
+}
 
 
 
@@ -49752,9 +49788,12 @@ function subscribeRoom() {
       payload => {
         const row = payload.new
         // 🔒 authoritative player names from server
-mpWhiteName = row.white_name || 'White'
-mpBlackName = row.black_name || 'Black'
+// ✅ ALWAYS update names first
+  mpWhiteName = row.white_name || "Waiting..."
+  mpBlackName = row.black_name || "Waiting..."
 
+  // 🔥 FORCE UI UPDATE (THIS IS THE KEY FIX)
+  updateMpPlayerLabels()
         if (!row || !row.fen) return
         // 🏆 XP HOOK — fires for ALL win types (mate, resign, time)
 grantLiveMatchXPIfWinner(row)
@@ -49838,8 +49877,14 @@ if (!row.draw_request && mpDrawBtn.disabled) {
   if (mpBoard) {
     mpBoard.position(row.fen, true)
   }
+  // 🔥 FORCE NAME UPDATE AFTER BOARD RENDER
+setTimeout(() => {
+  updateMpPlayerLabels()
+}, 50)
 
   moveLock = false
+    // ✅ ADD THIS
+  updateMpPlayerLabels()
 }
 
 
