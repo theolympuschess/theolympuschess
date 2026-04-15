@@ -28508,6 +28508,13 @@ if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
     bulkResults[bulkIndex].attempts || 1;
      // 🔥 SAVE USING CURRENT INDEX (SAFE)
   const currentIdx = bulkIndex;
+  // ⏱️ SAVE TIME TAKEN (ONLY ONCE)
+if (!puzzleTimeTaken[currentIdx]) {
+  const end = Date.now();
+  puzzleTimeTaken[currentIdx] = Math.floor(
+    (end - (puzzleStartTime[currentIdx] || end)) / 1000
+  );
+}
 
   allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
 
@@ -39834,6 +39841,13 @@ currentAttemptMoves = [];
     if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
         // 🔥 SAVE USING CURRENT INDEX (SAFE)
   const currentIdx = bulkIndex;
+  // ⏱️ SAVE TIME TAKEN (ONLY ONCE)
+if (!puzzleTimeTaken[currentIdx]) {
+  const end = Date.now();
+  puzzleTimeTaken[currentIdx] = Math.floor(
+    (end - (puzzleStartTime[currentIdx] || end)) / 1000
+  );
+}
 
   allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
 
@@ -39926,6 +39940,8 @@ function splitBulkPGNIntoPuzzles(rawPGN) {
 function loadCurrentBulkPuzzle() {
   // 🔥 LOCK CURRENT PUZZLE INDEX (CRITICAL FIX)
   window.currentPuzzleIndex = bulkIndex;
+  // ⏱️ START TIMER FOR CURRENT PUZZLE
+puzzleStartTime[bulkIndex] = Date.now();
 
   // 🔥 ALWAYS RESET (NO CONDITIONS)
   currentAttemptMoves = [];
@@ -40241,6 +40257,9 @@ return {
   result: r
     ? (r.correct ? "correct" : "wrong")
     : "skipped",
+    // ⏱️ ADD THIS
+  time_taken: puzzleTimeTaken[i] || 0,
+
 
   // 🔥 MAIN FEATURE
   tries: bulkAttemptsData[i] ? [...bulkAttemptsData[i]] : []
@@ -40762,6 +40781,10 @@ function renderBulkAnswers(attempt) {
         <span>Attempts:</span>
         <span>${a.attempts ?? 0}</span>
       </div>
+      <div class="row">
+  <span>Time:</span>
+  <span>${a.time_taken ?? 0}s</span>
+</div>
       <div class="row" style="flex-direction:column; align-items:flex-start">
   <span><strong>Attempt History:</strong></span>
   <div>
@@ -40808,6 +40831,9 @@ function renderBulkAnswers(attempt) {
 let currentAttemptMoves = [];
 let allAttemptsForThisPuzzle = [];
 let bulkAttemptsData = {}; // store per puzzle
+// ⏱️ PUZZLE TIMER TRACKING (ADD HERE)
+let puzzleStartTime = {};
+let puzzleTimeTaken = {};
 
 // ================================
 // BULK MINI BOARD SYSTEM
