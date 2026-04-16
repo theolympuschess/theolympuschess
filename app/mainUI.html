@@ -20183,7 +20183,7 @@ title="Voice volume"
 
         <!-- OPPONENT -->
    <div class="mp-player mp-opponent">
-  <span id="mpOppName">🟢 Connected - Waiting...</span>
+  <span id="mpOppName"> Waiting...</span>
   <span id="clockBlack" class="mp-clock">0:00</span>
 </div>
 
@@ -20198,7 +20198,7 @@ title="Voice volume"
 
         <!-- YOU -->
      <div class="mp-player mp-you">
-  <span id="mpYouName">🟢 Connected - You</span>
+  <span id="mpYouName"> You</span>
   <span id="clockWhite" class="mp-clock">0:00</span>
 </div>
 
@@ -48044,6 +48044,7 @@ window.mpDebug = () => ({
 let mpBoard = null
 let mpWhiteName = 'White'
 let mpBlackName = 'Black'
+window.mpCurrentOrientation = 'white'
 
 let mySide = null
 let roomId = null
@@ -48056,6 +48057,7 @@ let clockTimer = null
 let mpGameOver = false
 let mpTapSource = null
 let localFlip = false
+
 let rematchHandled = false
 let lastPgn = ""
 let mpLastArrow = null
@@ -48385,18 +48387,36 @@ document.getElementById('navLiveMatch').onclick = () => {
  
 }
 
-function mpApplyPOV() {
+function mpForcePOVLayout() {
   const boardArea = document.querySelector('.mp-board-area')
-  if (!boardArea) return
+  const opponent = document.querySelector('.mp-opponent')
+  const you = document.querySelector('.mp-you')
+  const board = document.getElementById('mpBoard')
 
-  if (mySide === 'w') {
-    boardArea.classList.remove('black')
+  if (!boardArea || !opponent || !you || !board) return
+
+  // 🔥 Get actions (IMPORTANT)
+  const actions = document.querySelector('.mp-actions')
+
+  // 🔥 Remove only player bars
+  opponent.remove()
+  you.remove()
+
+  if (window.mpCurrentOrientation === 'black') {
+    // BLACK POV (black bottom)
+    boardArea.insertBefore(you, board)          // above board
+    boardArea.appendChild(opponent)             // bottom
   } else {
-    boardArea.classList.add('black')
+    // WHITE POV (white bottom)
+    boardArea.insertBefore(opponent, board)     // above board
+    boardArea.appendChild(you)                  // bottom
+  }
+
+  // 🔥 Ensure actions stay below board
+  if (actions) {
+    boardArea.appendChild(actions)
   }
 }
-
-
 
 /* ===============================
    HELPERS
@@ -48446,7 +48466,6 @@ function mpGetLastMoveFromPGN(pgn) {
     return null
   }
 }
-
 
 
 
@@ -48693,11 +48712,21 @@ mpFlipBtn.onclick = () => {
   if (!mpBoard || !mySide) return
 
   localFlip = !localFlip
+
   const baseOrientation = mySide === 'b' ? 'black' : 'white'
-  mpBoard.orientation(localFlip ? 
-    (baseOrientation === 'white' ? 'black' : 'white') 
+
+  const newOrientation = localFlip
+    ? (baseOrientation === 'white' ? 'black' : 'white')
     : baseOrientation
-  )
+
+  mpBoard.orientation(newOrientation)
+  // ✅ TRACK IT MANUALLY
+  window.mpCurrentOrientation = newOrientation
+
+
+  // 🔥 IMPORTANT
+ mpForcePOVLayout()
+  updateMpPlayerLabels()
 }
 
 function formatLiveArchiveDate(dateString) {
@@ -48867,7 +48896,7 @@ async function mpHardResetRoom(newSide = null, keepTime = false) {
 
   if (newSide) {
     mySide = newSide
-    mpApplyPOV()
+    mpForcePOVLayout()
   }
 
   const { data } = await supabase
@@ -49159,10 +49188,17 @@ function initLiveMatchBoard() {
     onDragStart: mpOnDragStart,
     onDrop: onLiveMatchDrop
   })
+  // 🔥 ADD THIS EXACTLY HERE
+window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
   // ✅ ADD HERE (OUTSIDE)
 attachCheckHook(mpBoard, mpChess, "mpBoard");
 
+
   initMpBoardColorSystem(); // 👈 add this
+  setTimeout(() => {
+  mpForcePOVLayout()
+  updateMpPlayerLabels()
+}, 50)
 
   // ============================================
 // 🎨 LIVE MATCH BOARD COLOR SYSTEM
@@ -49497,7 +49533,7 @@ if (savedSide) {
 
 
   updateMpPlayerLabels()
-  mpApplyPOV()
+  mpForcePOVLayout()
 
   mpChess.load(data.fen)
   lastFen = data.fen
@@ -49569,7 +49605,7 @@ mpSaveSession()
 updateMpPlayerLabels()
 
   mpGameOver = false
-  mpApplyPOV()
+  mpForcePOVLayout()
 
 
 
@@ -49577,7 +49613,11 @@ updateMpPlayerLabels()
   mpRoomCode.textContent = `Room Code: ${code} (copied)`
   navigator.clipboard.writeText(code).catch(() => {})
 
-  setTimeout(initLiveMatchBoard, 100)
+  setTimeout(() => {
+  initLiveMatchBoard()
+  mpForcePOVLayout()
+  updateMpPlayerLabels()
+}, 100)
   subscribeRoom()
 }
 
@@ -49618,7 +49658,7 @@ mpSaveSession()
 updateMpPlayerLabels()
 
   mpGameOver = false
-  mpApplyPOV()
+  mpForcePOVLayout()
 
 
   mpChess.load(data.fen)
@@ -49659,7 +49699,11 @@ if (fresh) {
 
 
  
-  setTimeout(initLiveMatchBoard, 100)
+  setTimeout(() => {
+  initLiveMatchBoard()
+  mpForcePOVLayout()
+  updateMpPlayerLabels()
+}, 100)
   subscribeRoom()
 }
 
@@ -49756,12 +49800,16 @@ mpFenCreateBtn.onclick = async () => {
   mpSaveSession()
 
   updateMpPlayerLabels()
-  mpApplyPOV()
+mpForcePOVLayout()
 
   mpRoomCode.textContent = `Room Code: ${code} (copied)`
   navigator.clipboard.writeText(code).catch(() => {})
 
-  setTimeout(initLiveMatchBoard, 100)
+  setTimeout(() => {
+  initLiveMatchBoard()
+ mpForcePOVLayout()
+  updateMpPlayerLabels()
+}, 100)
   subscribeRoom()
 
   mpShowModal("Custom Game Ready", "♟ Game created from FEN — waiting for opponent")
@@ -49989,8 +50037,23 @@ updateClocks(row)
 ================================ */
 
 function updateClocks(row) {
-  mpUpdateClockUI(clockWhite, row.w_time)
-  mpUpdateClockUI(clockBlack, row.b_time)
+  const isBlackBottom = window.mpCurrentOrientation === 'black'
+
+  // DOM slots (DO NOT CHANGE IDs)
+  const topClock = document.getElementById('clockBlack')
+  const bottomClock = document.getElementById('clockWhite')
+
+  if (!topClock || !bottomClock) return
+
+  if (isBlackBottom) {
+    // 🔥 BLACK POV
+    mpUpdateClockUI(topClock, row.w_time)     // white on top
+    mpUpdateClockUI(bottomClock, row.b_time)  // black bottom
+  } else {
+    // 🔥 WHITE POV
+    mpUpdateClockUI(topClock, row.b_time)     // black on top
+    mpUpdateClockUI(bottomClock, row.w_time)  // white bottom
+  }
 }
 
 function mpUpdateClockUI(el, sec) {
