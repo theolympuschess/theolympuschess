@@ -48069,6 +48069,7 @@ let mpReplayIndex = 0
 let mpReplayChess = null
 let mpReplayPGN = "";
 let mpCurrentReplayGame = null;
+let mpArchiveSaved = false
 
 
 
@@ -48580,6 +48581,7 @@ function mpEndAndUnlock() {
   // 🔄 RESET CORE STATE
   roomId = null
   mpGameOver = false   // 🔥 FIX (was true ❌)
+  mpArchiveSaved = false
   moveLock = false
   mpTapSource = null
   localFlip = false
@@ -48791,6 +48793,14 @@ function formatLiveArchiveDate(dateString) {
 
 
 async function mpArchiveSaveGame(finalWinner) {
+    // 🔥 HARD LOCK (PREVENT DOUBLE SAVE)
+// 🔥 OPTIONAL: ONLY HOST SAVES (SUPER SAFE)
+const role = sessionStorage.getItem('mpRole')
+if (role !== 'host') return
+
+// 🔥 PREVENT DOUBLE SAVE (CRITICAL)
+if (mpArchiveSaved) return
+mpArchiveSaved = true
   try {
     console.log("📦 Archive called", { roomId, lastFen, finalWinner });
 
@@ -48937,6 +48947,7 @@ async function mpHardResetRoom(newSide = null, keepTime = false) {
   mpChess = new Chess()
   moveLock = false
   mpGameOver = false
+  mpArchiveSaved = false
   mpTapSource = null
   mpMovesBox.textContent = ''
 
@@ -49556,6 +49567,7 @@ async function mpRejoinRoomById(id) {
   // Reset client state
   mpChess = new Chess()
   mpGameOver = false
+  mpArchiveSaved = false
   moveLock = false
   mpTapSource = null
   localFlip = false
@@ -49673,7 +49685,7 @@ mpSaveSession()
 updateMpPlayerLabels()
 
 mpGameOver = false
-
+mpArchiveSaved = false
 // 🔥 FORCE CORRECT POV AFTER CREATE
 window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
 
@@ -49735,7 +49747,7 @@ mpSaveSession()
 updateMpPlayerLabels()
 
 mpGameOver = false
-
+mpArchiveSaved = false
 // 🔥 FORCE CORRECT POV AFTER JOIN
 window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
 
@@ -49827,6 +49839,7 @@ mpFenCreateBtn.onclick = async () => {
   lastPgn = ''
   moveLock = false
   mpGameOver = false
+  mpArchiveSaved = false
   mpTapSource = null
   mpMovesBox.textContent = ''
 
