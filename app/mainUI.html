@@ -48568,7 +48568,7 @@ function mpDrawArrow(from, to) {
 
 
 function mpEndAndUnlock() {
-  // Stop everything
+  // 🔴 STOP EVERYTHING
   stopClock()
 
   // Leave realtime room
@@ -48577,9 +48577,9 @@ function mpEndAndUnlock() {
     channel = null
   }
 
-  // Reset core state
+  // 🔄 RESET CORE STATE
   roomId = null
-  mpGameOver = true
+  mpGameOver = false   // 🔥 FIX (was true ❌)
   moveLock = false
   mpTapSource = null
   localFlip = false
@@ -48587,19 +48587,58 @@ function mpEndAndUnlock() {
   lastFen = null
   lastPgn = ""
 
-  // Reset chess engine
+  // 🔄 RESET ENGINE
   mpChess = new Chess()
 
-  // Reset board
-  if (mpBoard) {
-    mpBoard.position(mpChess.fen(), false)
-    mpBoard.orientation('white')
-  }
+  // 🔄 RESET BOARD
+if (mpBoard) {
+  mpBoard.orientation('white')
 
-  // Reset UI
+  // 🔥 CLEAR BEFORE RESET
+  mpClearCheckHighlight()
+
+  mpBoard.position('start', false)
+
+  // 🔥 REATTACH
+  attachCheckHook(mpBoard, mpChess, "mpBoard")
+}
+  
+
+  // 🔄 RESET POV
+// 🔥 KEEP POV BASED ON SIDE
+const correctOrientation = mySide === 'b' ? 'black' : 'white'
+
+// Apply to board if exists
+if (mpBoard) {
+  mpBoard.orientation(correctOrientation)
+}
+
+// Sync global
+window.mpCurrentOrientation = correctOrientation
+
+// Fix layout
+mpForcePOVLayout()
+
+  // 🔄 RESET NAMES
+  mpWhiteName = 'White'
+  mpBlackName = 'Black'
+  updateMpPlayerLabels()
+
+  // 🔄 RESET UI
   mpMovesBox.textContent = ""
   mpRoomCode.textContent = ""
   mpJoinCode.value = ""
+
+  // 🔄 RESET CLOCK UI
+  const topClock = document.getElementById('clockBlack')
+  const bottomClock = document.getElementById('clockWhite')
+
+  if (topClock) topClock.textContent = "0:00"
+  if (bottomClock) bottomClock.textContent = "0:00"
+
+  // 🔄 ENABLE BUTTONS AGAIN
+  mpCreateBtn.disabled = false
+  mpJoinBtn.disabled = false
 
   mpRematchBtn.disabled = false
   mpRematchBtn.textContent = "Rematch"
@@ -48607,7 +48646,10 @@ function mpEndAndUnlock() {
   mpDrawBtn.disabled = false
   mpDrawBtn.textContent = "🤝 Draw"
 
+  // 🔄 CLEAR SESSION
   mpClearSession()
+
+  console.log("✅ Game fully reset — ready for new game")
 }
 
 
@@ -48680,6 +48722,10 @@ mpDrawAcceptBtn.onclick = async () => {
     .eq('id', roomId)
 
   mpShowModal('Draw', '🤝 Game ended in a draw')
+
+  // 🔥 ADD THESE 2 LINES (CRITICAL)
+  mpArchiveSaveGame("draw")
+  mpEndAndUnlock()
 }
 
 mpDrawDeclineBtn.onclick = async () => {
@@ -48923,10 +48969,17 @@ async function mpHardResetRoom(newSide = null, keepTime = false) {
     .update(update)
     .eq('id', roomId)
 
-  if (mpBoard) {
-    mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
-    mpBoard.position(mpChess.fen(), false)
-  }
+ if (mpBoard) {
+  mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
+
+  // 🔥 CLEAR CHECK BEFORE POSITION
+  mpClearCheckHighlight()
+
+  mpBoard.position(mpChess.fen(), false)
+
+  // 🔥 REATTACH CHECK SYSTEM
+  attachCheckHook(mpBoard, mpChess, "mpBoard")
+}
 }
 
 /* ===============================
@@ -49171,7 +49224,15 @@ function updateMpPlayerLabels() {
   }
 }
 
+function mpClearCheckHighlight() {
+  document.querySelectorAll('#mpBoard .in-check').forEach(el => {
+    el.classList.remove('in-check')
+  })
 
+  document.querySelectorAll('#mpBoard [style*="red"]').forEach(el => {
+    el.style.boxShadow = ''
+  })
+}
 /* ===============================
    BOARD INIT
 ================================ */
@@ -49191,7 +49252,8 @@ function initLiveMatchBoard() {
   // 🔥 ADD THIS EXACTLY HERE
 window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
   // ✅ ADD HERE (OUTSIDE)
-attachCheckHook(mpBoard, mpChess, "mpBoard");
+mpClearCheckHighlight()
+attachCheckHook(mpBoard, mpChess, "mpBoard")
 
 
   initMpBoardColorSystem(); // 👈 add this
@@ -49392,7 +49454,8 @@ async function mpAfterMove() {
 
     mpShowModal('Checkmate!', '♟️ You delivered CHECKMATE!')
     
-
+mpArchiveSaveGame(winner)
+mpEndAndUnlock()
     return
   }
 
@@ -49546,7 +49609,12 @@ moveLock = false        // 🔓 allow moves after reconnect
 }
 
 mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
+mpClearCheckHighlight()
+
 mpBoard.position(data.fen, false)
+
+// 🔥 REATTACH CHECK SYSTEM
+attachCheckHook(mpBoard, mpChess, "mpBoard")
 
 
   subscribeRoom()
@@ -49604,8 +49672,17 @@ mpSaveSession()
 
 updateMpPlayerLabels()
 
-  mpGameOver = false
+mpGameOver = false
+
+// 🔥 FORCE CORRECT POV AFTER CREATE
+window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
+
+setTimeout(() => {
+  if (mpBoard) {
+    mpBoard.orientation(window.mpCurrentOrientation)
+  }
   mpForcePOVLayout()
+}, 50)
 
 
 
@@ -49657,8 +49734,17 @@ mpSaveSession()
 
 updateMpPlayerLabels()
 
-  mpGameOver = false
+mpGameOver = false
+
+// 🔥 FORCE CORRECT POV AFTER JOIN
+window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
+
+setTimeout(() => {
+  if (mpBoard) {
+    mpBoard.orientation(window.mpCurrentOrientation)
+  }
   mpForcePOVLayout()
+}, 50)
 
 
   mpChess.load(data.fen)
@@ -49744,10 +49830,17 @@ mpFenCreateBtn.onclick = async () => {
   mpTapSource = null
   mpMovesBox.textContent = ''
 
-  if (mpBoard) {
-    mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
-    mpBoard.position(fen, false)
-  }
+if (mpBoard) {
+  mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
+
+  // 🔥 CLEAR CHECK BEFORE POSITION
+  mpClearCheckHighlight()
+
+  mpBoard.position(mpChess.fen(), false)
+
+  // 🔥 REATTACH CHECK SYSTEM
+  attachCheckHook(mpBoard, mpChess, "mpBoard")
+}
 
   // ===============================
   // CREATE SERVER ROOM
@@ -49911,6 +50004,8 @@ if (!row.draw_request && mpDrawBtn.disabled) {
 }
 
        if (row.fen !== lastFen) {
+        mpClearCheckHighlight()
+
   mpChess.load(row.fen)
   lastFen = row.fen
 
@@ -49922,9 +50017,12 @@ if (!row.draw_request && mpDrawBtn.disabled) {
     mpDrawArrow(lastMove.from, lastMove.to)
   }
 
-  if (mpBoard) {
-    mpBoard.position(row.fen, true)
-  }
+if (mpBoard) {
+  mpBoard.position(row.fen, true)
+
+  // 🔥 REATTACH AFTER EVERY SERVER UPDATE
+  attachCheckHook(mpBoard, mpChess, "mpBoard")
+}
   // 🔥 FORCE NAME UPDATE AFTER BOARD RENDER
 setTimeout(() => {
   updateMpPlayerLabels()
