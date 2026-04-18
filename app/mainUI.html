@@ -54589,7 +54589,7 @@ window.viewStudentAssignmentPuzzles = async function(assignmentId) {
 
   const { data, error } = await supabase
     .from("assignments")
-    .select("title, pgn, is_bulk")
+    .select("title, pgn, is_bulk, attempts!left(bulk_answers)")
     .eq("id", assignmentId)
     .single();
 
@@ -54602,6 +54602,18 @@ window.viewStudentAssignmentPuzzles = async function(assignmentId) {
 
   const grid = document.getElementById("studentPuzzleGrid");
   grid.innerHTML = "";
+  // 🎯 BUILD RESULT MAP (correct / wrong / skipped)
+let puzzleResultMap = {};
+
+if (data.attempts && data.attempts.length > 0) {
+  const latestAttempt = data.attempts[0]; // latest submission
+
+  if (latestAttempt.bulk_answers) {
+    latestAttempt.bulk_answers.forEach(a => {
+      puzzleResultMap[a.index] = a.result; 
+    });
+  }
+}
 
   if (!data.pgn) {
     grid.innerHTML = "<p>No PGN found.</p>";
@@ -54628,8 +54640,9 @@ puzzles.forEach((raw, index) => {
     game.undo();
   }
 
-  const container = document.createElement("div");
-  container.style.textAlign = "center";
+const container = document.createElement("div");
+container.style.textAlign = "center";
+container.style.position = "relative"; // ✅ IMPORTANT
 
   const title = document.createElement("div");
   title.textContent = `Puzzle ${index + 1}`;
@@ -54641,6 +54654,28 @@ puzzles.forEach((raw, index) => {
 
   container.appendChild(title);
   container.appendChild(boardDiv);
+  // 🎯 STATUS ICON
+const result = puzzleResultMap[index + 1];
+
+if (result) {
+  const badge = document.createElement("div");
+
+  badge.style.position = "absolute";
+  badge.style.top = "-2px";
+  badge.style.right = "10px";
+  badge.style.fontSize = "22px";
+  badge.style.zIndex = "10";
+
+  if (result === "correct") {
+    badge.textContent = "✅";
+  } else if (result === "wrong") {
+    badge.textContent = "❌";
+  } else {
+    badge.textContent = "⚠️"; // skipped
+  }
+
+  container.appendChild(badge);
+}
 
   grid.appendChild(container);
 
