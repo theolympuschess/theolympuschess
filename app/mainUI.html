@@ -32099,7 +32099,16 @@ async function loadMateIn1Puzzles() {
 
 
 // puzzle rush mate in 1 end //
+function getCorrectPuzzleStats(bulkAnswers) {
+  if (!bulkAnswers || !bulkAnswers.length) {
+    return { correct: 0, total: 0 };
+  }
 
+  const total = bulkAnswers.length;
+  const correct = bulkAnswers.filter(a => a.result === "correct").length;
+
+  return { correct, total };
+}
 
 // STUDENT PROGRESS FUNCTIONS START //
 async function loadStudentProgress() {
@@ -32116,6 +32125,7 @@ async function loadStudentProgress() {
   is_correct,
   submitted_at,
   grade_letter,
+  bulk_answers,  
   assignments ( title )
 `)
     .eq("student_id", currentUser.id)
@@ -32123,6 +32133,7 @@ async function loadStudentProgress() {
 
   if (error) {
     console.error("Progress load error:", error);
+    
     list.innerHTML = "<p class='muted'>Failed to load progress.</p>";
     return;
   }
@@ -32146,7 +32157,9 @@ async function loadStudentProgress() {
     status: "Attempted",
     time: row.time_spent,
     lastPlayed: row.submitted_at,
-    grade: row.grade_letter || null
+    grade: row.grade_letter || null,
+     // ✅ ADD THIS
+    bulk_answers: row.bulk_answers || null
   };
 }
     progressMap[id].attempts += 1;
@@ -32182,6 +32195,7 @@ renderStudentBadges();
 );
 
 orderedProgress.forEach(p => {
+    const stats = getCorrectPuzzleStats(p.bulk_answers); // ✅ ADD THIS LINE
   list.innerHTML += `
     <div class="progress-item">
       <strong>${p.title}</strong>
@@ -32189,6 +32203,7 @@ orderedProgress.forEach(p => {
   Attempts: ${p.attempts} |
   Status: ${p.status} |
   Time: ${formatSecondsToTime(p.time)}
+  ${p.bulk_answers ? `🎯 ${stats.correct}/${stats.total}` : ""}
  ${p.grade ? `
   | Grade:
   <span class="grade-badge grade-${p.grade.replace("+", "plus")}">
@@ -34122,6 +34137,7 @@ ${liveMatchHTML}
     html += `<p style="opacity:.7;">No attempts yet.</p>`;
   } else {
     attempts.forEach(a => {
+      const stats = getCorrectPuzzleStats(a.bulk_answers);
       html += `
         <div style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
           <strong>${a.assignments?.title || "Unknown"}</strong><br>
@@ -34130,6 +34146,7 @@ ${liveMatchHTML}
          Attempts: ${getTotalAttemptsForAttempt(a)} |
 
           ${a.is_correct ? "✅ Correct" : "❌ Incorrect"}
+${a.bulk_answers ? ` | 🎯 ${stats.correct}/${stats.total}` : ""}
 ${a.grade_letter ? `
   <span class="grade-badge grade-${a.grade_letter.replace("+","plus")}" 
         style="margin-left:8px;">
@@ -39949,16 +39966,32 @@ function splitBulkPGNIntoPuzzles(rawPGN) {
 }
 
 function loadCurrentBulkPuzzle() {
-  // 🔥 LOCK CURRENT PUZZLE INDEX (CRITICAL FIX)
-  window.currentPuzzleIndex = bulkIndex;
-  // ⏱️ START TIMER FOR CURRENT PUZZLE
-puzzleStartTime[bulkIndex] = Date.now();
 
-  // 🔥 ALWAYS RESET (NO CONDITIONS)
+  // ⏱️ SAVE TIME FOR PREVIOUS PUZZLE (CRITICAL FIX)
+  const prevIdx = window.currentPuzzleIndex;
+
+  if (
+    typeof prevIdx === "number" &&
+    puzzleStartTime[prevIdx] &&
+    !puzzleTimeTaken[prevIdx]
+  ) {
+    const end = Date.now();
+    puzzleTimeTaken[prevIdx] = Math.floor(
+      (end - puzzleStartTime[prevIdx]) / 1000
+    );
+  }
+
+  // 🔥 LOCK CURRENT PUZZLE INDEX
+  window.currentPuzzleIndex = bulkIndex;
+
+  // ⏱️ START TIMER FOR CURRENT PUZZLE
+  puzzleStartTime[bulkIndex] = Date.now();
+
+  // 🔥 ALWAYS RESET
   currentAttemptMoves = [];
   allAttemptsForThisPuzzle = [];
 
-  // 🔴 HARD RESET (VERY IMPORTANT)
+  // 🔴 HARD RESET
   assignmentCursor = 0;
   attemptCount = 0;
   expectedMoves = [];
@@ -39969,27 +40002,22 @@ puzzleStartTime[bulkIndex] = Date.now();
 
   const puzzle = bulkPuzzles[bulkIndex];
 
-  // ✅ SAFE FEN RESOLUTION
+  // ✅ SAFE FEN
   const fenToLoad =
     puzzle.fen && puzzle.fen !== "start"
       ? puzzle.fen
       : START_FEN;
 
-  // ✅ Always initialize chess correctly
   chess = new Chess(fenToLoad);
 
-  // Load solution moves
   expectedMoves = puzzle.moves || [];
 
-  // Side to move
   assignmentColor = puzzle.sideToMove || chess.turn();
 
-  // Board setup
   board.orientation(assignmentColor === "w" ? "white" : "black");
   board.position(chess.fen());
   updateEnginePosition();
 
-  // UI updates
   updatePGNViewer();
   renderNotation();
   updateNavigationButtons();
@@ -40000,7 +40028,6 @@ puzzleStartTime[bulkIndex] = Date.now();
     false
   );
 
-  // 🔹 Update bulk puzzle indicator
   const indicator = document.getElementById("bulkIndicator");
   if (indicator) {
     indicator.textContent = `Puzzle ${bulkIndex + 1} / ${bulkPuzzles.length}`;
@@ -40279,7 +40306,8 @@ return {
 
     });
   }
-
+// ✅ ADD THIS HERE
+const stats = getCorrectPuzzleStats(bulkAnswers || []);
   
   try {
     const { data, error } = await supabase
@@ -40308,6 +40336,8 @@ return {
   <p>⏱ <strong>Time:</strong> ${formatTime(timeSpent)}</p>
   <p>♟ <strong>Moves:</strong> ${moveHistory.length}</p>
   <p>🔁 <strong>Attempts:</strong> ${attemptCount}</p>
+   <!-- 🎯 ADD THIS -->
+  <p>🎯 <strong>Correct Puzzles:</strong> ${stats.correct} / ${stats.total}</p>
   <p style="margin-top:10px; color:#3cff8f;">
     ✔ Completed successfully!
   </p>
@@ -40759,6 +40789,16 @@ function renderBulkAnswers(attempt) {
 
   panel.classList.remove("hidden");
   list.innerHTML = "";
+  const stats = getCorrectPuzzleStats(attempt.bulk_answers || []);
+
+// 🎯 SUMMARY HEADER
+const summary = document.createElement("div");
+summary.style.marginBottom = "10px";
+summary.style.fontWeight = "bold";
+summary.style.color = "#ffd700";
+summary.innerHTML = `🎯 Correct Puzzles: ${stats.correct} / ${stats.total}`;
+
+list.appendChild(summary);
 
   attempt.bulk_answers.forEach(a => {
     const div = document.createElement("div");
@@ -40845,6 +40885,8 @@ let bulkAttemptsData = {}; // store per puzzle
 // ⏱️ PUZZLE TIMER TRACKING (ADD HERE)
 let puzzleStartTime = {};
 let puzzleTimeTaken = {};
+
+
 
 // ================================
 // BULK MINI BOARD SYSTEM
@@ -40960,38 +41002,65 @@ function updateBulkLabel(i) {
           attemptsList.innerHTML = '<div class="card"><p>No attempts yet.</p></div>';
           return;
         }
+        
 
-        attemptsList.innerHTML = attempts.map(attempt => `
-          <div class="card">
-            <h4>Assignment: ${attempt.assignments?.title || 'Unknown'}</h4>
-            <p><strong>Student:</strong> ${attempt.profiles?.username || attempt.student_id || 'Unknown'}</p>
-            <p><strong>Submitted:</strong> ${new Date(attempt.submitted_at).toLocaleString()}</p>
-            <p><strong>Time Spent:</strong> ${formatTime(attempt.time_spent || 0)}</p>
-            <p><strong>Attempts:</strong> ${attempt.attempt_count || 1}</p>
-            <p><strong>Status:</strong> ${attempt.is_correct ? '✅ Correct' : '❌ Needs Review'}</p>
-            <p><strong>Score:</strong> ${attempt.score || 'Not graded'}</p>
-            ${attempt.pgn ? `<div class="pgn-viewer" style="max-height: 100px;">${(attempt.pgn || '').substring(0, 100)}${attempt.pgn.length > 100 ? '...' : ''}</div>` : ''}
-            <div class="attempt-actions">
-  <button class="btn-secondary" onclick="viewAttempt('${attempt.id}')">
-    View Details
-  </button>
+       attemptsList.innerHTML = attempts.map(attempt => {
 
-  <div class="grade-buttons">
-    ${["AA","A+","A","B+","B","C+","C"].map(g => `
-      <button 
-        class="grade-btn ${attempt.grade_letter === g ? "active-grade" : ""}" 
-        onclick="setLetterGrade('${attempt.id}', '${g}')">
-        ${g}
-      </button>
-    `).join("")}
-  </div>
+  // 🎯 CALCULATE CORRECT PUZZLES
+  const stats = getCorrectPuzzleStats(attempt.bulk_answers || []);
 
-  ${attempt.grade_letter ? 
-    `<p class="admin-grade-label">Grade: ${attempt.grade_letter}</p>` 
-    : ""}
-</div>
-          </div>
-        `).join('');
+  return `
+    <div class="card">
+      <h4>Assignment: ${attempt.assignments?.title || 'Unknown'}</h4>
+
+      <p><strong>Student:</strong> ${attempt.profiles?.username || attempt.student_id || 'Unknown'}</p>
+
+      <p><strong>Submitted:</strong> ${new Date(attempt.submitted_at).toLocaleString()}</p>
+
+      <p><strong>Time Spent:</strong> ${formatTime(attempt.time_spent || 0)}</p>
+
+      <p><strong>Attempts:</strong> ${attempt.attempt_count || 1}</p>
+
+      <!-- 🎯 ADD THIS LINE -->
+      <p><strong>Correct Puzzles:</strong> ${stats.correct} / ${stats.total}</p>
+
+      <p><strong>Status:</strong> ${attempt.is_correct ? '✅ Correct' : '❌ Needs Review'}</p>
+
+      <p><strong>Score:</strong> ${attempt.score || 'Not graded'}</p>
+
+      ${
+        attempt.pgn
+          ? `<div class="pgn-viewer" style="max-height: 100px;">
+              ${(attempt.pgn || '').substring(0, 100)}
+              ${attempt.pgn.length > 100 ? '...' : ''}
+            </div>`
+          : ''
+      }
+
+      <div class="attempt-actions">
+        <button class="btn-secondary" onclick="viewAttempt('${attempt.id}')">
+          View Details
+        </button>
+
+        <div class="grade-buttons">
+          ${["AA","A+","A","B+","B","C+","C"].map(g => `
+            <button 
+              class="grade-btn ${attempt.grade_letter === g ? "active-grade" : ""}" 
+              onclick="setLetterGrade('${attempt.id}', '${g}')">
+              ${g}
+            </button>
+          `).join("")}
+        </div>
+
+        ${
+          attempt.grade_letter
+            ? `<p class="admin-grade-label">Grade: ${attempt.grade_letter}</p>`
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}).join('');
 
       } catch (error) {
         console.error('Error loading attempts:', error);
