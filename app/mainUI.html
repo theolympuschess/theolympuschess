@@ -54604,13 +54604,15 @@ window.viewStudentAssignmentPuzzles = async function(assignmentId) {
   grid.innerHTML = "";
   // 🎯 BUILD RESULT MAP (correct / wrong / skipped)
 let puzzleResultMap = {};
+let puzzleTimeMap = {}; // ⏱️ NEW
 
 if (data.attempts && data.attempts.length > 0) {
-  const latestAttempt = data.attempts[0]; // latest submission
+  const latestAttempt = data.attempts[0];
 
   if (latestAttempt.bulk_answers) {
     latestAttempt.bulk_answers.forEach(a => {
-      puzzleResultMap[a.index] = a.result; 
+      puzzleResultMap[a.index] = a.result;
+      puzzleTimeMap[a.index] = a.time_taken || 0; // ⏱️ STORE TIME
     });
   }
 }
@@ -54643,6 +54645,26 @@ puzzles.forEach((raw, index) => {
 const container = document.createElement("div");
 container.style.textAlign = "center";
 container.style.position = "relative"; // ✅ IMPORTANT
+// ⏱️ TIME BADGE (LEFT SIDE)
+const time = puzzleTimeMap[index + 1];
+
+if (time !== undefined) {
+  const timeBadge = document.createElement("div");
+
+  timeBadge.style.position = "absolute";
+  timeBadge.style.top = "5px";
+  timeBadge.style.left = "10px";
+  timeBadge.style.fontSize = "13px";
+  timeBadge.style.background = "rgba(0,0,0,0.6)";
+  timeBadge.style.padding = "2px 6px";
+  timeBadge.style.borderRadius = "6px";
+  timeBadge.style.color = "#fff";
+  timeBadge.style.zIndex = "10";
+
+  timeBadge.textContent = `⏱ ${time}s`;
+
+  container.appendChild(timeBadge);
+}
 
   const title = document.createElement("div");
   title.textContent = `Puzzle ${index + 1}`;
