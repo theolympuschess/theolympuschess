@@ -12,5 +12,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false
   }
 });
+// 🔥 ADD THIS LINE ONLY
+window.supabase = supabase;
 
 console.log("✅ Supabase client initialized");
