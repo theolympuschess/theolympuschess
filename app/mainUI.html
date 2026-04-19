@@ -63195,7 +63195,30 @@ table.innerHTML = `
   <span>H2H</span>
 </div>
 `;
+let ranks = [];
+let currentRank = 1;
 
+for(let i = 0; i < sorted.length; i++){
+  if(i === 0){
+    ranks.push(currentRank);
+  } else {
+    let prev = sorted[i - 1];
+    let curr = sorted[i];
+
+    let same =
+      curr.score === prev.score &&
+      calculateBuchholz(curr) === calculateBuchholz(prev) &&
+      calculateSB(curr) === calculateSB(prev) &&
+      calculateH2H(curr, sorted.map(x=>x.name)) === calculateH2H(prev, sorted.map(x=>x.name));
+
+    if(same){
+      ranks.push(ranks[i - 1]); // same rank
+    } else {
+      currentRank = i + 1;
+      ranks.push(currentRank);
+    }
+  }
+}
 // rows
 sorted.forEach((p, index)=>{
   let row = document.createElement("div");
@@ -63205,23 +63228,36 @@ sorted.forEach((p, index)=>{
 
   // 🔥 find tied group (same score + buchholz + SB)
   let tiedPlayers = players.filter(x =>
-    x.score === p.score &&
-    calculateBuchholz(x) === calculateBuchholz(p) &&
-    calculateSB(x) === calculateSB(p)
-  );
+  x.score === p.score &&
+  calculateBuchholz(x) === calculateBuchholz(p) &&
+  calculateSB(x) === calculateSB(p)
+);
 
-  let names = tiedPlayers.map(x=>x.name);
-  let h2h = calculateH2H(p, names);
+let names = tiedPlayers.map(x=>x.name);
+let h2h = calculateH2H(p, names);
 
-  // ✅ FINAL ROW (ORDER MUST MATCH HEADER)
-  row.innerHTML = `
-    <span>${index + 1}</span>
-    <span>${p.name}</span>
-    <span>${p.score}</span>
-    <span>${buchholz}</span>
-    <span>${calculateSB(p).toFixed(1)}</span>
-    <span>${h2h.toFixed(1)}</span>
-  `;
+// ⭐ CHECK IF TIED WITH PREVIOUS
+let isTie = false;
+if(index > 0){
+  let prev = sorted[index - 1];
+
+  isTie =
+    p.score === prev.score &&
+    calculateBuchholz(p) === calculateBuchholz(prev) &&
+    calculateSB(p) === calculateSB(prev) &&
+    calculateH2H(p, names) === calculateH2H(prev, names);
+}
+
+let rankDisplay = isTie ? `${ranks[index]} =` : `${ranks[index]}`;
+
+row.innerHTML = `
+  <span>${rankDisplay}</span>
+  <span>${p.name}</span>
+  <span>${p.score}</span>
+  <span>${buchholz}</span>
+  <span>${calculateSB(p).toFixed(1)}</span>
+  <span>${h2h.toFixed(1)}</span>
+`;
 
   table.appendChild(row);
 });
