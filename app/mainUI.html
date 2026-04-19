@@ -19054,6 +19054,21 @@ body.student-view .nav-btn[data-tab="pairing"] {
 
 
 
+#pcs-load-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+
+  display: none; /* 🔥 controlled by JS */
+
+  align-items: center;
+  justify-content: center;
+
+  z-index: 2147483647;
+}
+
+
+
   </style>
 </head>
 
@@ -19491,6 +19506,9 @@ body.student-view .nav-btn[data-tab="pairing"] {
   <button onclick="PCS.generatePairings()">⚡ Generate Round</button>
   <button onclick="PCS.openPreview()">📊 View Round</button>
   <button onclick="PCS.openStandings()">🏆 Standings</button>
+  <!-- 🔥 NEW -->
+  <button onclick="PCS.saveTournament()">💾 Save</button>
+  <button onclick="PCS.loadTournamentList()">📂 Load</button>
 </div>
 
   <!-- Pairings -->
@@ -63199,6 +63217,126 @@ function calculateBuchholz(player){
 
   return sum;
 }
+// =============================
+// 💾 SAVE TO SUPABASE
+// =============================
+async function saveTournament(){
+  const nameInput = document.getElementById("pairing-tournament-name");
+  const tournamentName = nameInput.value || "Olympus Tournament";
+
+  const state = {
+    players,
+    matches,
+    allMatches,
+    round
+  };
+
+  const { error } = await supabase
+    .from("tournaments")
+    .insert([{
+      name: tournamentName,
+      data: state
+    }]);
+
+  if(error){
+    alert("❌ Save failed");
+    console.error(error);
+  } else {
+    alert("✅ Tournament Saved");
+  }
+}
+
+// =============================
+// 📂 LOAD LIST
+// =============================
+async function loadTournamentList(){
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if(error){
+    alert("Error loading tournaments");
+    return;
+  }
+
+  const list = document.getElementById("pcs-load-list");
+
+if(!list){
+  console.error("pcs-load-list not found");
+  return;
+}
+  list.innerHTML = "";
+
+  data.forEach(t=>{
+    const div = document.createElement("div");
+    div.className = "pcs-match-line";
+
+    div.innerHTML = `
+      <b>${t.name}</b>
+      <button onclick="PCS.loadTournament('${t.id}')">▶ Load</button>
+      <button onclick="PCS.deleteTournament('${t.id}')">🗑 Delete</button>
+    `;
+
+    list.appendChild(div);
+  });
+
+  const modal = document.getElementById("pcs-load-modal");
+modal.classList.remove("pcs-hidden");
+modal.style.display = "flex"; // 🔥 FORCE SHOW
+}
+
+// =============================
+// ▶ LOAD TOURNAMENT
+// =============================
+async function loadTournament(id){
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if(error || !data){
+    alert("Failed to load");
+    return;
+  }
+
+  const state = data.data;
+
+  players = state.players || [];
+  matches = state.matches || [];
+  allMatches = state.allMatches || [];
+  round = state.round || 0;
+
+  renderPlayers();
+  renderMatches();
+
+  document.getElementById("pcs-load-modal")
+    .classList.add("pcs-hidden");
+}
+
+// =============================
+// 🗑 DELETE TOURNAMENT
+// =============================
+async function deleteTournament(id){
+  if(!confirm("Delete this tournament?")) return;
+
+  await supabase
+    .from("tournaments")
+    .delete()
+    .eq("id", id);
+
+  loadTournamentList(); // refresh
+}
+
+// =============================
+// ❌ CLOSE LOAD MODAL
+// =============================
+function closeLoadModal(){
+  const modal = document.getElementById("pcs-load-modal");
+  modal.classList.add("pcs-hidden");
+  modal.style.display = "none"; // 🔥 FORCE HIDE
+}
 return {
   addPlayer,
   resetTournament,
@@ -63208,7 +63346,13 @@ return {
   updateScore,
   openPreview,
   closePreview,
-  openStandings
+  openStandings,
+  // 🔥 NEW
+  saveTournament,
+  loadTournamentList,
+  loadTournament,
+  deleteTournament,
+  closeLoadModal
 };
 
   
@@ -63238,6 +63382,14 @@ if (pairingInput) {
     <h2 id="pcs-modal-title"></h2>
     <div id="pcs-modal-content"></div>
     <button onclick="PCS.closePreview()">❌ Close</button>
+  </div>
+</div>
+
+<div id="pcs-load-modal" class="pcs-hidden">
+  <div id="pcs-modal">
+    <h2>Saved Tournaments</h2>
+    <div id="pcs-load-list"></div>
+    <button onclick="PCS.closeLoadModal()">❌ Close</button>
   </div>
 </div>
 
