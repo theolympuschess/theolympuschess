@@ -36400,11 +36400,23 @@ function coachSpeak(text) {
   utter.pitch = 1;
   utter.volume = 1;
 
-  utter.onstart = () => startCoachTalking();
-  utter.onend = () => setCoachIdle();
+// 🛑 force stop previous animation BEFORE cancel
+setCoachIdle();
 
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utter);
+speechSynthesis.cancel();
+
+utter.onstart = () => startCoachTalking();
+
+utter.onend = () => {
+  setCoachIdle();
+};
+
+// 🧠 SAFETY fallback (handles rare browser bugs)
+utter.onerror = () => {
+  setCoachIdle();
+};
+
+speechSynthesis.speak(utter);
 
 }
 // ==========================================
