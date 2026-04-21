@@ -36397,6 +36397,7 @@ document.getElementById("studyPauseBtn")?.addEventListener("click", (e) => {
 
   speechSynthesis.cancel();
   setCoachIdle();
+   forceStopCoachVideo(); // ⭐ ADD THIS
 
 });
 
@@ -37291,6 +37292,8 @@ if (trainerSide === "black") {
     } else {
 
       coachSpeak("Trainer mode disabled");
+      // 🛑 HARD STOP ANIMATION (ADD THIS LINE)
+  forceStopCoachVideo();
 
       // 📝 FORCE SHOW NOTATION
       if (notationBox) {
@@ -57954,6 +57957,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
 });
 
+function forceStopCoachVideo() {
+
+  const talk = document.getElementById("coachTalking");
+  if (!talk) return;
+
+  try {
+    talk.pause();
+    talk.currentTime = 0;
+
+    // 🔥 HARD RESET (Chrome production fix)
+    talk.src = "";
+    talk.load();
+
+    // 🔥 DOUBLE SAFETY
+    talk.style.display = "none";
+
+  } catch(e) {
+    console.warn("forceStopCoachVideo error", e);
+  }
+}
+
 /* ===============================
    GLOBAL COACH STATE
 ================================ */
@@ -57980,33 +58004,23 @@ function detectCoachGender() {
 }
 
 function setCoachIdle() {
-
-  if (!coachEnabled) return;
-
+if(!coachEnabled) return;
   const idle = document.getElementById("coachIdle");
   const talk = document.getElementById("coachTalking");
 
   if (!idle || !talk) return;
 
-  // 🛑 HARD STOP (Chrome fix)
-  try {
-    talk.pause();
-    talk.currentTime = 0;
-
-    // 🔥 CRITICAL (kills stuck video in Chrome after GitHub deploy)
-    talk.src = "";
-    talk.load();
-  } catch(e) {}
+  talk.pause();
+  talk.currentTime = 0;
 
   talk.style.display = "none";
   idle.style.display = "block";
 
   idle.src = `animations/british_${coachGender}_idle.png`;
+
 }
 
 function startCoachTalking() {
-  // 🛑 ONLY RUN IF SPEECH IS ACTUALLY PLAYING
-  if (!speechSynthesis.speaking) return;
 
 if(!window.coachEnabled) return;
 
