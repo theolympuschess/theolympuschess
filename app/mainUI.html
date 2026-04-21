@@ -36169,15 +36169,21 @@ coachSpeak(speech);
 
       const waitSpeech = setInterval(() => {
 
-        if (!speechSynthesis.speaking) {
+  // 🛑 STOP IF PAUSED
+  if (!coachReviewRunning) {
+    clearInterval(waitSpeech);
+    return;
+  }
 
-          clearInterval(waitSpeech);
+  if (!speechSynthesis.speaking) {
 
-          setTimeout(runCoachReviewStep, 500);
+    clearInterval(waitSpeech);
 
-        }
+    setTimeout(runCoachReviewStep, 500);
 
-      }, 200);
+  }
+
+}, 200);
 
     }, 1000);
 
@@ -36187,21 +36193,24 @@ coachSpeak(speech);
 
 function studyAutoPlayStop() {
 
-  // 🛑 HARD STOP FLAG
+  // 🛑 MASTER STOP
   isAutoPlayActive = false;
+  coachReviewRunning = false;
 
-  // 🛑 stop timeout
+  // 🛑 timers
   if (studyAutoPlayTimer) {
     clearTimeout(studyAutoPlayTimer);
     studyAutoPlayTimer = null;
   }
 
-  // 🛑 stop interval
   if (studySpeechInterval) {
     clearInterval(studySpeechInterval);
     studySpeechInterval = null;
   }
 
+  // 🛑 speech + animation
+  speechSynthesis.cancel();
+  setCoachIdle();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -36433,7 +36442,7 @@ let trainerNode = null;
 
 function coachSpeak(text) {
 
-  if (!window.studyVoice) return;
+  if (!window.studyVoice || !text) return;
 
   const utter = new SpeechSynthesisUtterance(text);
 
@@ -36442,23 +36451,28 @@ function coachSpeak(text) {
   utter.pitch = 1;
   utter.volume = 1;
 
-// 🛑 force stop previous animation BEFORE cancel
-setCoachIdle();
-
-speechSynthesis.cancel();
-
-utter.onstart = () => startCoachTalking();
-
-utter.onend = () => {
+  // 🛑 reset before speaking
+  speechSynthesis.cancel();
   setCoachIdle();
-};
 
-// 🧠 SAFETY fallback (handles rare browser bugs)
-utter.onerror = () => {
-  setCoachIdle();
-};
+  utter.onstart = () => startCoachTalking();
 
-speechSynthesis.speak(utter);
+  utter.onend = () => setCoachIdle();
+  utter.onerror = () => setCoachIdle();
+
+  speechSynthesis.speak(utter);
+
+  // 🔥 CHROME FIX (VERY IMPORTANT)
+  let safetyCheck = setInterval(() => {
+
+    if (!speechSynthesis.speaking) {
+
+      setCoachIdle();
+      clearInterval(safetyCheck);
+
+    }
+
+  }, 200);
 
 }
 // ==========================================
@@ -57158,7 +57172,7 @@ function syncFenEditorFEN() {
 
 (function () {
 
- let studyVoiceEnabled = false;
+  let studyVoiceEnabled = false;
   let studyVoiceVolume = 1;
  
   const speech = window.speechSynthesis;
