@@ -36169,21 +36169,15 @@ coachSpeak(speech);
 
       const waitSpeech = setInterval(() => {
 
-  // 🛑 STOP IF PAUSED
-  if (!coachReviewRunning) {
-    clearInterval(waitSpeech);
-    return;
-  }
+        if (!speechSynthesis.speaking) {
 
-  if (!speechSynthesis.speaking) {
+          clearInterval(waitSpeech);
 
-    clearInterval(waitSpeech);
+          setTimeout(runCoachReviewStep, 500);
 
-    setTimeout(runCoachReviewStep, 500);
+        }
 
-  }
-
-}, 200);
+      }, 200);
 
     }, 1000);
 
@@ -36193,24 +36187,21 @@ coachSpeak(speech);
 
 function studyAutoPlayStop() {
 
-  // 🛑 MASTER STOP
+  // 🛑 HARD STOP FLAG
   isAutoPlayActive = false;
-  coachReviewRunning = false;
 
-  // 🛑 timers
+  // 🛑 stop timeout
   if (studyAutoPlayTimer) {
     clearTimeout(studyAutoPlayTimer);
     studyAutoPlayTimer = null;
   }
 
+  // 🛑 stop interval
   if (studySpeechInterval) {
     clearInterval(studySpeechInterval);
     studySpeechInterval = null;
   }
 
-  // 🛑 speech + animation
-  speechSynthesis.cancel();
-  setCoachIdle();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -36442,7 +36433,7 @@ let trainerNode = null;
 
 function coachSpeak(text) {
 
-  if (!window.studyVoice || !text) return;
+  if (!window.studyVoice) return;
 
   const utter = new SpeechSynthesisUtterance(text);
 
@@ -36451,28 +36442,23 @@ function coachSpeak(text) {
   utter.pitch = 1;
   utter.volume = 1;
 
-  // 🛑 reset before speaking
-  speechSynthesis.cancel();
+// 🛑 force stop previous animation BEFORE cancel
+setCoachIdle();
+
+speechSynthesis.cancel();
+
+utter.onstart = () => startCoachTalking();
+
+utter.onend = () => {
   setCoachIdle();
+};
 
-  utter.onstart = () => startCoachTalking();
+// 🧠 SAFETY fallback (handles rare browser bugs)
+utter.onerror = () => {
+  setCoachIdle();
+};
 
-  utter.onend = () => setCoachIdle();
-  utter.onerror = () => setCoachIdle();
-
-  speechSynthesis.speak(utter);
-
-  // 🔥 CHROME FIX (VERY IMPORTANT)
-  let safetyCheck = setInterval(() => {
-
-    if (!speechSynthesis.speaking) {
-
-      setCoachIdle();
-      clearInterval(safetyCheck);
-
-    }
-
-  }, 200);
+speechSynthesis.speak(utter);
 
 }
 // ==========================================
