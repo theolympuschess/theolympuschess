@@ -35783,13 +35783,22 @@ function showStudyReplayPopup() {
 
 let studyAutoPlayTimer = null;
 let studyAutoPlaySpeed = 3000; // ms between moves
+let studyVoiceEnabled = true; // ✅ ADD THIS
+let isAutoPlayActive = false;
+let studySpeechInterval = null;
+
 
 
 function studyAutoPlayStart() {
 
+  isAutoPlayActive = true;
+
   if (studyAutoPlayTimer) return;
 
   function playNextMove() {
+
+    // 🛑 HARD STOP (kills ALL delayed calls)
+    if (!isAutoPlayActive) return;
 
     if (!studyCurrentNode) {
       studyAutoPlayStop();
@@ -35810,11 +35819,19 @@ function studyAutoPlayStart() {
     // 🔊 If narration is ON → wait until speech ends
     if (speechSynthesis.speaking) {
 
-      const checkSpeech = setInterval(() => {
+      studySpeechInterval = setInterval(() => {
+
+        // 🛑 VERY IMPORTANT (THIS WAS MISSING)
+        if (!isAutoPlayActive) {
+          clearInterval(studySpeechInterval);
+studySpeechInterval = null;
+          return;
+        }
 
         if (!speechSynthesis.speaking) {
 
-          clearInterval(checkSpeech);
+          clearInterval(studySpeechInterval);
+studySpeechInterval = null;
 
           studyAutoPlayTimer = setTimeout(playNextMove, 400);
 
@@ -36170,10 +36187,20 @@ coachSpeak(speech);
 
 function studyAutoPlayStop() {
 
-  if (!studyAutoPlayTimer) return;
+  // 🛑 HARD STOP FLAG
+  isAutoPlayActive = false;
 
-  clearTimeout(studyAutoPlayTimer);
-  studyAutoPlayTimer = null;
+  // 🛑 stop timeout
+  if (studyAutoPlayTimer) {
+    clearTimeout(studyAutoPlayTimer);
+    studyAutoPlayTimer = null;
+  }
+
+  // 🛑 stop interval
+  if (studySpeechInterval) {
+    clearInterval(studySpeechInterval);
+    studySpeechInterval = null;
+  }
 
 }
 
@@ -36355,6 +36382,21 @@ document.getElementById("studyPauseBtn")?.addEventListener("click", (e) => {
   e.preventDefault();
 
   studyAutoPlayStop();
+
+  // 🛑 EXACT SAME BEHAVIOR AS narration OFF
+  if (studyVoiceEnabled) {
+    studyVoiceEnabled = false;
+
+    const btn = document.getElementById("studyCommentVoiceBtn");
+    if (btn) {
+      btn.textContent = "🔇";
+      btn.title = "Comment narration OFF";
+      btn.classList.remove("active");
+    }
+  }
+
+  speechSynthesis.cancel();
+  setCoachIdle();
 
 });
 
@@ -36572,7 +36614,7 @@ function trainerAutoPlay() {
 
     setTimeout(() => {
 
-      coachSpeak("Your move");
+      coachSpeak;
 
     }, 700);
 
@@ -57191,7 +57233,8 @@ function syncFenEditorFEN() {
       btn.textContent = "🔇";
       btn.title = "Comment narration OFF";
 
-      speech.cancel();
+    speechSynthesis.cancel();
+setCoachIdle();
 
     }
 
