@@ -62889,6 +62889,7 @@ const PCS = (function(){
   let round = 0;
   let matches = [];
   let allMatches = []; // ✅ stores ALL rounds
+  let historyRoundIndex = null;
 
   function addPlayer(){
     const input = document.getElementById("pairing-name-input");
@@ -63009,8 +63010,12 @@ else {
 }
 
 // before clearing matches, store old ones
+// before clearing matches, store old ones (ROUND-WISE)
 if(matches.length > 0){
-  allMatches.push(...matches);
+  allMatches.push({
+    round: round - 1,
+    matches: JSON.parse(JSON.stringify(matches))
+  });
 }
 
 matches = [];
@@ -63204,86 +63209,113 @@ p2.rating = Math.round(p2.rating + K * (s2 - e2));
   // =============================
 // 📊 OPEN PREVIEW (MODAL)
 // =============================
-function openPreview(){
-  
+function openPreview(roundIndex = null){
+
   const nameInput = document.getElementById("pairing-tournament-name");
   const tournamentName = nameInput.value || "Olympus Tournament";
 
   const overlay = document.getElementById("pcs-modal-overlay");
-  
   const title = document.getElementById("pcs-modal-title");
   const content = document.getElementById("pcs-modal-content");
 
-  title.innerText = `${tournamentName} - Round ${round}`;
   content.innerHTML = "";
 
-  // 🚫 BEFORE PAIRING
-  if(matches.length === 0){
-    content.innerHTML = `<div class="pcs-empty">No pairings yet</div>`;
+  let roundData;
+
+  // 👉 CURRENT ROUND
+if(roundIndex === null){
+  historyRoundIndex = -1; // ✅ FIXED
+  roundData = matches;
+  title.innerText = `${tournamentName} - Round ${round}`;
+}
+  // 👉 OLD ROUND
+  else{
+    historyRoundIndex = roundIndex;
+    let data = allMatches[roundIndex];
+    roundData = data ? data.matches : [];
+    title.innerText = `${tournamentName} - Round ${roundIndex + 1}`;
+  }
+
+  if(!roundData || roundData.length === 0){
+    content.innerHTML = `<div class="pcs-empty">No data</div>`;
     overlay.classList.remove("pcs-hidden");
     return;
   }
 
-  matches.forEach((m, idx)=>{
+  // 🔁 RENDER MATCHES
+  roundData.forEach((m, idx)=>{
     let line = document.createElement("div");
     line.className = "pcs-match-line";
-    // ⭐ ADD HERE
-  line.style.padding = "12px 0";
+    line.style.padding = "12px 0";
 
-    // 🟡 BYE CASE
     if(m.result === "BYE"){
       line.innerHTML = `
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    
-    <div style="min-width:120px; color:#aaa;">
-      Board ${idx + 1}
-    </div>
-
-    <div style="flex:1; text-align:center;">
-      <b>${m.p1.name} (${m.p1.rating})</b>
-      <span class="pcs-result">1-0</span>
-      <span>(BYE)</span>
-    </div>
-
-  </div>
-`;
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="min-width:120px; color:#aaa;">Board ${idx + 1}</div>
+          <div style="flex:1; text-align:center;">
+            <b>${m.p1.name} (${m.p1.rating})</b>
+            <span class="pcs-result">1-0</span> (BYE)
+          </div>
+        </div>
+      `;
     } 
     else {
-      let result = m.result || "vs";
-
-      // 🎯 DEFAULT (ROUND 1)
-      let player1 = `<b>${m.p1.name} (${m.p1.rating})</b>`;
-let player2 = `<b>${m.p2.name} (${m.p2.rating})</b>`;
-
-      // ⭐ FROM ROUND 2 → SHOW SCORE LIKE FIDE
-      if(round > 1){
-  player1 = `<b>${m.p1.name} (${m.p1.score} | ${m.p1.rating})</b>`;
-  player2 = `<b>${m.p2.name} (${m.p2.score} | ${m.p2.rating})</b>`;
-}
-
-    line.innerHTML = `
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    
-    <div style="min-width:120px; color:#aaa;">
-      Board ${idx + 1}
-    </div>
-
-    <div style="flex:1; text-align:center;">
-      ${player1}
-      <span class="pcs-result">${result}</span>
-      ${player2}
-    </div>
-
-  </div>
-`;
+      line.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="min-width:120px; color:#aaa;">Board ${idx + 1}</div>
+          <div style="flex:1; text-align:center;">
+            <b>${m.p1.name} (${m.p1.score} | ${m.p1.rating})</b>
+            <span class="pcs-result">${m.result || "vs"}</span>
+            <b>${m.p2.name} (${m.p2.score} | ${m.p2.rating})</b>
+          </div>
+        </div>
+      `;
     }
 
     content.appendChild(line);
   });
 
+  // 🔥 NAVIGATION BUTTONS
+  const nav = document.createElement("div");
+  nav.style.marginTop = "15px";
+
+  nav.innerHTML = `
+    <button onclick="PCS.prevRound()">⬅ Prev</button>
+    <button onclick="PCS.nextRound()">Next ➡</button>
+  `;
+
+  content.appendChild(nav);
+
   overlay.classList.remove("pcs-hidden");
 }
 
+function prevRound(){
+
+  // 👉 if currently viewing LIVE round
+  if(historyRoundIndex === -1){
+    if(allMatches.length > 0){
+      openPreview(allMatches.length - 1);
+    }
+  }
+
+  // 👉 normal history backward
+  else if(historyRoundIndex > 0){
+    openPreview(historyRoundIndex - 1);
+  }
+}
+
+function nextRound(){
+
+  // 👉 move inside history
+  if(historyRoundIndex >= 0 && historyRoundIndex < allMatches.length - 1){
+    openPreview(historyRoundIndex + 1);
+  }
+
+  // 👉 last history → go to LIVE round
+  else if(historyRoundIndex === allMatches.length - 1){
+    openPreview(null);
+  }
+}
 // =============================
 // ❌ CLOSE PREVIEW
 // =============================
@@ -63303,7 +63335,22 @@ function openStandings(){
   const title = document.getElementById("pcs-modal-title");
   const content = document.getElementById("pcs-modal-content");
 
+  // 🔥 SMART ROUND DISPLAY
+let displayRound = round;
+
+// if current round matches are NOT finished → show previous round
+if(matches.length > 0){
+  let allDone = matches.every(m => m.result !== null && m.result !== "");
+  if(!allDone){
+    displayRound = Math.max(0, round - 1);
+  }
+}
+
+if(displayRound === 0){
   title.innerText = `${tournamentName} - Standings`;
+} else {
+  title.innerText = `${tournamentName} - Standings (Round ${displayRound})`;
+}
   content.innerHTML = "";
 
   // sort by score DESC
@@ -63400,15 +63447,21 @@ overlay.classList.remove("pcs-hidden");
 function calculateBuchholz(player){
   let sum = 0;
 
-  allMatches.forEach(m => {
-    if(m.result === "BYE") return;
+  allMatches.forEach(r => {
+  if(!r || !r.matches) return;
 
-    if(m.p1.name === player.name){
-      sum += m.p2.score;
-    }
-    else if(m.p2.name === player.name){
-      sum += m.p1.score;
-    }
+  r.matches.forEach(m => {
+
+      if(m.result === "BYE") return;
+
+      if(m.p1 && m.p1.name === player.name){
+        sum += m.p2 ? m.p2.score : 0;
+      }
+      else if(m.p2 && m.p2.name === player.name){
+        sum += m.p1 ? m.p1.score : 0;
+      }
+
+    });
   });
 
   return sum;
@@ -63419,29 +63472,31 @@ function calculateBuchholz(player){
 function calculateSB(player){
   let sum = 0;
 
-  allMatches.forEach(m=>{
-    if(m.result === "BYE") return;
+ allMatches.forEach(r => {
+  if(!r || !r.matches) return;
 
-    // player is p1
-    if(m.p1.name === player.name){
-      if(m.result === "1-0"){
-        sum += m.p2.score;
-      }
-      else if(m.result === "0.5-0.5"){
-        sum += m.p2.score / 2;
-      }
-    }
+  r.matches.forEach(m => {
+      if(m.result === "BYE") return;
 
-    // player is p2
-    if(m.p2.name === player.name){
-      if(m.result === "0-1"){
-        sum += m.p1.score;
+      if(m.p1 && m.p1.name === player.name){
+        if(m.result === "1-0"){
+          sum += m.p2 ? m.p2.score : 0;
+        }
+        else if(m.result === "0.5-0.5"){
+          sum += m.p2 ? m.p2.score / 2 : 0;
+        }
       }
-      else if(m.result === "0.5-0.5"){
-        sum += m.p1.score / 2;
-      }
-    }
 
+      if(m.p2 && m.p2.name === player.name){
+        if(m.result === "0-1"){
+          sum += m.p1 ? m.p1.score : 0;
+        }
+        else if(m.result === "0.5-0.5"){
+          sum += m.p1 ? m.p1.score / 2 : 0;
+        }
+      }
+
+    });
   });
 
   return sum;
@@ -63452,23 +63507,28 @@ function calculateSB(player){
 function calculateH2H(player, opponents){
   let score = 0;
 
-  allMatches.forEach(m=>{
-    if(m.result === "BYE") return;
+  allMatches.forEach(r => {
+  if(!r || !r.matches) return;
 
-    // only consider tied group opponents
-    if(!opponents.includes(m.p1.name) && !opponents.includes(m.p2.name)) return;
+  r.matches.forEach(m => {
 
-    // player is p1
-    if(m.p1.name === player.name){
-      if(m.result === "1-0") score += 1;
-      else if(m.result === "0.5-0.5") score += 0.5;
-    }
+      if(m.result === "BYE") return;
 
-    // player is p2
-    if(m.p2.name === player.name){
-      if(m.result === "0-1") score += 1;
-      else if(m.result === "0.5-0.5") score += 0.5;
-    }
+      if(!m.p1 || !m.p2) return;
+
+      if(!opponents.includes(m.p1.name) && !opponents.includes(m.p2.name)) return;
+
+      if(m.p1.name === player.name){
+        if(m.result === "1-0") score += 1;
+        else if(m.result === "0.5-0.5") score += 0.5;
+      }
+
+      if(m.p2.name === player.name){
+        if(m.result === "0-1") score += 1;
+        else if(m.result === "0.5-0.5") score += 0.5;
+      }
+
+    });
   });
 
   return score;
@@ -63604,6 +63664,8 @@ return {
   closePreview,
   openStandings,
   updateRating,
+  prevRound,
+nextRound,
   // 🔥 NEW
   saveTournament,
   loadTournamentList,
