@@ -19027,7 +19027,7 @@ input:checked + .slider:before {
 
 .pcs-stand-row {
   display: grid;
- grid-template-columns: 50px 1fr 80px 100px 160px 80px;
+ grid-template-columns: 50px 1fr 80px 80px 100px 120px 80px;
   padding: 10px;
   border-bottom: 1px solid #333;
   align-items: center;
@@ -62898,6 +62898,7 @@ const PCS = (function(){
     players.push({
       name,
       score: 0,
+      rating: 500,
       opponents: []
     });
 
@@ -62923,19 +62924,26 @@ function renderPlayers(){
     div.className = "pairing-player";
 
     div.innerHTML = `
-      <span>${p.name}</span>
+  <span>${p.name}</span>
 
-      <input 
-        type="number" 
-        step="0.5" 
-        value="${p.score}" 
-        onchange="PCS.updateScore(${index}, this.value)"
-        style="width:60px; text-align:center;"
-      >
+  <input 
+    type="number" 
+    step="0.5" 
+    value="${p.score}" 
+    onchange="PCS.updateScore(${index}, this.value)"
+    style="width:60px; text-align:center;"
+  >
 
-      <button onclick="PCS.deletePlayer(${index})">❌</button>
-    `;
+  <input 
+    type="number"
+    value="${p.rating}"
+    onchange="PCS.updateRating(${index}, this.value)"
+    style="width:70px; text-align:center;"
+    title="Rating"
+  >
 
+  <button onclick="PCS.deletePlayer(${index})">❌</button>
+`;
     list.appendChild(div);
   });
 }
@@ -62953,6 +62961,17 @@ function updateScore(index, value){
 
   players[index].score = newScore;
 
+  renderPlayers();
+}
+function updateRating(index, value){
+  let r = parseInt(value);
+
+  if(isNaN(r) || r < 0){
+    alert("Invalid rating");
+    return;
+  }
+
+  players[index].rating = r;
   renderPlayers();
 }
 
@@ -63112,6 +63131,34 @@ function setResult(index, result){
     p1.score += 0.5;
     p2.score += 0.5;
   }
+  // =============================
+// ⭐ ELO RATING UPDATE
+// =============================
+let K = 20;
+
+function expected(r1, r2){
+  return 1 / (1 + Math.pow(10, (r2 - r1)/400));
+}
+
+let e1 = expected(p1.rating, p2.rating);
+let e2 = expected(p2.rating, p1.rating);
+
+// actual score
+let s1 = 0, s2 = 0;
+
+if(result === "1-0"){
+  s1 = 1; s2 = 0;
+}
+else if(result === "0-1"){
+  s1 = 0; s2 = 1;
+}
+else if(result === "0.5-0.5"){
+  s1 = 0.5; s2 = 0.5;
+}
+
+// update ratings
+p1.rating = Math.round(p1.rating + K * (s1 - e1));
+p2.rating = Math.round(p2.rating + K * (s2 - e2));
 
   // 🧠 STORE OPPONENT (ONLY ONCE)
   if(!p1.opponents.includes(p2.name)){
@@ -63152,7 +63199,7 @@ function openPreview(){
     // 🟡 BYE CASE
     if(m.result === "BYE"){
       line.innerHTML = `
-        <b>${m.p1.name}</b> 
+        <b>${m.p1.name} (${m.p1.rating})</b> 
         <span class="pcs-result">1-0</span> 
         <span>(BYE)</span>
       `;
@@ -63161,14 +63208,14 @@ function openPreview(){
       let result = m.result || "vs";
 
       // 🎯 DEFAULT (ROUND 1)
-      let player1 = `<b>${m.p1.name}</b>`;
-      let player2 = `<b>${m.p2.name}</b>`;
+      let player1 = `<b>${m.p1.name} (${m.p1.rating})</b>`;
+let player2 = `<b>${m.p2.name} (${m.p2.rating})</b>`;
 
       // ⭐ FROM ROUND 2 → SHOW SCORE LIKE FIDE
       if(round > 1){
-        player1 = `<b>${m.p1.name} (${m.p1.score})</b>`;
-        player2 = `<b>${m.p2.name} (${m.p2.score})</b>`;
-      }
+  player1 = `<b>${m.p1.name} (${m.p1.score} | ${m.p1.rating})</b>`;
+  player2 = `<b>${m.p2.name} (${m.p2.score} | ${m.p2.rating})</b>`;
+}
 
       line.innerHTML = `
         ${player1}
@@ -63208,6 +63255,11 @@ function openStandings(){
   // sort by score DESC
 let sorted = [...players].sort((a,b)=>{
 
+  // 🟢 BEFORE ROUND 1 → SORT BY RATING
+  if(round === 0){
+    return b.rating - a.rating;
+  }
+
   // 1️⃣ Points
   if(b.score !== a.score) return b.score - a.score;
 
@@ -63221,7 +63273,7 @@ let sorted = [...players].sort((a,b)=>{
   let sbB = calculateSB(b);
   if(sbB !== sbA) return sbB - sbA;
 
-  // 4️⃣ H2H (tied group only)
+  // 4️⃣ H2H
   let tiedPlayers = players.filter(p =>
     p.score === a.score &&
     calculateBuchholz(p) === calculateBuchholz(a) &&
@@ -63241,9 +63293,10 @@ let sorted = [...players].sort((a,b)=>{
   // table header
 let table = document.createElement("div");
 table.innerHTML = `
- <div class="pcs-stand-row pcs-stand-head">
+<div class="pcs-stand-row pcs-stand-head">
   <span>#</span>
   <span>Player</span>
+  <span>Rating</span>
   <span>Points</span>
   <span>Buchholz</span>
   <span>Sonneborn-Berger</span>
@@ -63273,6 +63326,7 @@ let h2h = calculateH2H(p, names);
 row.innerHTML = `
   <span>${index + 1}</span>
   <span>${p.name}</span>
+  <span>${p.rating}</span>
   <span>${p.score}</span>
   <span>${buchholz}</span>
   <span>${calculateSB(p).toFixed(1)}</span>
@@ -63495,6 +63549,7 @@ return {
   openPreview,
   closePreview,
   openStandings,
+  updateRating,
   // 🔥 NEW
   saveTournament,
   loadTournamentList,
