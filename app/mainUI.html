@@ -63570,7 +63570,8 @@ async function saveTournament(){
     players,
     matches,
     allMatches,
-    round
+    round,
+    savedAt: new Date().toISOString() 
   };
 
   const { error } = await supabase
@@ -63610,19 +63611,70 @@ if(!list){
 }
   list.innerHTML = "";
 
-  data.forEach(t=>{
-    const div = document.createElement("div");
-    div.className = "pcs-match-line";
+data.forEach(t=>{
+  const div = document.createElement("div");
+  div.className = "pcs-match-line";
 
-    div.innerHTML = `
-      <b>${t.name}</b>
-      <button onclick="PCS.loadTournament('${t.id}')">▶ Load</button>
-      <button onclick="PCS.deleteTournament('${t.id}')">🗑 Delete</button>
-    `;
+  // ✅ DATE
+  let savedAt = t.data?.savedAt;
+  let formattedDate = "Unknown";
 
-    list.appendChild(div);
+  if(savedAt){
+    const d = new Date(savedAt);
+    formattedDate = d.toLocaleString();
+  }
+
+  // ✅ PLAYERS COUNT
+let totalPlayers = t.data?.players?.length || 0;
+
+// ✅ ROUNDS PLAYED
+let totalRounds = t.data?.round || 0;
+
+// ✅ TOP 3 PLAYERS (SORT LIKE STANDINGS)
+let topPlayers = [];
+
+if(t.data?.players){
+
+  let sorted = [...t.data.players].sort((a,b)=>{
+    return (b.score || 0) - (a.score || 0);
   });
 
+  topPlayers = sorted.slice(0, 3).map((p, i)=>{
+    if(i === 0) return `🥇 ${p.name}`;
+    if(i === 1) return `🥈 ${p.name}`;
+    if(i === 2) return `🥉 ${p.name}`;
+  });
+}
+
+  div.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      
+      <div>
+        <b>${t.name}</b><br>
+
+        <span style="font-size:12px; color:#aaa;">
+          ${formattedDate}
+        </span><br>
+
+        <span style="font-size:12px; color:#bbb;">
+          👥 ${totalPlayers} Players | 🏁 ${totalRounds} Rounds
+<br>
+<span style="font-size:12px; color:#bbb;">
+  ${topPlayers.join(" | ") || "No standings"}
+</span>
+        </span>
+      </div>
+
+      <div>
+        <button onclick="PCS.loadTournament('${t.id}')">▶ Load</button>
+        <button onclick="PCS.deleteTournament('${t.id}')">🗑 Delete</button>
+      </div>
+
+    </div>
+  `;
+
+  list.appendChild(div);
+});
   const modal = document.getElementById("pcs-load-modal");
 modal.classList.remove("pcs-hidden");
 modal.style.display = "flex"; // 🔥 FORCE SHOW
@@ -63644,6 +63696,10 @@ async function loadTournament(id){
   }
 
   const state = data.data;
+  if(state.savedAt){
+  const d = new Date(state.savedAt);
+  console.log("Tournament saved at:", d.toLocaleString());
+}
 
   players = state.players || [];
   matches = state.matches || [];
