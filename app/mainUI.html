@@ -62999,7 +62999,14 @@ if(matches.length > 0){
 
   round++;
 
+  // 🟢 ROUND 1 → SORT BY RATING
+if(round === 1){
+  players.sort((a,b)=>b.rating - a.rating);
+} 
+// 🔵 AFTER → SORT BY SCORE
+else {
   players.sort((a,b)=>b.score - a.score);
+}
 
 // before clearing matches, store old ones
 if(matches.length > 0){
@@ -63033,6 +63040,29 @@ matches = [];
   // =============================
   // NORMAL PAIRING
   // =============================
+// =============================
+// 🟢 ROUND 1 → TRUE SWISS SPLIT (RATING BASED)
+// =============================
+if(round === 1){
+
+  let half = Math.ceil(players.length / 2);
+
+  for(let i = 0; i < half; i++){
+    if(players[i] && players[i + half]){
+      matches.push({
+        p1: players[i],
+        p2: players[i + half],
+        result: null
+      });
+    }
+  }
+
+} 
+// =============================
+// 🔵 NORMAL PAIRING (ROUND 2+)
+// =============================
+else {
+
   for(let i=0;i<players.length;i++){
     if(used.has(i)) continue;
 
@@ -63064,6 +63094,8 @@ matches = [];
       used.add(opponentIndex);
     }
   }
+
+}
 
   renderMatches();
 }
@@ -63192,17 +63224,29 @@ function openPreview(){
     return;
   }
 
-  matches.forEach(m=>{
+  matches.forEach((m, idx)=>{
     let line = document.createElement("div");
     line.className = "pcs-match-line";
+    // ⭐ ADD HERE
+  line.style.padding = "12px 0";
 
     // 🟡 BYE CASE
     if(m.result === "BYE"){
       line.innerHTML = `
-        <b>${m.p1.name} (${m.p1.rating})</b> 
-        <span class="pcs-result">1-0</span> 
-        <span>(BYE)</span>
-      `;
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    
+    <div style="min-width:120px; color:#aaa;">
+      Board ${idx + 1}
+    </div>
+
+    <div style="flex:1; text-align:center;">
+      <b>${m.p1.name} (${m.p1.rating})</b>
+      <span class="pcs-result">1-0</span>
+      <span>(BYE)</span>
+    </div>
+
+  </div>
+`;
     } 
     else {
       let result = m.result || "vs";
@@ -63217,11 +63261,21 @@ let player2 = `<b>${m.p2.name} (${m.p2.rating})</b>`;
   player2 = `<b>${m.p2.name} (${m.p2.score} | ${m.p2.rating})</b>`;
 }
 
-      line.innerHTML = `
-        ${player1}
-        <span class="pcs-result">${result}</span>
-        ${player2}
-      `;
+    line.innerHTML = `
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    
+    <div style="min-width:120px; color:#aaa;">
+      Board ${idx + 1}
+    </div>
+
+    <div style="flex:1; text-align:center;">
+      ${player1}
+      <span class="pcs-result">${result}</span>
+      ${player2}
+    </div>
+
+  </div>
+`;
     }
 
     content.appendChild(line);
