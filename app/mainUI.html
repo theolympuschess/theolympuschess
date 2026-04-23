@@ -19092,6 +19092,201 @@ body.student-view .nav-btn[data-tab="pairing"] {
 }
 
 
+.rating-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px; /* 🔥 controls spacing */
+}
+
+.rating-cell span:first-child {
+  font-size: 12px;
+}
+
+.rating-value {
+  display: inline-block;
+}
+
+
+
+/* =============================
+   🎨 PAIRING UI MODERN THEME
+============================= */
+
+#pairing-section {
+  color: #fff;
+}
+
+/* 🔲 BOXES */
+.pairing-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 🧾 INPUTS */
+.pairing-box input {
+  background: #0f1115;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  outline: none;
+  transition: 0.2s;
+}
+
+.pairing-box input:focus {
+  border-color: #ffd700;
+  box-shadow: 0 0 6px rgba(255,215,0,0.3);
+}
+
+/* 🎮 BUTTON BASE */
+button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.2s;
+}
+
+/* ➕ ADD */
+button[onclick*="addPlayer"] {
+  background: #00c853;
+  color: #fff;
+}
+button[onclick*="addPlayer"]:hover {
+  background: #00e676;
+}
+
+/* 🔄 RESET */
+button[onclick*="resetTournament"] {
+  background: #ff5252;
+  color: #fff;
+}
+button[onclick*="resetTournament"]:hover {
+  background: #ff6e6e;
+}
+
+/* ⚡ GENERATE */
+button[onclick*="generatePairings"] {
+  background: linear-gradient(135deg, #ffd700, #ffb300);
+  color: #000;
+}
+button[onclick*="generatePairings"]:hover {
+  filter: brightness(1.1);
+}
+
+/* 📊 VIEW ROUND */
+button[onclick*="openPreview"] {
+  background: #2196f3;
+  color: #fff;
+}
+button[onclick*="openPreview"]:hover {
+  background: #42a5f5;
+}
+
+/* 🏆 STANDINGS */
+button[onclick*="openStandings"] {
+  background: #9c27b0;
+  color: #fff;
+}
+button[onclick*="openStandings"]:hover {
+  background: #ba68c8;
+}
+
+/* 💾 SAVE */
+button[onclick*="saveTournament"] {
+  background: #00bcd4;
+  color: #fff;
+}
+button[onclick*="saveTournament"]:hover {
+  background: #26c6da;
+}
+
+/* 📂 LOAD */
+button[onclick*="loadTournamentList"] {
+  background: #607d8b;
+  color: #fff;
+}
+button[onclick*="loadTournamentList"]:hover {
+  background: #78909c;
+}
+
+/* 🎛 CONTROLS WRAP */
+.pairing-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+/* 👥 PLAYER LIST */
+.pairing-list {
+  margin-top: 10px;
+}
+
+.pairing-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.03);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* ❌ DELETE BUTTON */
+.pairing-player button {
+  background: #ff5252;
+  color: #fff;
+}
+.pairing-player button:hover {
+  background: #ff6e6e;
+}
+
+/* ♟ MATCHES */
+.pairing-match {
+  background: rgba(255,255,255,0.03);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* 🎯 SELECT DROPDOWN */
+.pairing-match select {
+  margin-left: 10px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: none;
+  background: #1a1d24;
+  color: #fff;
+}
+
+/* 🏷 TITLE */
+#pairing-section h2 {
+  color: #ffd700;
+  margin-bottom: 15px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -62926,6 +63121,7 @@ const PCS = (function(){
       name,
       score: 0,
       rating: 500,
+      initialRating: 500, 
       opponents: []
     });
 
@@ -63379,6 +63575,42 @@ if(displayRound === 0){
 }
   content.innerHTML = "";
 
+// =============================
+// 📅 DATE + 👥 PLAYER COUNT HEADER
+// =============================
+let savedAt = null;
+
+// try to get latest saved date from allMatches or current session
+if(allMatches.length > 0){
+  // take last stored round snapshot (optional fallback)
+  savedAt = null;
+}
+
+// 👉 BEST SOURCE = last saved tournament (already loaded)
+if(window.lastLoadedTournamentDate){
+  savedAt = window.lastLoadedTournamentDate;
+}
+
+// fallback → current time if not found
+let formattedDate = savedAt 
+  ? new Date(savedAt).toLocaleString()
+  : new Date().toLocaleString();
+
+let totalPlayers = players.length;
+
+// 🔥 CREATE HEADER BLOCK
+let infoBlock = document.createElement("div");
+infoBlock.style.fontSize = "13px";
+infoBlock.style.color = "#bbb";
+infoBlock.style.marginBottom = "10px";
+infoBlock.style.textAlign = "center";
+
+infoBlock.innerHTML = `
+  📅 ${formattedDate} &nbsp;&nbsp; | &nbsp;&nbsp; 👥 ${totalPlayers} Players
+`;
+
+content.appendChild(infoBlock);
+
   // sort by score DESC
 let sorted = [...players].sort((a,b)=>{
 
@@ -63450,10 +63682,23 @@ let h2h = calculateH2H(p, names);
 
 
 
+let diff = p.rating - (p.initialRating || p.rating);
+
+let diffHTML = "";
+if(diff > 0){
+  diffHTML = `<span style="color:#00ff88; font-size:12px;">↑${diff}</span>`;
+}
+else if(diff < 0){
+  diffHTML = `<span style="color:#ff4d4d; font-size:12px;">↓${Math.abs(diff)}</span>`;
+}
+
 row.innerHTML = `
   <span>${index + 1}</span>
   <span>${p.name}</span>
-  <span>${p.rating}</span>
+  <span class="rating-cell">
+    ${diffHTML}
+    <span class="rating-value">${p.rating}</span>
+  </span>
   <span>${p.score}</span>
   <span>${buchholz}</span>
   <span>${calculateSB(p).toFixed(1)}</span>
@@ -63586,6 +63831,8 @@ async function saveTournament(){
     console.error(error);
   } else {
     alert("✅ Tournament Saved");
+    // 🔥 ADD THIS LINE EXACTLY HERE
+  window.lastLoadedTournamentDate = state.savedAt;
   }
 }
 
@@ -63696,12 +63943,20 @@ async function loadTournament(id){
   }
 
   const state = data.data;
+  // 🔥 store globally for standings use
+window.lastLoadedTournamentDate = state.savedAt || null;
   if(state.savedAt){
   const d = new Date(state.savedAt);
   console.log("Tournament saved at:", d.toLocaleString());
 }
 
   players = state.players || [];
+  // 🔥 ensure old tournaments also work
+players.forEach(p => {
+  if(p.initialRating === undefined){
+    p.initialRating = p.rating;
+  }
+});
   matches = state.matches || [];
   allMatches = state.allMatches || [];
   round = state.round || 0;
