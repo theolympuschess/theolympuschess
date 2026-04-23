@@ -63804,6 +63804,46 @@ function calculateH2H(player, opponents){
 
   return score;
 }
+function calculateBuchholzFromData(player, allMatches){
+  let sum = 0;
+
+  (allMatches || []).forEach(r=>{
+    (r.matches || []).forEach(m=>{
+      if(m.result === "BYE") return;
+
+      if(m.p1?.name === player.name){
+        sum += m.p2?.score || 0;
+      }
+      else if(m.p2?.name === player.name){
+        sum += m.p1?.score || 0;
+      }
+    });
+  });
+
+  return sum;
+}
+
+function calculateSBFromData(player, allMatches){
+  let sum = 0;
+
+  (allMatches || []).forEach(r=>{
+    (r.matches || []).forEach(m=>{
+      if(m.result === "BYE") return;
+
+      if(m.p1?.name === player.name){
+        if(m.result === "1-0") sum += m.p2?.score || 0;
+        else if(m.result === "0.5-0.5") sum += (m.p2?.score || 0) / 2;
+      }
+
+      if(m.p2?.name === player.name){
+        if(m.result === "0-1") sum += m.p1?.score || 0;
+        else if(m.result === "0.5-0.5") sum += (m.p1?.score || 0) / 2;
+      }
+    });
+  });
+
+  return sum;
+}
 // =============================
 // 💾 SAVE TO SUPABASE
 // =============================
@@ -63882,9 +63922,25 @@ let topPlayers = [];
 
 if(t.data?.players){
 
-  let sorted = [...t.data.players].sort((a,b)=>{
+let sorted = [...t.data.players].sort((a,b)=>{
+
+  // 1️⃣ Points
+  if((b.score || 0) !== (a.score || 0)){
     return (b.score || 0) - (a.score || 0);
-  });
+  }
+
+  // 2️⃣ Buchholz
+  let buchA = calculateBuchholzFromData(a, t.data.allMatches);
+  let buchB = calculateBuchholzFromData(b, t.data.allMatches);
+  if(buchB !== buchA) return buchB - buchA;
+
+  // 3️⃣ SB
+  let sbA = calculateSBFromData(a, t.data.allMatches);
+  let sbB = calculateSBFromData(b, t.data.allMatches);
+  if(sbB !== sbA) return sbB - sbA;
+
+  return 0;
+});
 
   topPlayers = sorted.slice(0, 3).map((p, i)=>{
     if(i === 0) return `🥇 ${p.name}`;
