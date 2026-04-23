@@ -19783,6 +19783,7 @@ button[onclick*="loadTournamentList"]:hover {
   <button onclick="PCS.generatePairings()">⚡ Generate Round</button>
   <button onclick="PCS.openPreview()">📊 View Round</button>
   <button onclick="PCS.openStandings()">🏆 Standings</button>
+  <button onclick="PCS.openPlayersList()">👥 Players</button>
   <!-- 🔥 NEW -->
   <button onclick="PCS.saveTournament()" data-role="admin-only">💾 Save</button>
   <button onclick="PCS.loadTournamentList()">📂 Load</button>
@@ -64403,6 +64404,100 @@ allGames.forEach(m => {
   content.innerHTML = html;
   overlay.classList.remove("pcs-hidden");
 }
+// =============================
+// 👥 OPEN ALL PLAYERS LIST (GLOBAL + CURRENT)
+// =============================
+function openPlayersList(){
+
+  const nameInput = document.getElementById("pairing-tournament-name");
+  const tournamentName = nameInput.value || "Olympus Tournament";
+
+  const overlay = document.getElementById("pcs-modal-overlay");
+  const title = document.getElementById("pcs-modal-title");
+  const content = document.getElementById("pcs-modal-content");
+
+  title.innerText = `${tournamentName} - Players`;
+  content.innerHTML = "";
+
+  // =============================
+  // 🔥 MERGE SOURCE
+  // =============================
+  let sourcePlayers = [];
+
+  if(players.length > 0){
+    sourcePlayers = [...players];
+  } else {
+    // 👉 fallback to DB
+    sourcePlayers = studentDB.map(s => ({
+      name: s.name,
+      rating: s.rating,
+      score: 0
+    }));
+  }
+
+  if(sourcePlayers.length === 0){
+    content.innerHTML = `<div class="pcs-empty">No players</div>`;
+    overlay.classList.remove("pcs-hidden");
+    return;
+  }
+
+  // =============================
+  // 🔥 SORT (SMART)
+  // =============================
+  let sorted = [...sourcePlayers].sort((a,b)=>{
+
+    // if coming from DB → no score → sort by rating
+    if(players.length === 0){
+      return (b.rating || 0) - (a.rating || 0);
+    }
+
+    // normal tournament sorting
+    if(b.score !== a.score) return b.score - a.score;
+
+    let buchA = calculateBuchholz(a);
+    let buchB = calculateBuchholz(b);
+    if(buchB !== buchA) return buchB - buchA;
+
+    let sbA = calculateSB(a);
+    let sbB = calculateSB(b);
+    if(sbB !== sbA) return sbB - sbA;
+
+    return 0;
+  });
+
+  // =============================
+  // 🎯 RENDER
+  // =============================
+  sorted.forEach((p, index)=>{
+
+    let div = document.createElement("div");
+    div.className = "pcs-match-line";
+
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        
+        <div style="min-width:60px; color:#aaa;">
+          ${index + 1}
+        </div>
+
+        <div style="flex:1; text-align:left;">
+          <span class="player-link" onclick="PCS.openPlayerProfile('${p.name}')">
+            ${p.name}
+          </span>
+        </div>
+
+        <div style="min-width:100px; text-align:right;">
+          ⭐ ${p.rating || 0}
+        </div>
+
+      </div>
+    `;
+
+    content.appendChild(div);
+  });
+
+  overlay.classList.remove("pcs-hidden");
+}
 return {
   addPlayer,
   resetTournament,
@@ -64420,6 +64515,7 @@ getStudentDB: () => studentDB,
 loadStudentDB,
 deleteStudent,
 openPlayerProfile,
+ openPlayersList, // 🔥 ADD THIS
   // 🔥 NEW
   saveTournament,
   loadTournamentList,
