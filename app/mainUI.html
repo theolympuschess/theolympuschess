@@ -19381,12 +19381,109 @@ button[onclick*="loadTournamentList"]:hover {
 
 
 
+/* =============================
+   👥 PLAYER LIST ALIGNMENT FIX
+============================= */
+
+.pcs-player-row {
+  display: grid;
+  grid-template-columns: 
+    50px   /* rank */
+    1fr    /* name */
+    100px  /* points */
+    100px  /* games */
+    90px;  /* rating */
+
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.pcs-player-row span {
+  text-align: center;
+}
+
+/* name left aligned */
+.pcs-player-row .player-name {
+  text-align: left;
+  padding-left: 8px;
+}
+
+/* gold points */
+.player-points {
+  color: #ffd700;
+  font-weight: 600;
+}
+
+/* subtle games */
+.player-games {
+  color: #888;
+  font-size: 12px;
+}
+
+/* rating */
+.player-rating {
+  font-weight: 500;
+}
+
+
+
+@media (max-width: 768px){
+  .pcs-player-row {
+    grid-template-columns: 
+      35px 
+      1fr 
+      80px 
+      80px 
+      70px;
+  }
+}
 
 
 
 
 
+/* =============================
+   🏆 TOP 3 STYLING
+============================= */
 
+/* 🥇 GOLD */
+.pcs-player-row.top1 {
+  background: linear-gradient(90deg, rgba(255,215,0,0.15), transparent);
+  box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+
+/* 🥈 SILVER */
+.pcs-player-row.top2 {
+  background: linear-gradient(90deg, rgba(192,192,192,0.15), transparent);
+  box-shadow: 0 0 8px rgba(192,192,192,0.25);
+}
+
+/* 🥉 BRONZE */
+.pcs-player-row.top3 {
+  background: linear-gradient(90deg, rgba(205,127,50,0.15), transparent);
+  box-shadow: 0 0 8px rgba(205,127,50,0.25);
+}
+
+/* badge size */
+.rank {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* slight glow on name */
+.top1 .player-name {
+  color: #ffd700;
+  font-weight: 700;
+}
+
+.top2 .player-name {
+  color: #c0c0c0;
+}
+
+.top3 .player-name {
+  color: #cd7f32;
+}
 
 
 
@@ -64470,7 +64567,7 @@ async function openPlayersList(){
   const title = document.getElementById("pcs-modal-title");
   const content = document.getElementById("pcs-modal-content");
 
-  title.innerText = `${tournamentName} - Global Players`;
+  title.innerText = `${tournamentName} - Ranking List`;
   content.innerHTML = "Loading...";
 
   // =============================
@@ -64493,11 +64590,12 @@ async function openPlayersList(){
 
   // base from studentDB
   studentDB.forEach(s => {
-    playerMap[s.name] = {
-      name: s.name,
-      rating: s.rating || 0,
-      totalPoints: 0
-    };
+   playerMap[s.name] = {
+  name: s.name,
+  rating: s.rating || 0,
+  totalPoints: 0,
+  gamesPlayed: 0
+};
   });
 
   // =============================
@@ -64512,19 +64610,23 @@ async function openPlayersList(){
     rounds.forEach(r => {
       (r.matches || []).forEach(m => {
 
-        if(m.result === "BYE"){
-          if(m.p1){
-            if(!playerMap[m.p1.name]){
-              playerMap[m.p1.name] = {
-                name: m.p1.name,
-                rating: m.p1.rating || 0,
-                totalPoints: 0
-              };
-            }
-            playerMap[m.p1.name].totalPoints += 1;
-          }
-          return;
-        }
+     if(m.result === "BYE"){
+  if(m.p1){
+
+    if(!playerMap[m.p1.name]){
+      playerMap[m.p1.name] = {
+        name: m.p1.name,
+        rating: m.p1.rating || 0,
+        totalPoints: 0,
+        gamesPlayed: 0
+      };
+    }
+
+    playerMap[m.p1.name].totalPoints += 1;
+    playerMap[m.p1.name].gamesPlayed += 1; // ✅ count BYE as game
+  }
+  return;
+}
 
         if(!m.p1 || !m.p2) return;
 
@@ -64544,7 +64646,9 @@ async function openPlayersList(){
             totalPoints: 0
           };
         }
-
+// ✅ count games
+playerMap[m.p1.name].gamesPlayed += 1;
+playerMap[m.p2.name].gamesPlayed += 1;
         if(m.result === "1-0"){
           playerMap[m.p1.name].totalPoints += 1;
         }
@@ -64590,30 +64694,35 @@ async function openPlayersList(){
     div.className = "pcs-match-line";
 
     div.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        
-        <div style="min-width:60px; color:#aaa;">
-          ${index + 1}
-        </div>
+  <div class="pcs-player-row ${index === 0 ? 'top1' : index === 1 ? 'top2' : index === 2 ? 'top3' : ''}">
 
-        <div style="flex:1; text-align:left; display:flex; justify-content:space-between;">
+    <span class="rank">
+  ${
+    index === 0 ? "🥇" :
+    index === 1 ? "🥈" :
+    index === 2 ? "🥉" :
+    index + 1
+  }
+</span>
 
-          <span class="player-link" onclick="PCS.openPlayerProfile('${p.name}')">
-            ${p.name}
-          </span>
+    <span class="player-name player-link" onclick="PCS.openPlayerProfile('${p.name}')">
+      ${p.name}
+    </span>
 
-          <span style="color:#ffd700;">
-            ${p.totalPoints.toFixed(1)} pts
-          </span>
+    <span class="player-points">
+      ${p.totalPoints.toFixed(1)} pts
+    </span>
 
-        </div>
+    <span class="player-games">
+      (${p.gamesPlayed || 0} games)
+    </span>
 
-        <div style="min-width:100px; text-align:right;">
-          ⭐ ${p.rating || 0}
-        </div>
+    <span class="player-rating">
+      ⭐ ${p.rating || 0}
+    </span>
 
-      </div>
-    `;
+  </div>
+`;
 
     content.appendChild(div);
   });
