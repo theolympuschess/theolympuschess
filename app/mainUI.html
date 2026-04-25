@@ -64601,69 +64601,36 @@ async function openPlayersList(){
   // =============================
   // 🧮 PROCESS ALL TOURNAMENTS
   // =============================
-  data.forEach(t => {
+// =============================
+// 🧮 PROCESS ALL TOURNAMENTS (FIXED FINAL)
+// =============================
+data.forEach(t => {
 
-    if(t.name === "__student_master__") return;
+  if(t.name === "__student_master__") return;
 
-    let rounds = t.data?.allMatches || [];
+  // 🔥 USE FINAL PLAYER STATE (NOT MATCH HISTORY)
+  let tournamentPlayers = t.data?.players || [];
 
-    rounds.forEach(r => {
-      (r.matches || []).forEach(m => {
+  tournamentPlayers.forEach(tp => {
 
-     if(m.result === "BYE"){
-  if(m.p1){
-
-    if(!playerMap[m.p1.name]){
-      playerMap[m.p1.name] = {
-        name: m.p1.name,
-        rating: m.p1.rating || 0,
+    if(!playerMap[tp.name]){
+      playerMap[tp.name] = {
+        name: tp.name,
+        rating: tp.rating || 0,
         totalPoints: 0,
         gamesPlayed: 0
       };
     }
 
-    playerMap[m.p1.name].totalPoints += 1;
-    playerMap[m.p1.name].gamesPlayed += 1; // ✅ count BYE as game
-  }
-  return;
-}
+    // ✅ FINAL CORRECT SCORE (NO DUPLICATE COUNTING)
+    playerMap[tp.name].totalPoints += tp.score || 0;
 
-        if(!m.p1 || !m.p2) return;
-
-        // ensure players exist
-        if(!playerMap[m.p1.name]){
-          playerMap[m.p1.name] = {
-            name: m.p1.name,
-            rating: m.p1.rating || 0,
-            totalPoints: 0
-          };
-        }
-
-        if(!playerMap[m.p2.name]){
-          playerMap[m.p2.name] = {
-            name: m.p2.name,
-            rating: m.p2.rating || 0,
-            totalPoints: 0
-          };
-        }
-// ✅ count games
-playerMap[m.p1.name].gamesPlayed += 1;
-playerMap[m.p2.name].gamesPlayed += 1;
-        if(m.result === "1-0"){
-          playerMap[m.p1.name].totalPoints += 1;
-        }
-        else if(m.result === "0-1"){
-          playerMap[m.p2.name].totalPoints += 1;
-        }
-        else if(m.result === "0.5-0.5"){
-          playerMap[m.p1.name].totalPoints += 0.5;
-          playerMap[m.p2.name].totalPoints += 0.5;
-        }
-
-      });
-    });
+    // ✅ APPROX GAME COUNT (FROM OPPONENTS)
+    playerMap[tp.name].gamesPlayed += tp.opponents?.length || 0;
 
   });
+
+});
 
   // =============================
   // 🔥 SORT
