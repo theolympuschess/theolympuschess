@@ -64149,18 +64149,35 @@ function updateStudentRating(player){
   saveStudentDB();
 }
 // =============================
-// 💾 SAVE TO SUPABASE
+// 💾 SAVE TO SUPABASE (FIXED)
 // =============================
 async function saveTournament(){
+
   const nameInput = document.getElementById("pairing-tournament-name");
   const tournamentName = nameInput.value || "Olympus Tournament";
+
+  // 🔥 FIX: include last round if not stored
+  let finalAllMatches = [...allMatches];
+
+  if(matches.length > 0){
+
+    // 🛑 prevent duplicate push
+    let alreadySaved = finalAllMatches.some(r => r.round === round);
+
+    if(!alreadySaved){
+      finalAllMatches.push({
+        round: round,
+        matches: JSON.parse(JSON.stringify(matches))
+      });
+    }
+  }
 
   const state = {
     players,
     matches,
-    allMatches,
+    allMatches: finalAllMatches, // ✅ FIXED
     round,
-    savedAt: new Date().toISOString() 
+    savedAt: new Date().toISOString()
   };
 
   const { error } = await supabase
@@ -64175,8 +64192,9 @@ async function saveTournament(){
     console.error(error);
   } else {
     alert("✅ Tournament Saved");
-    // 🔥 ADD THIS LINE EXACTLY HERE
-  window.lastLoadedTournamentDate = state.savedAt;
+
+    // ✅ keep this
+    window.lastLoadedTournamentDate = state.savedAt;
   }
 }
 
