@@ -64073,7 +64073,9 @@ players.push({
   score: 0,
   rating,
   initialRating: rating,
-  opponents: []
+  opponents: [],
+  colorHistory: [],   
+  lastColor: null     
 });
 
     input.value = "";
@@ -64253,11 +64255,18 @@ if(round === 1){
 
     if(!p1 || !p2) continue;
 
-    matches.push({
-      p1,
-      p2,
-      result: null
-    });
+   matches.push({
+  p1,
+  p2,
+  result: null
+});
+
+// 🎯 ROUND 1 DEFAULT COLOR
+p1.lastColor = "W";
+p2.lastColor = "B";
+
+p1.colorHistory.push("W");
+p2.colorHistory.push("B");
   }
 
 }
@@ -64291,7 +64300,47 @@ else {
     if(opponentIndex !== -1){
       let p2 = players[opponentIndex];
 
-      matches.push({ p1, p2, result: null });
+     let white = p1;
+let black = p2;
+
+// 🟢 If both never had color → random
+if(!p1.lastColor && !p2.lastColor){
+  if(Math.random() > 0.5){
+    white = p2;
+    black = p1;
+  }
+}
+
+// 🔵 Avoid same color twice
+else if(p1.lastColor === "W"){
+  white = p2;
+  black = p1;
+}
+else if(p2.lastColor === "W"){
+  white = p1;
+  black = p2;
+}
+
+// 🟠 If both had same color → random
+if(p1.lastColor === p2.lastColor){
+  if(Math.random() > 0.5){
+    white = p2;
+    black = p1;
+  }
+}
+
+matches.push({
+  p1: white,
+  p2: black,
+  result: null
+});
+
+// 🔥 STORE COLOR
+white.lastColor = "W";
+black.lastColor = "B";
+
+white.colorHistory.push("W");
+black.colorHistory.push("B");
 
       used.add(i);
       used.add(opponentIndex);
@@ -65030,6 +65079,10 @@ window.lastLoadedTournamentDate = state.savedAt || null;
 }
 
   players = state.players || [];
+  players.forEach(p => {
+  if(!p.colorHistory) p.colorHistory = [];
+  if(!p.lastColor) p.lastColor = null;
+});
   // 🔥 ensure old tournaments also work
 players.forEach(p => {
   if(p.initialRating === undefined){
