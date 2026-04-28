@@ -64260,6 +64260,13 @@ if(round === 1){
   p2,
   result: null
 });
+// 🔥 ADD THIS HERE (GLOBAL USED TRACK)
+let i1 = players.findIndex(x => x.name === p1.name);
+let i2 = players.findIndex(x => x.name === p2.name);
+
+if(i1 !== -1) used.add(i1);
+if(i2 !== -1) used.add(i2);
+
 
 // 🎯 ROUND 1 DEFAULT COLOR
 p1.lastColor = "W";
@@ -64273,80 +64280,147 @@ p2.colorHistory.push("B");
 // =============================
 // 🔵 NORMAL PAIRING (ROUND 2+)
 // =============================
+// =============================
+// 🔵 TRUE SWISS PAIRING (FINAL SAFE VERSION)
+// =============================
 else {
 
-  for(let i=0;i<players.length;i++){
-    if(used.has(i)) continue;
+  let groups = {};
 
-    let p1 = players[i];
-    let opponentIndex = -1;
+  // 🧠 Group players by score
+  players.forEach(p=>{
+    let key = p.score;
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  });
 
-    for(let j=i+1;j<players.length;j++){
-      if(!used.has(j) && !p1.opponents.includes(players[j].name)){
-        opponentIndex = j;
-        break;
-      }
+  // sort groups DESC
+  let scores = Object.keys(groups).sort((a,b)=>b-a);
+
+  let floaters = [];
+
+  scores.forEach(score => {
+
+    let group = groups[score];
+
+    // add floaters from previous group
+    group = floaters.concat(group);
+    floaters = [];
+
+    let usedLocal = new Set();
+
+    for(let i = 0; i < group.length; i++){
+
+      let globalIndexI = players.findIndex(x => x.name === group[i].name);
+
+if(usedLocal.has(i) || used.has(globalIndexI)) continue;
+
+      let p1 = group[i];
+      let opponentIndex = -1;
+
+      // ✅ avoid repeat opponents
+      for(let j = i + 1; j < group.length; j++){
+
+  let globalIndexJ = players.findIndex(x => x.name === group[j].name);
+
+  if(
+    !usedLocal.has(j) &&
+    !used.has(globalIndexJ) &&
+    !p1.opponents.includes(group[j].name)
+  ){
+    opponentIndex = j;
+    break;
+  }
+}
+
+      // fallback if needed
+if(opponentIndex === -1){
+  for(let j = i + 1; j < group.length; j++){
+
+    let globalIndexJ = players.findIndex(x => x.name === group[j].name);
+
+    if(
+      !usedLocal.has(j) &&
+      !used.has(globalIndexJ) &&
+      group[j].name !== p1.name // 🔥 EXTRA SAFETY
+    ){
+      opponentIndex = j;
+      break;
     }
+  }
+}
 
-    if(opponentIndex === -1){
-      for(let j=i+1;j<players.length;j++){
-        if(!used.has(j)){
-          opponentIndex = j;
-          break;
+      if(opponentIndex !== -1){
+
+        let p2 = group[opponentIndex];
+
+        // =============================
+        // 🎨 COLOR SYSTEM (BALANCED)
+        // =============================
+        function colorBalance(p){
+          let w = p.colorHistory.filter(c=>c==="W").length;
+          let b = p.colorHistory.filter(c=>c==="B").length;
+          return w - b;
         }
+
+        let white = p1;
+        let black = p2;
+
+        // 🎯 Prefer color balance
+        if(colorBalance(p1) > colorBalance(p2)){
+          white = p2;
+          black = p1;
+        }
+        else if(colorBalance(p2) > colorBalance(p1)){
+          white = p1;
+          black = p2;
+        }
+        // fallback: avoid same color twice
+        else if(p1.lastColor === "W"){
+          white = p2;
+          black = p1;
+        }
+        else if(p2.lastColor === "W"){
+          white = p1;
+          black = p2;
+        }
+        // final fallback random
+        else if(Math.random() > 0.5){
+          white = p2;
+          black = p1;
+        }
+
+        matches.push({
+          p1: white,
+          p2: black,
+          result: null
+        });
+        // 🔥 GLOBAL TRACK
+let i1 = players.findIndex(x => x.name === white.name);
+let i2 = players.findIndex(x => x.name === black.name);
+
+if(i1 !== -1) used.add(i1);
+if(i2 !== -1) used.add(i2);
+
+        // 🔥 store color
+        white.lastColor = "W";
+        black.lastColor = "B";
+
+        white.colorHistory.push("W");
+        black.colorHistory.push("B");
+
+        usedLocal.add(i);
+        usedLocal.add(opponentIndex);
+
+      } else {
+        // 🚨 float to next score group
+        floaters.push(p1);
+        usedLocal.add(i);
+        // 🔥 ALSO MARK GLOBALLY
+
       }
     }
-
-    if(opponentIndex !== -1){
-      let p2 = players[opponentIndex];
-
-     let white = p1;
-let black = p2;
-
-// 🟢 If both never had color → random
-if(!p1.lastColor && !p2.lastColor){
-  if(Math.random() > 0.5){
-    white = p2;
-    black = p1;
-  }
-}
-
-// 🔵 Avoid same color twice
-else if(p1.lastColor === "W"){
-  white = p2;
-  black = p1;
-}
-else if(p2.lastColor === "W"){
-  white = p1;
-  black = p2;
-}
-
-// 🟠 If both had same color → random
-if(p1.lastColor === p2.lastColor){
-  if(Math.random() > 0.5){
-    white = p2;
-    black = p1;
-  }
-}
-
-matches.push({
-  p1: white,
-  p2: black,
-  result: null
-});
-
-// 🔥 STORE COLOR
-white.lastColor = "W";
-black.lastColor = "B";
-
-white.colorHistory.push("W");
-black.colorHistory.push("B");
-
-      used.add(i);
-      used.add(opponentIndex);
-    }
-  }
-
+  });
 }
 
   renderMatches();
@@ -64427,6 +64501,16 @@ function setResult(index, result){
   // =============================
 // ⭐ ELO RATING UPDATE
 // =============================
+// =============================
+// ⭐ ELO RATING UPDATE (FIXED)
+// =============================
+
+// 🔁 restore old rating if result was already set before
+if(match.prevRatingApplied){
+  p1.rating = match.prevP1Rating;
+  p2.rating = match.prevP2Rating;
+}
+
 let K = 20;
 
 function expected(r1, r2){
@@ -64449,9 +64533,16 @@ else if(result === "0.5-0.5"){
   s1 = 0.5; s2 = 0.5;
 }
 
-// update ratings
+// 💾 store current rating BEFORE updating
+match.prevP1Rating = p1.rating;
+match.prevP2Rating = p2.rating;
+
+// 🔄 update ratings
 p1.rating = Math.round(p1.rating + K * (s1 - e1));
 p2.rating = Math.round(p2.rating + K * (s2 - e2));
+
+match.prevRatingApplied = true;
+
 updateStudentRating(p1);
 updateStudentRating(p2);
 
