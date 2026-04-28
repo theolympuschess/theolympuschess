@@ -19509,8 +19509,8 @@ button[onclick*="loadTournamentList"]:hover {
 }
 
 .lifeCircle {
-  width: 50px;              /* 🔥 bigger size */
-  height: 50px;
+  width: 60px;              /* 🔥 bigger size */
+  height: 60px;
   border-radius: 50%;
   background: #00ff88;
   cursor: pointer;
@@ -19872,6 +19872,168 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
 }
 
 
+
+
+
+
+/* rolling highlight */
+/* 🎯 rolling highlight */
+.os-pick {
+  transform: scale(1.05);
+  background: #ffe066; /* darker yellow */
+  color: #000 !important; /* 👈 force dark text */
+  transition: 0.1s;
+}
+
+/* 🏆 final selected */
+.os-final {
+  background: linear-gradient(135deg, #ffd700, #ffb300) !important;
+  color: #000 !important; /* 👈 FIX */
+  transform: scale(1.1);
+  box-shadow: 0 0 15px gold;
+}
+
+
+.os-pick .os-name,
+.os-final .os-name {
+  color: #000 !important;
+  font-weight: 700;
+}
+
+
+#os-random {
+   background: linear-gradient(135deg, #7f00ff, #00c6ff);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+#os-random:hover {
+  transform: scale(1.08);
+  
+}
+
+
+
+.os-player {
+  transition: all 0.3s ease;
+}
+
+
+
+#os-reset-score {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+#os-reset-score:hover {
+  transform: scale(1.05);
+  
+}
+
+
+
+
+
+/* modal */
+.os-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.os-modal.hidden {
+  display: none;
+}
+
+.os-modal-content {
+  position: relative;
+  text-align: center;
+  color: #fff;
+  z-index: 2;
+}
+
+/* winners text */
+.os-winner {
+  font-size: 48px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+/* close button */
+#os-close-modal {
+  margin-top: 20px;
+  padding: 10px 20px;
+  border: none;
+  background: red;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* confetti canvas */
+#os-confetti {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+
+
+
+.os-other-title {
+  margin-top: 20px;
+  font-size: 32px;
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.os-others {
+  margin-top: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.os-other {
+  font-size: 30px;
+  opacity: 0.9;
+  margin: 4px 0;
+}
+
+
+#os-show-winners {
+ background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+}
+
+#os-show-winners:hover {
+  transform: scale(1.08);
+  
+}
 
 
 
@@ -20343,7 +20505,10 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
   <div class="os-box">
     <input type="text" id="os-name" placeholder="Enter player name">
     <button id="os-addBtn">➕ Add</button>
-    <button id="os-reset">🔄 Reset</button>
+    <button id="os-reset">⛔ Remove</button>
+    <button id="os-reset-score">🔄 Reset</button>
+    <button id="os-random">🎯 Pick</button>
+    <button id="os-show-winners">🏆 Winners</button>
   </div>
 
   <div id="os-list" class="os-list"></div>
@@ -62392,6 +62557,8 @@ document.addEventListener("DOMContentLoaded", () => {
    OLYMPUS SCOREBOARD PRO (NO SOUND)
    Namespace: OSS_PRO
 ========================================= */
+let pickQueue = [];
+let isPicking = false;
 (function(){
 
 const NS = "OLYMPUS_SCOREBOARD_PRO";
@@ -62406,6 +62573,20 @@ let state = JSON.parse(localStorage.getItem(NS)) || {
 
 function save(){
   localStorage.setItem(NS, JSON.stringify(state));
+}
+
+/* ========================
+   RANDOM PICK SHUFFLE
+======================== */
+function shufflePlayers(){
+  let arr = state.players.map((_,i)=>i);
+
+  for(let i = arr.length - 1; i > 0; i--){
+    let j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
+  return arr;
 }
 
 /* ========================
@@ -62528,6 +62709,7 @@ div.innerHTML = `
   <button data-i="${i}" data-val="3" class="add">+3</button>
   <button data-i="${i}" class="sub">−1</button>
   <button data-i="${i}" class="os-remove">❌</button>
+ 
 </div>
 `;
 
@@ -62535,6 +62717,83 @@ div.innerHTML = `
   });
 
   titleInput.value = state.title;
+}
+
+function highlightPlayer(index, final=false){
+
+  const items = document.querySelectorAll(".os-player");
+
+  // remove previous highlights
+  items.forEach(el => {
+    el.classList.remove("os-pick");
+    el.classList.remove("os-final");
+  });
+
+  if(items[index]){
+    items[index].classList.add("os-pick");
+
+    if(final){
+      items[index].classList.add("os-final");
+
+      // ✅ AUTO RESET AFTER 2 SECONDS
+      setTimeout(()=>{
+        items[index].classList.remove("os-pick");
+        items[index].classList.remove("os-final");
+      }, 3000); // you can change 2000 → 1500 or 3000
+    }
+  }
+}
+
+let confettiRunning = false;
+let confettiParticles = [];
+let ctx, canvas;
+
+function startConfetti(){
+  canvas = document.getElementById("os-confetti");
+  ctx = canvas.getContext("2d");
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  confettiParticles = [];
+
+  for(let i=0;i<80;i++){ // low count = lightweight
+    confettiParticles.push({
+      x: Math.random()*canvas.width,
+      y: Math.random()*canvas.height,
+      r: Math.random()*6+2,
+      d: Math.random()*2+1
+    });
+  }
+
+  confettiRunning = true;
+  animateConfetti();
+}
+
+function stopConfetti(){
+  confettiRunning = false;
+}
+
+function animateConfetti(){
+  if(!confettiRunning) return;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "yellow";
+
+  confettiParticles.forEach(p=>{
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+
+    p.y += p.d;
+    if(p.y > canvas.height){
+      p.y = 0;
+      p.x = Math.random()*canvas.width;
+    }
+  });
+
+  requestAnimationFrame(animateConfetti);
 }
 
 /* ========================
@@ -62558,6 +62817,20 @@ resetBtn.onclick = ()=>{
     render();
   }
 };
+
+const resetScoreBtn = document.getElementById("os-reset-score");
+
+if(resetScoreBtn){
+  resetScoreBtn.onclick = ()=>{
+    if(confirm("Reset all scores to 0?")){
+      state.players.forEach(p=>{
+        p.points = 0;
+      });
+      save();
+      render();
+    }
+  };
+}
 
 titleInput.oninput = ()=>{
   state.title = titleInput.value;
@@ -62585,6 +62858,90 @@ if(e.target.classList.contains("add")){
   save();
   render();
 });
+
+/* ========================
+   🎯 RANDOM PICKER
+======================== */
+const randomBtn = document.getElementById("os-random");
+
+if(randomBtn){
+  randomBtn.onclick = ()=>{
+
+    if(isPicking) return;
+    if(state.players.length === 0) return;
+
+    if(pickQueue.length === 0){
+      pickQueue = shufflePlayers();
+    }
+
+    isPicking = true;
+
+    let cycles = 40;
+    let count = 0;
+
+    let interval = setInterval(()=>{
+
+      let randIndex = Math.floor(Math.random() * state.players.length);
+      highlightPlayer(randIndex);
+
+      count++;
+
+      if(count >= cycles){
+
+        clearInterval(interval);
+
+        let finalIndex = pickQueue.shift();
+        highlightPlayer(finalIndex, true);
+
+        isPicking = false;
+      }
+
+    }, 150);
+  };
+}
+/* ========================
+   🏆 WINNER MODAL
+======================== */
+const showBtn = document.getElementById("os-show-winners");
+const modal = document.getElementById("os-winner-modal");
+const winnerList = document.getElementById("os-winner-list");
+const closeBtn = document.getElementById("os-close-modal");
+
+if(showBtn){
+showBtn.onclick = ()=>{
+
+  let sorted = [...state.players].sort((a,b)=>b.points - a.points);
+
+  let top = sorted.slice(0,3);
+  let others = sorted.slice(3);
+
+  winnerList.innerHTML = `
+    <div class="os-winner">🥇 ${top[0]?.name || "-"}</div>
+    <div class="os-winner">🥈 ${top[1]?.name || "-"}</div>
+    <div class="os-winner">🥉 ${top[2]?.name || "-"}</div>
+
+    <div class="os-other-title">👏 Everyone Did Great!</div>
+
+    <div class="os-others">
+      ${others.map((p,i)=>`
+        <div class="os-other">
+          ${i+4}. ${p.name}
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  modal.classList.remove("hidden");
+  startConfetti();
+};
+}
+
+if(closeBtn){
+  closeBtn.onclick = ()=>{
+    modal.classList.add("hidden");
+    stopConfetti();
+  };
+}
 
 /* ========================
    INIT
@@ -63478,7 +63835,7 @@ document.addEventListener("DOMContentLoaded", startApp);
    ❤️ LIFE SYSTEM (CHANCES)
 ========================= -->
 <div id="lifeSystem">
-  <div id="lifeLabel">Chances Left</div>
+  <div id="lifeLabel">Life Left ❤️</div>
   <div id="lifeCircles"></div>
 
   <div id="lifeControls">
@@ -65684,6 +66041,14 @@ window.addEventListener("DOMContentLoaded", () => {
     <h2>Saved Tournaments</h2>
     <div id="pcs-load-list"></div>
     <button onclick="PCS.closeLoadModal()">❌ Close</button>
+  </div>
+</div>
+
+<div id="os-winner-modal" class="os-modal hidden">
+  <div class="os-modal-content">
+    <div id="os-winner-list"></div>
+    <button id="os-close-modal">❌ Close</button>
+    <canvas id="os-confetti"></canvas>
   </div>
 </div>
 
