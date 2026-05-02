@@ -21466,6 +21466,25 @@ title="Voice volume"
 
       <!-- ADMIN PANEL -->
       <div id="lpAdminPanel" style="display:none; margin-top:20px;">
+       <div style="position:relative;">
+  <input 
+    id="lpSearchInput" 
+    placeholder="🔍 Search puzzles..." 
+    style="margin-bottom:8px; width:100%;"
+  />
+  <div id="lpSearchResults"></div>
+</div>
+<div id="lpSearchResults" style="
+  display:none;
+  position:absolute;
+  background:#1c2035;
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;
+  width:100%;
+  max-height:200px;
+  overflow-y:auto;
+  z-index:999;
+"></div>
         
         <select id="lpPuzzleSelect">
           <option value="">-- Select Puzzle Library --</option>
@@ -63219,6 +63238,7 @@ let isTimeUp = false;
 let currentUserId = null;
 let studentMoves = {}; 
 let movesChannel = null; 
+let lpAllLibraries = []; 
 
   // ================= INIT =================
   function init() {
@@ -63239,6 +63259,55 @@ document.getElementById("lpPrevMoveBtn").onclick = prevPreviewMove;
     initBoard();
     loadLibraryDropdown();
     document.getElementById("lpRoomCodeInput").value = "";
+    // 🔥 CLOSE SEARCH DROPDOWN ON OUTSIDE CLICK
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#lpSearchInput") && !e.target.closest("#lpSearchResults")) {
+    document.getElementById("lpSearchResults").style.display = "none";
+  }
+});
+    // 🔍 SEARCH SYSTEM (LIGHTWEIGHT)
+document.getElementById("lpSearchInput")?.addEventListener("input", function () {
+
+  const query = this.value.toLowerCase().trim();
+  const resultsBox = document.getElementById("lpSearchResults");
+
+  resultsBox.innerHTML = "";
+
+  if (!query) {
+    resultsBox.style.display = "none";
+    return;
+  }
+
+  const results = lpAllLibraries.filter(lib =>
+    lib.title.toLowerCase().includes(query)
+  );
+
+  if (results.length === 0) {
+    resultsBox.style.display = "none";
+    return;
+  }
+
+  results.forEach(lib => {
+    const item = document.createElement("div");
+    item.textContent = lib.title;
+
+    item.style.padding = "6px 10px";
+    item.style.cursor = "pointer";
+
+    item.onmouseover = () => item.style.background = "#2a2f4a";
+    item.onmouseout = () => item.style.background = "transparent";
+
+    item.onclick = () => {
+      document.getElementById("lpPuzzleSelect").value = lib.id;
+      document.getElementById("lpSearchInput").value = lib.title;
+      resultsBox.style.display = "none";
+    };
+
+    resultsBox.appendChild(item);
+  });
+
+  resultsBox.style.display = "block";
+});
     
   }
 
@@ -63345,7 +63414,15 @@ async function loadLibraryDropdown() {
     to += 100;
   }
 
+  // ✅ SET ONLY ONCE (CORRECT)
+  lpAllLibraries = allData;
+
+  // 🔍 DEBUG
+  console.log("LIBRARIES:", lpAllLibraries);
+
   const select = document.getElementById("lpPuzzleSelect");
+
+  select.innerHTML = '<option value="">-- Select Puzzle Library --</option>';
 
   allData.forEach(lib => {
     const opt = document.createElement("option");
@@ -63729,7 +63806,7 @@ async function loadStudents() {
 
 const movesDisplay = movesArr.length
   ? `<div style="font-size:12px; opacity:0.8; margin-top:4px;">
-      ⭐ ${movesArr.join(" ")}
+      👉 ${movesArr.join(" ")}
      </div>`
   : "";
     const div = document.createElement("div");
