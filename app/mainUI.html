@@ -20086,12 +20086,18 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
 
 /* TIMER */
 #livePuzzle-section #lpTimer {
-  font-size: 15px;
+  font-size: 20px;
   padding: 8px 12px;
   border-radius: 8px;
   background: rgba(255,255,255,0.05);
   margin-top: 10px;
-  display: inline-block;
+
+  display: flex;              /* 🔥 FIX */
+  align-items: center;
+  justify-content: space-between;
+
+  width: 600px;              /* 🔥 EXACT SAME AS BOARD */
+  box-sizing: border-box;    /* 🔥 PREVENT OVERFLOW */
 }
 
 /* BUTTONS */
@@ -21494,9 +21500,16 @@ title="Voice volume"
         <input 
   id="lpTimeInput" 
   type="number" 
-  placeholder="Time (sec)" 
+  placeholder="60 Sec" 
   style="width:120px; margin-right:10px;" 
 />
+<input id="lpPointPerMove" type="number"
+  placeholder="Add Points"
+  style="width:110px;">
+
+<input id="lpNegativePoint" type="number"
+  placeholder="Negative points"
+  style="width:130px;">
         <button id="lpAskPuzzleBtn">📢 Ask Puzzle</button>
 
         <div id="lpPuzzleInfo" style="margin-top:10px; font-size:13px;"></div>
@@ -63239,6 +63252,10 @@ let currentUserId = null;
 let studentMoves = {}; 
 let movesChannel = null; 
 let lpAllLibraries = []; 
+// 🔥 POINT SYSTEM
+let playerScores = {};
+let pointPerMove = 10;
+let negativePoint = -5;
 
   // ================= INIT =================
   function init() {
@@ -63389,6 +63406,14 @@ board.position(game.fen());
 
   // ✅ CONTINUE NORMAL FLOW
   handleCorrectMove(move);
+}
+
+function updateScore(userId, delta) {
+  if (!playerScores[userId]) {
+    playerScores[userId] = 0;
+  }
+
+  playerScores[userId] += delta;
 }
 
   // ================= LOAD LIBRARY LIST =================
@@ -63578,6 +63603,7 @@ if (
     }
 
  studentMoves[currentUserId].push(`❌ ${move.san}`);
+ updateScore(currentUserId, negativePoint);
 
     loadStudents();
 
@@ -63586,9 +63612,12 @@ if (
       type: "broadcast",
       event: "move",
       payload: {
-        user_id: currentUserId,
-        move: "❌ " + move.san
-      }
+  user_id: currentUserId,
+  move: "❌ " + move.san,
+  score: playerScores[currentUserId],
+  pointPerMove,
+  negativePoint
+}
     });
   }
 
@@ -63617,6 +63646,7 @@ if (move.san) {
 studentMoves[currentUserId].push(
   `<span style="color:#4caf50">${move.san}</span>`
 );
+updateScore(currentUserId, pointPerMove);
 
   loadStudents();
 
@@ -63625,9 +63655,12 @@ studentMoves[currentUserId].push(
     type: "broadcast",
     event: "move",
     payload: {
-      user_id: currentUserId,
-      move: `<span style="color:#4caf50">${move.san}</span>`
-    }
+  user_id: currentUserId,
+  move: `<span style="color:#4caf50">${move.san}</span>`,
+  score: playerScores[currentUserId],
+  pointPerMove,
+  negativePoint
+}
   });
 }
 
@@ -63804,31 +63837,44 @@ async function loadStudents() {
   cleanList.forEach(s => {
     const movesArr = studentMoves[s.user_id] || [];
 
-const movesDisplay = movesArr.length
-  ? `<div style="
-        font-size:15px;
-        margin-top:6px;
-        display:flex;
-        flex-wrap:wrap;
-        gap:6px;
-        align-items:center;
+if (playerScores[s.user_id] === undefined) {
+  playerScores[s.user_id] = 0;
+}
+const score = playerScores[s.user_id];
+
+const movesDisplay = `
+  <div style="
+    font-size:15px;
+    margin-top:6px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    align-items:center;
+  ">
+
+    <span style="opacity:0.6;">👉</span>
+
+    ${movesArr.map(m => `
+      <span style="
+        padding:2px 6px;
+        border-radius:6px;
+        background:rgba(255,255,255,0.05);
+        white-space:nowrap;
       ">
-      
-      <span style="opacity:0.6;">👉</span>
+        ${m}
+      </span>
+    `).join("")}
 
-      ${movesArr.map(m => `
-        <span style="
-          padding:2px 6px;
-          border-radius:6px;
-          background:rgba(255,255,255,0.05);
-          white-space:nowrap;
-        ">
-          ${m}
-        </span>
-      `).join("")}
+    <span style="
+      margin-left:10px;
+      font-weight:bold;
+      color:${score >= 0 ? "#4caf50" : "#ff5252"};
+    ">
+      ${score} pts
+    </span>
 
-     </div>`
-  : "";
+  </div>
+`;
     const div = document.createElement("div");
     div.className = "lp-student";
 
@@ -63840,13 +63886,18 @@ if (s.correct === true) {
   status = "❌ Failed";
 }
 
-    const name = s.username || "Guest";
+   const name = s.username || "Guest";
+
 
 div.innerHTML = `
-  <div>
-    <strong>${name}</strong>
-    ${movesDisplay}
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <strong>${name}</strong>
+      ${movesDisplay}
+    </div>
+
   </div>
+
   <div>
     ${status}
     | ❌ Missed: ${s.wrong_count}
@@ -63991,12 +64042,13 @@ async function askPuzzle() {
   }
 
   // 🔥 TIMER INPUT
-  let timeInput = document.getElementById("lpTimeInput");
-  let timeLimitValue = 0;
+// 🔥 TIMER + POINT SYSTEM INPUT (FINAL)
+let timeLimitValue = parseInt(document.getElementById("lpTimeInput")?.value) || 60;
 
-  if (timeInput) {
-    timeLimitValue = parseInt(timeInput.value) || 0;
-  }
+pointPerMove = parseInt(document.getElementById("lpPointPerMove")?.value) || 0;
+// 🔥 ALWAYS FORCE NEGATIVE
+let negInput = parseInt(document.getElementById("lpNegativePoint")?.value);
+negativePoint = negInput ? -Math.abs(negInput) : 0;
 
   // 🔥 RESET STUDENTS
   await supabase
@@ -64011,19 +64063,31 @@ async function askPuzzle() {
     studentMoves = {}; 
 
   // 🔥 SAVE PUZZLE
-  const { error } = await supabase
-    .from("live_puzzle_state")
-    .upsert({
-      room_code: roomCode,
-      pgn: pgn.trim(),
-      fen: null,
-      time_limit: timeLimitValue
-    });
+const { error } = await supabase
+  .from("live_puzzle_state")
+  .upsert({
+    room_code: roomCode,
+    pgn: pgn.trim(),
+    fen: null,
+    time_limit: timeLimitValue,
+
+    
+  
+  });
 
   console.log("ASK ERROR:", error);
 
   // 🔥 🔥 🔥 CRITICAL FIX (YOU REMOVED THIS)
   await loadCurrentPuzzle();
+  // 🔥 BROADCAST POINT SETTINGS TO ALL
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "settings",
+  payload: {
+    pointPerMove,
+    negativePoint
+  }
+});
 
   // 🔥 FORCE STUDENT UI UPDATE ALSO
   loadStudents();
@@ -64071,6 +64135,9 @@ function listenRoom() {
 
         timeLimit = payload.new.time_limit || 0;
         timeLeft = timeLimit;
+        // 🔥 SYNC POINT SETTINGS
+pointPerMove = payload.new.point_per_move ?? pointPerMove;
+negativePoint = payload.new.negative_point ?? negativePoint;
 
         // 🔥 ONLY STUDENT SHOULD HAVE TIMER
         if (timeLimit > 0) {
@@ -64130,27 +64197,44 @@ function listenRoom() {
    // ================= MOVE BROADCAST LISTENER =================
 if (!movesChannel) {
   movesChannel = supabase.channel("lp-moves-" + roomCode)
-    .on("broadcast", { event: "move" }, payload => {
+    .on("broadcast", { event: "*" }, payload => {
 
-      const { user_id, move } = payload.payload;
+      // 🔥 SETTINGS EVENT
+      if (payload.event === "settings") {
+        pointPerMove = payload.payload.pointPerMove;
+        negativePoint = payload.payload.negativePoint;
 
-      // 🔍 DEBUG HERE
-      console.log("MY ID:", currentUserId);
-      console.log("MOVE FROM:", user_id);
-
-      // 🔥 SAFE MATCH (STRING COMPARE)
-      const isMyMove = String(user_id) === String(currentUserId);
-
-      // 🔥 STUDENT FILTER
-      if (!isAdmin && !isMyMove) return;
-
-      if (!studentMoves[user_id]) {
-        studentMoves[user_id] = [];
+        console.log("✅ SETTINGS RECEIVED:", pointPerMove, negativePoint);
+        return;
       }
 
-      studentMoves[user_id].push(move);
+      // 🔥 MOVE EVENT
+      if (payload.event === "move") {
 
-      loadStudents();
+        const { user_id, move, score, pointPerMove: ppm, negativePoint: np } = payload.payload;
+
+        const isMyMove = String(user_id) === String(currentUserId);
+
+        // 🔥 EXTRA SAFETY SYNC
+        if (typeof ppm === "number") pointPerMove = ppm;
+        if (typeof np === "number") negativePoint = np;
+
+        // 🔥 SCORE SYNC
+        if (typeof score === "number") {
+          playerScores[user_id] = score;
+        }
+
+        // 🔥 MOVE VISIBILITY
+        if (isAdmin || isMyMove) {
+          if (!studentMoves[user_id]) {
+            studentMoves[user_id] = [];
+          }
+          studentMoves[user_id].push(move);
+        }
+
+        loadStudents();
+      }
+
     })
     .subscribe();
 }
@@ -64200,6 +64284,9 @@ async function loadCurrentPuzzle() {
 
   timeLimit = data.time_limit || 0;
   timeLeft = timeLimit;
+  // 🔥 SYNC POINT SETTINGS
+pointPerMove = data.point_per_move ?? pointPerMove;
+negativePoint = data.negative_point ?? negativePoint;
 
   // 🔥 ONLY STUDENT SHOULD HAVE TIMER
   if (timeLimit > 0) {
