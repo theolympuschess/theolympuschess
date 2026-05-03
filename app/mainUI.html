@@ -21453,6 +21453,18 @@ title="Voice volume"
       <div style="margin-top:15px; display:flex; justify-content:center; gap:10px;">
   <button id="lpPrevMoveBtn" data-role="admin-only">⏮ Move</button>
 <button id="lpNextMoveBtn" data-role="admin-only">Move ⏭</button>
+<!-- ADMIN PGN DISPLAY -->
+<div id="lpPgnBox" style="
+  display:none;
+  margin-top:12px;
+  padding:10px;
+  background:#11152a;
+  border-radius:8px;
+  font-size:16px;
+  max-height:150px;
+  overflow-y:auto;
+  line-height:1.5;
+"></div>
 </div>
 
     </div>
@@ -21496,7 +21508,7 @@ title="Voice volume"
           <option value="">-- Select Puzzle Library --</option>
         </select>
 
-        <button id="lpLoadPuzzlesBtn">📂 Load</button>
+        <button id="lpLoadPuzzlesBtn">📤 Load</button>
         <input 
   id="lpTimeInput" 
   type="number" 
@@ -63523,6 +63535,25 @@ function loadPuzzle(index) {
 
   board.position(previewGame.fen());
   setInitialOrientation();
+  // ✅ SHOW PGN (ADMIN ONLY)
+if (isAdmin) {
+  const pgnBox = document.getElementById("lpPgnBox");
+  if (pgnBox) {
+
+    const moves = tempGame.history(); // 🔥 only moves
+
+    let formatted = "";
+
+    for (let i = 0; i < moves.length; i++) {
+      if (i % 2 === 0) {
+        formatted += (Math.floor(i / 2) + 1) + ". ";
+      }
+      formatted += moves[i] + " ";
+    }
+
+    pgnBox.innerText = formatted.trim();
+  }
+}
 }
 
 function nextPreviewMove() {
@@ -64024,13 +64055,19 @@ document.getElementById("lpRoomCodeInput").value = "";
 }
 
   // ================= UPDATE UI =================
-  function updateRoomUI() {
-    document.getElementById("lpRoomInfo").innerText =
-      "Room Code: " + roomCode;
+function updateRoomUI() {
+  document.getElementById("lpRoomInfo").innerText =
+    "Room Code: " + roomCode;
 
-    document.getElementById("lpAdminPanel").style.display =
-      isAdmin ? "block" : "none";
+  document.getElementById("lpAdminPanel").style.display =
+    isAdmin ? "block" : "none";
+
+  // ✅ PGN visibility
+  const pgnBox = document.getElementById("lpPgnBox");
+  if (pgnBox) {
+    pgnBox.style.display = isAdmin ? "block" : "none";
   }
+}
 
   // ================= ASK PUZZLE =================
 async function askPuzzle() {
@@ -64255,6 +64292,29 @@ async function loadCurrentPuzzle() {
     console.log("No puzzle yet for this room");
     return;
   }
+  // ✅ SHOW PGN FOR ADMIN
+// ✅ SHOW ONLY MOVES (ADMIN)
+if (isAdmin) {
+  const pgnBox = document.getElementById("lpPgnBox");
+  if (pgnBox) {
+
+    const tempGame = new Chess();
+    tempGame.load_pgn(data.pgn);
+
+    const moves = tempGame.history();
+
+    let formatted = "";
+
+    for (let i = 0; i < moves.length; i++) {
+      if (i % 2 === 0) {
+        formatted += (Math.floor(i / 2) + 1) + ". ";
+      }
+      formatted += moves[i] + " ";
+    }
+
+    pgnBox.innerText = formatted.trim();
+  }
+}
 
   // ================= LOAD PUZZLE =================
   game.reset();
