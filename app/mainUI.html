@@ -63398,26 +63398,83 @@ async function lpCompletePromotion(piece) {
   // 🔥 ADD THIS BLOCK HERE
   const expectedMove = solutionMoves[moveIndex];
 
-  if (
-    expectedMove.promotion &&
-    piece !== expectedMove.promotion
-  ) {
-    game.undo();
+if (
+  expectedMove.promotion &&
+  piece !== expectedMove.promotion
+) {
 
-    if (myAttemptId) {
-      await supabase.rpc("increment_wrong_move", {
-        attempt_id: myAttemptId
-      });
+  // 🔥 ADD WRONG MOVE TO UI
+  if (move && move.san) {
+
+    if (!studentMoves[currentUserId]) {
+      studentMoves[currentUserId] = [];
     }
 
-    board.position(game.fen());
-    return;
+    studentMoves[currentUserId].push(`❌ ${move.san}`);
+    updateScore(currentUserId, negativePoint);
+
+    loadStudents();
+
+    // 🔥 BROADCAST WRONG MOVE
+    supabase.channel("lp-moves-" + roomCode).send({
+      type: "broadcast",
+      event: "move",
+      payload: {
+        user_id: currentUserId,
+        move: "❌ " + move.san,
+        score: playerScores[currentUserId],
+        pointPerMove,
+        negativePoint
+      }
+    });
   }
+
+  game.undo();
+
+  if (myAttemptId) {
+    await supabase.rpc("increment_wrong_move", {
+      attempt_id: myAttemptId
+    });
+  }
+
+  board.position(game.fen());
+  return;
+}
   // 🔥 FORCE BOARD UPDATE FOR PROMOTION
 board.position(game.fen());
 
   // ✅ CONTINUE NORMAL FLOW
-  handleCorrectMove(move);
+  // 🔥 ADD MOVE TO UI (SAME AS NORMAL FLOW)
+if (move.san) {
+
+  if (!studentMoves[currentUserId]) {
+    studentMoves[currentUserId] = [];
+  }
+
+  studentMoves[currentUserId].push(
+    `<span style="color:#4caf50">${move.san}</span>`
+  );
+
+  updateScore(currentUserId, pointPerMove);
+
+  loadStudents();
+
+  // 🔥 BROADCAST TO ADMIN
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "move",
+    payload: {
+      user_id: currentUserId,
+      move: `<span style="color:#4caf50">${move.san}</span>`,
+      score: playerScores[currentUserId],
+      pointPerMove,
+      negativePoint
+    }
+  });
+}
+
+// ✅ CONTINUE NORMAL FLOW
+handleCorrectMove(move);
 }
 
 function updateScore(userId, delta) {
