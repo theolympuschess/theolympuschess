@@ -21475,7 +21475,7 @@ title="Voice volume"
       <!-- ROOM CONTROLS -->
       <div class="lp-controls">
         <button id="lpCreateRoomBtn" data-role="admin-only">➕ Create Room</button>
-        <input id="lpRoomCodeInput" placeholder="Enter Room Code" />
+        <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
         <button id="lpJoinRoomBtn">🟢 Join</button>
       </div>
 
@@ -63920,9 +63920,25 @@ async function loadStudents() {
   data.forEach(s => {
     unique[s.user_id] = s;
   });
-  const cleanList = Object.values(unique);
+ let cleanList = Object.values(unique);
+
+// 🔥 ADD SCORES INTO LIST
+cleanList = cleanList.map(s => ({
+  ...s,
+  score: playerScores[s.user_id] || 0
+}));
+
+// 🔥 SORT BY SCORE (DESC)
+cleanList.sort((a, b) => b.score - a.score);
 
   cleanList.forEach(s => {
+  const index = cleanList.indexOf(s);
+
+let badge = "";
+if (index === 0) badge = "🥇";
+else if (index === 1) badge = "🥈";
+else if (index === 2) badge = "🥉";
+else badge = `#${index + 1}`;
     const movesArr = studentMoves[s.user_id] || [];
 
 if (playerScores[s.user_id] === undefined) {
@@ -63940,7 +63956,7 @@ const movesDisplay = `
     align-items:center;
   ">
 
-    <span style="opacity:0.6;">👉</span>
+    <span style="opacity:0.9;">👉</span>
 
     ${movesArr.map(m => `
       <span style="
@@ -63980,7 +63996,28 @@ if (s.correct === true) {
 div.innerHTML = `
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <div>
-      <strong>${name}</strong>
+      <div style="
+  display:flex;
+  align-items:center;
+  gap:8px;
+">
+
+  <span style="
+    font-size:30px;
+    line-height:1;
+  ">
+    ${badge}
+  </span>
+
+  <strong style="
+    font-size:16px;
+    font-weight:600;
+    letter-spacing:0.3px;
+  ">
+    ${name}
+  </strong>
+
+</div>
       ${movesDisplay}
     </div>
 
