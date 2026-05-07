@@ -20218,7 +20218,73 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
 
 
 
+/* =========================
+   STUDY FILTER DROPDOWN
+========================= */
 
+.study-filter-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.study-filter-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 8px;
+
+  border-radius: 12px;
+
+  background: rgba(20,20,20,0.96);
+  backdrop-filter: blur(10px);
+
+  border: 1px solid rgba(255,255,255,0.08);
+
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+
+  transition: 0.18s ease;
+
+  z-index: 9999;
+
+  min-width: 190px;
+}
+
+.study-filter-wrapper.open .study-filter-dropdown {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0px);
+}
+
+.study-filter-option {
+  background: rgba(255,255,255,0.06);
+  border: none;
+  color: white;
+
+  padding: 8px 10px;
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  text-align: left;
+
+  transition: 0.15s;
+}
+
+.study-filter-option:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.study-filter-option.active {
+  background: #4caf50;
+  color: white;
+}
 
 
 
@@ -21016,13 +21082,43 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
 
 <button id="studyFlipBoardBtn" class="study-move-btn" title="Flip board (F)">🔄</button>
 
-<button
-id="pawnOnlyToggleBtn"
-class="study-move-btn"
-title="Toggle King + Pawn view"
->
-♟
-</button>
+<!-- ♟ Piece Filter -->
+<div class="study-filter-wrapper">
+
+  <button
+    id="studyFilterMainBtn"
+    class="study-move-btn"
+    title="Piece Filter Modes"
+  >
+    ♟
+  </button>
+
+  <div class="study-filter-dropdown">
+
+    <button
+      id="pawnOnlyToggleBtn"
+      class="study-filter-option"
+    >
+      ♟ King + Pawn
+    </button>
+
+    <button
+      id="noMajorToggleBtn"
+      class="study-filter-option"
+    >
+      ♜ Hide Major Pieces
+    </button>
+
+    <button
+      id="noMinorToggleBtn"
+      class="study-filter-option"
+    >
+      ♞ Hide Minor Pieces
+    </button>
+
+  </div>
+
+</div>
 
 <button
 id="toggleStudyNotationBtn"
@@ -38398,7 +38494,7 @@ studyChess = new Chess();
 // ===============================
 // ♟️ STUDY PAWN VIEW STATE
 // ===============================
-let studyPawnViewActive = false;
+let studyPieceFilterMode = "all";
 
 // ============================================
 // 🟢 STUDY BOARD MOVE MARKER SYSTEM
@@ -38726,15 +38822,40 @@ if (trainerSideSelect) {
 // ===============================
 // ♟️ STUDY PIECE THEME RESOLVER
 // ===============================
+// ===============================
+// ♟️ STUDY PIECE THEME RESOLVER
+// ===============================
 function resolveStudyPieceTheme(piece) {
   if (!piece) return "";
 
   const basePath = getPieceThemePath(currentPieceTheme);
   const type = piece[1].toLowerCase();
 
-  // Pawn + King view
-  if (studyPawnViewActive && !["p", "k"].includes(type)) {
-    return "";
+  // ===============================
+  // FILTER MODES
+  // ===============================
+
+  // 🟢 Pawn + King only
+  if (studyPieceFilterMode === "pawnKing") {
+    if (!["p", "k"].includes(type)) {
+      return "";
+    }
+  }
+
+  // 🔴 Remove Major Pieces
+  // (Queen + Rook hidden)
+  if (studyPieceFilterMode === "noMajor") {
+    if (["q", "r"].includes(type)) {
+      return "";
+    }
+  }
+
+  // 🔵 Remove Minor Pieces
+  // (Bishop + Knight hidden)
+  if (studyPieceFilterMode === "noMinor") {
+    if (["b", "n"].includes(type)) {
+      return "";
+    }
   }
 
   return basePath.replace("{piece}", piece);
@@ -38768,22 +38889,89 @@ attachCheckHook(studyBoard, studyChess, "studyBoard");
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("pawnOnlyToggleBtn");
-  if (!btn) return;
 
-  btn.addEventListener("click", () => {
-    if (!studyBoard || !studyChess) return;
+  const pawnBtn = document.getElementById("pawnOnlyToggleBtn");
+  const majorBtn = document.getElementById("noMajorToggleBtn");
+  const minorBtn = document.getElementById("noMinorToggleBtn");
 
-    studyPawnViewActive = !studyPawnViewActive;
-    btn.classList.toggle("active", studyPawnViewActive);
+  function refreshStudyFilterUI() {
 
-    // 🔄 force re-render ONLY
-    studyBoard.position(studyChess.fen(), false);
-    // 🧠 ENGINE HOOK
+    pawnBtn?.classList.toggle(
+      "active",
+      studyPieceFilterMode === "pawnKing"
+    );
+
+    majorBtn?.classList.toggle(
+      "active",
+      studyPieceFilterMode === "noMajor"
+    );
+
+    minorBtn?.classList.toggle(
+      "active",
+      studyPieceFilterMode === "noMinor"
+    );
+
+    // 🔄 Re-render board
+    if (studyBoard && studyChess) {
+      studyBoard.position(studyChess.fen(), false);
+    }
+
+    // 🧠 Engine refresh
     if (studyEngineEnabled) {
       analyzeStudyPosition();
     }
+  }
+
+  pawnBtn?.addEventListener("click", () => {
+    studyPieceFilterMode =
+      studyPieceFilterMode === "pawnKing"
+        ? "all"
+        : "pawnKing";
+
+    refreshStudyFilterUI();
   });
+
+  majorBtn?.addEventListener("click", () => {
+    studyPieceFilterMode =
+      studyPieceFilterMode === "noMajor"
+        ? "all"
+        : "noMajor";
+
+    refreshStudyFilterUI();
+  });
+
+  minorBtn?.addEventListener("click", () => {
+    studyPieceFilterMode =
+      studyPieceFilterMode === "noMinor"
+        ? "all"
+        : "noMinor";
+
+    refreshStudyFilterUI();
+  });
+
+
+  // ===============================
+  // ♟ FILTER DROPDOWN TOGGLE
+  // ===============================
+  const filterWrapper = document.querySelector(".study-filter-wrapper");
+  const filterMainBtn = document.getElementById("studyFilterMainBtn");
+
+  filterMainBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    filterWrapper?.classList.toggle("open");
+  });
+
+  // Prevent close when clicking menu
+  document.querySelector(".study-filter-dropdown")
+  ?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Close when clicking outside
+  document.addEventListener("click", () => {
+    filterWrapper?.classList.remove("open");
+  });
+
 });
 
 // ===============================
