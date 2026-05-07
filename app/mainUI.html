@@ -20197,7 +20197,24 @@ body.student-view .nav-btn[data-tab="scoreboard"] {
 
 
 
+.quiz-lives{
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:2px;
+  user-select:none;
+}
 
+.quiz-wrong{
+  animation: quizShake 0.25s;
+}
+
+@keyframes quizShake{
+  0%{transform:translateX(0);}
+  25%{transform:translateX(-4px);}
+  50%{transform:translateX(4px);}
+  75%{transform:translateX(-2px);}
+  100%{transform:translateX(0);}
+}
 
 
 
@@ -23458,9 +23475,20 @@ title="Voice volume"
     <div id="quizRushScreen" class="quiz-rush">
 
       <div class="quiz-top">
-        <div class="quiz-timer">⏱ <span id="quizTimer">60</span>s</div>
-        <div class="quiz-score">Score: <span id="quizScore">0</span></div>
-      </div>
+
+  <div class="quiz-timer">
+    ⏱ <span id="quizTimer">60</span>s
+  </div>
+
+  <div class="quiz-lives" id="quizLives">
+    ❤️❤️❤️
+  </div>
+
+  <div class="quiz-score">
+    Score: <span id="quizScore">0</span>
+  </div>
+
+</div>
 
       <div class="quiz-title">♟️ Find the best move</div>
 
@@ -25791,6 +25819,8 @@ let quizTimer = null;
 let timeLeft = 20;
 let quizScore = 0;
 let quizActive = false;
+let quizLives = 3;
+const QUIZ_MAX_LIVES = 3;
 
 
 
@@ -29322,6 +29352,11 @@ function unlockQuizAudio() {
 
    async function loadQuizPuzzle() {
   console.log("🧩 Loading quiz puzzle...");
+  // ✅ first puzzle reset
+if (quizScore === 0 && !quizActive) {
+  quizLives = QUIZ_MAX_LIVES;
+  updateLivesUI();
+}
 
   // 1️⃣ Get total count
   const { count, error: countError } = await supabase
@@ -29431,10 +29466,27 @@ document.querySelectorAll(".quiz-option").forEach(btn => {
         loadQuizPuzzle(); // ➡️ NEXT PUZZLE
       }, 300);
 
-    } else {
-      // ❌ WRONG = GAME OVER
-      endQuiz("❌ Wrong move!");
+       } else {
+
       playQuizSound("wrong");
+
+      // ❌ lose life
+      quizLives--;
+      updateLivesUI();
+
+      // 💀 all lives gone
+      if (quizLives <= 0) {
+        endQuiz("❌ No lives left!");
+        return;
+      }
+
+      // ✅ continue quiz
+      btn.classList.add("quiz-wrong");
+
+      setTimeout(() => {
+        btn.classList.remove("quiz-wrong");
+        loadQuizPuzzle();
+      }, 350);
 
     }
   };
@@ -29449,6 +29501,13 @@ function updateTimerUI() {
 
 function updateScoreUI() {
   document.getElementById("quizScore").textContent = quizScore;
+}
+
+function updateLivesUI() {
+  const el = document.getElementById("quizLives");
+  if (!el) return;
+
+  el.textContent = "❤️".repeat(quizLives);
 }
 
 function startQuizTimer() {
@@ -29502,9 +29561,12 @@ function endQuiz(reason) {
 
   playQuizSound("party");
 
-  // 🔁 reset score AFTER saving
+   // 🔁 reset AFTER saving
   quizScore = 0;
+  quizLives = QUIZ_MAX_LIVES;
+
   updateScoreUI();
+  updateLivesUI();
 }
 
 
