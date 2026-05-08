@@ -24603,7 +24603,20 @@ Submit solution</button>
             <!-- Assign to specific students (Admin only) -->
 <div class="form-row" id="assignStudentsRow" style="display:none;">
   
-
+<input
+  type="text"
+  id="assignStudentSearch"
+  placeholder="🔍 Search student or batch..."
+  style="
+    width:100%;
+    margin-bottom:8px;
+    padding:9px 10px;
+    border:none;
+    border-radius:8px;
+    background:#1a1f3d;
+    color:white;
+  "
+>
   <div id="assignStudentsBox"
        style="
          border:1px solid #444;
@@ -24625,6 +24638,13 @@ Submit solution</button>
   justify-content:flex-end;
   margin-top:8px;   /* 🔥 reduced */
 ">
+<button
+  type="button"
+  class="btn-small"
+  onclick="selectBatchStudents()"
+>
+  📚 Select Batch
+</button>
 
   <button type="button" class="btn-small" onclick="selectAllStudents()">Select all</button>
   <button type="button" class="btn-small danger" onclick="clearAllStudents()">Clear all</button>
@@ -30913,6 +30933,88 @@ window.clearAllStudents = function () {
   checkboxes.forEach(cb => cb.checked = false);
 };
 
+window.selectBatchStudents = function () {
+
+  const search =
+    document.getElementById(
+      "assignStudentSearch"
+    )?.value
+    ?.toLowerCase()
+    ?.trim();
+
+  if (!search) return;
+
+  const rows = document.querySelectorAll(
+    "#assignStudentsBox label"
+  );
+
+  let matchedBatch = false;
+
+  // 🔥 FIRST PASS:
+  // detect if typed value is a batch
+  rows.forEach(row => {
+
+    const batchEl =
+      row.querySelector(
+        ".assign-batch-name"
+      );
+
+    const batch =
+      batchEl?.innerText
+      ?.toLowerCase()
+      ?.trim();
+
+    if (batch === search) {
+      matchedBatch = true;
+    }
+
+  });
+
+  // 🔥 SECOND PASS:
+  // select students
+  rows.forEach(row => {
+
+    const checkbox =
+      row.querySelector(
+        "input[type='checkbox']"
+      );
+
+    const username =
+      row.querySelector(
+        ".assign-student-name"
+      )
+      ?.innerText
+      ?.toLowerCase()
+      ?.trim();
+
+    const batch =
+      row.querySelector(
+        ".assign-batch-name"
+      )
+      ?.innerText
+      ?.toLowerCase()
+      ?.trim();
+
+    // batch mode
+    if (
+      matchedBatch &&
+      batch === search
+    ) {
+      checkbox.checked = true;
+    }
+
+    // individual mode
+    else if (
+      !matchedBatch &&
+      username === search
+    ) {
+      checkbox.checked = true;
+    }
+
+  });
+
+};
+
 
     function resetAssignmentPosition() {
   const fen = currentAssignment.fen || "start";
@@ -33823,23 +33925,71 @@ async function loadStudentsForAssignment2() {
   box.innerHTML = "<div style='opacity:.7'>Loading students…</div>";
 
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .eq("role", "student")
-      .eq("active", true)
-      .order("username");
+    const [
+  { data, error },
+  { data: batchData }
+] = await Promise.all([
+
+  supabase
+    .from("profiles")
+    .select("id, username")
+    .eq("role", "student")
+    .eq("active", true)
+    .order("username"),
+
+  supabase
+    .from("student_batches")
+    .select("username, batch_name")
+
+]);
 
     if (error) throw error;
+    const batchMap = {};
+
+batchData?.forEach(b => {
+  batchMap[b.username] =
+    b.batch_name || "No Batch";
+});
 
     box.innerHTML = "";
 
     if (!data || data.length === 0) {
       box.innerHTML = "<div style='opacity:.7'>No students found</div>";
       return;
+      
     }
 
     data.forEach(student => {
+      const searchInput =
+  document.getElementById(
+    "assignStudentSearch"
+  );
+
+searchInput?.addEventListener(
+  "input",
+  e => {
+
+    const value =
+      e.target.value
+      .toLowerCase()
+      .trim();
+
+    const rows =
+      box.querySelectorAll("label");
+
+    rows.forEach(row => {
+
+      row.style.display =
+        row.innerText
+          .toLowerCase()
+          .includes(value)
+        ? "flex"
+        : "none";
+
+    });
+
+  }
+);
   const row = document.createElement("label");
 
   row.style.display = "flex";
@@ -33850,9 +34000,38 @@ async function loadStudentsForAssignment2() {
   row.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
 
   row.innerHTML = `
-  <span style="flex:1; text-align:left;">${student.username}</span>
-  <span style="width:60px; text-align:right;">
-    <input type="checkbox" value="${student.id}">
+  <span style="
+    flex:1;
+    text-align:left;
+    line-height:1.5;
+  ">
+
+    <div
+      class="assign-student-name"
+    >
+      ${student.username}
+    </div>
+
+    <div
+      class="assign-batch-name"
+      style="
+        font-size:11px;
+        opacity:0.7;
+      "
+    >
+      ${batchMap[student.username] || "No Batch"}
+    </div>
+
+  </span>
+
+  <span style="
+    width:60px;
+    text-align:right;
+  ">
+    <input
+      type="checkbox"
+      value="${student.id}"
+    >
   </span>
 `;
 
@@ -42963,6 +43142,8 @@ loadStudents();
           .eq('id', studentId);
 
         if (profileError) throw profileError;
+        // 🔥 ADD THIS
+loadStudentsForAssignment2();
 
         showModal(
           "✅ Success",
@@ -66695,6 +66876,12 @@ async function assignBatch() {
   });
 
   await loadAttendance();
+  if (
+  typeof loadStudentsForAssignment2
+  === "function"
+) {
+  loadStudentsForAssignment2();
+}
 
   document.getElementById(
     "lpBatchStudent"
@@ -66739,6 +66926,12 @@ async function saveSubscription() {
     classLimit;
 
   renderStudentList();
+  if (
+  typeof loadStudentsForAssignment2
+  === "function"
+) {
+  loadStudentsForAssignment2();
+}
 
   document.getElementById(
     "lpBatchStudent"
@@ -66782,6 +66975,12 @@ async function removeStudentFromBatch(
 
   // rerender current batch view
   renderStudentList();
+  if (
+  typeof loadStudentsForAssignment2
+  === "function"
+) {
+  loadStudentsForAssignment2();
+}
 
   // refresh right panel
   document.getElementById(
@@ -66828,6 +67027,12 @@ async function deleteBatch(
   });
 
   renderStudentList();
+  if (
+  typeof loadStudentsForAssignment2
+  === "function"
+) {
+  loadStudentsForAssignment2();
+}
 
   document.getElementById(
     "lpAttendanceDetails"
