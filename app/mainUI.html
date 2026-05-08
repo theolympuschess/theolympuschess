@@ -21156,7 +21156,7 @@ ATTENDANCE SECTION
 ========================= -->
 <div class="section" id="attendance-section">
 
-  <h2>📋 Classroom Attendance</h2>
+  <h2>📋 Classroom Attendance & Batch Manager</h2>
 
   <div style="
     display:flex;
@@ -64375,6 +64375,7 @@ let lpAllLibraries = [];
 let playerScores = {};
 let pointPerMove = 10;
 let negativePoint = -5;
+let noMovePenaltyMultiplier = 2;
 
   // ================= INIT =================
   function init() {
@@ -65462,6 +65463,43 @@ negativePoint = payload.new.negative_point ?? negativePoint;
     clearInterval(timerInterval);
     isTimeUp = true;
 
+    // 🔥 NO MOVE PENALTY
+const moves =
+  studentMoves[currentUserId] || [];
+
+if (moves.length === 0) {
+
+  updateScore(
+    currentUserId,
+    negativePoint * noMovePenaltyMultiplier
+  );
+
+  if (!studentMoves[currentUserId]) {
+  studentMoves[currentUserId] = [];
+}
+
+studentMoves[currentUserId].push(
+  "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#ff1744;color:#fff;font-weight:700;font-size:14px'>NO MOVE (Penalty)</span>"
+);
+
+loadStudents();
+
+  // 🔥 LIVE ADMIN + STUDENT SYNC
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "move",
+    payload: {
+      user_id: currentUserId,
+      move:
+        "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#ff1744;color:#fff;font-weight:700;font-size:14px'>NO MOVE (Penalty)</span>",
+      score: playerScores[currentUserId],
+      pointPerMove,
+      negativePoint
+    }
+  });
+
+}
+
     // 🔥 MARK AS FAILED IN DB
     await supabase
       .from("live_puzzle_attempts")
@@ -65633,6 +65671,43 @@ negativePoint = data.negative_point ?? negativePoint;
   if (timeLeft <= 0) {
     clearInterval(timerInterval);
     isTimeUp = true;
+
+    // 🔥 NO MOVE PENALTY
+const moves =
+  studentMoves[currentUserId] || [];
+
+if (moves.length === 0) {
+
+  updateScore(
+    currentUserId,
+    negativePoint * noMovePenaltyMultiplier
+  );
+
+  if (!studentMoves[currentUserId]) {
+  studentMoves[currentUserId] = [];
+}
+
+studentMoves[currentUserId].push(
+  "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#ff1744;color:#fff;font-weight:700;font-size:14px'>NO MOVE (Penalty)</span>"
+);
+
+loadStudents();
+
+  // 🔥 LIVE ADMIN + STUDENT SYNC
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "move",
+    payload: {
+      user_id: currentUserId,
+      move:
+        "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#ff1744;color:#fff;font-weight:700;font-size:14px'>NO MOVE (Penalty)</span>",
+      score: playerScores[currentUserId],
+      pointPerMove,
+      negativePoint
+    }
+  });
+
+}
 
     // 🔥 MARK AS FAILED IN DB
     await supabase
@@ -66049,8 +66124,27 @@ if (attendanceView === "batches") {
         </div>
 
         <div class="lp-att-count">
-          👨‍🎓 ${students.length}
-          Students
+         👨‍🎓 ${students.length} Students
+
+<div style="
+  margin-top:6px;
+  font-size:11px;
+  opacity:0.8;
+  line-height:1.5;
+">
+
+  ${students
+    .slice(0,3)
+    .map(s => `• ${s}`)
+    .join("<br>")}
+
+  ${
+    students.length > 3
+    ? `<br>+${students.length - 3} more`
+    : ""
+  }
+
+</div>
         </div>
 
       </div>
@@ -66175,16 +66269,44 @@ const remaining =
       <div class="lp-att-card"
         onclick="LPAttendance.showStudent('${name}')">
 
-        <div class="lp-att-name">
-          ${name}
-        </div>
+       <div style="
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+">
+
+  <div class="lp-att-name">
+    ${name}
+  </div>
+
+  <button
+    onclick="
+      event.stopPropagation();
+      LPAttendance.exportAttendancePDF('${name}');
+    "
+    style="
+      border:none;
+      background:#2b3155;
+      color:white;
+      padding:5px 9px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+    "
+  >
+    PDF
+  </button>
+
+</div>
 
      <div class="lp-att-count">
   📚 ${batchMap[name] || "No Batch"}
   <br>
-  📅 ${count}/${totalSub} Classes Done
+  📅 ${count}/${totalSub} Class Completed
 <br>
-✨ ${remaining} Classes Remaining
+✨ ${remaining} Class Remaining
 </div>
 
       </div>
@@ -66223,14 +66345,39 @@ function showStudent(name) {
     ">
       👨‍🎓 ${name}
 
-      <div style="
-        font-size:13px;
-        opacity:0.7;
-        margin-top:4px;
-      ">
-        📅 ${uniqueDays.size}
-        Actual Attendance Days
-      </div>
+     <div style="
+  font-size:13px;
+  opacity:0.85;
+  margin-top:6px;
+  line-height:1.7;
+">
+
+  📅 ${uniqueDays.size}
+  Actual Attendance Days
+
+  <br>
+
+  📚 ${batchMap[name] || "No Batch"}
+
+  <br>
+
+  📖 ${
+    uniqueDays.size
+  }/${
+    subscriptionMap[name] || 24
+  } Classes Used
+
+  <br>
+
+  ✨ ${
+    Math.max(
+      (subscriptionMap[name] || 24)
+      - uniqueDays.size,
+      0
+    )
+  } Remaining
+
+</div>
     </div>
 
     ${Object.entries(
@@ -66375,9 +66522,84 @@ function showBatch(batchName) {
 
         <div class="lp-att-date-row">
 
-          <div>
-            👨‍🎓 ${name}
-          </div>
+        <div>
+
+  <div style="
+    font-weight:700;
+    font-size:15px;
+    margin-bottom:4px;
+  ">
+    👨‍🎓 ${name}
+  </div>
+
+  <div style="
+    font-size:12px;
+    opacity:0.8;
+    line-height:1.5;
+  ">
+
+    📚 ${batchMap[name] || "No Batch"}
+    <br>
+
+    📖 ${
+      (() => {
+
+        const totalSub =
+          subscriptionMap[name] || 24;
+
+        const rows =
+          attendanceMap[name] || [];
+
+        const uniqueDays =
+          new Set(
+            rows.map(r =>
+              new Date(r.started_at + "Z")
+              .toLocaleDateString("en-CA", {
+                timeZone:"Asia/Kolkata"
+              })
+            )
+          );
+
+        const used =
+          uniqueDays.size;
+
+        return `${used}/${totalSub} Class Completed`;
+
+      })()
+    }
+
+    <br>
+
+    ✨ ${
+      (() => {
+
+        const totalSub =
+          subscriptionMap[name] || 24;
+
+        const rows =
+          attendanceMap[name] || [];
+
+        const uniqueDays =
+          new Set(
+            rows.map(r =>
+              new Date(r.started_at + "Z")
+              .toLocaleDateString("en-CA", {
+                timeZone:"Asia/Kolkata"
+              })
+            )
+          );
+
+        return Math.max(
+          totalSub - uniqueDays.size,
+          0
+        );
+
+      })()
+    } Class Remaining
+
+  </div>
+
+</div>
 
           <button
             class="lp-att-delete"
@@ -66627,6 +66849,141 @@ async function deleteBatch(
     ).innerHTML = "Attendance deleted";
   }
 
+  // ===============================
+// EXPORT ATTENDANCE PDF
+// ===============================
+function exportAttendancePDF(name) {
+
+  const rows =
+    attendanceMap[name] || [];
+
+  const uniqueDays = [
+    ...new Set(
+      rows.map(r =>
+        new Date(r.started_at + "Z")
+        .toLocaleDateString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          day: "2-digit",
+          month: "short",
+          year: "numeric"
+        })
+      )
+    )
+  ];
+
+  const totalSub =
+    subscriptionMap[name] || 0;
+
+  const used =
+    uniqueDays.length;
+
+  const remaining =
+    Math.max(totalSub - used, 0);
+
+  const { jsPDF } = window.jspdf;
+
+  const pdf =
+    new jsPDF("p", "mm", "a4");
+
+  let y = 20;
+
+  // HEADER
+  pdf.setFontSize(18);
+  pdf.setFont(undefined, "bold");
+
+  pdf.text(
+    "Attendance Report",
+    20,
+    y
+  );
+
+  y += 12;
+
+  // STUDENT
+  pdf.setFontSize(14);
+
+  pdf.text(
+    `Student: ${name}`,
+    20,
+    y
+  );
+
+  y += 8;
+
+  pdf.setFontSize(11);
+  pdf.setFont(undefined, "normal");
+
+  pdf.text(
+    `Batch: ${batchMap[name] || "No Batch"}`,
+    20,
+    y
+  );
+
+  y += 7;
+
+  pdf.text(
+    `Classes Completed: ${used}/${totalSub}`,
+    20,
+    y
+  );
+
+  y += 7;
+
+  pdf.text(
+    `Remaining Classes: ${remaining}`,
+    20,
+    y
+  );
+
+  y += 14;
+
+  // TITLE
+  pdf.setFont(undefined, "bold");
+
+  pdf.text(
+    "Attendance Dates",
+    20,
+    y
+  );
+
+  y += 10;
+
+  pdf.setFont(undefined, "normal");
+
+  if (uniqueDays.length === 0) {
+
+    pdf.text(
+      "No attendance found",
+      20,
+      y
+    );
+
+  } else {
+
+    uniqueDays.forEach(day => {
+
+      if (y > 280) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      pdf.text(
+        "• " + day,
+        24,
+        y
+      );
+
+      y += 7;
+
+    });
+
+  }
+
+  pdf.save(
+    `${name}_Attendance_Report.pdf`
+  );
+}
+
   return {
     markAttendance,
     loadAttendance,
@@ -66637,6 +66994,7 @@ removeStudentFromBatch,
 deleteBatch,
 showBatch,
 setView,
+exportAttendancePDF,
 saveSubscription
   };
 
