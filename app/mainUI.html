@@ -58582,9 +58582,9 @@ games.forEach(gameText => {
 // Draw header for first page
 drawHeader();
 
-    const boardSize = 55;
-    const marginX = 10;
-    const marginTop = 32;
+  const boardSize = 63; // bigger boards
+const marginX = 6;
+const marginTop = 32;
 
     let col = 0;
     let row = 0;
@@ -58601,8 +58601,8 @@ drawHeader();
 
   
 
-     const gapX = 12;
-const gapY = 32;
+     const gapX = 6;   // tighter horizontal gap
+const gapY = 26;  // slightly tighter vertical gap
 
 const x = marginX + (col * (boardSize + gapX));
 const y = marginTop + (row * (boardSize + gapY));
@@ -58644,6 +58644,8 @@ window.drawBoardFromFen = function (doc, fen, startX, startY, size, mode) {
 
   const square = size / 8;
   const rows = fen.split(" ")[0].split("/");
+  const turn = fen.split(" ")[1];
+const isBlackPOV = turn === "b";
 
 let light, dark;
 
@@ -58661,8 +58663,11 @@ if (mode === "print") {
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
 
-      const x = startX + c * square;
-      const y = startY + r * square;
+     const drawCol = isBlackPOV ? 7 - c : c;
+const drawRow = isBlackPOV ? 7 - r : r;
+
+const x = startX + drawCol * square;
+const y = startY + drawRow * square;
 
       if ((r + c) % 2 === 0) {
         doc.setFillColor(...light);
@@ -58678,8 +58683,13 @@ if (mode === "print") {
 // ♟ Draw Bigger Clear Coordinates
 // ======================================
 
-const files = ["a","b","c","d","e","f","g","h"];
-const ranks = ["8","7","6","5","4","3","2","1"];
+const files = isBlackPOV
+  ? ["h","g","f","e","d","c","b","a"]
+  : ["a","b","c","d","e","f","g","h"];
+
+const ranks = isBlackPOV
+  ? ["1","2","3","4","5","6","7","8"]
+  : ["8","7","6","5","4","3","2","1"];
 
 // Bigger size
 doc.setFont("helvetica", "bold");
@@ -58692,23 +58702,26 @@ if (mode === "print") {
   doc.setTextColor(60, 60, 60);
 }
 
-// Draw ranks (left side — closer to board)
+// Draw ranks
 for (let r = 0; r < 8; r++) {
   const y = startY + r * square + square * 0.65;
+
   doc.text(
     ranks[r],
-    startX - square * 0.25,  // closer than before
+    startX - square * 0.25,
     y
   );
 }
 
-// Draw files (bottom — closer)
+// Draw files
 for (let c = 0; c < 8; c++) {
+
   const x = startX + c * square + square / 2;
+
   doc.text(
     files[c],
     x,
-    startY + size + square * 0.22, // closer to board
+    startY + size + square * 0.22,
     { align: "center" }
   );
 }
@@ -58724,8 +58737,11 @@ for (let c = 0; c < 8; c++) {
         colIndex += parseInt(char);
       } else {
 
-        const x = startX + colIndex * square;
-        const y = startY + r * square;
+       const drawCol = isBlackPOV ? 7 - colIndex : colIndex;
+const drawRow = isBlackPOV ? 7 - r : r;
+
+const x = startX + drawCol * square;
+const y = startY + drawRow * square;
 
         if (window.PDF_PIECES && window.PDF_PIECES[char]) {
 
