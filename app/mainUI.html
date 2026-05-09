@@ -66713,12 +66713,41 @@ function showBatch(batchName) {
   wrap.innerHTML = `
 
     <div style="
-      font-size:20px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+">
+
+  <div style="
+    font-size:20px;
+    font-weight:700;
+  ">
+    📚 ${batchName}
+  </div>
+
+  <button
+    onclick="
+      LPAttendance.renameBatch(
+        '${batchName}'
+      )
+    "
+    style="
+      border:none;
+      padding:8px 12px;
+      border-radius:8px;
+      background:#4f46e5;
+      color:white;
       font-weight:700;
-      margin-bottom:14px;
-    ">
-      📚 ${batchName}
-    </div>
+      cursor:pointer;
+      font-size:12px;
+    "
+  >
+    Rename
+  </button>
+
+</div>
 
     <div style="
       display:flex;
@@ -67064,6 +67093,64 @@ async function deleteBatch(
   loadAttendance();
 }
 
+async function renameBatch(
+  oldBatchName
+) {
+
+  const newBatchName = prompt(
+    "Enter new batch name",
+    oldBatchName
+  );
+
+  if (
+    !newBatchName ||
+    !newBatchName.trim()
+  ) return;
+
+  const cleanName =
+    newBatchName.trim();
+
+  if (
+    cleanName === oldBatchName
+  ) return;
+
+  await supabase
+    .from("student_batches")
+    .update({
+      batch_name: cleanName
+    })
+    .eq(
+      "batch_name",
+      oldBatchName
+    );
+
+  // instant local update
+  Object.keys(batchMap)
+  .forEach(user => {
+
+    if (
+      batchMap[user] === oldBatchName
+    ) {
+      batchMap[user] =
+        cleanName;
+    }
+
+  });
+
+  renderStudentList();
+
+  showBatch(cleanName);
+
+  // sync assignment system
+  if (
+    typeof loadStudentsForAssignment2
+    === "function"
+  ) {
+    loadStudentsForAssignment2();
+  }
+
+}
+
   // ===============================
   // DELETE ATTENDANCE
   // ===============================
@@ -67220,6 +67307,7 @@ function exportAttendancePDF(name) {
     markAttendance,
     loadAttendance,
     showStudent,
+    renameBatch,
     deleteAttendance,
 assignBatch,
 removeStudentFromBatch,
