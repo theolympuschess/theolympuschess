@@ -64149,9 +64149,18 @@ const NS = "OLYMPUS_SCOREBOARD_PRO";
    STATE
 ======================== */
 let state = JSON.parse(localStorage.getItem(NS)) || {
+  
   title: "Scoreboard",
   players: []
 };
+/* ========================
+   FIX OLD PLAYERS WITHOUT IDS
+======================== */
+state.players.forEach(p=>{
+  if(!p.id){
+    p.id = crypto.randomUUID();
+  }
+});
 
 function save(){
   localStorage.setItem(NS, JSON.stringify(state));
@@ -64161,7 +64170,8 @@ function save(){
    RANDOM PICK SHUFFLE
 ======================== */
 function shufflePlayers(){
-  let arr = state.players.map((_,i)=>i);
+
+  let arr = state.players.map(p => p.id);
 
   for(let i = arr.length - 1; i > 0; i--){
     let j = Math.floor(Math.random() * (i + 1));
@@ -64385,7 +64395,11 @@ addBtn.onclick = ()=>{
   const name = nameInput.value.trim();
   if(!name) return;
 
-  state.players.push({name, points:0});
+  state.players.push({
+  id: crypto.randomUUID(),
+  name,
+  points:0
+});
   nameInput.value = "";
 
   save();
@@ -64395,6 +64409,7 @@ addBtn.onclick = ()=>{
 resetBtn.onclick = ()=>{
   if(confirm("Reset scoreboard?")){
     state.players = [];
+    pickQueue = [];
     save();
     render();
   }
@@ -64408,6 +64423,7 @@ if(resetScoreBtn){
       state.players.forEach(p=>{
         p.points = 0;
       });
+      pickQueue = [];
       save();
       render();
     }
@@ -64472,8 +64488,15 @@ if(randomBtn){
 
         clearInterval(interval);
 
-        let finalIndex = pickQueue.shift();
-        highlightPlayer(finalIndex, true);
+       let pickedId = pickQueue.shift();
+
+let finalIndex = state.players.findIndex(
+  p => p.id === pickedId
+);
+
+if(finalIndex !== -1){
+  highlightPlayer(finalIndex, true);
+}
 
         isPicking = false;
       }
