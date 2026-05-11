@@ -20672,6 +20672,13 @@ LEFT ATTENDANCE PANEL SCROLL
 
 
 
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -22359,6 +22366,23 @@ title="Voice volume"
     >
 
     <button id="lpAskPuzzleBtn">📢 Ask Puzzle</button>
+    <input
+  id="lpRaceStartInput"
+  type="number"
+  placeholder="From PGN"
+  style="width:120px;"
+>
+
+<input
+  id="lpRaceEndInput"
+  type="number"
+  placeholder="To PGN"
+  style="width:120px;"
+>
+
+<button id="lpAskRaceBtn">
+  🎯 Ask Race 
+</button>
 
     <div id="lpPuzzleInfo" style="
       margin-top:10px;
@@ -64593,6 +64617,14 @@ let movesChannel = null;
 let lpAllLibraries = []; 
 // 🔥 POINT SYSTEM
 let playerScores = {};
+// ================= RACE MODE =================
+let isRaceMode = false;
+
+let raceStartIndex = 0;
+let raceEndIndex = 0;
+
+let playerRaceIndex = {}; // user_id => current puzzle index
+let totalRacePuzzles = 0;
 let pointPerMove = 10;
 let negativePoint = -5;
 let noMovePenaltyMultiplier = 2;
@@ -64611,7 +64643,21 @@ document.getElementById("lpNextMoveBtn").onclick = nextPreviewMove;
 document.getElementById("lpPrevMoveBtn").onclick = prevPreviewMove;
 
     document.getElementById("lpLoadPuzzlesBtn").onclick = loadSelectedLibrary;
-    document.getElementById("lpAskPuzzleBtn").onclick = askPuzzle;
+    document.getElementById("lpAskPuzzleBtn").onclick = async () => {
+
+  // 🔥 EXIT RACE MODE
+  isRaceMode = false;
+  supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "race_mode",
+  payload: {
+    enabled: false
+  }
+});
+
+  await askPuzzle();
+};
+    document.getElementById("lpAskRaceBtn").onclick = askRace;
     // 🔥 ADMIN PANEL TOGGLE
 document.getElementById("lpAdminToggle").onclick = () => {
 
@@ -65122,64 +65168,17 @@ updateScore(currentUserId, pointPerMove);
   });
 }
 
-  setTimeout(async () => {
-
-    if (moveIndex < solutionMoves.length) {
-      const nextMove = solutionMoves[moveIndex];
-
-      if (nextMove.color !== move.color) {
-        game.move(nextMove);
-
-        // ✅ ONLY HERE we update board
-        board.position(game.fen());
-
-        moveIndex++;
-      }
-    }
-
-    // FINISH (same as before)
-    if (moveIndex >= solutionMoves.length) {
-
-      const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-      clearInterval(timerInterval);
-
-      await supabase
-  .from("live_puzzle_attempts")
-  .update({
-    correct: !isTimeUp,
-    solved_at: new Date(),
-    time_taken: timeTaken
-  })
-  .eq("room_code", roomCode)
-  .eq("user_id", currentUserId);
-        // 🔥 FORCE REALTIME TRIGGER (IMPORTANT)
-
-
-      loadStudents();
-
-      setTimeout(() => {
-  console.log(
-    (isTimeUp ? "Time Up" : "Solved"),
-    "Time:", timeTaken + "s"
-  );
-
-  // 🔥 Optional toast instead of alert
-  showToast(
-    (isTimeUp ? "❌ Time Up" : "✅ Solved") +
-    " • " + timeTaken + "s"
-  );
-
-}, 200);
-    }
-
-  }, 300);
+ handleCorrectMove(move);
+}
+function showToast(msg) {
+  console.log(msg);
 }
 
 async function handleCorrectMove(move) {
 
   if (isTimeUp) return;
 
-  moveIndex++; // 🔥 no board.position here
+
 
   setTimeout(async () => {
 
@@ -65193,7 +65192,10 @@ async function handleCorrectMove(move) {
       }
     }
 
-    if (moveIndex >= solutionMoves.length) {
+    const puzzleSolved =
+  moveIndex >= solutionMoves.length;
+
+if (puzzleSolved) {
 
       const timeTaken = Math.floor((Date.now() - startTime) / 1000);
       clearInterval(timerInterval);
@@ -65223,6 +65225,157 @@ async function handleCorrectMove(move) {
     (isTimeUp ? "❌ Time Up" : "✅ Solved") +
     " • " + timeTaken + "s"
   );
+  console.log("RACE CHECK", {
+  isAdmin,
+  isRaceMode,
+  moveIndex,
+  solutionLength: solutionMoves.length
+});
+  // ================= RACE AUTO NEXT =================
+if (!isAdmin && isRaceMode) {
+
+// 🔥 ALWAYS INITIALIZE SAFELY
+if (playerRaceIndex[currentUserId] == null) {
+
+  playerRaceIndex[currentUserId] = raceStartIndex;
+
+}
+
+// 🔥 MOVE TO NEXT PUZZLE
+playerRaceIndex[currentUserId]++;
+
+const nextIndex =
+  playerRaceIndex[currentUserId];
+
+ // ✅ FINISHED RACE
+if (nextIndex > raceEndIndex) {
+
+  // 🔥 FINAL PROGRESS SYNC TO ADMIN
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "race_progress",
+    payload: {
+      nextIndex,
+      user_id: currentUserId
+    }
+  });
+
+  showToast("🏆 Race Finished!");
+
+  loadStudents();
+
+  return;
+}
+
+  // 🔥 LOAD NEXT PUZZLE FOR THIS STUDENT ONLY
+ setTimeout(async () => {
+
+    const nextPGN = puzzles[nextIndex];
+
+    if (!nextPGN) return;
+
+    const tempGame = new Chess();
+    tempGame.load_pgn(nextPGN);
+
+    solutionMoves = tempGame.history({ verbose: true });
+    game.reset();
+
+    const startFen = tempGame.header().FEN;
+
+    if (startFen) {
+      game.load(startFen);
+    } else {
+      game.reset();
+    }
+    board.position(game.fen());
+
+   moveIndex = 0;
+   // 🔥 RESET LOCAL VISUAL STATUS
+// 🔥 RESET STATUS FOR NEXT RACE PUZZLE
+await supabase
+  .from("live_puzzle_attempts")
+  .update({
+    correct: null,
+    solved_at: null,
+    time_taken: null,
+    wrong_count: 0
+  })
+  .eq("room_code", roomCode)
+  .eq("user_id", currentUserId);
+
+// 🔥 FORCE WAITING UI IMMEDIATELY
+loadStudents();
+
+// 🔥 RESET ONLY CURRENT PLAYER MOVES
+studentMoves[currentUserId] = [];
+loadStudents();
+
+// 🔥 SYNC RESET TO ADMIN
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "reset_moves",
+  payload: {
+    user_id: currentUserId
+  }
+});
+    
+
+    board.position(game.fen());
+    if (!isAdmin) {
+
+  supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "race_progress",
+  payload: {
+    nextIndex,
+    user_id: currentUserId
+  }
+});
+
+}
+
+    setInitialOrientation();
+
+    // 🔥 RESET TIMER
+    clearInterval(timerInterval);
+
+    isTimeUp = false;
+
+    timeLeft = timeLimit;
+    updateTimerUI();
+timerInterval = setInterval(async () => {
+
+  timeLeft--;
+
+  updateTimerUI();
+
+  if (timeLeft <= 0 && !isTimeUp) {
+
+    clearInterval(timerInterval);
+
+    isTimeUp = true;
+
+    showToast("⏰ Time Up");
+    await supabase
+  .from("live_puzzle_attempts")
+  .update({
+    correct: false,
+    solved_at: new Date(),
+    time_taken: timeLimit
+  })
+  .eq("room_code", roomCode)
+  .eq("user_id", currentUserId);
+
+loadStudents();
+  }
+
+}, 1000);
+    startTime = Date.now();
+
+    updateTimerUI();
+
+  }, 1000);
+}
 
 }, 200);
     }
@@ -65336,6 +65489,31 @@ if (playerScores[s.user_id] === undefined) {
   playerScores[s.user_id] = 0;
 }
 const score = playerScores[s.user_id];
+let raceProgress = "";
+
+if (isRaceMode) {
+
+  const playerIndex =
+  playerRaceIndex[s.user_id];
+
+const current =
+  playerIndex == null
+    ? 0
+    : Math.max(
+        0,
+        playerIndex - raceStartIndex
+      );
+
+  raceProgress =
+    `<span style="
+      margin-left:10px;
+      font-weight:700;
+      font-size:16px;
+      color:#ffd54f;
+    ">
+     🎯 ${current}/${totalRacePuzzles} 
+    </span>`;
+}
 
 const movesDisplay = `
   <div style="
@@ -65367,11 +65545,17 @@ const movesDisplay = `
     const div = document.createElement("div");
     div.className = "lp-student";
 
-    let status = "⏳ Waiting";
+   let status = "⏳ Waiting";
 
 if (s.correct === true) {
+
   status = "✅ Solved";
-} else if (s.solved_at !== null) {
+
+} else if (
+  s.correct === false &&
+  s.time_taken !== null
+) {
+
   status = "❌ Failed";
 }
 
@@ -65408,7 +65592,7 @@ div.innerHTML = `
   letter-spacing:0.3px;
   color:${score >= 0 ? "#4caf50" : "#ff5252"};
 ">
-  ${score} pts
+ ${score} pts ${raceProgress}
 </span>
 
 </div>
@@ -65561,9 +65745,34 @@ function updateRoomUI() {
     pgnBox.style.display = isAdmin ? "block" : "none";
   }
 }
+// ================= RESET SESSION STATE =================
+function resetPuzzleSession() {
+
+  // 🔥 reset moves
+  studentMoves = {};
+
+  // 🔥 reset race progress
+  playerRaceIndex = {};
+
+  // 🔥 reset solved state
+  moveIndex = 0;
+
+  // 🔥 reset timer
+  clearInterval(timerInterval);
+
+  isTimeUp = false;
+
+  timeLeft = timeLimit;
+
+  // 🔥 refresh UI instantly
+  loadStudents();
+}
 
   // ================= ASK PUZZLE =================
 async function askPuzzle() {
+// 🔥 RESET RACE ONLY FOR NORMAL ASK
+// 🔥 FULL SESSION RESET
+resetPuzzleSession();
   const pgn = puzzles[currentIndex];
 
   if (!pgn || !roomCode) {
@@ -65596,10 +65805,13 @@ negativePoint = negInput ? -Math.abs(negInput) : 0;
 const { error } = await supabase
   .from("live_puzzle_state")
   .upsert({
-    room_code: roomCode,
-    pgn: pgn.trim(),
-    fen: null,
-    time_limit: timeLimitValue,
+  room_code: roomCode,
+  pgn: pgn.trim(),
+  fen: null,
+  time_limit: timeLimitValue,
+
+ 
+ 
 
     
   
@@ -65621,6 +65833,79 @@ supabase.channel("lp-moves-" + roomCode).send({
 
   // 🔥 FORCE STUDENT UI UPDATE ALSO
   loadStudents();
+}
+
+// ================= ASK RACE =================
+async function askRace() {
+
+  if (!roomCode) {
+    return alert("Create room first");
+  }
+
+  const from =
+    parseInt(document.getElementById("lpRaceStartInput").value);
+
+  const to =
+    parseInt(document.getElementById("lpRaceEndInput").value);
+
+  if (
+    isNaN(from) ||
+    isNaN(to) ||
+    from < 1 ||
+    to > puzzles.length ||
+    from > to
+  ) {
+    return alert("Invalid range");
+  }
+
+  // ✅ ENABLE RACE MODE
+ isRaceMode = true;
+
+raceStartIndex = from - 1;
+raceEndIndex = to - 1;
+totalRacePuzzles =
+  raceEndIndex - raceStartIndex + 1;
+
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "race_mode",
+  payload: {
+  enabled: true,
+  start: raceStartIndex,
+  end: raceEndIndex,
+  total: totalRacePuzzles
+}
+});
+
+// 🔥 FULL SESSION RESET
+resetPuzzleSession();
+// 🔥 HARD RESET RACE PROGRESS
+playerRaceIndex = {};
+// 🔥 RESET ALL RACE COUNTS
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "reset_race_progress",
+  payload: {}
+});
+
+if (currentUserId) {
+  playerRaceIndex[currentUserId] =
+    raceStartIndex;
+}
+  supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "race_puzzles",
+  payload: {
+    puzzles
+  }
+});
+
+  currentIndex = raceStartIndex;
+  moveIndex = 0;
+ 
+
+  // 🔥 START FIRST PUZZLE
+  await askPuzzle();
 }
 
 
@@ -65736,7 +66021,10 @@ loadStudents();
      console.log("Time Up");
 
   // ✅ OPTIONAL (nice UX, no popup)
-  showToast("⏰ Time Up");
+ showToast("⏰ Time Up");
+
+// 🔥 FORCE VISUAL FAILED STATE
+await loadStudents();
   }
 }, 1000);
 
@@ -65762,9 +66050,100 @@ loadStudents();
 })
     .subscribe();
    // ================= MOVE BROADCAST LISTENER =================
-if (!movesChannel) {
+// 🔥 REMOVE OLD CHANNEL
+if (movesChannel) {
+  supabase.removeChannel(movesChannel);
+}
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+       // ================= RACE MODE =================
+      if (payload.event === "race_mode") {
+
+     isRaceMode = payload.payload.enabled;
+
+raceStartIndex = payload.payload.start ?? 0;
+raceEndIndex = payload.payload.end ?? 0;
+totalRacePuzzles =
+  payload.payload.total ?? 0;
+
+        console.log("RACE MODE:", isRaceMode);
+
+        return;
+      }
+      // ================= RESET RACE PROGRESS =================
+if (payload.event === "reset_race_progress") {
+
+  playerRaceIndex = {};
+
+  loadStudents();
+
+  return;
+}
+       // ================= RACE PUZZLES =================
+  if (payload.event === "race_puzzles") {
+
+    puzzles = payload.payload.puzzles || [];
+
+    console.log("RACE PUZZLES RECEIVED:", puzzles.length);
+
+    return;
+  }
+  // ================= RACE PROGRESS =================
+if (payload.event === "race_progress") {
+  const uid = payload.payload.user_id;
+
+if (uid) {
+  playerRaceIndex[uid] =
+    payload.payload.nextIndex;
+}
+
+  if (!isAdmin) return;
+
+  currentIndex = payload.payload.nextIndex;
+
+  loadPuzzle(currentIndex);
+
+  updatePuzzleCounter();
+
+  // 🔥 RESET ADMIN TIMER
+  clearInterval(timerInterval);
+
+  isTimeUp = false;
+
+  timeLeft = timeLimit;
+
+  updateTimerUI();
+
+  timerInterval = setInterval(() => {
+
+    timeLeft--;
+
+    updateTimerUI();
+
+    if (timeLeft <= 0) {
+
+      clearInterval(timerInterval);
+
+      isTimeUp = true;
+    }
+
+  }, 1000);
+
+  startTime = Date.now();
+
+  return;
+}
+// ================= RESET MOVES =================
+if (payload.event === "reset_moves") {
+
+  const uid = payload.payload.user_id;
+
+  studentMoves[uid] = [];
+
+  loadStudents();
+
+  return;
+}
 
       // 🔥 SETTINGS EVENT
       if (payload.event === "settings") {
@@ -65805,7 +66184,7 @@ if (!movesChannel) {
     })
     .subscribe();
 }
-}
+
 
 
 async function loadCurrentPuzzle() {
@@ -65945,7 +66324,10 @@ loadStudents();
      console.log("Time Up");
 
   // ✅ OPTIONAL (nice UX, no popup)
-  showToast("⏰ Time Up");
+ showToast("⏰ Time Up");
+
+// 🔥 FORCE VISUAL FAILED STATE
+await loadStudents();
   }
 }, 1000);
 
