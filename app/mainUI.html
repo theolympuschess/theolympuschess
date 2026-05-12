@@ -21115,7 +21115,15 @@ background: #2563eb;
 }
 
 
+.lp-analysis-btn{
+  transition:0.2s;
+}
 
+.lp-analysis-btn.active{
+  background:#4caf50;
+  color:white;
+  box-shadow:0 0 10px rgba(76,175,80,0.4);
+}
 
 
 
@@ -22849,9 +22857,11 @@ title="Voice volume"
 
       <!-- BOARD -->
       <div id="lpBoard" style="width:600px;"></div>
+      
 
       <!-- MOVE CONTROLS -->
       <div style="margin-top:15px; display:flex; justify-content:center; gap:10px;">
+        
   <button id="lpPrevMoveBtn" data-role="admin-only">⏮ Move</button>
 <button id="lpNextMoveBtn" data-role="admin-only">Move ⏭</button>
 <!-- ADMIN PGN DISPLAY -->
@@ -23000,7 +23010,11 @@ title="Voice volume"
     <div style="margin-top:10px;">
      <button id="lpPrevPuzzleBtn">⬅ Prev Puzzle</button>
       <button id="lpNextPuzzleBtn">Next Puzzle ➡</button>
+      <button id="lpLoadAnalysisBtn" class="lp-analysis-btn">
+  📊 Analysis OFF
+</button>
     </div>
+    
 
   </div>
 
@@ -65541,7 +65555,13 @@ let myAttemptId = null;
 let startTime = null;
 let previewGame = new Chess();
 let previewIndex = 0;
+// ================= ANALYSIS MODE =================
+let analysisGame = new Chess();
+let analysisMoves = [];
+let analysisIndex = 0;
+let isAnalysisMode = false;
 let lpPendingPromotion = null;
+let analysisPromotionData = null;
 // 🔥 TIMER SYSTEM
 let timeLimit = 0;
 let timeLeft = 0;
@@ -65577,6 +65597,8 @@ document.getElementById("lpPrevPuzzleBtn").onclick = prevPuzzle;
 
 document.getElementById("lpNextMoveBtn").onclick = nextPreviewMove;
 document.getElementById("lpPrevMoveBtn").onclick = prevPreviewMove;
+document.getElementById("lpLoadAnalysisBtn").onclick =
+  toggleAnalysisMode;
 
     document.getElementById("lpLoadPuzzlesBtn").onclick = loadSelectedLibrary;
     document.getElementById("lpAskPuzzleBtn").onclick = async () => {
@@ -65705,6 +65727,29 @@ function lpShowPromotion(from, to) {
 }
 
 async function lpCompletePromotion(piece) {
+// ================= ANALYSIS PROMOTION =================
+if (isAnalysisMode && analysisPromotionData) {
+
+  const move = analysisGame.move({
+    from: analysisPromotionData.from,
+    to: analysisPromotionData.to,
+    promotion: piece
+  });
+
+  analysisPromotionData = null;
+
+  document.getElementById("lpPromotionModal")
+    .classList.add("hidden");
+
+  if (!move) return;
+
+  analysisMoves.push(move);
+  analysisIndex++;
+
+  board.position(analysisGame.fen());
+
+  return;
+}
   if (!lpPendingPromotion) return;
 
   const { from, to } = lpPendingPromotion;
@@ -65954,6 +65999,25 @@ if (isAdmin) {
 }
 
 function nextPreviewMove() {
+
+  // ================= ANALYSIS MODE =================
+  if (isAnalysisMode) {
+
+    if (analysisIndex >= analysisMoves.length)
+      return;
+
+    analysisGame.move(
+      analysisMoves[analysisIndex]
+    );
+
+    analysisIndex++;
+
+    board.position(analysisGame.fen());
+
+    return;
+  }
+
+  // ================= NORMAL PREVIEW =================
   if (previewIndex >= solutionMoves.length) return;
 
   previewGame.move(solutionMoves[previewIndex]);
@@ -65963,12 +66027,178 @@ function nextPreviewMove() {
 }
 
 function prevPreviewMove() {
+
+  // ================= ANALYSIS MODE =================
+  if (isAnalysisMode) {
+
+    if (analysisIndex <= 0)
+      return;
+
+    analysisGame.undo();
+
+    analysisIndex--;
+
+    board.position(analysisGame.fen());
+
+    return;
+  }
+
+  // ================= NORMAL PREVIEW =================
   if (previewIndex <= 0) return;
 
   previewGame.undo();
   previewIndex--;
 
   board.position(previewGame.fen());
+}
+// ================= LOAD CURRENT PUZZLE INTO ANALYSIS =================
+function loadCurrentPuzzleAnalysis() {
+
+  // 🔥 EXIT PUZZLE MODE
+  isAnalysisMode = true;
+
+  analysisMoves = [];
+  analysisIndex = 0;
+
+  // 🔥 COPY CURRENT POSITION
+ // 🔥 LOAD CURRENT DATABASE PUZZLE POSITION
+const tempGame = new Chess();
+
+tempGame.load_pgn(puzzles[currentIndex]);
+
+const startFen = tempGame.header().FEN;
+
+if (startFen) {
+  analysisGame.load(startFen);
+} else {
+  analysisGame.reset();
+}
+
+
+  // 🔥 RECREATE BOARD IN FREE MODE
+  board = Chessboard("lpBoard", {
+
+    position: analysisGame.fen(),
+     orientation:
+    solutionMoves[0]?.color === "b"
+      ? "black"
+      : "white",
+
+    draggable: true,
+
+   onDrop: function(source, target) {
+
+  const piece =
+    analysisGame.get(source);
+
+  // ================= PROMOTION =================
+  if (
+    piece &&
+    piece.type === "p" &&
+    (
+      (piece.color === "w" && target[1] === "8") ||
+      (piece.color === "b" && target[1] === "1")
+    )
+  ) {
+
+    analysisPromotionData = {
+      from: source,
+      to: target
+    };
+
+    lpShowPromotion(source, target);
+
+    return;
+  }
+
+  const move = analysisGame.move({
+    from: source,
+    to: target
+  });
+
+  if (!move) return "snapback";
+
+  analysisMoves.push(move);
+  analysisIndex++;
+
+
+
+     setTimeout(() => {
+  board.position(analysisGame.fen(), false);
+}, 0);
+    },
+
+    onSnapEnd: () => {
+      board.position(analysisGame.fen());
+    },
+
+    pieceTheme: getPieceThemePath(currentPieceTheme)
+
+  });
+
+  showToast("📥 Analysis Loaded");
+}
+
+function toggleAnalysisMode() {
+
+  const btn =
+    document.getElementById("lpLoadAnalysisBtn");
+
+  // ================= TURN OFF =================
+  if (isAnalysisMode) {
+
+    isAnalysisMode = false;
+
+    btn.classList.remove("active");
+    btn.innerHTML = "📊 Analysis OFF";
+
+    // 🔥 RESTORE NORMAL PUZZLE POSITION
+    board = Chessboard("lpBoard", {
+
+      position: (() => {
+
+  const tempGame = new Chess();
+
+  tempGame.load_pgn(
+    puzzles[currentIndex]
+  );
+
+  const startFen =
+    tempGame.header().FEN;
+
+  return startFen || "start";
+
+})(),
+
+      orientation:
+        solutionMoves[0]?.color === "b"
+          ? "black"
+          : "white",
+
+      draggable: true,
+
+      onDragStart: onDragStart,
+      onDrop: onDrop,
+
+      onSnapEnd: () => {
+        board.position(game.fen());
+      },
+
+      pieceTheme:
+        getPieceThemePath(currentPieceTheme)
+
+    });
+
+    showToast("📘 Puzzle Mode");
+
+    return;
+  }
+
+  // ================= TURN ON =================
+  loadCurrentPuzzleAnalysis();
+
+  btn.classList.add("active");
+  btn.innerHTML = "📊 Analysis ON";
 }
 
 function onDragStart(source, piece) {
