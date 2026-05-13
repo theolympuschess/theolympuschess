@@ -21127,6 +21127,78 @@ background: #2563eb;
 
 
 
+
+
+/* =========================================
+   ♟ PUZZLE BOARD DRAW HELP
+========================================= */
+
+#lpBoardWrapper{
+  overflow: visible !important;
+}
+
+#lpDrawHelpWrapper{
+  position: absolute;
+   top: -10px;
+  right: -32px;
+  z-index: 500;
+}
+
+#lpDrawHelpBtn{
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+
+#lpDrawHelpPopup{
+  position: absolute;
+  top: 0;
+  left: 42px;
+
+  width: 280px;
+
+  background: white;
+  border-radius: 14px;
+
+  padding: 18px;
+
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.18);
+
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(5px);
+
+  transition: 0.18s ease;
+
+  pointer-events: none;
+}
+
+#lpDrawHelpWrapper:hover #lpDrawHelpPopup{
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -22856,7 +22928,117 @@ title="Voice volume"
     <div style="width:620px; min-width:620px;">
 
       <!-- BOARD -->
-      <div id="lpBoard" style="width:600px;"></div>
+      <div id="lpBoardWrapper"
+     style="
+       position:relative;
+       width:600px;
+       height:600px;
+     ">
+
+  <!-- BOARD -->
+  <div id="lpBoard"
+       style="
+         width:600px;
+         position:relative;
+         z-index:1;
+       "></div>
+
+  <!-- DRAW LAYER -->
+  <canvas id="lpDrawLayer"
+          style="
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
+            z-index:5;
+            pointer-events:none;
+          "></canvas>
+          <!-- ♟ PUZZLE DRAW HELP -->
+<div id="lpDrawHelpWrapper">
+
+  <div id="lpDrawHelpBtn">i</div>
+
+  <div id="lpDrawHelpPopup">
+
+    <!-- ARROWS -->
+    <div class="drawHelpSection">
+
+      <div class="drawHelpTitle">
+        Draw Arrows
+      </div>
+
+      <div class="drawHelpText">
+        Right click and drag between squares to draw colored arrows for analysis
+      </div>
+
+      <div class="drawHelpColors">
+
+        <div class="drawColorItem">
+          <span class="drawDot green"></span>
+          <span>Default</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot red"></span>
+          <span>Ctrl</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot blue"></span>
+          <span>Shift</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot yellow"></span>
+          <span>Alt</span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- HIGHLIGHT -->
+    <div class="drawHelpSection">
+
+      <div class="drawHelpTitle">
+        Highlight Squares
+      </div>
+
+      <div class="drawHelpText">
+        Right-click on any square to highlight it with different colors
+      </div>
+
+      <div class="drawHelpColors">
+
+        <div class="drawColorItem">
+          <span class="drawDot green"></span>
+          <span>Default</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot red"></span>
+          <span>Ctrl</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot blue"></span>
+          <span>Shift</span>
+        </div>
+
+        <div class="drawColorItem">
+          <span class="drawDot yellow"></span>
+          <span>Alt</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+</div>
       
 
       <!-- MOVE CONTROLS -->
@@ -22999,7 +23181,7 @@ title="Voice volume"
 >
 
 <button id="lpAskRaceBtn">
-  🎯 Ask Race 
+  🎯 Create Race 
 </button>
 
     <div id="lpPuzzleInfo" style="
@@ -65599,6 +65781,37 @@ document.getElementById("lpNextMoveBtn").onclick = nextPreviewMove;
 document.getElementById("lpPrevMoveBtn").onclick = prevPreviewMove;
 document.getElementById("lpLoadAnalysisBtn").onclick =
   toggleAnalysisMode;
+  // ================= KEYBOARD MOVE CONTROL =================
+document.addEventListener("keydown", (e) => {
+
+  // 🔥 avoid typing conflict
+  const tag =
+    document.activeElement?.tagName;
+
+  if (
+    tag === "INPUT" ||
+    tag === "TEXTAREA"
+  ) return;
+
+  // ⬅ LEFT ARROW
+  if (e.key === "ArrowLeft") {
+    e.preventDefault();
+
+    document
+      .getElementById("lpPrevMoveBtn")
+      ?.click();
+  }
+
+  // ➡ RIGHT ARROW
+  if (e.key === "ArrowRight") {
+    e.preventDefault();
+
+    document
+      .getElementById("lpNextMoveBtn")
+      ?.click();
+  }
+
+});
 
     document.getElementById("lpLoadPuzzlesBtn").onclick = loadSelectedLibrary;
     document.getElementById("lpAskPuzzleBtn").onclick = async () => {
@@ -65636,6 +65849,9 @@ document.getElementById("lpAdminToggle").onclick = () => {
 
 
     initBoard();
+    setTimeout(() => {
+  initPuzzleBoardDrawing();
+}, 200);
     loadLibraryDropdown();
     document.getElementById("lpRoomCodeInput").value = "";
     // 🔥 CLOSE SEARCH DROPDOWN ON OUTSIDE CLICK
@@ -65717,6 +65933,489 @@ function setInitialOrientation() {
   } else {
     board.orientation("black");
   }
+}
+
+// =====================================================
+// PUZZLE BOARD DRAWING SYSTEM
+// =====================================================
+
+const lpDrawingsByFen = {};
+
+function initPuzzleBoardDrawing() {
+
+  const wrapper =
+    document.getElementById("lpBoardWrapper");
+
+  const boardEl =
+    document.getElementById("lpBoard");
+
+  const canvas =
+    document.getElementById("lpDrawLayer");
+
+  if (!wrapper || !boardEl || !canvas) return;
+
+  const ctx = canvas.getContext("2d");
+
+  const DRAW_COLOR =
+    "rgba(0,180,0,0.95)";
+
+  function getDrawColor(e) {
+
+    if (e.ctrlKey)
+      return "rgba(255,0,0,0.95)";
+
+    if (e.shiftKey)
+      return "rgba(0,120,255,0.95)";
+
+    if (e.altKey)
+      return "rgba(255,200,0,0.95)";
+
+    return DRAW_COLOR;
+  }
+
+  let startSquare = null;
+  let isRightDragging = false;
+  let dragMoved = false;
+
+  // =========================
+  // RESIZE
+  // =========================
+  function resizeCanvas() {
+
+    const rect =
+      boardEl.getBoundingClientRect();
+
+    if (!rect.width) return;
+
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    redraw();
+  }
+
+  function waitForBoardReady() {
+
+    const rect =
+      boardEl.getBoundingClientRect();
+
+    if (!rect.width) {
+      requestAnimationFrame(waitForBoardReady);
+      return;
+    }
+
+    resizeCanvas();
+  }
+
+  waitForBoardReady();
+
+  window.addEventListener(
+    "resize",
+    resizeCanvas
+  );
+
+  // =========================
+  // FEN
+  // =========================
+  function currentFenKey() {
+
+    return game
+      .fen()
+      .split(" ")
+      .slice(0,4)
+      .join(" ");
+  }
+
+  function getDrawings() {
+
+    const key = currentFenKey();
+
+    if (!lpDrawingsByFen[key]) {
+      lpDrawingsByFen[key] = [];
+    }
+
+    return lpDrawingsByFen[key];
+  }
+
+  // =========================
+  // GET SQUARE
+  // =========================
+  function getSquareFromEvent(e) {
+
+    const rect =
+      boardEl.getBoundingClientRect();
+
+    const size =
+      rect.width / 8;
+
+    let x = Math.floor(
+      (e.clientX - rect.left) / size
+    );
+
+    let y = Math.floor(
+      (e.clientY - rect.top) / size
+    );
+
+    // 🔥 ORIENTATION SUPPORT
+    if (
+      board.orientation() === "black"
+    ) {
+      x = 7 - x;
+      y = 7 - y;
+    }
+
+    if (
+      x < 0 || x > 7 ||
+      y < 0 || y > 7
+    ) {
+      return null;
+    }
+
+    return (
+      String.fromCharCode(97 + x) +
+      (8 - y)
+    );
+  }
+
+  // =========================
+  // SQUARE CENTER
+  // =========================
+  function squareCenter(square) {
+
+    let file =
+      square.charCodeAt(0) - 97;
+
+    let rank =
+      8 - parseInt(square[1]);
+
+    // 🔥 ORIENTATION SUPPORT
+    if (
+      board.orientation() === "black"
+    ) {
+      file = 7 - file;
+      rank = 7 - rank;
+    }
+
+    const size =
+      canvas.width / 8;
+
+    return {
+      x: file * size + size / 2,
+      y: rank * size + size / 2
+    };
+  }
+
+  // =========================
+  // REDRAW
+  // =========================
+  function redraw() {
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    getDrawings().forEach(drawElement);
+  }
+
+  // =========================
+  // DRAW
+  // =========================
+  function drawElement(d) {
+
+    const size =
+      canvas.width / 8;
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.strokeStyle = d.color;
+    ctx.fillStyle = d.color;
+
+    // ===== CIRCLE =====
+    if (d.type === "circle") {
+
+      const c =
+        squareCenter(d.square);
+
+      ctx.lineWidth =
+        size * 0.08;
+
+      const radius =
+        size * 0.38;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        c.x,
+        c.y,
+        radius,
+        0,
+        Math.PI * 2
+      );
+
+      ctx.stroke();
+    }
+
+    // ===== ARROW =====
+    if (d.type === "arrow") {
+
+      const from =
+        squareCenter(d.from);
+
+      const to =
+        squareCenter(d.to);
+
+      const dx =
+        to.x - from.x;
+
+      const dy =
+        to.y - from.y;
+
+      const angle =
+        Math.atan2(dy, dx);
+
+      const shaftWidth =
+        size * 0.08;
+
+      const headLength =
+        size * 0.36;
+
+      const headWidth =
+        size * 0.24;
+
+      ctx.lineWidth =
+        shaftWidth;
+
+      const shaftEndX =
+        to.x -
+        headLength *
+        Math.cos(angle);
+
+      const shaftEndY =
+        to.y -
+        headLength *
+        Math.sin(angle);
+
+      // SHAFT
+      ctx.beginPath();
+
+      ctx.moveTo(
+        from.x,
+        from.y
+      );
+
+      ctx.lineTo(
+        shaftEndX,
+        shaftEndY
+      );
+
+      ctx.stroke();
+
+      // HEAD
+      ctx.beginPath();
+
+      ctx.moveTo(
+        to.x,
+        to.y
+      );
+
+      ctx.lineTo(
+        shaftEndX +
+        headWidth *
+        Math.cos(
+          angle - Math.PI / 2
+        ),
+
+        shaftEndY +
+        headWidth *
+        Math.sin(
+          angle - Math.PI / 2
+        )
+      );
+
+      ctx.lineTo(
+        shaftEndX +
+        headWidth *
+        Math.cos(
+          angle + Math.PI / 2
+        ),
+
+        shaftEndY +
+        headWidth *
+        Math.sin(
+          angle + Math.PI / 2
+        )
+      );
+
+      ctx.closePath();
+
+      ctx.fill();
+    }
+  }
+
+  // =========================
+  // BLOCK MENU
+  // =========================
+  wrapper.addEventListener(
+    "contextmenu",
+    e => e.preventDefault()
+  );
+
+  // =========================
+  // RIGHT DOWN
+  // =========================
+  wrapper.addEventListener(
+    "mousedown",
+    e => {
+
+      if (e.button !== 2) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      isRightDragging = true;
+      dragMoved = false;
+
+      startSquare =
+        getSquareFromEvent(e);
+
+    },
+    true
+  );
+
+  // =========================
+  // MOVE
+  // =========================
+  wrapper.addEventListener(
+    "mousemove",
+    () => {
+
+      if (isRightDragging) {
+        dragMoved = true;
+      }
+
+    },
+    true
+  );
+
+  // =========================
+  // RIGHT UP
+  // =========================
+  wrapper.addEventListener(
+    "mouseup",
+    e => {
+
+      if (
+        !isRightDragging ||
+        e.button !== 2
+      ) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      isRightDragging = false;
+
+      const endSquare =
+        getSquareFromEvent(e);
+
+      if (
+        !startSquare ||
+        !endSquare
+      ) return;
+
+      const drawings =
+        getDrawings();
+
+      const color =
+        getDrawColor(e);
+
+      // ===== CIRCLE =====
+      if (
+        !dragMoved ||
+        startSquare === endSquare
+      ) {
+
+        const idx =
+          drawings.findIndex(
+            d =>
+              d.type === "circle" &&
+              d.square === startSquare
+          );
+
+        if (idx >= 0) {
+
+          drawings.splice(idx,1);
+
+        } else {
+
+          drawings.push({
+            type: "circle",
+            square: startSquare,
+            color
+          });
+        }
+      }
+
+      // ===== ARROW =====
+      else {
+
+        const idx =
+          drawings.findIndex(
+            d =>
+              d.type === "arrow" &&
+              d.from === startSquare &&
+              d.to === endSquare
+          );
+
+        if (idx >= 0) {
+
+          drawings.splice(idx,1);
+
+        } else {
+
+          drawings.push({
+            type: "arrow",
+            from: startSquare,
+            to: endSquare,
+            color
+          });
+        }
+      }
+
+      redraw();
+
+    },
+    true
+  );
+
+  // =========================
+  // LEFT CLICK CLEAR
+  // =========================
+  wrapper.addEventListener(
+    "click",
+    e => {
+
+      if (e.button !== 0) return;
+
+      const drawings =
+        getDrawings();
+
+      drawings.length = 0;
+
+      redraw();
+
+    }
+  );
+
+  // =========================
+  // POSITION UPDATE
+  // =========================
+  document.addEventListener(
+    "lpPositionChanged",
+    redraw
+  );
 }
 
   // ================= PROMOTION SYSTEM =================
