@@ -69138,9 +69138,10 @@ const remaining =
 
   <button
     onclick="
-      event.stopPropagation();
-      LPAttendance.exportAttendancePDF('${name}');
-    "
+  event.stopPropagation();
+  LPAttendance.openPDFDateModal('${name}');
+"
+
     style="
       border:none;
       background:#2b3155;
@@ -69819,10 +69820,243 @@ async function renameBatch(
   // ===============================
 // EXPORT ATTENDANCE PDF
 // ===============================
-function exportAttendancePDF(name) {
+// ===============================
+// OPEN PDF DATE MODAL
+// ===============================
+function openPDFDateModal(name) {
+
+  // remove old
+  document.getElementById(
+    "lpPdfDateModal"
+  )?.remove();
+
+  const modal =
+    document.createElement("div");
+
+  modal.id = "lpPdfDateModal";
+
+  modal.innerHTML = `
+
+    <div style="
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.7);
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      backdrop-filter:blur(5px);
+    ">
+
+      <div style="
+        width:360px;
+        background:#111827;
+        border:1px solid rgba(255,255,255,0.08);
+        border-radius:18px;
+        padding:22px;
+        color:white;
+        box-shadow:0 10px 40px rgba(0,0,0,0.5);
+      ">
+
+        <div style="
+          font-size:18px;
+          font-weight:700;
+          margin-bottom:18px;
+        ">
+          📄 Export Attendance
+        </div>
+
+        <div style="
+          display:flex;
+          flex-direction:column;
+          gap:14px;
+        ">
+
+          <div>
+            <div style="
+              font-size:13px;
+              margin-bottom:6px;
+              opacity:0.8;
+            ">
+              From Date
+            </div>
+
+            <input
+              type="date"
+              id="lpPdfFromDate"
+              style="
+                width:100%;
+                padding:10px;
+                border-radius:10px;
+                border:none;
+                background:#1f2937;
+                color:white;
+                font-size:14px;
+              "
+            />
+          </div>
+
+          <div>
+            <div style="
+              font-size:13px;
+              margin-bottom:6px;
+              opacity:0.8;
+            ">
+              To Date
+            </div>
+
+            <input
+              type="date"
+              id="lpPdfToDate"
+              style="
+                width:100%;
+                padding:10px;
+                border-radius:10px;
+                border:none;
+                background:#1f2937;
+                color:white;
+                font-size:14px;
+              "
+            />
+          </div>
+          <div style="
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top:4px;
+">
+
+  <input
+    type="checkbox"
+    id="lpExportAllAttendance"
+    style="
+      width:16px;
+      height:16px;
+      cursor:pointer;
+    "
+  />
+
+  <label
+    for="lpExportAllAttendance"
+    style="
+      font-size:13px;
+      opacity:0.9;
+      cursor:pointer;
+    "
+  >
+    Export All Attendance
+  </label>
+
+</div>
+
+        </div>
+
+        <div style="
+          display:flex;
+          justify-content:flex-end;
+          gap:10px;
+          margin-top:22px;
+        ">
+
+          <button
+            onclick="
+              document.getElementById(
+                'lpPdfDateModal'
+              ).remove();
+            "
+            style="
+              padding:10px 16px;
+              border:none;
+              border-radius:10px;
+              background:#374151;
+              color:white;
+              cursor:pointer;
+              font-weight:600;
+            "
+          >
+            Cancel
+          </button>
+
+          <button
+            onclick="
+              LPAttendance.exportAttendancePDFWithRange('${name}');
+            "
+            style="
+              padding:10px 16px;
+              border:none;
+              border-radius:10px;
+              background:#4f46e5;
+              color:white;
+              cursor:pointer;
+              font-weight:700;
+            "
+          >
+            Export PDF
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+  document.body.appendChild(modal);
+}
+
+// ===============================
+// EXPORT PDF WITH RANGE
+// ===============================
+function exportAttendancePDFWithRange(name) {
+
+  const exportAll =
+  document.getElementById(
+    "lpExportAllAttendance"
+  )?.checked;
+
+const fromDate =
+  document.getElementById(
+    "lpPdfFromDate"
+  )?.value;
+
+const toDate =
+  document.getElementById(
+    "lpPdfToDate"
+  )?.value;
+
+if (
+  !exportAll &&
+  (!fromDate || !toDate)
+) {
+  alert("Select date range");
+  return;
+}
+
+  document.getElementById(
+    "lpPdfDateModal"
+  )?.remove();
 
   const rows =
-    attendanceMap[name] || [];
+  (attendanceMap[name] || [])
+  .filter(r => {
+
+    if (exportAll) {
+      return true;
+    }
+
+    const day =
+      new Date(r.started_at + "Z")
+      .toLocaleDateString("en-CA", {
+        timeZone: "Asia/Kolkata"
+      });
+
+    return (
+      day >= fromDate &&
+      day <= toDate
+    );
+
+  });
 
   const uniqueDays = [
     ...new Set(
@@ -69847,108 +70081,257 @@ function exportAttendancePDF(name) {
   const remaining =
     Math.max(totalSub - used, 0);
 
-  const { jsPDF } = window.jspdf;
+ const { jsPDF } = window.jspdf;
 
-  const pdf =
-    new jsPDF("p", "mm", "a4");
+const pdf =
+  new jsPDF("p", "mm", "a4");
 
-  let y = 20;
+// ===============================
+// COLORS
+// ===============================
+const gold = [255, 215, 0];
+const navy = [15, 23, 42];
+const softDark = [31, 41, 55];
+const lightGray = [245, 247, 250];
+const green = [34, 197, 94];
 
-  // HEADER
-  pdf.setFontSize(18);
-  pdf.setFont(undefined, "bold");
+// ===============================
+// HEADER
+// ===============================
+pdf.setFillColor(...navy);
+pdf.rect(0, 0, 210, 34, "F");
+
+pdf.setFontSize(24);
+pdf.setTextColor(...gold);
+pdf.setFont(undefined, "bold");
+
+pdf.text(
+  "The Olympus Chess Academy",
+  105,
+  15,
+  { align: "center" }
+);
+
+pdf.setFontSize(10);
+pdf.setTextColor(240,240,240);
+pdf.setFont(undefined, "normal");
+
+pdf.text(
+  "Professional Attendance Report",
+  105,
+  23,
+  { align: "center" }
+);
+
+pdf.setDrawColor(...gold);
+pdf.setLineWidth(0.8);
+pdf.line(15, 30, 195, 30);
+
+// ===============================
+// TITLE
+// ===============================
+let y = 45;
+
+pdf.setFontSize(20);
+pdf.setTextColor(...softDark);
+pdf.setFont(undefined, "bold");
+
+pdf.text(
+  "Student Attendance Summary",
+  20,
+  y
+);
+
+y += 12;
+
+// ===============================
+// STUDENT INFO BOX
+// ===============================
+pdf.setFillColor(...lightGray);
+pdf.roundedRect(
+  15,
+  y,
+  180,
+  42,
+  4,
+  4,
+  "F"
+);
+
+pdf.setDrawColor(220,220,220);
+pdf.roundedRect(
+  15,
+  y,
+  180,
+  42,
+  4,
+  4
+);
+
+pdf.setFontSize(12);
+
+const infoX1 = 22;
+const infoX2 = 110;
+
+pdf.setFont(undefined, "bold");
+pdf.setTextColor(...navy);
+
+pdf.text("Student Name", infoX1, y + 10);
+pdf.text("Batch", infoX1, y + 20);
+pdf.text("Attendance", infoX1, y + 30);
+
+pdf.text("Date Range", infoX2, y + 10);
+pdf.text("Remaining", infoX2, y + 20);
+
+pdf.setFont(undefined, "normal");
+pdf.setTextColor(50,50,50);
+
+pdf.text(name, infoX1 + 38, y + 10);
+
+pdf.text(
+  batchMap[name] || "No Batch",
+  infoX1 + 38,
+  y + 20
+);
+
+pdf.text(
+  `${used}/${totalSub} Classes`,
+  infoX1 + 38,
+  y + 30
+);
+
+pdf.text(
+  exportAll
+    ? "All Attendance"
+    : `${fromDate} to ${toDate}`,
+  infoX2 + 32,
+  y + 10
+);
+
+pdf.setTextColor(...green);
+
+pdf.text(
+  `${remaining} Classes`,
+  infoX2 + 32,
+  y + 20
+);
+
+y += 58;
+
+// ===============================
+// SECTION HEADER
+// ===============================
+pdf.setFillColor(...navy);
+
+pdf.roundedRect(
+  15,
+  y,
+  180,
+  10,
+  3,
+  3,
+  "F"
+);
+
+pdf.setFontSize(13);
+pdf.setTextColor(255,255,255);
+pdf.setFont(undefined, "bold");
+
+pdf.text(
+  "Attendance Dates",
+  22,
+  y + 7
+);
+
+y += 16;
+
+// ===============================
+// DATE ROWS
+// ===============================
+pdf.setFont(undefined, "normal");
+pdf.setFontSize(11);
+
+if (uniqueDays.length === 0) {
+
+  pdf.setTextColor(120,120,120);
 
   pdf.text(
-    "Attendance Report",
+    "No attendance found",
     20,
     y
   );
 
-  y += 12;
+} else {
 
-  // STUDENT
-  pdf.setFontSize(14);
+  uniqueDays.forEach((day, index) => {
 
-  pdf.text(
-    `Student: ${name}`,
-    20,
-    y
-  );
+    if (y > 275) {
+      pdf.addPage();
+      y = 20;
+    }
 
-  y += 8;
+    // alternating row colors
+    if (index % 2 === 0) {
+      pdf.setFillColor(248,249,251);
+    } else {
+      pdf.setFillColor(238,242,247);
+    }
 
-  pdf.setFontSize(11);
-  pdf.setFont(undefined, "normal");
+    pdf.roundedRect(
+      18,
+      y - 5,
+      170,
+      9,
+      2,
+      2,
+      "F"
+    );
 
-  pdf.text(
-    `Batch: ${batchMap[name] || "No Batch"}`,
-    20,
-    y
-  );
-
-  y += 7;
-
-  pdf.text(
-    `Classes Completed: ${used}/${totalSub}`,
-    20,
-    y
-  );
-
-  y += 7;
-
-  pdf.text(
-    `Remaining Classes: ${remaining}`,
-    20,
-    y
-  );
-
-  y += 14;
-
-  // TITLE
-  pdf.setFont(undefined, "bold");
-
-  pdf.text(
-    "Attendance Dates",
-    20,
-    y
-  );
-
-  y += 10;
-
-  pdf.setFont(undefined, "normal");
-
-  if (uniqueDays.length === 0) {
+    pdf.setTextColor(...softDark);
 
     pdf.text(
-      "No attendance found",
-      20,
+      "✓ " + day,
+      24,
       y
     );
 
-  } else {
+    y += 11;
 
-    uniqueDays.forEach(day => {
+  });
 
-      if (y > 280) {
-        pdf.addPage();
-        y = 20;
-      }
+}
 
-      pdf.text(
-        "• " + day,
-        24,
-        y
-      );
+// ===============================
+// FOOTER
+// ===============================
+const pageHeight =
+  pdf.internal.pageSize.height;
 
-      y += 7;
+pdf.setDrawColor(220,220,220);
 
-    });
+pdf.line(
+  15,
+  pageHeight - 18,
+  195,
+  pageHeight - 18
+);
 
-  }
+pdf.setFontSize(9);
+pdf.setTextColor(120,120,120);
 
-  pdf.save(
-    `${name}_Attendance_Report.pdf`
-  );
+pdf.text(
+  "Generated by The Olympus Chess Academy",
+  105,
+  pageHeight - 10,
+  { align: "center" }
+);
+
+// ===============================
+// SAVE
+// ===============================
+pdf.save(
+  `${name}_Attendance_Report.pdf`
+);
 }
 
   return {
@@ -69957,12 +70340,14 @@ function exportAttendancePDF(name) {
     showStudent,
     renameBatch,
     deleteAttendance,
+    openPDFDateModal,
+exportAttendancePDFWithRange,
 assignBatch,
 removeStudentFromBatch,
 deleteBatch,
 showBatch,
 setView,
-exportAttendancePDF,
+
 saveSubscription
   };
 
