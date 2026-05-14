@@ -23302,7 +23302,7 @@ title="Voice volume"
       
 
       <!-- MOVE CONTROLS -->
-      <div style="margin-top:60px; display:flex; justify-content:center; gap:10px;">
+      <div style="margin-top:54px; display:flex; justify-content:center; gap:10px;">
         
   <button id="lpPrevMoveBtn" data-role="admin-only">⏮ Move</button>
 <button id="lpNextMoveBtn" data-role="admin-only">Move ⏭</button>
@@ -66830,68 +66830,80 @@ if (isAnalysisMode && analysisPromotionData) {
   if (!lpPendingPromotion) return;
 
   const { from, to } = lpPendingPromotion;
+  // 🔥 CLOSE PROMOTION UI IMMEDIATELY
+lpPendingPromotion = null;
 
-  const move = game.move({
+document
+  .getElementById("lpPromotionModal")
+  .classList.add("hidden");
+
+const expectedMove = solutionMoves[moveIndex];
+
+
+// ================= VALIDATE FIRST =================
+if (
+
+  from !== expectedMove.from ||
+  to !== expectedMove.to ||
+
+  (
+    expectedMove.promotion &&
+    piece !== expectedMove.promotion
+  )
+
+) {
+
+  // 🔥 SHOW WRONG MOVE VISUALLY
+  const tempWrongMove = game.move({
     from,
     to,
     promotion: piece
   });
 
-  lpPendingPromotion = null;
-  document.getElementById("lpPromotionModal").classList.add("hidden");
-
-  if (!move) {
-    board.position(game.fen());
-    return;
-  }
-
-  // 🔥 ADD THIS BLOCK HERE
-  const expectedMove = solutionMoves[moveIndex];
-
-if (
-  expectedMove.promotion &&
-  piece !== expectedMove.promotion
-) {
-
-  // 🔥 ADD WRONG MOVE TO UI
-  if (move && move.san) {
+  if (tempWrongMove?.san) {
 
     if (!studentMoves[currentUserId]) {
       studentMoves[currentUserId] = [];
     }
 
     studentMoves[currentUserId].push(`
-  <span style="
-    display:inline-block;
-    padding:2px 8px;
-    border-radius:7px;
-    background:#e53935;
-    color:#fff;
-    font-weight:600;
-    font-size:13px;
-  ">
-    ${move.san}
-  </span>
-`);
+      <span style="
+        display:inline-block;
+        padding:2px 8px;
+        border-radius:7px;
+        background:#e53935;
+        color:#fff;
+        font-weight:600;
+        font-size:13px;
+      ">
+        ${tempWrongMove.san}
+      </span>
+    `);
+
     updateScore(currentUserId, negativePoint);
 
     loadStudents();
 
-    // 🔥 BROADCAST WRONG MOVE
     supabase.channel("lp-moves-" + roomCode).send({
       type: "broadcast",
       event: "move",
       payload: {
         user_id: currentUserId,
-        move: "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#e53935;color:#fff;font-weight:600;font-size:14px'>" + move.san + "</span>",
+        move:
+          "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#e53935;color:#fff;font-weight:600;font-size:14px'>" +
+          tempWrongMove.san +
+          "</span>",
         score: playerScores[currentUserId],
         pointPerMove,
         negativePoint
       }
     });
+
   }
 
   game.undo();
+
+  board.position(game.fen());
 
   if (myAttemptId) {
     await supabase.rpc("increment_wrong_move", {
@@ -66899,14 +66911,26 @@ if (
     });
   }
 
+  return;
+}
+
+
+// ================= APPLY REAL MOVE =================
+const move = game.move({
+  from,
+  to,
+  promotion: piece
+});
+
+if (!move) {
   board.position(game.fen());
   return;
 }
-  // 🔥 FORCE BOARD UPDATE FOR PROMOTION
+
+
+// ================= SUCCESS UI =================
 board.position(game.fen());
 
-  // ✅ CONTINUE NORMAL FLOW
-  // 🔥 ADD MOVE TO UI (SAME AS NORMAL FLOW)
 if (move.san) {
 
   if (!studentMoves[currentUserId]) {
@@ -66914,31 +66938,37 @@ if (move.san) {
   }
 
   studentMoves[currentUserId].push(
-    "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" + move.san + "</span>"
+    "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" +
+    move.san +
+    "</span>"
   );
 
   updateScore(currentUserId, pointPerMove);
 
   loadStudents();
 
-  // 🔥 BROADCAST TO ADMIN
   supabase.channel("lp-moves-" + roomCode).send({
     type: "broadcast",
     event: "move",
     payload: {
       user_id: currentUserId,
-      move: "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" + move.san + "</span>",
+      move:
+        "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" +
+        move.san +
+        "</span>",
       score: playerScores[currentUserId],
       pointPerMove,
       negativePoint
     }
   });
+
 }
 
-// ✅ CONTINUE NORMAL FLOW
-handleCorrectMove(move);
-}
 
+// ================= FINAL SAFE FLOW =================
+moveIndex++;
+
+handleCorrectMove(move);}
 function updateScore(userId, delta) {
   if (!playerScores[userId]) {
     playerScores[userId] = 0;
@@ -67659,13 +67689,25 @@ function updateTimerUI() {
       else if (turn === "b") turnText = "⚫ Black to Move";
     }
 
-    el.innerHTML = `
-      <span>⏱ ${formatted}</span>
-      <span style="flex:1; text-align:center;">${turnText}</span>
-      <span style="width:60px;"></span> <!-- spacer for balance -->
-    `;
+  el.innerHTML = `
+  <span style="
+    color:${timeLeft <= 10 ? "red" : "white"};
+  ">
+    ⏱ ${formatted}
+  </span>
 
-    el.style.color = timeLeft <= 10 ? "red" : "white";
+  <span style="
+    flex:1;
+    text-align:center;
+    color:white;
+  ">
+    ${turnText}
+  </span>
+
+  <span style="width:60px;"></span>
+`;
+
+   
 
   } else {
     el.innerText = "";
