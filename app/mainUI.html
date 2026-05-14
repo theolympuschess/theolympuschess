@@ -21270,6 +21270,36 @@ background: #2563eb;
 
 
 
+.lp-analysis-share-btn {
+
+  padding:8px 14px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+
+  background:#2b2f45;
+  color:white;
+
+  transition:0.2s;
+}
+
+.lp-analysis-share-btn.active {
+
+  background:#4caf50;
+  color:white;
+
+  box-shadow:
+    0 0 12px rgba(76,175,80,0.45);
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23454,6 +23484,10 @@ title="Voice volume"
       <button id="lpNextPuzzleBtn">Next Puzzle ➡</button>
       <button id="lpLoadAnalysisBtn" class="lp-analysis-btn">
   📊 Analysis OFF
+</button>
+<button id="lpAnalysisShareBtn"
+        class="lp-analysis-share-btn">
+  👁 Students OFF
 </button>
     </div>
     
@@ -66120,6 +66154,9 @@ let analysisGame = new Chess();
 let analysisMoves = [];
 let analysisIndex = 0;
 let isAnalysisMode = false;
+let allowStudentAnalysisView = false;
+let allowStudentDrawSync = true;
+let liveAnalysisFenKey = null;
 let lpPendingPromotion = null;
 let analysisPromotionData = null;
 // 🔥 TIMER SYSTEM
@@ -66160,6 +66197,9 @@ document.getElementById("lpNextMoveBtn").onclick = nextPreviewMove;
 document.getElementById("lpPrevMoveBtn").onclick = prevPreviewMove;
 document.getElementById("lpLoadAnalysisBtn").onclick =
   toggleAnalysisMode;
+  document.getElementById(
+  "lpAnalysisShareBtn"
+).onclick = toggleAnalysisShare;
   // ================= KEYBOARD MOVE CONTROL =================
 document.addEventListener("keydown", (e) => {
 
@@ -66319,6 +66359,35 @@ function setInitialOrientation() {
 // =====================================================
 
 const lpDrawingsByFen = {};
+function broadcastAnalysisDrawings() {
+
+  if (
+    !isAdmin ||
+    !allowStudentAnalysisView
+  ) return;
+
+  const fenKey =
+    game
+      .fen()
+      .split(" ")
+      .slice(0,4)
+      .join(" ");
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_drawings",
+    payload: {
+      fenKey,
+      drawings:
+        lpDrawingsByFen[fenKey] || [],
+      orientation:
+        board.orientation()
+    }
+  });
+
+}
 
 function initPuzzleBoardDrawing() {
 
@@ -66395,14 +66464,23 @@ function initPuzzleBoardDrawing() {
   // =========================
   // FEN
   // =========================
-  function currentFenKey() {
+function currentFenKey() {
 
-    return game
-      .fen()
-      .split(" ")
-      .slice(0,4)
-      .join(" ");
+  // 🔥 STUDENT ANALYSIS SPECTATOR
+  if (
+    !isAdmin &&
+    isAnalysisMode &&
+    liveAnalysisFenKey
+  ) {
+    return liveAnalysisFenKey;
   }
+
+  return game
+    .fen()
+    .split(" ")
+    .slice(0,4)
+    .join(" ");
+}
 
   function getDrawings() {
 
@@ -66764,6 +66842,7 @@ function initPuzzleBoardDrawing() {
       }
 
       redraw();
+      broadcastAnalysisDrawings();
 
     },
     true
@@ -66784,6 +66863,7 @@ function initPuzzleBoardDrawing() {
       drawings.length = 0;
 
       redraw();
+      broadcastAnalysisDrawings();
 
     }
   );
@@ -66825,6 +66905,25 @@ if (isAnalysisMode && analysisPromotionData) {
   analysisIndex++;
 
   board.position(analysisGame.fen());
+  // 🔥 LIVE ANALYSIS PROMOTION SYNC
+if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+      fen: analysisGame.fen(),
+      orientation:
+        board.orientation()
+    }
+  });
+
+}
 
   return;
 }
@@ -67041,7 +67140,42 @@ async function loadLibraryDropdown() {
   if (currentIndex < puzzles.length - 1) {
     currentIndex++;
     loadPuzzle(currentIndex);
+    // 🔥 AUTO RELOAD ANALYSIS
+if (isAnalysisMode) {
+  loadCurrentPuzzleAnalysis();
+}
     updatePuzzleCounter();
+    // 🔥 LIVE STUDENT ANALYSIS SYNC
+if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  const tempGame = new Chess();
+
+  tempGame.load_pgn(
+    puzzles[currentIndex]
+  );
+
+  const startFen =
+    tempGame.header().FEN ||
+    "start";
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+      fen: startFen,
+      orientation:
+        solutionMoves[0]?.color === "b"
+          ? "black"
+          : "white"
+    }
+  });
+
+}
   }
 }
 
@@ -67049,7 +67183,42 @@ function prevPuzzle() {
   if (currentIndex > 0) {
     currentIndex--;
     loadPuzzle(currentIndex);
+    // 🔥 AUTO RELOAD ANALYSIS
+if (isAnalysisMode) {
+  loadCurrentPuzzleAnalysis();
+}
     updatePuzzleCounter();
+    // 🔥 LIVE STUDENT ANALYSIS SYNC
+if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  const tempGame = new Chess();
+
+  tempGame.load_pgn(
+    puzzles[currentIndex]
+  );
+
+  const startFen =
+    tempGame.header().FEN ||
+    "start";
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+      fen: startFen,
+      orientation:
+        solutionMoves[0]?.color === "b"
+          ? "black"
+          : "white"
+    }
+  });
+
+}
   }
 }
 
@@ -67121,6 +67290,23 @@ function nextPreviewMove() {
     analysisIndex++;
 
     board.position(analysisGame.fen());
+    if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+   payload: {
+  fen: analysisGame.fen(),
+  orientation: board.orientation()
+}
+  });
+
+}
 
     return;
   }
@@ -67147,6 +67333,23 @@ function prevPreviewMove() {
     analysisIndex--;
 
     board.position(analysisGame.fen());
+    if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+  fen: analysisGame.fen(),
+  orientation: board.orientation()
+}
+  });
+
+}
 
     return;
   }
@@ -67228,6 +67431,23 @@ if (startFen) {
 
   analysisMoves.push(move);
   analysisIndex++;
+  if (
+  isAdmin &&
+  allowStudentAnalysisView
+) {
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+   payload: {
+  fen: analysisGame.fen(),
+  orientation: board.orientation()
+}
+  });
+
+}
 
 
 
@@ -67307,6 +67527,75 @@ function toggleAnalysisMode() {
 
   btn.classList.add("active");
   btn.innerHTML = "📊 Analysis ON";
+}
+
+function toggleAnalysisShare() {
+
+  const btn =
+    document.getElementById(
+      "lpAnalysisShareBtn"
+    );
+
+  allowStudentAnalysisView =
+    !allowStudentAnalysisView;
+
+  btn.classList.toggle(
+    "active",
+    allowStudentAnalysisView
+  );
+
+  btn.innerHTML =
+    allowStudentAnalysisView
+      ? "👁 Students ON"
+      : "👁 Students OFF";
+
+  // 🔥 SYNC SHARE STATE
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_share",
+    payload: {
+      enabled:
+        allowStudentAnalysisView
+    }
+  });
+  // 🔥 INSTANT CURRENT BOARD SYNC
+if (allowStudentAnalysisView) {
+
+  let currentFen = "start";
+
+  if (isAnalysisMode) {
+
+    currentFen = analysisGame.fen();
+
+  } else {
+
+    const tempGame = new Chess();
+
+    tempGame.load_pgn(
+      puzzles[currentIndex]
+    );
+
+    currentFen =
+      tempGame.header().FEN ||
+      "start";
+  }
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+      fen: currentFen,
+      orientation:
+        board.orientation()
+    }
+  });
+
+}
+
 }
 
 function onDragStart(source, piece) {
@@ -68377,6 +68666,95 @@ if (movesChannel) {
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+      // ================= ANALYSIS SHARE =================
+if (
+  payload.event ===
+  "analysis_share"
+) {
+
+  allowStudentAnalysisView =
+    payload.payload.enabled;
+
+  return;
+}
+// ================= ANALYSIS POSITION =================
+if (
+  payload.event ===
+  "analysis_position"
+) {
+
+  // 🔥 ADMIN ignores
+  if (isAdmin) return;
+
+  // 🔥 SHARE OFF
+  if (!allowStudentAnalysisView)
+    return;
+
+  board.orientation(
+  payload.payload.orientation || "white"
+);
+
+board.orientation(
+  payload.payload.orientation || "white"
+);
+isAnalysisMode = true;
+board.position(
+  payload.payload.fen
+);
+liveAnalysisFenKey =
+  payload.payload.fen
+    .split(" ")
+    .slice(0,4)
+    .join(" ");
+
+// 🔥 FORCE DRAW REDRAW AFTER POSITION
+setTimeout(() => {
+
+  document.dispatchEvent(
+    new Event("lpPositionChanged")
+  );
+
+}, 40);
+
+  return;
+}
+// ================= ANALYSIS DRAWINGS =================
+if (
+  payload.event ===
+  "analysis_drawings"
+) {
+
+  if (isAdmin) return;
+
+  if (!allowStudentAnalysisView)
+    return;
+
+  const {
+    fenKey,
+    drawings,
+    orientation
+  } = payload.payload;
+
+  lpDrawingsByFen[fenKey] =
+    drawings || [];
+    liveAnalysisFenKey = fenKey;
+    // 🔥 WAIT FOR BOARD POSITION FIRST
+setTimeout(() => {
+
+  document.dispatchEvent(
+    new Event("lpPositionChanged")
+  );
+
+}, 40);
+
+  board.orientation(
+    orientation || "white"
+  );
+
+
+
+  return;
+}
       // ================= RESET SCORES =================
 if (payload.event === "reset_scores") {
 
