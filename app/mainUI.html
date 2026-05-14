@@ -66133,6 +66133,7 @@ let movesChannel = null;
 let lpAllLibraries = []; 
 // 🔥 POINT SYSTEM
 let playerScores = {};
+let solvedPuzzles = {};
 // ================= RACE MODE =================
 let isRaceMode = false;
 
@@ -67486,6 +67487,21 @@ if (puzzleSolved) {
 
 
       loadStudents();
+      // 🔥 FORCE FINAL SOLVE COUNT SYNC
+if (!solvedPuzzles[currentUserId]) {
+  solvedPuzzles[currentUserId] = 0;
+}
+
+solvedPuzzles[currentUserId]++;
+
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "solve_sync",
+  payload: {
+    user_id: currentUserId,
+    solved: solvedPuzzles[currentUserId]
+  }
+});
 
       setTimeout(() => {
   console.log(
@@ -67782,12 +67798,15 @@ if (isRaceMode) {
   playerRaceIndex[s.user_id];
 
 const current =
-  playerIndex == null
-    ? 0
-    : Math.max(
-        0,
-        playerIndex - raceStartIndex
-      );
+  solvedPuzzles[s.user_id] ??
+  (
+    playerIndex == null
+      ? 0
+      : Math.max(
+          0,
+          playerIndex - raceStartIndex
+        )
+  );
 
   raceProgress =
     `<span style="
@@ -68038,6 +68057,11 @@ function resetPuzzleSession() {
 
   // 🔥 reset race progress
   playerRaceIndex = {};
+  // 🔥 RESET RACE SCORES
+playerScores = {};
+
+// 🔥 RESET SOLVED COUNTS
+solvedPuzzles = {};
 
   // 🔥 reset solved state
   moveIndex = 0;
@@ -68051,6 +68075,7 @@ function resetPuzzleSession() {
 
   // 🔥 refresh UI instantly
   loadStudents();
+  solvedPuzzles = {};
 }
 
   // ================= ASK PUZZLE =================
@@ -68164,12 +68189,23 @@ supabase.channel("lp-moves-" + roomCode).send({
 
 // 🔥 FULL SESSION RESET
 resetPuzzleSession();
+// 🔥 HARD RESET ALL SCORE STATE
+playerScores = {};
+solvedPuzzles = {};
+studentMoves = {};
+playerRaceIndex = {};
 // 🔥 HARD RESET RACE PROGRESS
 playerRaceIndex = {};
 // 🔥 RESET ALL RACE COUNTS
 supabase.channel("lp-moves-" + roomCode).send({
   type: "broadcast",
   event: "reset_race_progress",
+  payload: {}
+});
+// 🔥 FORCE SCORE RESET TO EVERYONE
+supabase.channel("lp-moves-" + roomCode).send({
+  type: "broadcast",
+  event: "reset_scores",
   payload: {}
 });
 
@@ -68341,6 +68377,28 @@ if (movesChannel) {
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+      // ================= RESET SCORES =================
+if (payload.event === "reset_scores") {
+
+  playerScores = {};
+  solvedPuzzles = {};
+  studentMoves = {};
+
+  loadStudents();
+
+  return;
+}
+    // ================= FINAL SOLVE SYNC =================
+if (payload.event === "solve_sync") {
+
+  solvedPuzzles[
+    payload.payload.user_id
+  ] = payload.payload.solved;
+
+  loadStudents();
+
+  return;
+}
        // ================= RACE MODE =================
       if (payload.event === "race_mode") {
 
