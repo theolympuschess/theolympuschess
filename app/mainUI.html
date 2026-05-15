@@ -68652,7 +68652,7 @@ function updateClassroomTitle() {
 
   if (!el) return;
 
- el.innerText =
+el.innerText =
   "📚 " + classroomTitle;
 }
 
@@ -69734,31 +69734,48 @@ subData?.forEach(s => {
 });
     attendanceMap = {};
 
-    data.forEach(row => {
-      const studentProfile = profiles?.find(
-  p => p.username === row.username
-);
+// ✅ FIRST LOAD ALL ACTIVE PROFILES
+profiles?.forEach(profile => {
 
-if (!studentProfile?.active) {
-  return;
-}
-      if (!row.username || row.username === "Unknown") {
-  return;
-}
+  if (!profile.active) return;
 
-      console.log("ROW:", row);
+  const name = profile.username;
 
-      const name =
-        row.username ||
-        row.student_name ||
-        "Unknown";
+  if (!name || name === "Unknown") return;
 
-      if (!attendanceMap[name]) {
-        attendanceMap[name] = [];
-      }
+  // create empty attendance
+  attendanceMap[name] = [];
 
-      attendanceMap[name].push(row);
-    });
+});
+
+// ✅ THEN ADD REAL ATTENDANCE DATA
+data.forEach(row => {
+
+  const studentProfile = profiles?.find(
+    p => p.username === row.username
+  );
+
+  if (!studentProfile?.active) {
+    return;
+  }
+
+  if (!row.username || row.username === "Unknown") {
+    return;
+  }
+
+  const name =
+    row.username ||
+    row.student_name ||
+    "Unknown";
+
+  // safety
+  if (!attendanceMap[name]) {
+    attendanceMap[name] = [];
+  }
+
+  attendanceMap[name].push(row);
+
+});
 
     renderStudentList();
     initBatchAutocomplete();
@@ -70046,36 +70063,43 @@ if (attendanceSearch) {
   // 📅 DATE FILTER
   const now = new Date();
 
-  names = names.filter(name => {
+ names = names.filter(name => {
 
-    const rows = attendanceMap[name];
+  const rows = attendanceMap[name];
 
-    const filteredRows = rows.filter(r => {
+  // ✅ show students with zero attendance
+  if (!rows || rows.length === 0) {
+    return attendanceFilter === "all";
+  }
 
-      if (attendanceFilter === "all") {
-        return true;
-      }
+  const filteredRows = rows.filter(r => {
 
-      const rowDate =
-        new Date(r.started_at);
+    if (attendanceFilter === "all") {
+      return true;
+    }
 
-      const diffDays =
-        (now - rowDate) /
-        (1000 * 60 * 60 * 24);
+    const rowDate =
+      new Date(r.started_at);
 
-      if (attendanceFilter === "today") {
+    const diffDays =
+      (now - rowDate) /
+      (1000 * 60 * 60 * 24);
 
-        return (
-          rowDate.toISOString().slice(0,10) ===
-          now.toISOString().slice(0,10)
-        );
-      }
+    if (attendanceFilter === "today") {
 
-      return diffDays <= Number(attendanceFilter);
-    });
+      return (
+        rowDate.toISOString().slice(0,10) ===
+        now.toISOString().slice(0,10)
+      );
+    }
 
-    return filteredRows.length > 0;
+    return diffDays <= Number(attendanceFilter);
+
   });
+
+  return filteredRows.length > 0;
+
+});
 
   if (names.length === 0) {
 
