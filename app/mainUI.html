@@ -21120,9 +21120,17 @@ background: #2563eb;
 }
 
 .lp-analysis-btn.active{
-  background:#4caf50;
-  color:white;
-  box-shadow:0 0 10px rgba(76,175,80,0.4);
+
+  background:#43a047 !important;
+
+  color:white !important;
+
+  border:
+    1px solid rgba(255,255,255,0.12);
+
+  box-shadow:none !important;
+
+  transform:translateY(-1px);
 }
 
 
@@ -21285,17 +21293,81 @@ background: #2563eb;
 
 .lp-analysis-share-btn.active {
 
-  background:#4caf50;
-  color:white;
+  background:#43a047 !important;
 
-  box-shadow:
-    0 0 12px rgba(76,175,80,0.45);
+  color:white !important;
+
+  border:
+    1px solid rgba(255,255,255,0.12);
+
+  box-shadow:none !important;
+
+  transform:translateY(-1px);
 }
 
 
 
 
+#lpJoinBannerContainer{
 
+  position:fixed;
+
+  top:160px;
+  right:24px;
+
+  z-index:9999999;
+
+  display:flex;
+  flex-direction:column;
+
+  gap:12px;
+
+  pointer-events:none;
+}
+
+.lpJoinBanner{
+
+  min-width:360px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #2e7d32,
+      #43a047
+    );
+
+  color:white;
+
+  padding:18px 24px;
+
+  border-radius:18px;
+
+  font-size:18px;
+  font-weight:700;
+
+  border:
+    1px solid rgba(255,255,255,0.10);
+
+  box-shadow:
+    0 12px 34px rgba(0,0,0,0.28);
+
+  transform:
+    translateX(130%);
+
+  opacity:0;
+
+  transition:
+    transform 0.32s ease,
+    opacity 0.32s ease;
+}
+
+.lpJoinBanner.show{
+
+  transform:
+    translateX(0);
+
+  opacity:1;
+}
 
 
 
@@ -23154,7 +23226,7 @@ title="Voice volume"
 <!-- LIVE PUZZLE SESSION -->
 <div class="section" id="livePuzzle-section">
 
-  <h2>🧩 Live Classroom Puzzle Session</h2>
+  <h2>🧩 Live Classroom Session</h2>
 
   <!-- MAIN 2-COLUMN LAYOUT -->
   <div style="display:flex; gap:30px; margin-top:20px; align-items:flex-start;">
@@ -23500,6 +23572,7 @@ title="Voice volume"
       <div id="lpStudentsList" style="margin-top:20px;">
         <h3>👨‍🎓 Students</h3>
         <div id="lpStudentsContainer"></div>
+        
       </div>
 
     </div>
@@ -57095,7 +57168,7 @@ const lockedTabs = [
   "memory","boardfreeze","color","knightfog","knightdefense",
   "knightpath","knightmonster","knightescape","knightspeed",
   "knightlava","knightgps","kingmath","colorchaos","flashqueen",
-  "puzzletrainer","editor","study", "gallery", "pathfinder"
+  "puzzletrainer","editor","study","livePuzzle","pairing" , "scoreboard","pathfinder", "gallery", "xp-casino"
 ];
 
 
@@ -66157,6 +66230,8 @@ let isAnalysisMode = false;
 let allowStudentAnalysisView = false;
 let allowStudentDrawSync = true;
 let liveAnalysisFenKey = null;
+let studentAnalysisGame =
+  new Chess();
 let lpPendingPromotion = null;
 let analysisPromotionData = null;
 // 🔥 TIMER SYSTEM
@@ -66905,6 +66980,16 @@ if (isAnalysisMode && analysisPromotionData) {
   analysisIndex++;
 
   board.position(analysisGame.fen());
+  // 🔥 LAST MOVE HIGHLIGHT
+highlightLastMove(
+  move.from,
+  move.to,
+  "lpBoard"
+);
+highlightCheckSquare(
+  analysisGame,
+  "lpBoard"
+);
   // 🔥 LIVE ANALYSIS PROMOTION SYNC
 if (
   isAdmin &&
@@ -66917,10 +67002,12 @@ if (
     type: "broadcast",
     event: "analysis_position",
     payload: {
-      fen: analysisGame.fen(),
-      orientation:
-        board.orientation()
-    }
+  fen: analysisGame.fen(),
+  orientation:
+    board.orientation(),
+  from: move.from,
+  to: move.to
+}
   });
 
 }
@@ -67290,6 +67377,17 @@ function nextPreviewMove() {
     analysisIndex++;
 
     board.position(analysisGame.fen());
+    // 🔥 LAST MOVE HIGHLIGHT
+highlightLastMove(
+  analysisMoves[analysisIndex - 1].from,
+  analysisMoves[analysisIndex - 1].to,
+  "lpBoard"
+);
+highlightCheckSquare(
+  analysisGame,
+  "lpBoard"
+);
+
     if (
   isAdmin &&
   allowStudentAnalysisView
@@ -67302,7 +67400,11 @@ function nextPreviewMove() {
     event: "analysis_position",
    payload: {
   fen: analysisGame.fen(),
-  orientation: board.orientation()
+  orientation: board.orientation(),
+  from:
+    analysisMoves[analysisIndex - 1]?.from,
+  to:
+    analysisMoves[analysisIndex - 1]?.to
 }
   });
 
@@ -67333,6 +67435,23 @@ function prevPreviewMove() {
     analysisIndex--;
 
     board.position(analysisGame.fen());
+    // 🔥 LAST MOVE HIGHLIGHT
+const prevMove =
+  analysisMoves[analysisIndex - 1];
+
+if (prevMove) {
+
+  highlightLastMove(
+    prevMove.from,
+    prevMove.to,
+    "lpBoard"
+  );
+  highlightCheckSquare(
+  analysisGame,
+  "lpBoard"
+);
+
+}
     if (
   isAdmin &&
   allowStudentAnalysisView
@@ -67343,9 +67462,13 @@ function prevPreviewMove() {
   ).send({
     type: "broadcast",
     event: "analysis_position",
-    payload: {
+   payload: {
   fen: analysisGame.fen(),
-  orientation: board.orientation()
+  orientation: board.orientation(),
+  from:
+    prevMove?.from,
+  to:
+    prevMove?.to
 }
   });
 
@@ -67431,6 +67554,16 @@ if (startFen) {
 
   analysisMoves.push(move);
   analysisIndex++;
+  // 🔥 LAST MOVE HIGHLIGHT
+highlightLastMove(
+  source,
+  target,
+  "lpBoard"
+);
+highlightCheckSquare(
+  analysisGame,
+  "lpBoard"
+);
   if (
   isAdmin &&
   allowStudentAnalysisView
@@ -67443,7 +67576,9 @@ if (startFen) {
     event: "analysis_position",
    payload: {
   fen: analysisGame.fen(),
-  orientation: board.orientation()
+  orientation: board.orientation(),
+  from: source,
+  to: target
 }
   });
 
@@ -67735,6 +67870,53 @@ updateScore(currentUserId, pointPerMove);
 }
 function showToast(msg) {
   console.log(msg);
+}
+const lpJoinSound =
+  new Audio(
+    "sounds/puzzle-rush-start.mp3"
+  );
+
+lpJoinSound.volume = 0.30;
+function showJoinBanner(name) {
+
+  const container =
+    document.getElementById(
+      "lpJoinBannerContainer"
+    );
+
+  if (!container) return;
+
+  const banner =
+    document.createElement("div");
+
+  banner.className =
+    "lpJoinBanner";
+
+  banner.innerHTML =
+    `🙎🏻‍♂️ ${name} joined the classroom`;
+
+  container.appendChild(banner);
+
+  // 🔥 SOUND
+  lpJoinSound.currentTime = 0;
+
+  lpJoinSound.play().catch(() => {});
+
+  // 🔥 SHOW
+  requestAnimationFrame(() => {
+    banner.classList.add("show");
+  });
+
+  // 🔥 REMOVE
+  setTimeout(() => {
+
+    banner.classList.remove("show");
+
+    setTimeout(() => {
+      banner.remove();
+    }, 350);
+
+  }, 5000);
 }
 
 async function handleCorrectMove(move) {
@@ -68317,6 +68499,16 @@ if (!isAdmin) {
   }
 
   myAttemptId = data.id;
+  // 🔥 JOIN BANNER EVENT
+supabase.channel(
+  "lp-moves-" + roomCode
+).send({
+  type: "broadcast",
+  event: "student_joined",
+  payload: {
+    username
+  }
+});
 
   // 🔹 realtime + sync
   listenRoom();
@@ -68666,6 +68858,20 @@ if (movesChannel) {
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+    // ================= JOIN BANNER =================
+if (
+  payload.event ===
+  "student_joined"
+) {
+
+  if (!isAdmin) return;
+
+  showJoinBanner(
+    payload.payload.username
+  );
+
+  return;
+}
       // ================= ANALYSIS SHARE =================
 if (
   payload.event ===
@@ -68701,6 +68907,33 @@ isAnalysisMode = true;
 board.position(
   payload.payload.fen
 );
+// 🔥 UPDATE STUDENT ANALYSIS GAME
+studentAnalysisGame.load(
+  payload.payload.fen
+);
+
+// 🔥 CHECK HIGHLIGHT
+highlightCheckSquare(
+  studentAnalysisGame,
+  "lpBoard"
+);
+// 🔥 LAST MOVE HIGHLIGHT
+if (
+  payload.payload.from &&
+  payload.payload.to
+) {
+
+  setTimeout(() => {
+
+    highlightLastMove(
+      payload.payload.from,
+      payload.payload.to,
+      "lpBoard"
+    );
+
+  }, 60);
+
+}
 liveAnalysisFenKey =
   payload.payload.fen
     .split(" ")
@@ -73935,6 +74168,8 @@ window.addEventListener("DOMContentLoaded", () => {
     <button data-piece="n">♘</button>
   </div>
 </div>
+
+<div id="lpJoinBannerContainer"></div>
 
 </div>
 </body>
