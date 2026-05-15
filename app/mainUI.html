@@ -21371,6 +21371,130 @@ background: #2563eb;
 
 
 
+#lpClassroomTitle{
+
+  width:100%;
+  text-align:center;
+
+  margin:
+    -4px 0 18px 0;
+
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:0.6px;
+
+  color:#ffe082;
+
+  text-shadow:
+    0 0 12px rgba(255,224,130,0.25);
+
+  padding:10px 18px;
+
+  border-radius:14px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,0.03),
+      rgba(255,224,130,0.06),
+      rgba(255,255,255,0.03)
+    );
+
+  border:
+    1px solid rgba(255,224,130,0.15);
+
+  backdrop-filter: blur(4px);
+
+  box-sizing:border-box;
+
+  transition:0.25s;
+}
+
+
+
+#lpTitleModal{
+
+  position:fixed;
+  inset:0;
+
+  background:
+    rgba(0,0,0,0.45);
+
+  display:none;
+
+  align-items:center;
+  justify-content:center;
+
+  z-index:999999;
+}
+
+#lpTitleModal.show{
+  display:flex;
+}
+
+#lpTitleModalBox{
+
+  width:320px;
+
+  background:#1c2238;
+
+  border-radius:18px;
+
+  padding:22px;
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 14px 40px rgba(0,0,0,0.35);
+}
+
+.lpTitleHeading{
+
+  font-size:20px;
+  font-weight:700;
+
+  color:#ffe082;
+
+  margin-bottom:16px;
+
+  text-align:center;
+}
+
+#lpTitleInput{
+
+  width:100%;
+
+  padding:12px;
+
+  border-radius:10px;
+
+  border:none;
+
+  background:#11152a;
+
+  color:white;
+
+  font-size:15px;
+
+  box-sizing:border-box;
+}
+
+.lpTitleActions{
+
+  display:flex;
+
+  gap:10px;
+
+  margin-top:18px;
+}
+
+.lpTitleActions button{
+
+  flex:1;
+}
+
+
 
 
 
@@ -23227,6 +23351,9 @@ title="Voice volume"
 <div class="section" id="livePuzzle-section">
 
   <h2>🧩 Live Classroom Session</h2>
+  <div id="lpClassroomTitle">
+  Live Classroom
+</div>
 
   <!-- MAIN 2-COLUMN LAYOUT -->
   <div style="display:flex; gap:30px; margin-top:20px; align-items:flex-start;">
@@ -66208,6 +66335,8 @@ setTimeout(render,100);
 const LivePuzzle = (() => {
 
   let roomCode = null;
+  let classroomTitle =
+  "Live Classroom";
   let isAdmin = false;
   let board = null;
   let game = new Chess();
@@ -66263,7 +66392,18 @@ let noMovePenaltyMultiplier = 2;
     document.querySelectorAll("#lpPromotionModal button").forEach(btn => {
   btn.onclick = () => lpCompletePromotion(btn.dataset.piece);
 });
-    document.getElementById("lpCreateRoomBtn").onclick = createRoom;
+    document.getElementById(
+  "lpCreateRoomBtn"
+).onclick = () => {
+
+  document.getElementById(
+    "lpTitleModal"
+  ).classList.add("show");
+
+  document.getElementById(
+    "lpTitleInput"
+  ).focus();
+};
     document.getElementById("lpJoinRoomBtn").onclick = joinRoom;
 document.getElementById("lpNextPuzzleBtn").onclick = nextPuzzle;
 document.getElementById("lpPrevPuzzleBtn").onclick = prevPuzzle;
@@ -66399,6 +66539,36 @@ document.getElementById("lpSearchInput")?.addEventListener("input", function () 
 });
     
   }
+  // ================= TITLE MODAL =================
+document.getElementById(
+  "lpTitleCreateBtn"
+).onclick = () => {
+
+  classroomTitle =
+
+    document.getElementById(
+      "lpTitleInput"
+    ).value.trim()
+
+    ||
+
+    "Live Classroom";
+
+  document.getElementById(
+    "lpTitleModal"
+  ).classList.remove("show");
+
+  createRoom();
+};
+
+document.getElementById(
+  "lpTitleCancelBtn"
+).onclick = () => {
+
+  document.getElementById(
+    "lpTitleModal"
+  ).classList.remove("show");
+};
 
   // ================= BOARD =================
   function initBoard() {
@@ -68391,32 +68561,99 @@ div.innerHTML = `
 
   // ================= CREATE ROOM =================
 async function createRoom() {
+
+  
+
   roomCode = generateCode();
+
   // ✅ CLEAR INPUT
-document.getElementById("lpRoomCodeInput").value = "";
+  document.getElementById(
+    "lpRoomCodeInput"
+  ).value = "";
+
   isAdmin = true;
 
   updateRoomUI();
 
-  await supabase.from("live_puzzle_rooms").insert({
-    code: roomCode
-  });
-   // 🔥 FIX
+  updateClassroomTitle();
+
+  await supabase
+    .from("live_puzzle_rooms")
+    .insert({
+      code: roomCode
+    });
+
+  // 🔥 START REALTIME FIRST
   listenRoom();
+
   loadStudents();
 
-  // 🔥 AUTO COPY TO CLIPBOARD
+// 🔥 SEND CLASSROOM TITLE
+setTimeout(() => {
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type:"broadcast",
+    event:"classroom_title",
+    payload:{
+      title: classroomTitle
+    }
+  });
+
+}, 300);
+
+// 🔥 AUTO COPY TO CLIPBOARD
 try {
-  await navigator.clipboard.writeText(roomCode);
 
-  console.log("Room code copied:", roomCode);
+  const tempInput =
+    document.createElement("input");
 
-  // 🔥 OPTIONAL: small UI toast (recommended)
-  showToast("Room code copied!");
+  tempInput.value =
+    roomCode;
+
+  document.body.appendChild(
+    tempInput
+  );
+
+  tempInput.select();
+
+  document.execCommand("copy");
+
+  document.body.removeChild(
+    tempInput
+  );
+
+  console.log(
+    "Room code copied:",
+    roomCode
+  );
+
+  showToast(
+    "📋 Room code copied!"
+  );
 
 } catch (err) {
-  console.error("Copy failed", err);
+
+  console.error(
+    "Copy failed",
+    err
+  );
 }
+}
+
+// ================= CLASSROOM TITLE UI =================
+function updateClassroomTitle() {
+
+  const el =
+    document.getElementById(
+      "lpClassroomTitle"
+    );
+
+  if (!el) return;
+
+ el.innerText =
+  "📚 " + classroomTitle + " 📚";
 }
 
   // ================= JOIN ROOM =================
@@ -68512,6 +68749,14 @@ supabase.channel(
 
   // 🔹 realtime + sync
   listenRoom();
+  // 🔥 REQUEST CURRENT CLASSROOM TITLE
+supabase.channel(
+  "lp-moves-" + roomCode
+).send({
+  type:"broadcast",
+  event:"request_classroom_title",
+  payload:{}
+});
   await loadCurrentPuzzle();
   loadStudents();
 }
@@ -68858,6 +69103,40 @@ if (movesChannel) {
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+      // ================= TITLE REQUEST =================
+if (
+  payload.event ===
+  "request_classroom_title"
+) {
+
+  if (!isAdmin) return;
+
+  supabase.channel(
+    "lp-moves-" + roomCode
+  ).send({
+    type:"broadcast",
+    event:"classroom_title",
+    payload:{
+      title: classroomTitle
+    }
+  });
+
+  return;
+}
+      // ================= CLASSROOM TITLE =================
+if (
+  payload.event ===
+  "classroom_title"
+) {
+
+  classroomTitle =
+    payload.payload.title ||
+    "Live Classroom";
+
+  updateClassroomTitle();
+
+  return;
+}
     // ================= JOIN BANNER =================
 if (
   payload.event ===
@@ -74170,6 +74449,36 @@ window.addEventListener("DOMContentLoaded", () => {
 </div>
 
 <div id="lpJoinBannerContainer"></div>
+
+<!-- CLASSROOM TITLE MODAL -->
+<div id="lpTitleModal">
+
+  <div id="lpTitleModalBox">
+
+    <div class="lpTitleHeading">
+      📚 Classroom Name
+    </div>
+
+    <input
+      id="lpTitleInput"
+      placeholder="Classroom"
+    >
+
+    <div class="lpTitleActions">
+
+      <button id="lpTitleCreateBtn">
+        Create
+      </button>
+
+      <button id="lpTitleCancelBtn">
+        Cancel
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
 
 </div>
 </body>
