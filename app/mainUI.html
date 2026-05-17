@@ -66822,22 +66822,53 @@ document.getElementById(
   ).classList.remove("show");
 };
 
-  // ================= BOARD =================
-  function initBoard() {
+// ================= BOARD =================
+function initBoard() {
+
   board = Chessboard("lpBoard", {
-  position: "start",
-  draggable: true,
-  onDragStart: onDragStart,
-  onDrop: onDrop,
+    position: "start",
+    draggable: true,
+    onDragStart: onDragStart,
+    onDrop: onDrop,
 
-  // 🔥 CRITICAL FIX
-  onSnapEnd: () => {
-    board.position(game.fen());
-  },
+    // 🔥 CRITICAL FIX
+    onSnapEnd: () => {
+      board.position(game.fen());
+    },
 
-  pieceTheme: getPieceThemePath(currentPieceTheme)
-});
+    pieceTheme: getPieceThemePath(currentPieceTheme)
+  });
+
+  // =========================================
+  // 🔥 MOBILE BOARD DRAG FIX
+  // =========================================
+  if (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+
+    setTimeout(() => {
+
+      const boardElement =
+        document.querySelector(".cg-wrap");
+
+      if (!boardElement) return;
+
+      boardElement.addEventListener(
+        "touchmove",
+        (e) => {
+
+          // 🔥 PREVENT PAGE DRAG
+          if (e.target.closest(".cg-wrap")) {
+            e.preventDefault();
+          }
+
+        },
+        { passive:false }
+      );
+
+    }, 500);
+
   }
+
+}
 
 function setInitialOrientation() {
   if (!solutionMoves.length) return;
