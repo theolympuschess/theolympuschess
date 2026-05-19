@@ -21770,6 +21770,58 @@ background: #2563eb;
 
 
 
+#lpBoardCoords{
+
+  position:absolute;
+  inset:0;
+
+  pointer-events:none;
+  z-index:20;
+}
+
+/* FILES */
+.lp-file-coord{
+
+  position:absolute;
+
+  bottom:-18px;
+   
+
+  font-size:17px;
+  font-weight:700;
+
+  color:rgba(255,255,255,0.82);
+
+  transform:translateX(-50%);
+}
+
+/* RANKS */
+.lp-rank-coord{
+
+  position:absolute;
+
+  left:-18px;
+
+ 
+
+  font-size:17px;
+  font-weight:700;
+
+  color:rgba(255,255,255,0.82);
+
+  transform:translateY(-50%);
+}
+
+
+#lpTimer{
+
+  position:relative;
+
+  top:17px;
+
+  z-index:15;
+}
+
 
 
   </style>
@@ -23641,6 +23693,7 @@ title="Voice volume"
        width:600px;
        height:600px;
      ">
+     <div id="lpBoardCoords"></div>
 
   <!-- BOARD -->
   <div id="lpBoard"
@@ -23804,7 +23857,7 @@ title="Voice volume"
       
 
       <!-- MOVE CONTROLS -->
-      <div style="margin-top:54px; display:flex; justify-content:center; gap:10px;">
+      <div style="margin-top:70px; display:flex; justify-content:center; gap:10px;">
         
   <button id="lpPrevMoveBtn" data-role="admin-only">⏮ Move</button>
 <button id="lpNextMoveBtn" data-role="admin-only">Move ⏭</button>
@@ -67036,7 +67089,69 @@ document.getElementById(
     "lpTitleModal"
   ).classList.remove("show");
 };
+function updateBoardCoordinates() {
 
+  const container =
+    document.getElementById(
+      "lpBoardCoords"
+    );
+
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const isBlack =
+    board.orientation() === "black";
+
+  const files =
+    isBlack
+      ? ["h","g","f","e","d","c","b","a"]
+      : ["a","b","c","d","e","f","g","h"];
+
+  const ranks =
+    isBlack
+      ? [1,2,3,4,5,6,7,8]
+      : [8,7,6,5,4,3,2,1];
+
+  // ================= FILES =================
+  files.forEach((file, i) => {
+
+    const el =
+      document.createElement("div");
+
+    el.className =
+      "lp-file-coord";
+
+    el.textContent =
+      file;
+
+    el.style.left =
+      `${(i + 0.5) * 12.5}%`;
+
+    container.appendChild(el);
+
+  });
+
+  // ================= RANKS =================
+  ranks.forEach((rank, i) => {
+
+    const el =
+      document.createElement("div");
+
+    el.className =
+      "lp-rank-coord";
+
+    el.textContent =
+      rank;
+
+    el.style.top =
+      `${(i + 0.5) * 12.5}%`;
+
+    container.appendChild(el);
+
+  });
+
+}
 // ================= BOARD =================
 function initBoard() {
 
@@ -67053,6 +67168,7 @@ function initBoard() {
 
     pieceTheme: getPieceThemePath(currentPieceTheme)
   });
+  updateBoardCoordinates();
 
   // =========================================
   // 🔥 MOBILE BOARD DRAG FIX
@@ -67086,15 +67202,25 @@ function initBoard() {
 }
 
 function setInitialOrientation() {
-  if (!solutionMoves.length) return;
 
-  const firstTurn = solutionMoves[0].color;
+  if (!solutionMoves.length)
+    return;
+
+  const firstTurn =
+    solutionMoves[0].color;
 
   if (firstTurn === "w") {
+
     board.orientation("white");
+
   } else {
+
     board.orientation("black");
+
   }
+
+  // 🔥 UPDATE COORDINATES
+  updateBoardCoordinates();
 }
 
 // =====================================================
@@ -68472,6 +68598,7 @@ highlightCheckSquare(
     pieceTheme: getPieceThemePath(currentPieceTheme)
 
   });
+  updateBoardCoordinates();
 
   showToast("📥 Analysis Loaded");
 }
@@ -68538,6 +68665,7 @@ function toggleAnalysisMode() {
         )
 
     });
+    updateBoardCoordinates();
 
     // ================= RESET STUDENT UI =================
     if (
@@ -69935,10 +70063,12 @@ if (
   board.orientation(
   payload.payload.orientation || "white"
 );
+updateBoardCoordinates();
 
 board.orientation(
   payload.payload.orientation || "white"
 );
+updateBoardCoordinates();
 isAnalysisMode = true;
 board.position(
   payload.payload.fen
@@ -70019,6 +70149,7 @@ setTimeout(() => {
   board.orientation(
     orientation || "white"
   );
+  updateBoardCoordinates();
 
 
 
