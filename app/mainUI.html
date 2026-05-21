@@ -67654,6 +67654,87 @@ document
     }
   );
 
+// =====================================
+// 🔊 LIVE PUZZLE SOUND ENGINE
+// =====================================
+
+window.lpSoundEngine = {
+
+  sounds: {
+
+    move:
+      new Audio(
+        "sounds/move.mp3"
+      ),
+
+    capture:
+      new Audio(
+        "sounds/capture.mp3"
+      ),
+
+    castle:
+      new Audio(
+        "sounds/castle.mp3"
+      ),
+
+    check:
+      new Audio(
+        "sounds/check.mp3"
+      )
+
+  },
+
+  play(moveData, chessGame) {
+
+    if (!moveData) return;
+
+    let sound =
+      this.sounds.move;
+
+    // 🔥 CAPTURE
+    if (
+      moveData.flags?.includes("c")
+    ) {
+
+      sound =
+        this.sounds.capture;
+
+    }
+
+    // 🔥 CASTLE
+    else if (
+
+      moveData.flags?.includes("k") ||
+
+      moveData.flags?.includes("q")
+
+    ) {
+
+      sound =
+        this.sounds.castle;
+
+    }
+
+    // 🔥 CHECK
+// 🔥 CHECK
+if (
+  moveData.san?.includes("+") ||
+
+  moveData.san?.includes("#")
+) {
+
+  sound =
+    this.sounds.check;
+
+}
+
+    sound.currentTime = 0;
+
+    sound.play().catch(() => {});
+
+  }
+
+};
 
 function updateBoardCoordinates() {
 
@@ -68483,6 +68564,11 @@ if (isAnalysisMode && analysisPromotionData) {
     .classList.add("hidden");
 
   if (!move) return;
+  // 🔊 ANALYSIS PROMOTION SOUND
+lpSoundEngine.play(
+  move,
+  analysisGame
+);
 
   analysisMoves.push(move);
   analysisIndex++;
@@ -68626,6 +68712,11 @@ if (!move) {
 
 // ================= SUCCESS UI =================
 board.position(game.fen());
+// 🔊 MOVE SOUND
+lpSoundEngine.play(
+  move,
+  game
+);
 
 if (move.san) {
 
@@ -69115,7 +69206,11 @@ highlightCheckSquare(
   from:
     analysisMoves[analysisIndex - 1]?.from,
   to:
-    analysisMoves[analysisIndex - 1]?.to
+    analysisMoves[analysisIndex - 1]?.to,
+     moveData:
+    analysisMoves[
+      analysisIndex - 1
+    ]
 }
   });
 
@@ -69180,7 +69275,9 @@ if (prevMove) {
   from:
     prevMove?.from,
   to:
-    prevMove?.to
+    prevMove?.to,
+    moveData:
+    prevMove
 }
   });
 
@@ -69264,6 +69361,11 @@ if (startFen) {
   });
 
   if (!move) return "snapback";
+  // 🔊 ANALYSIS MOVE SOUND
+lpSoundEngine.play(
+  move,
+  analysisGame
+);
 
   analysisMoves.push(move);
   analysisIndex++;
@@ -69292,7 +69394,10 @@ highlightCheckSquare(
   fen: analysisGame.fen(),
   orientation: board.orientation(),
   from: source,
-  to: target
+  to: target,
+   moveData:
+    move
+  
 }
   });
 
@@ -69531,6 +69636,11 @@ async function onDrop(source, target) {
   });
 
   if (!move) return "snapback";
+  // 🔊 MOVE SOUND
+lpSoundEngine.play(
+  move,
+  game
+);
 
   // 🔥 PROMOTION
   if (
@@ -69718,15 +69828,34 @@ async function handleCorrectMove(move) {
 
   setTimeout(async () => {
 
-    if (moveIndex < solutionMoves.length) {
-      const nextMove = solutionMoves[moveIndex];
+  if (moveIndex < solutionMoves.length) {
 
-      if (nextMove.color !== move.color) {
+    const nextMove =
+      solutionMoves[moveIndex];
+
+    if (
+      nextMove.color !==
+      move.color
+    ) {
+
+      const autoMove =
         game.move(nextMove);
-        board.position(game.fen()); // ✅ only here
-        moveIndex++;
-      }
+
+      board.position(
+        game.fen()
+      );
+
+      // 🔊 AUTO MOVE SOUND
+      lpSoundEngine.play(
+        autoMove,
+        game
+      );
+
+      moveIndex++;
+
     }
+
+  }
 
     const puzzleSolved =
   moveIndex >= solutionMoves.length;
@@ -70993,6 +71122,7 @@ if (
     analysisGame.fen()
   );
 
+
 } else {
 
   board.position(
@@ -71160,10 +71290,21 @@ isAnalysisMode = true;
 board.position(
   payload.payload.fen
 );
+// 🔊 STUDENT ANALYSIS SOUND
+if (
+  payload.payload.moveData
+) {
+
+  lpSoundEngine.play(
+    payload.payload.moveData
+  );
+
+}
 // 🔥 UPDATE STUDENT ANALYSIS GAME
 studentAnalysisGame.load(
   payload.payload.fen
 );
+
 
 // 🔥 CHECK HIGHLIGHT
 highlightCheckSquare(
