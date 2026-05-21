@@ -21889,6 +21889,222 @@ background: #2563eb;
 
 
 
+/* ================= EXIT MODAL ================= */
+
+#lpExitModal {
+
+  position: fixed;
+
+  inset: 0;
+
+  background:
+    rgba(0,0,0,0.55);
+
+  backdrop-filter:
+    blur(6px);
+
+  z-index: 99999999;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 20px;
+
+  opacity: 1;
+
+  visibility: visible;
+
+  transition: 0.2s;
+}
+
+.lpExitModalHidden {
+
+  opacity: 0 !important;
+
+  visibility: hidden !important;
+
+  pointer-events: none;
+}
+
+#lpExitModalBox {
+
+  width: 100%;
+
+  max-width: 380px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #1d2342,
+      #141933
+    );
+
+  border:
+    1px solid
+    rgba(255,255,255,0.08);
+
+  border-radius: 22px;
+
+  padding: 28px 24px;
+
+  box-shadow:
+    0 15px 50px
+    rgba(0,0,0,0.45);
+
+  text-align: center;
+
+  animation:
+    lpExitModalPop
+    0.18s ease;
+}
+
+#lpExitModalIcon {
+
+  font-size: 42px;
+
+  margin-bottom: 14px;
+}
+
+#lpExitModalTitle {
+
+  font-size: 24px;
+
+  font-weight: 700;
+
+  color: white;
+
+  margin-bottom: 10px;
+}
+
+#lpExitModalText {
+
+  color: #bfc7ff;
+
+  font-size: 14px;
+
+  line-height: 1.5;
+
+  margin-bottom: 26px;
+}
+
+#lpExitModalButtons {
+
+  display: flex;
+
+  gap: 12px;
+}
+
+#lpExitModalButtons button {
+
+  flex: 1;
+
+  border: none;
+
+  border-radius: 12px;
+
+  padding: 12px;
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.15s;
+}
+
+#lpExitCancelBtn {
+
+  background:
+    rgba(255,255,255,0.08);
+
+  color: white;
+}
+
+#lpExitCancelBtn:hover {
+
+  transform: translateY(-1px);
+
+  background:
+    rgba(255,255,255,0.12);
+}
+
+#lpExitConfirmBtn {
+
+  background:
+    linear-gradient(
+      180deg,
+      #ff5b5b,
+      #d92d2d
+    );
+
+  color: white;
+}
+
+#lpExitConfirmBtn:hover {
+
+  transform: translateY(-1px);
+
+  filter: brightness(1.08);
+}
+
+@keyframes lpExitModalPop {
+
+  from {
+
+    opacity: 0;
+
+    transform:
+      scale(0.92);
+  }
+
+  to {
+
+    opacity: 1;
+
+    transform:
+      scale(1);
+  }
+}
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 600px) {
+
+  #lpExitModalBox {
+
+    max-width: 100%;
+
+    padding: 24px 18px;
+
+    border-radius: 18px;
+  }
+
+  #lpExitModalTitle {
+
+    font-size: 21px;
+  }
+
+  #lpExitModalButtons button {
+
+    padding: 11px;
+
+    font-size: 14px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -23999,8 +24215,10 @@ title="Voice volume"
       <!-- ROOM CONTROLS -->
       <div class="lp-controls">
         <button id="lpCreateRoomBtn" data-role="admin-only">➕ Create Class</button>
+        
         <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
-        <button id="lpJoinRoomBtn">🟢 Join</button>
+        <button id="lpJoinRoomBtn">✅ Join Class</button>
+        <button id="lpExitRoomBtn">❌ Exit Class</button>
       </div>
 
       <!-- ROOM INFO -->
@@ -66826,6 +67044,8 @@ let isTimeUp = false;
 let currentUserId = null;
 let studentMoves = {}; 
 let movesChannel = null; 
+let lpExitedRoom = false;
+
 let lpAllLibraries = []; 
 // 🔥 POINT SYSTEM
 let playerScores = {};
@@ -66844,6 +67064,47 @@ let noMovePenaltyMultiplier = 2;
 
   // ================= INIT =================
   function init() {
+document.getElementById(
+  "lpExitRoomBtn"
+).onclick = () => {
+
+  document
+    .getElementById(
+      "lpExitModal"
+    )
+    .classList.remove(
+      "lpExitModalHidden"
+    );
+};
+// ================= EXIT MODAL =================
+
+document.getElementById(
+  "lpExitCancelBtn"
+).onclick = () => {
+
+  document
+    .getElementById(
+      "lpExitModal"
+    )
+    .classList.add(
+      "lpExitModalHidden"
+    );
+};
+
+document.getElementById(
+  "lpExitConfirmBtn"
+).onclick = async () => {
+
+  document
+    .getElementById(
+      "lpExitModal"
+    )
+    .classList.add(
+      "lpExitModalHidden"
+    );
+
+  await exitLiveClassroom();
+};
     document.querySelectorAll("#lpPromotionModal button").forEach(btn => {
   btn.onclick = () => lpCompletePromotion(btn.dataset.piece);
 });
@@ -67205,6 +67466,8 @@ document.getElementById(
     "lpTitleModal"
   ).classList.remove("show");
 };
+
+
 function updateBoardCoordinates() {
 
   const container =
@@ -69193,7 +69456,7 @@ const lpJoinSound =
   );
 
 lpJoinSound.volume = 0.30;
-function showJoinBanner(name) {
+function showJoinBanner(text) {
 
   const container =
     document.getElementById(
@@ -69208,11 +69471,16 @@ function showJoinBanner(name) {
   banner.className =
     "lpJoinBanner";
 
-  banner.innerHTML =
-    `🙎🏻‍♂️ ${name} joined the classroom`;
-    document.body.appendChild(container);
+  // 🔥 CUSTOM TEXT
+  banner.innerHTML = text;
 
-  container.appendChild(banner);
+  document.body.appendChild(
+    container
+  );
+
+  container.appendChild(
+    banner
+  );
 
   // 🔥 SOUND
   lpJoinSound.currentTime = 0;
@@ -69221,16 +69489,24 @@ function showJoinBanner(name) {
 
   // 🔥 SHOW
   requestAnimationFrame(() => {
-    banner.classList.add("show");
+
+    banner.classList.add(
+      "show"
+    );
+
   });
 
   // 🔥 REMOVE
   setTimeout(() => {
 
-    banner.classList.remove("show");
+    banner.classList.remove(
+      "show"
+    );
 
     setTimeout(() => {
+
       banner.remove();
+
     }, 350);
 
   }, 5000);
@@ -69259,7 +69535,20 @@ async function handleCorrectMove(move) {
 
 if (puzzleSolved) {
 
-      const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+      // ================= SAFE TIME =================
+const safeStartTime =
+  startTime || Date.now();
+
+const timeTaken =
+  Math.max(
+    0,
+    Math.floor(
+      (
+        Date.now() -
+        safeStartTime
+      ) / 1000
+    )
+  );
       clearInterval(timerInterval);
 
       await supabase
@@ -69721,6 +70010,10 @@ async function createRoom() {
   isAdmin = true;
 
   updateRoomUI();
+  // 🔥 CLASS CREATED BANNER
+showJoinBanner(
+  "✅ Classroom Created Successfully"
+);
 
   updateClassroomTitle();
 
@@ -69729,7 +70022,7 @@ async function createRoom() {
     .insert({
       code: roomCode
     });
-
+lpExitedRoom = false;
   // 🔥 START REALTIME FIRST
   listenRoom();
 
@@ -69884,7 +70177,9 @@ if (!isAdmin) {
 
   myAttemptId = data.id;
   // 🔥 SELF JOIN FEEDBACK
-showJoinBanner("You");
+showJoinBanner(
+  "🙎🏻‍♂️ You joined the classroom"
+);
   // 🔥 JOIN BANNER EVENT
 supabase.channel(
   "lp-moves-" + roomCode
@@ -69895,9 +70190,25 @@ supabase.channel(
     username
   }
 });
-
+lpExitedRoom = false;
   // 🔹 realtime + sync
   listenRoom();
+  // REQUEST CURRENT LIVE STATE
+setTimeout(() => {
+
+if (!movesChannel) return;
+
+movesChannel.send({
+
+  type: "broadcast",
+
+  event: "sync-request",
+
+  payload: {}
+
+});
+
+}, 500);
   // 🔥 REQUEST CURRENT CLASSROOM TITLE
 supabase.channel(
   "lp-moves-" + roomCode
@@ -69906,7 +70217,7 @@ supabase.channel(
   event:"request_classroom_title",
   payload:{}
 });
-  await loadCurrentPuzzle();
+ 
   loadStudents();
 }
 
@@ -70117,6 +70428,8 @@ function listenRoom() {
       table: "live_puzzle_state",
       filter: `room_code=eq.${roomCode}`
     }, payload => {
+    // 🔥 EXITED = IGNORE EVERYTHING
+      if (lpExitedRoom) return;
 
       if (payload.new && payload.new.pgn) {
 
@@ -70241,6 +70554,8 @@ await loadStudents();
       table: "live_puzzle_attempts",
       filter: `room_code=eq.${roomCode}`
     }, payload => {
+     // 🔥 EXITED = IGNORE EVERYTHING
+  if (lpExitedRoom) return;
   console.log("ATTEMPT UPDATE:", payload);
   loadStudents();
 })
@@ -70252,6 +70567,316 @@ if (movesChannel) {
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, payload => {
+     // 🔥 EXITED = IGNORE EVERYTHING
+    if (lpExitedRoom) return;
+    // ================= SYNC REQUEST =================
+if (
+  payload.event === "sync-request"
+) {
+
+  // ONLY ADMIN RESPONDS
+  if (!isAdmin) return;
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event: "sync-state",
+
+    payload: {
+
+  fen: game.fen(),
+  analysisFen:
+  analysisGame.fen(),
+
+lpDrawingsByFen,
+
+  currentIndex,
+
+  moveIndex,
+
+  roomCode,
+
+  isRaceMode,
+
+  raceStartIndex,
+
+  raceEndIndex,
+
+  totalRacePuzzles,
+
+  puzzles,
+
+  solutionMoves,
+
+  playerScores,
+
+  playerRaceIndex,
+
+  solvedPuzzles,
+
+  classroomTitle,
+
+  isAnalysisMode,
+
+  analysisMoves,
+
+  analysisIndex,
+
+  timeLimit,
+  puzzleStartTime,
+
+  timeLeft,
+  pointPerMove,
+negativePoint,
+
+  allowStudentAnalysisView
+}
+
+  });
+
+  return;
+}
+// ================= RECEIVE FULL SYNC =================
+if (
+  payload.event === "sync-state"
+) {
+
+  // 🔥 EXITED
+  if (lpExitedRoom) return;
+
+  // 🔥 ADMIN IGNORE
+  if (isAdmin) return;
+
+  const data = payload.payload;
+
+  // ================= CORE =================
+  currentIndex =
+    data.currentIndex || 0;
+
+  moveIndex =
+    data.moveIndex || 0;
+
+  isRaceMode =
+    data.isRaceMode || false;
+
+  raceStartIndex =
+    data.raceStartIndex || 0;
+
+  raceEndIndex =
+    data.raceEndIndex || 0;
+
+  totalRacePuzzles =
+    data.totalRacePuzzles || 0;
+
+  puzzles =
+    data.puzzles || [];
+
+  solutionMoves =
+    data.solutionMoves || [];
+
+  playerScores =
+    data.playerScores || {};
+
+  playerRaceIndex =
+    data.playerRaceIndex || {};
+
+  solvedPuzzles =
+    data.solvedPuzzles || {};
+
+  classroomTitle =
+    data.classroomTitle ||
+    "Live Classroom";
+
+  isAnalysisMode =
+    data.isAnalysisMode || false;
+
+  analysisMoves =
+    data.analysisMoves || [];
+
+  analysisIndex =
+    data.analysisIndex || 0;
+    // ================= ANALYSIS =================
+// ================= SYNC DRAWINGS =================
+Object.keys(
+  lpDrawingsByFen
+).forEach(key => {
+
+  delete lpDrawingsByFen[key];
+
+});
+
+Object.assign(
+  lpDrawingsByFen,
+  data.lpDrawingsByFen || {}
+);
+
+  allowStudentAnalysisView =
+    data.allowStudentAnalysisView || false;
+
+  timeLimit =
+    data.timeLimit || 0;
+
+  timeLeft =
+    data.timeLeft || 0;
+    puzzleStartTime =
+  data.puzzleStartTime || Date.now();
+    pointPerMove =
+  data.pointPerMove ?? 10;
+
+negativePoint =
+  data.negativePoint ?? -5;
+
+  // ================= REBUILD GAME =================
+// ================= REBUILD CURRENT PUZZLE =================
+game.reset();
+
+const currentPGN =
+  puzzles[currentIndex];
+
+if (currentPGN) {
+
+  const tempGame =
+    new Chess();
+
+  tempGame.load_pgn(
+    currentPGN
+  );
+
+  solutionMoves =
+    tempGame.history({
+      verbose: true
+    });
+
+  const startFen =
+    tempGame.header().FEN;
+
+  if (startFen) {
+
+    game.load(startFen);
+
+  } else {
+
+    game.reset();
+
+  }
+
+  // ================= APPLY CURRENT MOVES =================
+  for (
+    let i = 0;
+    i < moveIndex;
+    i++
+  ) {
+
+    if (solutionMoves[i]) {
+
+      game.move(
+        solutionMoves[i]
+      );
+
+    }
+
+  }
+
+}
+
+// ================= BOARD =================
+if (
+  isAnalysisMode &&
+  allowStudentAnalysisView &&
+  data.analysisFen
+) {
+
+  analysisGame.load(
+    data.analysisFen
+  );
+
+  board.position(
+    analysisGame.fen()
+  );
+
+} else {
+
+  board.position(
+    game.fen()
+  );
+
+}
+
+  // ================= ORIENTATION =================
+  if (solutionMoves.length) {
+
+    board.orientation(
+      solutionMoves[0].color === "b"
+        ? "black"
+        : "white"
+    );
+
+    updateBoardCoordinates();
+  }
+
+  // ================= TIMER =================
+  clearInterval(timerInterval);
+
+  isTimeUp = false;
+
+  updateTimerUI();
+
+  if (timeLeft > 0) {
+
+    timerInterval =
+      setInterval(() => {
+
+        if (lpExitedRoom) {
+
+          clearInterval(
+            timerInterval
+          );
+
+          return;
+        }
+
+        timeLeft--;
+
+        updateTimerUI();
+
+        if (timeLeft <= 0) {
+
+          clearInterval(
+            timerInterval
+          );
+
+          isTimeUp = true;
+        }
+
+      }, 1000);
+  }
+
+  // ================= UI =================
+  updateClassroomTitle();
+
+  loadStudents();
+
+  renderAnalysisPGN();
+
+  // ================= REFRESH BOARD/DRAWINGS =================
+requestAnimationFrame(() => {
+
+  document.dispatchEvent(
+    new Event(
+      "lpPositionChanged"
+    )
+  );
+
+});
+
+
+  console.log(
+    "✅ FULL LIVE SYNC COMPLETE"
+  );
+
+  return;
+}
       // ================= TITLE REQUEST =================
 if (
   payload.event ===
@@ -70294,9 +70919,9 @@ if (
 
   if (!isAdmin) return;
 
-  showJoinBanner(
-    payload.payload.username
-  );
+showJoinBanner(
+  `🙎🏻‍♂️ ${payload.payload.username} joined the classroom`
+);
 
   return;
 }
@@ -70702,6 +71327,302 @@ await loadStudents();
   function generateCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
+  // ================= EXIT CLASSROOM =================
+async function exitLiveClassroom() {
+lpExitedRoom = true;
+
+  // 🔥 SAVE BEFORE RESET
+  const oldRoomCode = roomCode;
+  const wasAdmin = isAdmin;
+
+  // ================= TIMER RESET =================
+  clearInterval(timerInterval);
+
+  timerInterval = null;
+
+  // ================= REMOVE REALTIME CHANNEL =================
+  try {
+
+    if (movesChannel) {
+
+     await supabase.removeChannel(
+        movesChannel
+      );
+
+      movesChannel = null;
+      // ================= HARD RESET BOARD =================
+game.reset();
+
+previewGame.reset();
+
+analysisGame.reset();
+
+board.position("start");
+
+updateBoardCoordinates();
+    }
+
+  } catch(err) {
+
+    console.log(err);
+
+  }
+
+  // ================= RESET CORE =================
+  roomCode = null;
+
+  isAdmin = false;
+
+  currentIndex = 0;
+
+  moveIndex = 0;
+
+  puzzles = [];
+
+  solutionMoves = [];
+
+  analysisMoves = [];
+
+  analysisIndex = 0;
+
+  previewIndex = 0;
+
+  playerScores = {};
+
+  studentMoves = {};
+
+  solvedPuzzles = {};
+
+  playerRaceIndex = {};
+
+  isRaceMode = false;
+
+  raceStartIndex = 0;
+
+  raceEndIndex = 0;
+
+  totalRacePuzzles = 0;
+
+  allowStudentAnalysisView = false;
+
+  isAnalysisMode = false;
+
+  lpPendingPromotion = null;
+
+  analysisPromotionData = null;
+
+  liveAnalysisFenKey = null;
+
+  myAttemptId = null;
+
+  // ================= TIMER VALUES =================
+  timeLimit = 0;
+
+  timeLeft = 0;
+
+  isTimeUp = false;
+
+  // ================= RESET CHESS =================
+  game.reset();
+
+  previewGame.reset();
+
+  analysisGame.reset();
+
+  // ================= RESET BOARD =================
+  board = Chessboard("lpBoard", {
+
+    position: "start",
+
+    orientation: "white",
+
+    draggable: true,
+
+    onDragStart: onDragStart,
+
+    onDrop: onDrop,
+
+    onSnapEnd: () => {
+
+      board.position(
+        game.fen()
+      );
+
+    },
+
+    pieceTheme:
+      getPieceThemePath(
+        currentPieceTheme
+      )
+
+  });
+
+  updateBoardCoordinates();
+
+  // ================= ROOM INFO =================
+  document.getElementById(
+    "lpRoomInfo"
+  ).innerText = "";
+
+  // ================= CLASS TITLE =================
+  classroomTitle =
+    "Live Classroom";
+
+  updateClassroomTitle();
+
+  // ================= ADMIN PANEL =================
+  document.getElementById(
+    "lpAdminPanel"
+  ).style.display = "none";
+
+  // ================= STUDENTS =================
+  document.getElementById(
+    "lpStudentsContainer"
+  ).innerHTML = "";
+
+  // ================= PUZZLE INFO =================
+  document.getElementById(
+    "lpPuzzleInfo"
+  ).innerText = "";
+
+  // ================= PGN =================
+  const pgnBox =
+    document.getElementById(
+      "lpPgnBox"
+    );
+
+  if (pgnBox) {
+
+    pgnBox.innerHTML = "";
+
+    pgnBox.style.display =
+      "none";
+  }
+
+  // ================= SEARCH =================
+  document.getElementById(
+    "lpSearchInput"
+  ).value = "";
+
+  document.getElementById(
+    "lpSearchResults"
+  ).style.display = "none";
+
+  // ================= SELECT =================
+  document.getElementById(
+    "lpPuzzleSelect"
+  ).value = "";
+
+  // ================= INPUT RESET =================
+  document.getElementById(
+    "lpTimeInput"
+  ).value = "";
+
+  document.getElementById(
+    "lpPointPerMove"
+  ).value = "";
+
+  document.getElementById(
+    "lpNegativePoint"
+  ).value = "";
+
+  document.getElementById(
+    "lpRaceStartInput"
+  ).value = "";
+
+  document.getElementById(
+    "lpRaceEndInput"
+  ).value = "";
+
+  document.getElementById(
+    "lpRoomCodeInput"
+  ).value = "";
+
+  // ================= ANALYSIS BUTTON =================
+  const analysisBtn =
+    document.getElementById(
+      "lpLoadAnalysisBtn"
+    );
+
+  if (analysisBtn) {
+
+    analysisBtn.classList
+      .remove("active");
+
+    analysisBtn.innerHTML =
+      "📊 Analysis OFF";
+  }
+
+  // ================= SHARE BUTTON =================
+  const shareBtn =
+    document.getElementById(
+      "lpAnalysisShareBtn"
+    );
+
+  if (shareBtn) {
+
+    shareBtn.classList
+      .remove("active");
+
+    shareBtn.innerHTML =
+      "👁 Students OFF";
+  }
+
+  // ================= TIMER UI =================
+  const timerEl =
+    document.getElementById(
+      "lpTimer"
+    );
+
+  if (timerEl) {
+    timerEl.remove();
+  }
+
+  // ================= CLEAR DRAWINGS =================
+  Object.keys(
+    lpDrawingsByFen
+  ).forEach(key => {
+
+    delete lpDrawingsByFen[key];
+
+  });
+
+  document.dispatchEvent(
+    new Event(
+      "lpPositionChanged"
+    )
+  );
+
+  // ================= OPTIONAL ADMIN CLEANUP =================
+  if (
+    oldRoomCode &&
+    wasAdmin
+  ) {
+
+    try {
+
+      await supabase
+        .from(
+          "live_puzzle_state"
+        )
+        .delete()
+        .eq(
+          "room_code",
+          oldRoomCode
+        );
+
+    } catch(err) {
+
+      console.log(err);
+
+    }
+
+  }
+
+  showToast(
+    "❌ Exited Classroom"
+  );
+}
 
   return {
     init,
@@ -75602,6 +76523,38 @@ window.addEventListener("DOMContentLoaded", () => {
     <button data-piece="b">♗</button>
     <button data-piece="n">♘</button>
   </div>
+</div>
+<!-- ================= EXIT CLASS MODAL ================= -->
+<div id="lpExitModal" class="lpExitModalHidden">
+
+  <div id="lpExitModalBox">
+
+    <div id="lpExitModalIcon">
+      ⚠
+    </div>
+
+    <div id="lpExitModalTitle">
+      Exit Classroom?
+    </div>
+
+    <div id="lpExitModalText">
+      Your live classroom session will be closed and all current puzzle state will reset.
+    </div>
+
+    <div id="lpExitModalButtons">
+
+      <button id="lpExitCancelBtn">
+        No
+      </button>
+
+      <button id="lpExitConfirmBtn">
+        Yes Exit
+      </button>
+
+    </div>
+
+  </div>
+
 </div>
 
 <div id="lpJoinBannerContainer"></div>
