@@ -22098,8 +22098,63 @@ background: #2563eb;
 
 
 
+/* ===================================== */
+/* 🎉 REACTION TOGGLE BUTTON */
+/* ===================================== */
 
+#lpReactionToggleBtn {
 
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+
+}
+
+/* 🔥 HOVER */
+#lpReactionToggleBtn:hover {
+
+  background:
+    #2b3158 !important;
+
+  color:
+    #fff !important;
+
+  opacity:
+    1 !important;
+}
+
+/* 🔥 ACTIVE */
+#lpReactionToggleBtn.active {
+
+  background:
+    #ffcc33 !important;
+
+  color:
+    #111 !important;
+
+  box-shadow:
+    0 0 8px
+    rgba(255,204,51,0.35);
+}
+
+/* 🔥 ACTIVE HOVER */
+#lpReactionToggleBtn.active:hover {
+
+  background:
+    #ffcc33 !important;
+
+  color:
+    #111 !important;
+}
+
+/* 🔥 PRESS EFFECT */
+#lpReactionToggleBtn:active {
+
+  transform:
+    scale(0.96);
+}
 
 
 
@@ -24219,6 +24274,8 @@ title="Voice volume"
         <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
         <button id="lpJoinRoomBtn">✅ Join Class</button>
         <button id="lpExitRoomBtn">❌ Exit Class</button>
+        <button id="lpReactionToggleBtn"
+        data-role="admin-only">😃 Send Emoji</button>
       </div>
 
       <!-- ROOM INFO -->
@@ -59248,6 +59305,8 @@ document.getElementById("vsCustomFenInput")
 
 
 let reactionPanelOpen = false;
+let lastReactionStudentId =
+  "";
 
 document.addEventListener("keydown", async (e) => {
   if (e.key === "`") {
@@ -59275,21 +59334,56 @@ document.addEventListener("keydown", async (e) => {
 
 
 async function loadStudentsForReaction() {
+
   const { data } = await supabase
     .from("profiles")
-    .select("id, username, active")
-.eq("role", "student")
-.eq("active", true);
+    .select(
+      "id, username, active"
+    )
+    .eq("role", "student")
+    .eq("active", true);
 
-  const select = document.getElementById("reactionStudentSelect");
+  const select =
+    document.getElementById(
+      "reactionStudentSelect"
+    );
+
   select.innerHTML = "";
 
   data.forEach(student => {
-    const opt = document.createElement("option");
+
+    const opt =
+      document.createElement(
+        "option"
+      );
+
     opt.value = student.id;
-    opt.textContent = student.username;
+
+    opt.textContent =
+      student.username;
+
+    // 🔥 RESTORE LAST SELECTED
+    if (
+      student.id ===
+      lastReactionStudentId
+    ) {
+
+      opt.selected = true;
+
+    }
+
     select.appendChild(opt);
+
   });
+
+  // 🔥 SAVE CURRENT SELECTION
+  select.onchange = () => {
+
+    lastReactionStudentId =
+      select.value;
+
+  };
+
 }
 
 
@@ -59316,19 +59410,28 @@ window.sendEmoji = async function(emoji) {
     }));
 
     await supabase.from("visual_reactions").insert(inserts);
+    showJoinBanner(
+  "😃 Emoji sent",
+  false
+);
 
   } else {
 
     const studentId = document.getElementById("reactionStudentSelect").value;
+    lastReactionStudentId =
+  studentId;
 
     await supabase.from("visual_reactions").insert({
       student_id: studentId,
       emoji: emoji
     });
+   showJoinBanner(
+  "😃 Emoji sent",
+  false
+);
 
   }
-  // 🔥 SHOW ON ADMIN SCREEN TOO
-  showReaction({ emoji: emoji });
+  
 };
 
 window.sendGif = async function(url) {
@@ -59353,19 +59456,28 @@ window.sendGif = async function(url) {
     }));
 
     await supabase.from("visual_reactions").insert(inserts);
+    showJoinBanner(
+  "😃 Emoji sent",
+  false
+);
 
   } else {
 
     const studentId = document.getElementById("reactionStudentSelect").value;
+    lastReactionStudentId =
+  studentId;
 
     await supabase.from("visual_reactions").insert({
       student_id: studentId,
       gif_url: url
     });
+   showJoinBanner(
+  "😃 Emoji sent",
+  false
+);
 
   }
-  // 🔥 SHOW ON ADMIN SCREEN TOO
-  showReaction({ gif_url: url });
+ 
 };
 
 
@@ -67467,6 +67579,81 @@ document.getElementById(
   ).classList.remove("show");
 };
 
+// =====================================
+// 🎉 REACTION PANEL BUTTON TOGGLE
+// =====================================
+
+document
+  .getElementById(
+    "lpReactionToggleBtn"
+  )
+
+  .addEventListener(
+    "click",
+
+    async () => {
+
+      if (!currentUser)
+        return;
+
+      const { data: profile }
+        = await supabase
+
+        .from("profiles")
+
+        .select("role")
+
+        .eq(
+          "id",
+          currentUser.id
+        )
+
+        .single();
+
+      // 🔥 ADMIN ONLY
+      if (
+        !profile ||
+        profile.role !== "admin"
+      ) return;
+
+      reactionPanelOpen =
+        !reactionPanelOpen;
+
+      const panel =
+        document.getElementById(
+          "reactionPanel"
+        );
+
+      if (!panel) return;
+
+      panel.style.display =
+
+        reactionPanelOpen
+
+          ? "block"
+
+          : "none";
+          // 🔥 ACTIVE BUTTON UI
+document
+  .getElementById(
+    "lpReactionToggleBtn"
+  )
+
+  .classList.toggle(
+    "active",
+    reactionPanelOpen
+  );
+
+      // 🔥 LOAD STUDENTS
+      if (reactionPanelOpen) {
+
+        loadStudentsForReaction();
+
+      }
+
+    }
+  );
+
 
 function updateBoardCoordinates() {
 
@@ -69456,7 +69643,11 @@ const lpJoinSound =
   );
 
 lpJoinSound.volume = 0.30;
-function showJoinBanner(text) {
+window.showJoinBanner =
+function showJoinBanner(
+  text,
+  playSound = true
+) {
 
   const container =
     document.getElementById(
@@ -69483,9 +69674,16 @@ function showJoinBanner(text) {
   );
 
   // 🔥 SOUND
+ // 🔥 OPTIONAL SOUND
+if (playSound) {
+
   lpJoinSound.currentTime = 0;
 
-  lpJoinSound.play().catch(() => {});
+  lpJoinSound
+    .play()
+    .catch(() => {});
+
+}
 
   // 🔥 SHOW
   requestAnimationFrame(() => {
@@ -74086,9 +74284,9 @@ document.addEventListener("DOMContentLoaded", startApp);
 
 <div id="reactionPanel" style="
   position: fixed;
-  top: 80px;
-  right: 40px;
-  width: 350px;
+  top: 250px;
+  right: 10px;
+  width: 300px;
   background: #1e1e2f;
   border-radius: 12px;
   padding: 16px;
