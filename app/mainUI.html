@@ -24276,6 +24276,7 @@ title="Voice volume"
         <button id="lpExitRoomBtn">❌ Exit Class</button>
         <button id="lpReactionToggleBtn"
         data-role="admin-only">😃 Send Emoji</button>
+        <button id="lpFlipBoardBtn"data-role="admin-only">🔄 Flip</button>
       </div>
 
       <!-- ROOM INFO -->
@@ -67167,6 +67168,12 @@ let isRaceMode = false;
 
 let raceStartIndex = 0;
 let raceEndIndex = 0;
+// =====================================
+// 🔄 LIVE PUZZLE FLIP SYSTEM
+// =====================================
+
+let lpBoardFlipped =
+  false;
 
 let playerRaceIndex = {}; // user_id => current puzzle index
 let totalRacePuzzles = 0;
@@ -67232,6 +67239,20 @@ document.getElementById(
     "lpTitleInput"
   ).focus();
 };
+document
+  .getElementById(
+    "lpFlipBoardBtn"
+  )
+
+  .addEventListener(
+    "click",
+
+    () => {
+
+      lpFlipBoard();
+
+    }
+  );
     document.getElementById("lpJoinRoomBtn").onclick = joinRoom;
 document.getElementById("lpNextPuzzleBtn").onclick = nextPuzzle;
 document.getElementById("lpPrevPuzzleBtn").onclick = prevPuzzle;
@@ -67797,6 +67818,73 @@ function updateBoardCoordinates() {
     container.appendChild(el);
 
   });
+
+}
+// =====================================
+// 🔄 LIVE PUZZLE BOARD FLIP
+// =====================================
+
+function lpFlipBoard(
+  sync = true
+) {
+
+  lpBoardFlipped =
+    !lpBoardFlipped;
+
+  const orientation =
+
+    lpBoardFlipped
+
+      ? "black"
+
+      : "white";
+
+  // 🔥 MAIN BOARD
+  board.orientation(
+    orientation
+  );
+
+  // 🔥 COORDINATES
+  updateBoardCoordinates();
+
+  // 🔥 REDRAW DRAWINGS
+  requestAnimationFrame(() => {
+
+    document.dispatchEvent(
+      new Event(
+        "lpPositionChanged"
+      )
+    );
+
+  });
+
+  // 🔥 LIVE SYNC
+if (
+
+  sync &&
+
+  isAdmin &&
+
+  allowStudentAnalysisView &&
+
+  movesChannel
+
+) {
+
+    movesChannel.send({
+
+      type: "broadcast",
+
+      event: "lp_flip_board",
+
+      payload: {
+        flipped:
+          lpBoardFlipped
+      }
+
+    });
+
+  }
 
 }
 // ============================================
@@ -71380,6 +71468,40 @@ setTimeout(() => {
   updateBoardCoordinates();
 
 
+
+  return;
+}
+// ================= LIVE BOARD FLIP =================
+if (
+  payload.event ===
+  "lp_flip_board"
+) {
+
+  lpBoardFlipped =
+    payload.payload.flipped;
+
+  board.orientation(
+
+    lpBoardFlipped
+
+      ? "black"
+
+      : "white"
+
+  );
+
+  updateBoardCoordinates();
+
+  // 🔥 REDRAW DRAWINGS
+  requestAnimationFrame(() => {
+
+    document.dispatchEvent(
+      new Event(
+        "lpPositionChanged"
+      )
+    );
+
+  });
 
   return;
 }
