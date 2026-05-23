@@ -41705,10 +41705,34 @@ function addStudyMoveToTree(move) {
 function goToStudyTreeNode(node) {
   if (!node) return;
 
+ // 🔥 SOUND DETECTION
+  const oldFen = studyChess.fen();
+
   clearStudyMoveMarker();
 
   studyChess.load(node.fen);
   studyBoard.position(node.fen);
+
+  // =========================
+  // 🔊 PLAY MOVE SOUND
+  // =========================
+  if (node.move) {
+
+    if (node.move.flags.includes("k") || node.move.flags.includes("q")) {
+      playSound("castle");
+
+    } else if (node.move.captured) {
+      playSound("capture");
+
+    } else {
+      playSound("move");
+    }
+
+    // 🔥 CHECK SOUND
+    if (studyChess.in_check()) {
+      playSound("check");
+    }
+  }
 
   studyCurrentNode = node;
 
@@ -42915,6 +42939,20 @@ trainerMistakes++;
   });
 
   if (!move) return "snapback";
+  // 🔊 MOVE SOUND
+if (move.flags.includes("k") || move.flags.includes("q")) {
+  playSound("castle");
+
+} else if (move.captured) {
+  playSound("capture");
+
+} else {
+  playSound("move");
+}
+
+if (studyChess.in_check()) {
+  playSound("check");
+}
 highlightLastMove(move.from, move.to);
   // =========================================
   // 🔥 NEW TREE SYSTEM (IMPORTANT)
@@ -43047,11 +43085,28 @@ function studyFinishMove(source, target, promotion) {
   });
 
   if (!move) {
+  
     studyBoard.position(studyChess.fen(), false);
     // 🧠 ENGINE HOOK
     if (studyEngineEnabled) analyzeStudyPosition();
     return;
   }
+    // 🔊 PROMOTION MOVE SOUND
+  if (move.flags.includes("k") || move.flags.includes("q")) {
+    playSound("castle");
+
+  } else if (move.captured) {
+    playSound("capture");
+
+  } else {
+    playSound("move");
+  }
+
+  // 🔥 CHECK SOUND
+  if (studyChess.in_check()) {
+    playSound("check");
+  }
+
 
   // =========================================
 // 🔥 ADD TO STUDY TREE (PROMOTION FIX)
@@ -69994,6 +70049,11 @@ function jumpToAnalysisMove(index) {
       analysisMoves[index];
 
     if (move) {
+       // 🔊 JUMP SOUND
+  lpSoundEngine.play(
+    move,
+    analysisGame
+  );
 
       highlightLastMove(
         move.from,
@@ -70050,6 +70110,11 @@ function jumpToAnalysisMove(index) {
     solutionMoves[index];
 
   if (move) {
+    // 🔊 JUMP SOUND
+lpSoundEngine.play(
+  move,
+  previewGame
+);
 
     highlightLastMove(
       move.from,
@@ -70072,6 +70137,11 @@ function nextPreviewMove() {
     analysisGame.move(
       analysisMoves[analysisIndex]
     );
+    // 🔊 ANALYSIS MOVE SOUND
+lpSoundEngine.play(
+  analysisMoves[analysisIndex],
+  analysisGame
+);
 
     analysisIndex++;
     renderAnalysisPGN();
@@ -70121,7 +70191,16 @@ highlightCheckSquare(
   // ================= NORMAL PREVIEW =================
   if (previewIndex >= solutionMoves.length) return;
 
-  previewGame.move(solutionMoves[previewIndex]);
+  const playedMove =
+  previewGame.move(
+    solutionMoves[previewIndex]
+  );
+
+// 🔊 PREVIEW SOUND
+lpSoundEngine.play(
+  playedMove,
+  previewGame
+);
   previewIndex++;
   lpTriggerEngineUpdate();
 
@@ -70136,6 +70215,11 @@ function prevPreviewMove() {
 
     if (analysisIndex <= 0)
       return;
+    // 🔊 BACKWARD SOUND
+lpSoundEngine.play(
+  analysisMoves[analysisIndex - 1],
+  analysisGame
+);
 
     analysisGame.undo();
 
@@ -70190,7 +70274,11 @@ if (prevMove) {
 
   // ================= NORMAL PREVIEW =================
   if (previewIndex <= 0) return;
-
+// 🔊 BACKWARD SOUND
+lpSoundEngine.play(
+  solutionMoves[previewIndex - 1],
+  previewGame
+);
   previewGame.undo();
   previewIndex--;
   lpTriggerEngineUpdate();
