@@ -22158,6 +22158,144 @@ background: #2563eb;
 
 
 
+/* ===================================== */
+/* ♟ LIVE PUZZLE STOCKFISH */
+/* ===================================== */
+
+.lp-stockfish-btn {
+
+  margin-left:8px;
+
+  background:linear-gradient(
+    135deg,
+    #1d2445,
+    #27376d
+  );
+
+  border:1px solid rgba(255,255,255,0.08);
+
+  color:#fff;
+
+  border-radius:10px;
+
+  padding:7px 14px;
+
+  cursor:pointer;
+
+  font-weight:700;
+
+  transition:0.2s;
+}
+
+.lp-stockfish-btn.active {
+
+  background:linear-gradient(
+    135deg,
+    #2e7d32,
+    #43a047
+  );
+}
+
+.lp-stockfish-panel {
+
+  margin-top:12px;
+
+  padding:12px;
+
+  border-radius:14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(17,22,45,0.95),
+      rgba(25,32,70,0.92)
+    );
+
+  border:
+    1px solid rgba(255,255,255,0.06);
+
+  backdrop-filter:blur(12px);
+}
+
+.lp-sf-top {
+
+  display:flex;
+
+  gap:14px;
+
+  margin-bottom:10px;
+}
+
+.lp-sf-eval-wrap,
+.lp-sf-depth-wrap {
+
+  flex:1;
+
+  background:rgba(255,255,255,0.04);
+
+  border-radius:10px;
+
+  padding:10px;
+}
+
+.lp-sf-label {
+
+  font-size:11px;
+
+  opacity:0.7;
+
+  margin-bottom:4px;
+}
+
+#lpSfEval,
+#lpSfDepth {
+
+  font-size:20px;
+
+  font-weight:700;
+}
+
+.lp-sf-lines {
+
+  display:flex;
+
+  flex-direction:column;
+
+  gap:8px;
+}
+
+.lp-sf-line {
+
+  display:flex;
+
+  gap:10px;
+
+  align-items:flex-start;
+
+  background:rgba(255,255,255,0.04);
+
+  border-radius:10px;
+
+  padding:8px 10px;
+
+  font-size:14px;
+
+  line-height:1.5;
+}
+
+.lp-sf-multi {
+
+  color:#ffcc66;
+
+  font-weight:700;
+
+  min-width:28px;
+}
+
+
+
+
+
 
 
   </style>
@@ -24270,6 +24408,13 @@ title="Voice volume"
       <!-- ROOM CONTROLS -->
       <div class="lp-controls">
         <button id="lpCreateRoomBtn" data-role="admin-only">➕ Create Class</button>
+        <button
+  id="lpStockfishToggleBtn"
+  data-role="admin-only"
+  class="lp-stockfish-btn"
+>
+  Engine
+</button>
         
         <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
         <button id="lpJoinRoomBtn">✅ Join Class</button>
@@ -24278,6 +24423,52 @@ title="Voice volume"
         data-role="admin-only">😃 Send Emoji</button>
         <button id="lpFlipBoardBtn"data-role="admin-only">🔄 Flip</button>
       </div>
+      <!-- ===================================== -->
+<!-- ♟ LIVE PUZZLE STOCKFISH PANEL -->
+<!-- ===================================== -->
+
+<div
+  id="lpStockfishPanel"
+  class="lp-stockfish-panel"
+  style="display:none;"
+>
+
+  <!-- TOP -->
+  <div class="lp-sf-top">
+
+    <div class="lp-sf-eval-wrap">
+      <div class="lp-sf-label">Eval</div>
+      <div id="lpSfEval">–</div>
+    </div>
+
+    <div class="lp-sf-depth-wrap">
+      <div class="lp-sf-label">Depth</div>
+      <div id="lpSfDepth">–</div>
+    </div>
+
+  </div>
+
+  <!-- ENGINE LINES -->
+  <div class="lp-sf-lines">
+
+    <div class="lp-sf-line">
+      <span class="lp-sf-multi">#1</span>
+      <span id="lpSfLine1">–</span>
+    </div>
+
+    <div class="lp-sf-line">
+      <span class="lp-sf-multi">#2</span>
+      <span id="lpSfLine2">–</span>
+    </div>
+
+    <div class="lp-sf-line">
+      <span class="lp-sf-multi">#3</span>
+      <span id="lpSfLine3">–</span>
+    </div>
+
+  </div>
+
+</div>
 
       <!-- ROOM INFO -->
       <div id="lpRoomInfo" style="margin-top:10px;"></div>
@@ -67180,6 +67371,21 @@ let totalRacePuzzles = 0;
 let pointPerMove = 10;
 let negativePoint = -5;
 let noMovePenaltyMultiplier = 2;
+// =====================================
+// ♟ LIVE PUZZLE STOCKFISH ENGINE
+// =====================================
+
+let lpSfWorker = null;
+
+let lpSfEnabled = false;
+
+let lpSfReady = false;
+
+let lpSfFen = null;
+
+let lpSfPvMap = {};
+
+let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
@@ -67513,6 +67719,7 @@ document.getElementById("lpAdminToggle").onclick = () => {
 
 
     initBoard();
+    initLivePuzzleStockfish();
     setTimeout(() => {
   initPuzzleBoardDrawing();
 }, 200);
@@ -67756,6 +67963,596 @@ if (
   }
 
 };
+// =====================================
+// ♟ RAPID NAVIGATION STATE
+// =====================================
+
+let lpIsRapidNavigating = false;
+
+let lpRapidNavTimeout = null;
+// =====================================
+// ♟ INIT LIVE PUZZLE STOCKFISH
+// =====================================
+
+function initLivePuzzleStockfish() {
+
+  const toggleBtn =
+    document.getElementById(
+      "lpStockfishToggleBtn"
+    );
+
+  const panel =
+    document.getElementById(
+      "lpStockfishPanel"
+    );
+
+  if (!toggleBtn || !panel)
+    return;
+
+  toggleBtn.onclick = () => {
+
+    lpSfEnabled =
+      !lpSfEnabled;
+
+    toggleBtn.classList.toggle(
+      "active",
+      lpSfEnabled
+    );
+
+    panel.style.display =
+      lpSfEnabled
+        ? "block"
+        : "none";
+
+    if (lpSfEnabled) {
+
+      initLivePuzzleSfWorker();
+
+      setTimeout(() => {
+
+        lpAnalyseCurrentPosition();
+
+      }, 100);
+
+    } else {
+
+      if (lpSfWorker) {
+        lpSfWorker.postMessage(
+          "stop"
+        );
+      }
+
+      clearLivePuzzleSfUI();
+    }
+
+  };
+
+  // =====================================
+  // 🔥 POSITION CHANGE AUTO UPDATE
+  // =====================================
+
+  document.addEventListener(
+    "lpPositionChanged",
+    () => {
+
+      if (!lpSfEnabled)
+        return;
+
+      clearTimeout(
+        lpSfDebounce
+      );
+
+      lpSfDebounce =
+        setTimeout(() => {
+
+          lpAnalyseCurrentPosition();
+
+        }, 120);
+
+    }
+  );
+
+}
+
+// =====================================
+// ♟ INIT WORKER
+// =====================================
+
+function initLivePuzzleSfWorker() {
+
+  if (lpSfWorker)
+    return;
+
+  lpSfWorker =
+    new Worker(
+      "./stockfish/stockfish.js"
+    );
+
+  lpSfWorker.onmessage =
+    handleLivePuzzleSfMessage;
+
+  lpSfWorker.postMessage(
+    "uci"
+  );
+
+}
+
+// =====================================
+// ♟ HANDLE ENGINE MESSAGE
+// =====================================
+
+function handleLivePuzzleSfMessage(e) {
+
+  const line = e.data;
+
+  if (
+    typeof line !== "string"
+  ) return;
+
+  // ================= READY =================
+
+  if (line === "uciok") {
+
+    lpSfWorker.postMessage(
+      "setoption name MultiPV value 3"
+    );
+
+    lpSfWorker.postMessage(
+      "isready"
+    );
+
+    return;
+  }
+
+  if (line === "readyok") {
+
+    lpSfReady = true;
+
+    return;
+  }
+
+  // ================= INFO =================
+
+  if (
+    line.startsWith("info")
+  ) {
+
+    const depthMatch =
+      line.match(
+        /depth (\d+)/
+      );
+
+    const cpMatch =
+      line.match(
+        /score cp (-?\d+)/
+      );
+
+    const mateMatch =
+      line.match(
+        /score mate (-?\d+)/
+      );
+
+    const pvMatch =
+      line.match(
+        / pv (.+)$/
+      );
+
+    const multiPvMatch =
+      line.match(
+        /multipv (\d+)/
+      );
+
+    // ================= DEPTH =================
+
+    if (depthMatch) {
+
+      document.getElementById(
+        "lpSfDepth"
+      ).textContent =
+        depthMatch[1];
+
+    }
+
+    // ================= PV =================
+
+    if (
+      pvMatch &&
+      multiPvMatch
+    ) {
+
+      const pvIndex =
+        parseInt(
+          multiPvMatch[1]
+        );
+
+      let evalText = "–";
+
+      // ================= CP =================
+
+      if (cpMatch) {
+
+        const rawCp =
+          parseInt(
+            cpMatch[1]
+          );
+
+        const turn =
+          lpSfFen
+            ?.split(" ")[1];
+
+        const normalized =
+          turn === "w"
+            ? rawCp
+            : -rawCp;
+
+        evalText =
+          (
+            normalized / 100
+          ).toFixed(2);
+
+        if (
+          normalized > 0
+        ) {
+          evalText =
+            "+" + evalText;
+        }
+
+        // HEADER
+        if (pvIndex === 1) {
+
+          document.getElementById(
+            "lpSfEval"
+          ).textContent =
+            evalText;
+
+        }
+
+      }
+
+      // ================= MATE =================
+
+      if (mateMatch) {
+
+        evalText =
+          "M" +
+          mateMatch[1];
+
+        if (pvIndex === 1) {
+
+          document.getElementById(
+            "lpSfEval"
+          ).textContent =
+            evalText;
+
+        }
+
+      }
+
+lpSfPvMap[pvIndex] = {
+
+  eval:
+    evalText,
+
+  moves:
+    pvMatch[1]
+
+      .split(" ")
+
+      // 🔥 KEEP ONLY REAL UCI MOVES
+      .filter(move =>
+        /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)
+      )
+
+      .slice(0, 8)
+
+};
+
+      renderLivePuzzlePv();
+
+    }
+
+  }
+
+}
+
+// =====================================
+// ♟ ANALYSE CURRENT POSITION
+// =====================================
+
+function lpAnalyseCurrentPosition() {
+
+  if (
+    !lpSfEnabled ||
+    !lpSfReady
+  ) return;
+
+  let fen = null;
+
+  // ================= ANALYSIS MODE =================
+
+  if (isAnalysisMode) {
+
+    fen =
+      analysisGame.fen();
+
+  }
+
+  // ================= NORMAL =================
+
+  else {
+
+fen =
+  isAnalysisMode
+    ? analysisGame.fen()
+    : previewGame.fen
+      ? previewGame.fen()
+      : game.fen();
+
+    // 🔥 fallback
+    if (!fen) {
+      fen = game.fen();
+    }
+
+  }
+
+  if (!fen)
+    return;
+
+  lpSfFen = fen;
+
+  lpSfPvMap = {};
+
+  lpSfWorker.postMessage(
+    "stop"
+  );
+
+
+
+  lpSfWorker.postMessage(
+    `position fen ${fen}`
+  );
+
+// =====================================
+  // 🔥 ADAPTIVE DEPTH
+  // =====================================
+
+  const targetDepth =
+
+    lpIsRapidNavigating
+      ? 8
+      : (
+          isAnalysisMode
+            ? (
+                window.innerWidth < 768
+                  ? 11
+                  : 14
+              )
+            : (
+                window.innerWidth < 768
+                  ? 10
+                  : 13
+              )
+        );
+
+  lpSfWorker.postMessage(
+    `go depth ${targetDepth}`
+  );
+}
+
+// =====================================
+// ♟ RENDER PV
+// =====================================
+
+function renderLivePuzzlePv() {
+
+  for (let i = 1; i <= 3; i++) {
+
+    const el =
+      document.getElementById(
+        `lpSfLine${i}`
+      );
+
+    if (!el)
+      continue;
+
+    const pv =
+      lpSfPvMap[i];
+
+    if (!pv) {
+
+      el.textContent = "–";
+
+      continue;
+    }
+
+    // =====================================
+    // 🔥 SAFE CHESS INSTANCE
+    // =====================================
+
+    let tempChess;
+
+    try {
+
+      tempChess =
+        new Chess(lpSfFen);
+
+    } catch {
+
+      el.innerHTML = `
+        <span style="
+          color:#7CFC00;
+          font-weight:700;
+          margin-right:10px;
+        ">
+          ${pv.eval}
+        </span>
+
+        ${pv.moves.join(" ")}
+      `;
+
+      continue;
+    }
+
+    // =====================================
+    // 🔥 SAN BUILD
+    // =====================================
+
+    let sanText = "";
+
+    let moveNumber =
+      parseInt(
+        lpSfFen.split(" ")[5]
+      ) || 1;
+
+    let isWhiteTurn =
+      lpSfFen.split(" ")[1] === "w";
+
+    // =====================================
+    // 🔥 UCI -> SAN
+    // =====================================
+
+    for (let j = 0; j < pv.moves.length; j++) {
+
+      const uci =
+        pv.moves[j];
+
+      // invalid uci
+      if (uci.length < 4)
+        continue;
+
+      const from =
+        uci.substring(0, 2);
+
+      const to =
+        uci.substring(2, 4);
+
+      const promotion =
+        uci.length > 4
+          ? uci[4]
+          : undefined;
+
+      // 🔥 LEGAL MOVE SEARCH
+      const legalMoves =
+        tempChess.moves({
+          verbose: true
+        });
+
+      const foundMove =
+        legalMoves.find(m =>
+          m.from === from &&
+          m.to === to &&
+          (
+            !promotion ||
+            m.promotion === promotion
+          )
+        );
+
+      // invalid temp pv
+      if (!foundMove)
+        break;
+
+      // play move
+      const move =
+        tempChess.move(foundMove);
+
+      if (!move)
+        break;
+
+      // =====================================
+      // MOVE NUMBER
+      // =====================================
+
+      if (isWhiteTurn) {
+
+        sanText +=
+          `${moveNumber}. `;
+
+      }
+
+      sanText +=
+        move.san + " ";
+
+      // =====================================
+      // TURN
+      // =====================================
+
+      if (!isWhiteTurn) {
+        moveNumber++;
+      }
+
+      isWhiteTurn =
+        !isWhiteTurn;
+
+    }
+
+    // fallback
+    if (!sanText.trim()) {
+      sanText =
+        pv.moves.join(" ");
+    }
+
+    // =====================================
+    // UI
+    // =====================================
+
+    el.innerHTML = `
+
+      <span style="
+        color:#7CFC00;
+        font-weight:700;
+        margin-right:10px;
+        white-space:nowrap;
+      ">
+        ${pv.eval}
+      </span>
+
+      <span style="
+        opacity:0.95;
+      ">
+        ${sanText.trim()}
+      </span>
+
+    `;
+  }
+
+}
+
+// =====================================
+// ♟ CLEAR UI
+// =====================================
+
+function clearLivePuzzleSfUI() {
+
+  document.getElementById(
+    "lpSfEval"
+  ).textContent = "–";
+
+  document.getElementById(
+    "lpSfDepth"
+  ).textContent = "–";
+
+  for (
+    let i = 1;
+    i <= 3;
+    i++
+  ) {
+
+    document.getElementById(
+      `lpSfLine${i}`
+    ).textContent = "–";
+
+  }
+
+}
+function lpTriggerEngineUpdate() {
+
+  document.dispatchEvent(
+    new Event(
+      "lpPositionChanged"
+    )
+  );
+
+}
 
 function updateBoardCoordinates() {
 
@@ -67843,6 +68640,7 @@ function lpFlipBoard(
   board.orientation(
     orientation
   );
+  lpTriggerEngineUpdate();
 
   // 🔥 COORDINATES
   updateBoardCoordinates();
@@ -68046,6 +68844,7 @@ function initBoard() {
     // 🔥 CRITICAL FIX
     onSnapEnd: () => {
       board.position(game.fen());
+      lpTriggerEngineUpdate();
     },
 
     pieceTheme: getPieceThemePath(currentPieceTheme)
@@ -68663,6 +69462,7 @@ lpSoundEngine.play(
   renderAnalysisPGN();
 
   board.position(analysisGame.fen());
+  lpTriggerEngineUpdate();
   // 🔥 LAST MOVE HIGHLIGHT
 highlightLastMove(
   move.from,
@@ -68774,6 +69574,7 @@ if (
   game.undo();
 
   board.position(game.fen());
+  lpTriggerEngineUpdate();
 
   if (myAttemptId) {
     await supabase.rpc("increment_wrong_move", {
@@ -68794,12 +69595,14 @@ const move = game.move({
 
 if (!move) {
   board.position(game.fen());
+  lpTriggerEngineUpdate();
   return;
 }
 
 
 // ================= SUCCESS UI =================
 board.position(game.fen());
+lpTriggerEngineUpdate();
 // 🔊 MOVE SOUND
 lpSoundEngine.play(
   move,
@@ -69028,9 +69831,15 @@ function loadPuzzle(index) {
   previewIndex = 0;
 
   board.position(previewGame.fen());
+  lpTriggerEngineUpdate();
   setInitialOrientation();
   // ✅ SHOW PGN (ADMIN ONLY)
 renderAnalysisPGN();
+setTimeout(() => {
+
+  lpTriggerEngineUpdate();
+
+}, 120);
 }
 
 function renderAnalysisPGN() {
@@ -69154,6 +69963,7 @@ function jumpToAnalysisMove(index) {
     board.position(
       analysisGame.fen()
     );
+    lpTriggerEngineUpdate(); 
     if (
   isAdmin &&
   allowStudentAnalysisView
@@ -69267,6 +70077,7 @@ function nextPreviewMove() {
     renderAnalysisPGN();
 
     board.position(analysisGame.fen());
+    lpTriggerEngineUpdate();
     // 🔥 LAST MOVE HIGHLIGHT
 highlightLastMove(
   analysisMoves[analysisIndex - 1].from,
@@ -69312,8 +70123,10 @@ highlightCheckSquare(
 
   previewGame.move(solutionMoves[previewIndex]);
   previewIndex++;
+  lpTriggerEngineUpdate();
 
   board.position(previewGame.fen());
+  lpTriggerEngineUpdate();
 }
 
 function prevPreviewMove() {
@@ -69330,6 +70143,7 @@ function prevPreviewMove() {
     renderAnalysisPGN();
 
     board.position(analysisGame.fen());
+    lpTriggerEngineUpdate();
     // 🔥 LAST MOVE HIGHLIGHT
 const prevMove =
   analysisMoves[analysisIndex - 1];
@@ -69379,8 +70193,10 @@ if (prevMove) {
 
   previewGame.undo();
   previewIndex--;
+  lpTriggerEngineUpdate();
 
   board.position(previewGame.fen());
+  lpTriggerEngineUpdate();
 }
 // ================= LOAD CURRENT PUZZLE INTO ANALYSIS =================
 function loadCurrentPuzzleAnalysis() {
@@ -69495,11 +70311,13 @@ highlightCheckSquare(
 
      setTimeout(() => {
   board.position(analysisGame.fen(), false);
+  lpTriggerEngineUpdate();
 }, 0);
     },
 
     onSnapEnd: () => {
       board.position(analysisGame.fen());
+      lpTriggerEngineUpdate();
     },
 
     pieceTheme: getPieceThemePath(currentPieceTheme)
@@ -69564,6 +70382,7 @@ function toggleAnalysisMode() {
         board.position(
           game.fen()
         );
+        lpTriggerEngineUpdate();
       },
 
       pieceTheme:
@@ -69932,6 +70751,7 @@ async function handleCorrectMove(move) {
       board.position(
         game.fen()
       );
+      lpTriggerEngineUpdate();
 
       // 🔊 AUTO MOVE SOUND
       lpSoundEngine.play(
@@ -70069,6 +70889,7 @@ if (nextIndex > raceEndIndex) {
       game.reset();
     }
     board.position(game.fen());
+    lpTriggerEngineUpdate();
 
    moveIndex = 0;
    // 🔥 RESET LOCAL VISUAL STATUS
@@ -70102,6 +70923,7 @@ supabase.channel("lp-moves-" + roomCode).send({
     
 
     board.position(game.fen());
+    lpTriggerEngineUpdate();
     if (!isAdmin) {
 
   supabase.channel("lp-moves-" + roomCode).send({
@@ -70865,6 +71687,7 @@ function listenRoom() {
 
         moveIndex = 0;
         board.position(game.fen());
+        lpTriggerEngineUpdate();
         setInitialOrientation();
         studentMoves = {}; 
 
@@ -71001,8 +71824,10 @@ if (
     payload: {
 
   fen: game.fen(),
+  
   analysisFen:
   analysisGame.fen(),
+  
 
 lpDrawingsByFen,
 
@@ -71216,6 +72041,7 @@ if (
   board.position(
     game.fen()
   );
+  lpTriggerEngineUpdate();
 
 }
 
@@ -71378,6 +72204,7 @@ isAnalysisMode = true;
 board.position(
   payload.payload.fen
 );
+lpTriggerEngineUpdate();
 // 🔊 STUDENT ANALYSIS SOUND
 if (
   payload.payload.moveData
@@ -71392,6 +72219,7 @@ if (
 studentAnalysisGame.load(
   payload.payload.fen
 );
+lpTriggerEngineUpdate();
 
 
 // 🔥 CHECK HIGHLIGHT
@@ -71695,6 +72523,7 @@ renderAnalysisPGN();
   moveIndex = 0;
   studentMoves = {}; 
   board.position(game.fen());
+  lpTriggerEngineUpdate();
   setInitialOrientation();
 
 
@@ -71819,6 +72648,7 @@ previewGame.reset();
 analysisGame.reset();
 
 board.position("start");
+lpTriggerEngineUpdate();
 
 updateBoardCoordinates();
     }
@@ -71907,7 +72737,9 @@ updateBoardCoordinates();
 
       board.position(
         game.fen()
+
       );
+      lpTriggerEngineUpdate();
 
     },
 
