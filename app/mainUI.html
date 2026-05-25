@@ -22457,6 +22457,11 @@ background: #2563eb;
 
 
 
+
+
+
+
+
   </style>
 </head>
 
@@ -72398,8 +72403,8 @@ showJoinBanner(
   await supabase
     .from("live_puzzle_rooms")
     .insert({
-      code: roomCode
-    });
+  code: roomCode
+});
 lpExitedRoom = false;
   // 🔥 START REALTIME FIRST
   listenRoom();
@@ -72481,6 +72486,22 @@ async function joinRoom() {
 // ✅ CLEAR INPUT HERE
 document.getElementById("lpRoomCodeInput").value = "";
   roomCode = code;
+// 🔥 CHECK ROOM EXISTS
+const { data: roomExists } =
+  await supabase
+    .from("live_puzzle_rooms")
+    .select("code")
+    .eq("code", roomCode)
+    .maybeSingle();
+
+if (!roomExists) {
+
+  showToast(
+    "❌ Invalid Classroom Code"
+  );
+
+  return;
+}
   
   isAdmin = false;
 
@@ -73836,9 +73857,46 @@ await loadStudents();
   } 
 }
   // ================= UTIL =================
-  function generateCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-  }
+function generateCode() {
+
+  const words = [
+
+    "KNIGHT",
+    "BISHOP",
+    "ROOK",
+    "QUEEN",
+    "PAWN",
+    "CASTLE",
+    "TACTIC",
+    "CHECK",
+    "MATE",
+    "FORK",
+    "PIN",
+    "BLITZ",
+    "RAPID",
+    "PUZZLE"
+
+  ];
+
+  const randomWord =
+    words[
+      Math.floor(
+        Math.random() *
+        words.length
+      )
+    ];
+
+  const randomNumber =
+    Math.floor(
+      10 + Math.random() * 90
+    );
+
+  return (
+    randomWord +
+    randomNumber
+  );
+
+}
   // ================= EXIT CLASSROOM =================
 async function exitLiveClassroom() {
 lpExitedRoom = true;
