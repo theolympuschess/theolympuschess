@@ -24557,8 +24557,146 @@ title="Voice volume"
   overflow-y:auto;
   line-height:1.5;
 "></div>
-</div>
 
+</div>
+<!-- 🔥 IMPORT PGN BUTTON -->
+<button
+  id="lpImportPgnBtn"
+  data-role="admin-only"
+  style="
+    margin-top:10px;
+    width:100%;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+    background:#1d4ed8;
+    color:white;
+    font-weight:700;
+    cursor:pointer;
+  "
+>
+  📥 Import PGN
+</button>
+
+<!-- 🔥 PGN IMPORT MODAL -->
+<div
+  id="lpImportPgnModal"
+  style="
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.75);
+    z-index:9999999;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    backdrop-filter:blur(4px);
+  "
+>
+
+  <div style="
+    width:min(700px,95vw);
+    background:#111827;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:18px;
+    padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.55);
+  ">
+
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:15px;
+    ">
+
+      <h2 style="
+        margin:0;
+        color:white;
+        font-size:22px;
+      ">
+        📥 Import PGN
+      </h2>
+
+      <button
+        id="lpCloseImportPgnModal"
+        style="
+          background:#ef4444;
+          border:none;
+          color:white;
+          width:36px;
+          height:36px;
+          border-radius:50%;
+          cursor:pointer;
+          font-size:18px;
+          font-weight:700;
+        "
+      >
+        ✕
+      </button>
+
+    </div>
+
+    <textarea
+      id="lpImportPgnTextarea"
+      placeholder="Paste PGN here..."
+      style="
+        width:100%;
+        height:320px;
+        resize:none;
+        border:none;
+        outline:none;
+        border-radius:12px;
+        padding:14px;
+        font-size:15px;
+        line-height:1.6;
+        background:#0b1220;
+        color:white;
+        box-sizing:border-box;
+      "
+    ></textarea>
+
+    <div style="
+      margin-top:16px;
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+    ">
+
+      <button
+        id="lpCancelImportPgnBtn"
+        style="
+          padding:10px 16px;
+          border:none;
+          border-radius:10px;
+          background:#374151;
+          color:white;
+          cursor:pointer;
+          font-weight:600;
+        "
+      >
+        Cancel
+      </button>
+
+      <button
+        id="lpLoadImportPgnBtn"
+        style="
+          padding:10px 18px;
+          border:none;
+          border-radius:10px;
+          background:#16a34a;
+          color:white;
+          cursor:pointer;
+          font-weight:700;
+        "
+      >
+        🚀 Load PGN
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
     </div>
 
     <!-- ================= RIGHT SIDE (ALL UI) ================= -->
@@ -24621,7 +24759,7 @@ title="Voice volume"
 </div>
         <button id="lpReactionToggleBtn"
         data-role="admin-only">😃 Send Emoji</button>
-        <button id="lpFlipBoardBtn"data-role="admin-only">🔄 Flip</button>
+        <button id="lpFlipBoardBtn">🔄 Flip</button>
       </div>
       <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE STOCKFISH PANEL -->
@@ -67662,6 +67800,102 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+    // =====================================
+// 📥 IMPORT PGN MODAL
+// =====================================
+
+document.getElementById(
+  "lpImportPgnBtn"
+).onclick = () => {
+
+  document.getElementById(
+    "lpImportPgnModal"
+  ).style.display = "flex";
+
+};
+
+document.getElementById(
+  "lpCloseImportPgnModal"
+).onclick = closeImportPgnModal;
+
+document.getElementById(
+  "lpCancelImportPgnBtn"
+).onclick = closeImportPgnModal;
+
+function closeImportPgnModal() {
+
+  document.getElementById(
+    "lpImportPgnModal"
+  ).style.display = "none";
+
+}
+
+// =====================================
+// 🚀 LOAD IMPORTED PGN
+// =====================================
+
+document.getElementById(
+  "lpLoadImportPgnBtn"
+).onclick = () => {
+
+  const rawPgn =
+    document.getElementById(
+      "lpImportPgnTextarea"
+    ).value.trim();
+
+  if (!rawPgn) {
+
+    showToast(
+      "❌ Paste PGN first"
+    );
+
+    return;
+  }
+
+  try {
+
+    const testGame =
+      new Chess();
+
+    const loaded =
+      testGame.load_pgn(rawPgn);
+
+    if (!loaded) {
+
+      showToast(
+        "❌ Invalid PGN"
+      );
+
+      return;
+    }
+
+    // 🔥 LOAD AS LIVE PUZZLES
+    puzzles =
+      splitPGN(rawPgn);
+
+    currentIndex = 0;
+
+    loadPuzzle(currentIndex);
+
+    updatePuzzleCounter();
+
+    closeImportPgnModal();
+
+    showToast(
+      "✅ PGN Imported"
+    );
+
+  } catch(err) {
+
+    console.error(err);
+
+    showToast(
+      "❌ Failed to import PGN"
+    );
+
+  }
+
+};
 document.getElementById(
   "lpExitRoomBtn"
 ).onclick = () => {
@@ -70475,37 +70709,67 @@ function renderAnalysisPGN() {
 
   let html = "";
 
-  // ================= NORMAL PUZZLE =================
-  if (!isAnalysisMode) {
+// ================= NORMAL PUZZLE =================
+if (!isAnalysisMode) {
 
-    for (let i = 0; i < solutionMoves.length; i++) {
+  for (let i = 0; i < solutionMoves.length; i++) {
 
-      const move = solutionMoves[i];
+    const move = solutionMoves[i];
 
-      if (i % 2 === 0) {
-        html += `
-          <span style="
-            color:#ffcc66;
-            font-weight:700;
-            margin-right:6px;
-          ">
-            ${Math.floor(i / 2) + 1}.
-          </span>
-        `;
-      }
+    if (i % 2 === 0) {
 
       html += `
-        <span class="lp-analysis-move"
-          data-index="${i}">
-          ${move.san}
+        <span style="
+          color:#ffcc66;
+          font-weight:700;
+          margin-right:6px;
+        ">
+          ${Math.floor(i / 2) + 1}.
         </span>
       `;
+
     }
 
-    pgnBox.innerHTML = html;
-
-    return;
+    html += `
+      <span
+        class="
+          lp-analysis-move
+          ${i === previewIndex - 1 ? "active" : ""}
+        "
+        data-index="${i}"
+        style="
+          cursor:pointer;
+        "
+      >
+        ${move.san}
+      </span>
+    `;
   }
+
+  pgnBox.innerHTML = html;
+
+  // 🔥 CLICKABLE NORMAL PGN
+  pgnBox
+    .querySelectorAll(
+      ".lp-analysis-move"
+    )
+    .forEach(el => {
+
+      el.onclick = () => {
+
+        const index =
+          parseInt(
+            el.dataset.index
+          );
+
+        jumpToAnalysisMove(index);
+
+      };
+
+    });
+
+  return;
+}
 
   // ================= ANALYSIS MODE =================
   for (let i = 0; i < analysisMoves.length; i++) {
@@ -70639,60 +70903,100 @@ function jumpToAnalysisMove(index) {
     return;
   }
 
-  // ================= NORMAL PUZZLE =================
-  previewGame.reset();
+// ================= NORMAL PUZZLE =================
+previewGame.reset();
 
-  const tempGame = new Chess();
+const tempGame = new Chess();
 
-  tempGame.load_pgn(
-    puzzles[currentIndex]
-  );
-
-  const startFen =
-    tempGame.header().FEN;
-
-  if (startFen) {
-    previewGame.load(startFen);
-  }
-
-  for (let i = 0; i <= index; i++) {
-
-    if (solutionMoves[i]) {
-
-      previewGame.move(
-        solutionMoves[i]
-      );
-
-    }
-
-  }
-
-  previewIndex = index + 1;
-
-  board.position(
-    previewGame.fen()
-  );
-
-  renderAnalysisPGN();
-
-  const move =
-    solutionMoves[index];
-
-  if (move) {
-    // 🔊 JUMP SOUND
-lpSoundEngine.play(
-  move,
-  previewGame
+tempGame.load_pgn(
+  puzzles[currentIndex]
 );
 
-    highlightLastMove(
-      move.from,
-      move.to,
-      "lpBoard"
+const startFen =
+  tempGame.header().FEN;
+
+if (startFen) {
+  previewGame.load(startFen);
+}
+
+for (let i = 0; i <= index; i++) {
+
+  if (solutionMoves[i]) {
+
+    previewGame.move(
+      solutionMoves[i]
     );
 
   }
 
+}
+
+previewIndex = index + 1;
+
+board.position(
+  previewGame.fen()
+);
+
+lpTriggerEngineUpdate();
+
+const move =
+  solutionMoves[index];
+
+if (move) {
+
+  // 🔊 JUMP SOUND
+  lpSoundEngine.play(
+    move,
+    previewGame
+  );
+
+  highlightLastMove(
+    move.from,
+    move.to,
+    "lpBoard"
+  );
+
+  highlightCheckSquare(
+    previewGame,
+    "lpBoard"
+  );
+
+  // 🔥 LIVE SYNC TO STUDENTS
+  if (
+    isAdmin &&
+    roomCode &&
+    allowStudentAnalysisView
+  ) {
+
+    supabase.channel(
+      "lp-moves-" + roomCode
+    ).send({
+      type: "broadcast",
+      event: "preview_position",
+      payload: {
+        fen:
+          previewGame.fen(),
+
+        orientation:
+          board.orientation(),
+
+        from:
+          move?.from,
+
+        to:
+          move?.to,
+
+        moveData:
+          move
+      }
+    });
+
+  }
+
+}
+
+// 🔥 IMPORTANT: KEEP LAST
+renderAnalysisPGN();
 }
 
 function nextPreviewMove() {
@@ -70706,76 +71010,145 @@ function nextPreviewMove() {
     analysisGame.move(
       analysisMoves[analysisIndex]
     );
+
     // 🔊 ANALYSIS MOVE SOUND
-lpSoundEngine.play(
-  analysisMoves[analysisIndex],
-  analysisGame
-);
+    lpSoundEngine.play(
+      analysisMoves[analysisIndex],
+      analysisGame
+    );
 
     analysisIndex++;
+
     renderAnalysisPGN();
 
-    board.position(analysisGame.fen());
+    board.position(
+      analysisGame.fen()
+    );
+
     lpTriggerEngineUpdate();
+
     // 🔥 LAST MOVE HIGHLIGHT
-highlightLastMove(
-  analysisMoves[analysisIndex - 1].from,
-  analysisMoves[analysisIndex - 1].to,
-  "lpBoard"
-);
-highlightCheckSquare(
-  analysisGame,
-  "lpBoard"
-);
+    highlightLastMove(
+      analysisMoves[analysisIndex - 1].from,
+      analysisMoves[analysisIndex - 1].to,
+      "lpBoard"
+    );
+
+    highlightCheckSquare(
+      analysisGame,
+      "lpBoard"
+    );
 
     if (
-  isAdmin &&
-  allowStudentAnalysisView
-) {
+      isAdmin &&
+      allowStudentAnalysisView
+    ) {
 
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
-    type: "broadcast",
-    event: "analysis_position",
-   payload: {
-  fen: analysisGame.fen(),
-  orientation: board.orientation(),
-  from:
-    analysisMoves[analysisIndex - 1]?.from,
-  to:
-    analysisMoves[analysisIndex - 1]?.to,
-     moveData:
-    analysisMoves[
-      analysisIndex - 1
-    ]
-}
-  });
+      supabase.channel(
+        "lp-moves-" + roomCode
+      ).send({
+        type: "broadcast",
+        event: "analysis_position",
+        payload: {
+          fen: analysisGame.fen(),
+          orientation:
+            board.orientation(),
 
-}
+          from:
+            analysisMoves[
+              analysisIndex - 1
+            ]?.from,
+
+          to:
+            analysisMoves[
+              analysisIndex - 1
+            ]?.to,
+
+          moveData:
+            analysisMoves[
+              analysisIndex - 1
+            ]
+        }
+      });
+
+    }
 
     return;
   }
 
   // ================= NORMAL PREVIEW =================
-  if (previewIndex >= solutionMoves.length) return;
+  if (previewIndex >= solutionMoves.length)
+    return;
 
   const playedMove =
-  previewGame.move(
-    solutionMoves[previewIndex]
+    previewGame.move(
+      solutionMoves[previewIndex]
+    );
+
+  // 🔊 PREVIEW SOUND
+  lpSoundEngine.play(
+    playedMove,
+    previewGame
   );
 
-// 🔊 PREVIEW SOUND
-lpSoundEngine.play(
-  playedMove,
-  previewGame
-);
   previewIndex++;
+
   lpTriggerEngineUpdate();
 
-  board.position(previewGame.fen());
+  board.position(
+    previewGame.fen()
+  );
+
   lpTriggerEngineUpdate();
+
+  // 🔥 LAST MOVE HIGHLIGHT
+  highlightLastMove(
+    playedMove.from,
+    playedMove.to,
+    "lpBoard"
+  );
+
+  highlightCheckSquare(
+    previewGame,
+    "lpBoard"
+  );
+
+  // 🔥 LIVE SYNC TO STUDENTS
+if (
+  isAdmin &&
+  roomCode &&
+  allowStudentAnalysisView
+){
+
+    supabase.channel(
+      "lp-moves-" + roomCode
+    ).send({
+      type: "broadcast",
+      event: "preview_position",
+      payload: {
+        fen: previewGame.fen(),
+
+        orientation:
+          board.orientation(),
+
+        from:
+          playedMove.from,
+
+        to:
+          playedMove.to,
+
+        moveData:
+          playedMove
+      }
+    });
+
+  }
+
+// 🔥 REFRESH ACTIVE PGN HIGHLIGHT
+  renderAnalysisPGN();
+
 }
+
 
 function prevPreviewMove() {
 
@@ -70784,76 +71157,161 @@ function prevPreviewMove() {
 
     if (analysisIndex <= 0)
       return;
+
     // 🔊 BACKWARD SOUND
-lpSoundEngine.play(
-  analysisMoves[analysisIndex - 1],
-  analysisGame
-);
+    lpSoundEngine.play(
+      analysisMoves[
+        analysisIndex - 1
+      ],
+      analysisGame
+    );
 
     analysisGame.undo();
 
     analysisIndex--;
+
     renderAnalysisPGN();
 
-    board.position(analysisGame.fen());
+    board.position(
+      analysisGame.fen()
+    );
+
     lpTriggerEngineUpdate();
+
     // 🔥 LAST MOVE HIGHLIGHT
-const prevMove =
-  analysisMoves[analysisIndex - 1];
+    const prevMove =
+      analysisMoves[
+        analysisIndex - 1
+      ];
 
-if (prevMove) {
+    if (prevMove) {
 
-  highlightLastMove(
-    prevMove.from,
-    prevMove.to,
-    "lpBoard"
-  );
-  highlightCheckSquare(
-  analysisGame,
-  "lpBoard"
-);
+      highlightLastMove(
+        prevMove.from,
+        prevMove.to,
+        "lpBoard"
+      );
 
-}
+      highlightCheckSquare(
+        analysisGame,
+        "lpBoard"
+      );
+
+    }
+
     if (
-  isAdmin &&
-  allowStudentAnalysisView
-) {
+      isAdmin &&
+      allowStudentAnalysisView
+    ) {
 
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
-    type: "broadcast",
-    event: "analysis_position",
-   payload: {
-  fen: analysisGame.fen(),
-  orientation: board.orientation(),
-  from:
-    prevMove?.from,
-  to:
-    prevMove?.to,
-    moveData:
-    prevMove
-}
-  });
+      supabase.channel(
+        "lp-moves-" + roomCode
+      ).send({
+        type: "broadcast",
+        event: "analysis_position",
+        payload: {
+          fen:
+            analysisGame.fen(),
 
-}
+          orientation:
+            board.orientation(),
+
+          from:
+            prevMove?.from,
+
+          to:
+            prevMove?.to,
+
+          moveData:
+            prevMove
+        }
+      });
+
+    }
 
     return;
   }
 
   // ================= NORMAL PREVIEW =================
-  if (previewIndex <= 0) return;
-// 🔊 BACKWARD SOUND
-lpSoundEngine.play(
-  solutionMoves[previewIndex - 1],
-  previewGame
-);
+  if (previewIndex <= 0)
+    return;
+
+  // 🔊 BACKWARD SOUND
+  lpSoundEngine.play(
+    solutionMoves[
+      previewIndex - 1
+    ],
+    previewGame
+  );
+
   previewGame.undo();
+
   previewIndex--;
+
   lpTriggerEngineUpdate();
 
-  board.position(previewGame.fen());
+  board.position(
+    previewGame.fen()
+  );
+
   lpTriggerEngineUpdate();
+
+  // 🔥 LAST MOVE HIGHLIGHT
+  const prevMove =
+    solutionMoves[
+      previewIndex - 1
+    ];
+
+  if (prevMove) {
+
+    highlightLastMove(
+      prevMove.from,
+      prevMove.to,
+      "lpBoard"
+    );
+
+    highlightCheckSquare(
+      previewGame,
+      "lpBoard"
+    );
+
+  }
+
+  // 🔥 LIVE SYNC TO STUDENTS
+if (
+  isAdmin &&
+  roomCode &&
+  allowStudentAnalysisView
+) {
+
+    supabase.channel(
+      "lp-moves-" + roomCode
+    ).send({
+      type: "broadcast",
+      event: "preview_position",
+      payload: {
+        fen:
+          previewGame.fen(),
+
+        orientation:
+          board.orientation(),
+
+        from:
+          prevMove?.from,
+
+        to:
+          prevMove?.to,
+
+        moveData:
+          prevMove
+      }
+    });
+
+  }
+
+// 🔥 REFRESH ACTIVE PGN HIGHLIGHT
+  renderAnalysisPGN();
+
 }
 // ================= LOAD CURRENT PUZZLE INTO ANALYSIS =================
 function loadCurrentPuzzleAnalysis() {
@@ -72490,6 +72948,57 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, payload => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+    // 🔥 LIVE PREVIEW FROM ADMIN
+if (
+  payload.event ===
+  "preview_position"
+) {
+
+  // ❌ ADMIN IGNORE
+  if (isAdmin) return;
+
+  const {
+    fen,
+    orientation,
+    from,
+    to,
+    moveData
+  } = payload.payload;
+
+  game.load(fen);
+
+  board.orientation(
+    orientation
+  );
+
+  board.position(fen, true);
+
+  // 🔊 SOUND
+  if (moveData) {
+    lpSoundEngine.play(
+      moveData,
+      game
+    );
+  }
+
+  // 🔥 HIGHLIGHTS
+  if (from && to) {
+
+    highlightLastMove(
+      from,
+      to,
+      "lpBoard"
+    );
+
+  }
+
+  highlightCheckSquare(
+    game,
+    "lpBoard"
+  );
+
+  return;
+}
     // ================= SYNC REQUEST =================
 if (
   payload.event === "sync-request"
