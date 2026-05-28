@@ -22756,7 +22756,49 @@ background: #2563eb;
 }
 
 
+/* =====================================
+♟ SHARE ANALYSIS BUTTON
+===================================== */
 
+#lpShareAnalysisBtn {
+
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+
+  background: #374151;
+  color: white;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    box-shadow 0.2s;
+
+}
+
+/* 🔥 HOVER */
+#lpShareAnalysisBtn:hover {
+
+  transform: translateY(-1px);
+
+}
+
+/* 🔥 ACTIVE STATE */
+#lpShareAnalysisBtn.active {
+
+  background: #22c55e !important;
+
+  box-shadow:
+    0 0 12px rgba(34,197,94,0.65);
+
+  color: white !important;
+
+}
 
 
 
@@ -25160,6 +25202,7 @@ title="Voice volume"
         <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
         <button id="lpJoinRoomBtn">✅ Join Class</button>
         <button id="lpExitRoomBtn">❌ Exit Class</button>
+        
         <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE PIECE FILTER -->
 <!-- ===================================== -->
@@ -25172,7 +25215,7 @@ title="Voice volume"
   title="Piece Filter Modes"
   data-role="admin-only"
 >
-  ♟
+  ☯️
 </button>
 
   <div class="lp-piece-filter-dropdown">
@@ -25204,6 +25247,9 @@ title="Voice volume"
         <button id="lpReactionToggleBtn"
         data-role="admin-only">😃 Send Emoji</button>
         <button id="lpFlipBoardBtn">🔄 Flip</button>
+        <button id="lpShareAnalysisBtn"data-role="admin-only">
+  🌐 Assign Analysis
+</button>
       </div>
       <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE STOCKFISH PANEL -->
@@ -28480,9 +28526,9 @@ if (typeof trackActivity === "function" && newScore > 0) {
    
     "iqtrainer",
     "puzzlerush",
+    "knightescape",
     "knightmonster",
     "knightfog",
-   "knightescape",
    
     "knightlava",
     "puzzlebattle",
@@ -68445,6 +68491,104 @@ document
 
     }
   );
+  document
+  .getElementById(
+    "lpShareAnalysisBtn"
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+
+      // 🔥 TOGGLE
+      allowStudentAnalysisView =
+        !allowStudentAnalysisView;
+        const shareBtn =
+  document.getElementById(
+    "lpShareAnalysisBtn"
+  );
+
+shareBtn.classList.toggle(
+  "active",
+  allowStudentAnalysisView
+);
+
+      // 🔥 TURN ON
+      if (
+        allowStudentAnalysisView
+      ) {
+
+        // FORCE ANALYSIS
+        if (!isAnalysisMode) {
+
+          loadCurrentPuzzleAnalysis();
+
+        }
+
+        // 🔥 SEND STATE
+        movesChannel.send({
+
+          type: "broadcast",
+
+          event:
+            "shared_analysis_sync",
+
+          payload: {
+
+            fen:
+              analysisGame.fen(),
+
+            orientation:
+              board.orientation(),
+
+            analysisMoves,
+
+            analysisIndex,
+
+            currentIndex,
+
+            drawings:
+              lpDrawingsByFen,
+
+            pieceFilter:
+              lpPieceFilterMode
+
+          }
+
+        });
+
+        showToast(
+          "♟ Shared Analysis ON"
+        );
+
+      }
+
+      // 🔥 TURN OFF
+      else {
+
+        movesChannel.send({
+
+          type: "broadcast",
+
+          event:
+            "shared_analysis_off",
+
+          payload: {
+
+            sender:
+              currentUserId
+
+          }
+
+        });
+
+        showToast(
+          "♟ Shared Analysis OFF"
+        );
+
+      }
+
+    }
+  );
     document.getElementById("lpJoinRoomBtn").onclick = joinRoom;
 document.getElementById("lpNextPuzzleBtn").onclick = nextPuzzle;
 document.getElementById("lpPrevPuzzleBtn").onclick = prevPuzzle;
@@ -70794,8 +70938,13 @@ lpSoundEngine.play(
   analysisGame
 );
 
-  analysisMoves.push(move);
-  analysisIndex++;
+analysisMoves = [
+  ...analysisMoves,
+  move
+];
+
+analysisIndex =
+  analysisMoves.length;
   renderAnalysisPGN();
 
   board.position(analysisGame.fen());
@@ -70811,23 +70960,38 @@ highlightCheckSquare(
   "lpBoard"
 );
   // 🔥 LIVE ANALYSIS PROMOTION SYNC
+// 🔥 LIVE ANALYSIS PROMOTION SYNC
 if (
-  isAdmin &&
-  allowStudentAnalysisView
+  allowStudentAnalysisView &&
+  movesChannel
 ) {
 
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
+  movesChannel.send({
+
     type: "broadcast",
-    event: "analysis_position",
+
+    event: "student_analysis_move",
+
     payload: {
-  fen: analysisGame.fen(),
-  orientation:
-    board.orientation(),
-  from: move.from,
-  to: move.to
-}
+
+      sender:
+        currentUserId,
+
+      fen:
+        analysisGame.fen(),
+
+      move,
+
+      analysisMoves:
+        [...analysisMoves],
+
+      analysisIndex,
+
+      orientation:
+        board.orientation()
+
+    }
+
   });
 
 }
@@ -71887,25 +72051,37 @@ highlightCheckSquare(
   analysisGame,
   "lpBoard"
 );
-  if (
+if (
   isAdmin &&
   allowStudentAnalysisView
 ) {
 
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
+  movesChannel.send({
+
     type: "broadcast",
-    event: "analysis_position",
-   payload: {
-  fen: analysisGame.fen(),
-  orientation: board.orientation(),
-  from: source,
-  to: target,
-   moveData:
-    move
-  
-}
+
+    event:
+      "student_analysis_move",
+
+    payload: {
+
+      sender:
+        currentUserId,
+
+      fen:
+        analysisGame.fen(),
+
+      move,
+
+      analysisMoves,
+
+      analysisIndex,
+
+      orientation:
+        board.orientation()
+
+    }
+
   });
 
 }
@@ -72854,9 +73030,13 @@ div.innerHTML = `
     | ❌ Mistakes: ${s.wrong_count}
     | ⏱ ${s.time_taken !== null ? s.time_taken + "s" : "-"}
   </div>
+
+  
 `;
 
     container.appendChild(div);
+
+    
   });
 }
 
@@ -73452,6 +73632,507 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, payload => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+    // =====================================
+// ♟ SHARED ANALYSIS SYNC
+// =====================================
+
+if (
+  payload.event ===
+  "shared_analysis_sync"
+) {
+
+  // 🔥 ADMIN IGNORE
+  if (isAdmin) return;
+
+  const data =
+    payload.payload;
+
+  // 🔥 ENABLE
+  allowStudentAnalysisView = true;
+
+  isAnalysisMode = true;
+
+  // 🔥 SAVE ANALYSIS
+  analysisMoves =
+    data.analysisMoves || [];
+
+  analysisIndex =
+    data.analysisIndex || 0;
+
+  currentIndex =
+    data.currentIndex || 0;
+
+  lpPieceFilterMode =
+    data.pieceFilter || "all";
+
+  refreshLivePuzzleFilterUI();
+
+  // 🔥 LOAD POSITION
+  analysisGame.load(
+    data.fen
+  );
+
+  // 🔥 BOARD
+  board.orientation(
+    data.orientation || "white"
+  );
+
+  updateBoardCoordinates();
+
+  board.position(
+    analysisGame.fen()
+  );
+
+  lpTriggerEngineUpdate();
+
+  // 🔥 DRAWINGS
+  if (data.drawings) {
+
+    Object.keys(
+      lpDrawingsByFen
+    ).forEach(key => {
+
+      delete lpDrawingsByFen[key];
+
+    });
+
+    Object.assign(
+      lpDrawingsByFen,
+      data.drawings
+    );
+
+  }
+
+  // 🔥 REDRAW
+  requestAnimationFrame(() => {
+
+    document.dispatchEvent(
+      new Event(
+        "lpPositionChanged"
+      )
+    );
+
+  });
+
+  // 🔥 REBUILD ANALYSIS BOARD
+  board = Chessboard(
+    "lpBoard",
+    {
+
+      position:
+        analysisGame.fen(),
+
+      orientation:
+        data.orientation || "white",
+
+      draggable: true,
+
+      onDrop:
+        function(
+          source,
+          target
+        ) {
+
+      const piece =
+  analysisGame.get(source);
+
+// ================= PROMOTION =================
+if (
+  piece &&
+  piece.type === "p" &&
+  (
+    (piece.color === "w" &&
+      target[1] === "8") ||
+
+    (piece.color === "b" &&
+      target[1] === "1")
+  )
+) {
+
+  analysisPromotionData = {
+    from: source,
+    to: target,
+    shared: true
+  };
+
+  lpShowPromotion(
+    source,
+    target
+  );
+
+  return;
+}
+
+const move =
+  analysisGame.move({
+    from: source,
+    to: target
+  });
+
+if (!move)
+  return "snapback";
+
+          // 🔥 LOCAL UPDATE
+          analysisMoves.push(move);
+
+          analysisIndex++;
+
+          renderAnalysisPGN();
+
+          setTimeout(() => {
+
+            board.position(
+              analysisGame.fen(),
+              false
+            );
+
+            lpTriggerEngineUpdate();
+
+          }, 0);
+
+          // 🔥 BROADCAST BACK
+          movesChannel.send({
+
+            type: "broadcast",
+
+            event:
+              "student_analysis_move",
+
+            payload: {
+
+              fen:
+                analysisGame.fen(),
+
+              move,
+
+              analysisMoves,
+
+              analysisIndex,
+
+              orientation:
+                board.orientation()
+
+            }
+
+          });
+
+        },
+
+      pieceTheme: function(piece) {
+
+  if (!piece)
+    return "";
+
+  try {
+
+    return resolveLivePuzzlePieceTheme(
+      piece
+    );
+
+  } catch(err) {
+
+    console.warn(
+      "Piece theme error:",
+      err
+    );
+
+    return "";
+
+  }
+
+}
+
+    }
+  );
+
+  renderAnalysisPGN();
+
+  return;
+}
+// =====================================
+// ♟ STUDENT ANALYSIS MOVE
+// =====================================
+
+if (
+  payload.event ===
+  "student_analysis_move"
+) {
+
+  const data =
+    payload.payload;
+
+  // 🔥 IGNORE OWN MOVE
+// 🔥 IGNORE ONLY IF BOARD ALREADY SAME
+if (
+  String(data.sender) ===
+  String(currentUserId) &&
+  analysisGame.fen() === data.fen
+) {
+  return;
+}
+
+  // 🔥 SAFE CHECK
+  if (!data.fen) {
+    return;
+  }
+
+  // 🔥 UPDATE ANALYSIS
+  analysisMoves =
+    data.analysisMoves || [];
+
+  analysisIndex =
+    data.analysisIndex || 0;
+
+  // 🔥 LOAD POSITION
+  try {
+
+    analysisGame.load(
+      data.fen
+    );
+
+  } catch(err) {
+
+    console.warn(
+      "Analysis load failed",
+      err
+    );
+
+    return;
+  }
+
+  // 🔥 SAFE ORIENTATION
+  try {
+
+    board.orientation(
+      data.orientation || "white"
+    );
+
+  } catch(err) {
+
+    console.warn(
+      "Orientation failed",
+      err
+    );
+
+  }
+
+  updateBoardCoordinates();
+
+  // 🔥 SAFE BOARD UPDATE
+  try {
+
+    board.position(
+      analysisGame.fen(),
+      false
+    );
+
+  } catch(err) {
+
+    console.warn(
+      "Board update failed",
+      err
+    );
+
+  }
+
+  lpTriggerEngineUpdate();
+
+  // 🔥 SOUND
+  if (
+    data.move &&
+    lpSoundEngine
+  ) {
+
+    try {
+
+      lpSoundEngine.play(
+        data.move,
+        analysisGame
+      );
+
+    } catch(err) {
+
+      console.warn(
+        "Sound failed",
+        err
+      );
+
+    }
+
+  }
+
+  // 🔥 MOVE HIGHLIGHT
+  if (data.move) {
+
+    try {
+
+      highlightLastMove(
+        data.move.from,
+        data.move.to,
+        "lpBoard"
+      );
+
+    } catch(err) {}
+
+  }
+
+  // 🔥 CHECK HIGHLIGHT
+  try {
+
+    highlightCheckSquare(
+      analysisGame,
+      "lpBoard"
+    );
+
+  } catch(err) {}
+
+  // 🔥 PGN
+  try {
+
+    renderAnalysisPGN();
+
+  } catch(err) {
+
+    console.warn(
+      "PGN render failed",
+      err
+    );
+
+  }
+
+  return;
+}
+// =====================================
+// ♟ SHARED ANALYSIS OFF
+// =====================================
+
+if (
+  payload.event ===
+  "shared_analysis_off"
+) {
+const data =
+  payload.payload || {};
+
+// 🔥 IGNORE OWN EVENT
+if (
+  String(data.sender) ===
+  String(currentUserId)
+) {
+  return;
+}
+
+  // 🔥 ADMIN IGNORE
+  if (isAdmin) return;
+
+  allowStudentAnalysisView =
+    false;
+
+  isAnalysisMode = false;
+
+// 🔥 FULL HARD RESTORE
+game.reset();
+
+const restoreGame = new Chess();
+
+if (puzzles[currentIndex]) {
+
+  restoreGame.load_pgn(
+    puzzles[currentIndex]
+  );
+
+  solutionMoves =
+    restoreGame.history({
+      verbose: true
+    });
+
+  const startFen =
+    restoreGame.header().FEN;
+
+  if (startFen) {
+
+    game.load(startFen);
+
+  } else {
+
+    game.reset();
+
+  }
+
+}
+
+// 🔥 RESET PUZZLE FLOW
+moveIndex = 0;
+
+// 🔥 RESET ANALYSIS
+analysisMoves = [];
+analysisIndex = 0;
+
+analysisGame.reset();
+
+lpPendingPromotion = null;
+analysisPromotionData = null;
+
+// 🔥 REBUILD NORMAL BOARD
+board = Chessboard("lpBoard", {
+
+  position: game.fen(),
+
+  orientation:
+    solutionMoves[0]?.color === "b"
+      ? "black"
+      : "white",
+
+  draggable: true,
+
+  onDragStart:
+    onDragStart,
+
+  onDrop:
+    onDrop,
+
+  onSnapEnd: () => {
+
+    board.position(
+      game.fen(),
+      false
+    );
+
+    lpTriggerEngineUpdate();
+
+  },
+
+  pieceTheme:
+    resolveLivePuzzlePieceTheme
+
+});
+
+updateBoardCoordinates();
+
+// 🔥 FINAL VISUAL SYNC
+board.position(
+  game.fen(),
+  false
+);
+
+lpTriggerEngineUpdate();
+
+// 🔥 REDRAW
+requestAnimationFrame(() => {
+
+  document.dispatchEvent(
+    new Event(
+      "lpPositionChanged"
+    )
+  );
+
+});
+
+showToast(
+  "♟ Shared Analysis OFF"
+);
+
+  return;
+}
     // 🔥 LIVE PREVIEW FROM ADMIN
 if (
   payload.event ===
