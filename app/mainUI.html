@@ -56045,6 +56045,9 @@ setTimeout(() => {
 
   mpRoomCode.textContent = `Room Code: ${code} (copied)`
   navigator.clipboard.writeText(code).catch(() => {})
+  showJoinBanner(
+  "✅ Match Room Created"
+);
 
   setTimeout(() => {
   initLiveMatchBoard()
@@ -56147,6 +56150,9 @@ if (fresh) {
   updateMpPlayerLabels()
 }, 100)
   subscribeRoom()
+  showJoinBanner(
+  "✅ Joined Live Match"
+);
 }
 
 const mpFenInput = document.getElementById('mpFenInput')
@@ -56254,6 +56260,9 @@ mpForcePOVLayout()
 
   mpRoomCode.textContent = `Room Code: ${code} (copied)`
   navigator.clipboard.writeText(code).catch(() => {})
+  showJoinBanner(
+  "✅ Match Room Created"
+);
 
   setTimeout(() => {
   initLiveMatchBoard()
@@ -56285,6 +56294,17 @@ function subscribeRoom() {
       },
       payload => {
         const row = payload.new
+          // ==========================
+  // 🎯 OPPONENT JOINED BANNER
+  // ==========================
+  if (
+    payload.old?.status === "waiting" &&
+    row.status === "playing"
+  ) {
+    showJoinBanner(
+      "✅ Opponent Joined The Match"
+    );
+  }
         // 🔒 authoritative player names from server
 // ✅ ALWAYS update names first
   mpWhiteName = row.white_name || "Waiting..."
@@ -57031,6 +57051,9 @@ copyToClipboard(roomCode).then(() => {
 
   battleRoom = data;
   battleRole = "player1";
+  showJoinBanner(
+  "✅ Battle Room Created"
+);
 
   await supabase.from("puzzle_battle_players").insert([{
     room_id: battleRoom.id,
@@ -57062,6 +57085,9 @@ document.getElementById("joinBattleRoom").onclick = async () => {
 
   battleRoom = room;
   battleRole = "player2";
+  showJoinBanner(
+  "✅ Joined Puzzle Battle"
+);
 
   await supabase.from("puzzle_battle_rooms")
     .update({
@@ -57103,6 +57129,15 @@ function subscribeToBattleRoom() {
 }, payload => {
   const row = payload.new;
   if (!row || row.id !== battleRoom.id) return;
+    // 🎯 Opponent joined
+  if (
+    payload.old?.status === "waiting" &&
+    row.status === "active"
+  ) {
+    showJoinBanner(
+      "✅ Opponent Joined The Battle"
+    );
+  }
 
   // 🔄 Start sync
   if (row.status === "active") {
@@ -61521,6 +61556,10 @@ if (typeof trackActivity === "function") {
 
 document.getElementById("startTrainerBtn")
   .addEventListener("click", () => {
+        showJoinBanner(
+      "✅ Puzzle Streak Started",
+      false
+    );
 
     playQuizSound("next");
 
@@ -77325,6 +77364,10 @@ function startIQGame(){
   "block";
 
   renderIQQuestion();
+    showJoinBanner(
+    "✅ IQ Trainer Started",
+    false
+  );
 
 }
 
@@ -81500,11 +81543,11 @@ if(iqScore === 25){
 
 }else if(iqScore >= 20){
 
-  addDailyXP(3);
+  addDailyXP(2);
 
 }else if(iqScore >= 15){
 
-  addDailyXP(2);
+  addDailyXP(1);
 
 }else if(iqScore >= 5){
 
