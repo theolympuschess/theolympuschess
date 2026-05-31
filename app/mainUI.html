@@ -22799,7 +22799,29 @@ background: #2563eb;
   color: white !important;
 
 }
+.vs-legal-move{
+  position: relative;
+}
 
+.vs-legal-move::after{
+  content:"";
+  position:absolute;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#ff6b6b;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+
+
+#toggleVsLegalMovesBtn{
+  background:#27ae60;
+  color:white;
+  border:1px solid #38d67a;
+}
 
 
   </style>
@@ -25751,6 +25773,9 @@ title="Voice volume"
       <button class="btn-secondary" id="resetVsComputer">
         🔄 Reset
       </button>
+     <button id="toggleVsLegalMovesBtn">
+  ✅ Highlight
+</button>
 
 </div>
 
@@ -35032,7 +35057,7 @@ function initVsComputerBoard() {
   if (vsChess.turn() !== (vsPlayerColor === "white" ? "w" : "b")) {
     return false;
   }
-
+showVsLegalMoves(source);
   return true;
 },
 
@@ -35040,7 +35065,7 @@ function initVsComputerBoard() {
 
 
     onDrop: (source, target) => {
-
+  clearVsLegalMoves();
   // 🔁 Detect promotion square BEFORE move
   const piece = vsChess.get(source);
   const isPromotion =
@@ -35071,6 +35096,7 @@ function initVsComputerBoard() {
 
 // ✅ FIX CASTLING ROOK STUCK ISSUE (PASTE HERE)
 onSnapEnd: () => {
+    clearVsLegalMoves();
   vsBoard.position(vsChess.fen());
   setTimeout(() => {
       highlightCheckSquare(vsChess, "computerBoard");
@@ -35120,6 +35146,7 @@ window.completeVsPromotion = function (piece) {
   }
 
   vsBoard.position(vsChess.fen());
+  clearVsLegalMoves();
   afterVsPlayerMove(move);
 };
 
@@ -35184,6 +35211,53 @@ if (vsBotLiveGameId) {
   }
   
 }
+// ===============================
+// LEGAL MOVE HIGHLIGHTS
+// ===============================
+function showVsLegalMoves(square) {
+  if (!showVsLegalMovesEnabled) return;
+  clearVsLegalMoves();
+
+  const moves = vsChess.moves({
+    square,
+    verbose: true
+  });
+
+  moves.forEach(move => {
+    const sq = document.querySelector(
+      `#computerBoard .square-${move.to}`
+    );
+
+    if (!sq) return;
+
+    sq.classList.add("vs-legal-move");
+  });
+}
+
+function clearVsLegalMoves() {
+  document
+    .querySelectorAll("#computerBoard .vs-legal-move")
+    .forEach(el => el.classList.remove("vs-legal-move"));
+}
+let showVsLegalMovesEnabled = true;
+
+document.getElementById("toggleVsLegalMovesBtn").addEventListener("click", () => {
+
+  showVsLegalMovesEnabled = !showVsLegalMovesEnabled;
+
+  clearVsLegalMoves();
+
+  const btn = document.getElementById("toggleVsLegalMovesBtn");
+
+  btn.textContent = showVsLegalMovesEnabled
+    ? "Highlight ON"
+    : "Highlight OFF";
+
+btn.style.background = showVsLegalMovesEnabled
+  ? "#27ae60"
+  : "#666666";
+
+});
 
 // =======================================
 // 🎲 BOT DICE MOVE LOGIC
