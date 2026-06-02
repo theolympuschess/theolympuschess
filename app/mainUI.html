@@ -10254,8 +10254,8 @@ No JS / No HTML changes
 
 #mpBoard {
   width: 100%;
-  max-width: 500px;
-  height: 500px;
+  max-width: 580px;
+  height: 580px;
   margin: 12px auto;
 }
 
@@ -10399,14 +10399,15 @@ No JS / No HTML changes
 }
 
 #mpBoard {
-  width: min(70vh, 520px);
+  width: 600px;
+  max-width: 90vw;
   margin: 8px 0;
 }
 
 /* PLAYER BARS */
 .mp-player {
   width: 100%;
-  max-width: 520px;
+  max-width: 620px;
   display: flex;
   justify-content: space-between;
   padding: 6px 12px;
@@ -22824,6 +22825,85 @@ background: #2563eb;
 }
 
 
+/* =========================================
+   💥 EPIC CHESS CAPTURE EXPLOSION
+========================================= */
+
+.capture-burst{
+  position:absolute;
+width:35px;
+height:35px;
+  border-radius:50%;
+  pointer-events:none;
+  z-index:99999;
+
+background:
+  radial-gradient(
+    circle,
+    rgba(255,255,255,1) 0%,
+    rgba(180,255,255,1) 10%,
+    rgba(0,255,255,.95) 25%,
+    rgba(0,180,255,.9) 45%,
+    rgba(100,100,255,.7) 65%,
+    rgba(50,50,255,.4) 80%,
+    transparent 100%
+  );
+
+box-shadow:
+  0 0 20px rgba(255,255,255,.9),
+  0 0 40px rgba(0,255,255,.9),
+  0 0 80px rgba(0,180,255,.8),
+  0 0 120px rgba(100,100,255,.6);
+
+  animation:captureBurstAnim .55s ease-out forwards;
+}
+
+@keyframes captureBurstAnim{
+
+  0%{
+    transform:translate(-50%,-50%) scale(0.2) rotate(0deg);
+    opacity:1;
+    filter:brightness(1);
+  }
+
+  20%{
+    transform:translate(-50%,-50%) scale(1.8) rotate(20deg);
+    opacity:1;
+    filter:brightness(2.5);
+  }
+
+  40%{
+    transform:translate(-50%,-50%) scale(1.2) rotate(-15deg);
+    opacity:.95;
+    filter:brightness(3);
+  }
+
+  60%{
+    transform:translate(-50%,-50%) scale(2.2) rotate(10deg);
+    opacity:.8;
+    filter:brightness(2);
+  }
+
+  100%{
+    transform:translate(-50%,-50%) scale(3.5) rotate(0deg);
+    opacity:0;
+    filter:brightness(1);
+  }
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
   </style>
 </head>
 
@@ -30253,7 +30333,7 @@ function botSpeak(key) {
   // 🔊 play new bot voice
   if (bot.voice) {
     botVoiceAudio = new Audio(bot.voice);
-botVoiceAudio.volume = 0.8;
+botVoiceAudio.volume = 0.1;
 botVoiceAudio.play().catch(() => {});
 
 // 👄 START MOUTH SYNC (THIS IS THE KEY LINE)
@@ -30414,7 +30494,7 @@ function playBotCheckSounds() {
         `bot_reaction_sound/check${index}.mp3`
       );
 
-      audio.volume = 0.5;
+      audio.volume = 0.1;
       window.botCheckAudio = audio;
 
       audio.play().catch(() => {});
@@ -30443,7 +30523,7 @@ function playBotCaptureSounds() {
         `bot_reaction_sound/capture${index}.mp3`
       );
 
-      audio.volume = 0.5;
+      audio.volume = 0.1;
       window.botCaptureAudio = audio;
 
       audio.play().catch(() => {});
@@ -30465,7 +30545,7 @@ const loserSounds = [
 function playRandomLoserSound() {
   const src = loserSounds[Math.floor(Math.random() * loserSounds.length)];
   const audio = new Audio(src);
-  audio.volume = 0.9;
+  audio.volume = 0.7;
   audio.play().catch(() => {});
 }
 
@@ -35020,6 +35100,46 @@ function updateClockUI() {
     `${String(bMin).padStart(2, "0")}:${String(bSec).padStart(2, "0")}`;
 }
 
+/* =========================================
+   💥 GLOBAL CAPTURE EXPLOSION
+========================================= */
+
+function showCaptureExplosion(boardId, square) {
+
+  const board =
+    document.getElementById(boardId);
+
+  if (!board) return;
+
+  const target =
+    board.querySelector(`.square-${square}`);
+
+  if (!target) return;
+
+  const burst =
+    document.createElement("div");
+
+  burst.className = "capture-burst";
+
+  const rect =
+    target.getBoundingClientRect();
+
+  const boardRect =
+    board.getBoundingClientRect();
+
+  burst.style.left =
+    (rect.left - boardRect.left + rect.width / 2) + "px";
+
+  burst.style.top =
+    (rect.top - boardRect.top + rect.height / 2) + "px";
+
+  board.appendChild(burst);
+
+  setTimeout(() => {
+    burst.remove();
+  }, 800);
+
+}
 
 // ===============================
 // VS COMPUTER PROMOTION STATE
@@ -35164,25 +35284,36 @@ async function afterVsPlayerMove(move) {
   updateVsMoveList();
   checkVsGameEnd();
 
-  // 🔊 PLAYER SOUND
-  if (move.flags.includes("k") || move.flags.includes("q")) {
-    playSound("castle");
-  } else if (move.san.includes("+")) {
-    playSound("check");
-  } else if (move.captured) {
-    playSound("capture");
-  } else {
-    playSound("move");
-  }
+// 💥 Explosion should happen on ANY capture
+if (move.captured) {
 
-  // 🤖 BOT REACTION (visual/sound only)
-  if (vsChess.in_check()) {
-    botReact("check");
-    playBotCheckSounds();
-  } else if (move.captured) {
-    botReact("capture");
-    playBotCaptureSounds();
-  }
+  showCaptureExplosion(
+    "computerBoard",
+    move.to
+  );
+
+}
+
+// 🔊 PLAYER SOUND
+if (move.flags.includes("k") || move.flags.includes("q")) {
+
+  playSound("castle");
+
+} else if (move.captured) {
+
+  playSound("capture");
+
+} else if (move.san.includes("+")) {
+
+  playSound("check");
+
+} else {
+
+  playSound("move");
+
+}
+
+
 
   // 🛑 STOP white clock
   clearInterval(clockInterval);
@@ -35408,21 +35539,38 @@ setTimeout(async () => {
   // 🔊 BOT MOVE SOUND (SAFE ORDER)
 
 // 1️⃣ Capture has TOP priority
+// 💥 Explosion always on capture
+// 💥 Explosion always on capture
 if (engineMove.captured) {
-  playBotCaptureSound();
+
+  showCaptureExplosion(
+    "computerBoard",
+    engineMove.to
+  );
+
 }
 
-// 2️⃣ Check (only if NOT capture)
-else if (vsChess.in_check()) {
-  playBotCheckSound();
-}
+// 🔊 Standard chess sounds
 if (engineMove.flags.includes("k") || engineMove.flags.includes("q")) {
+
   playSound("castle");
+
+}
+else if (engineMove.captured) {
+
+  playSound("capture");
+
+}
+else if (vsChess.in_check()) {
+
+  playSound("check");
+
 }
 else {
-  playSound("move");
-}
 
+  playSound("move");
+
+}
 
 // 3️⃣ Optional normal move sound (later)
 // else {
@@ -55847,6 +55995,14 @@ function onLiveMatchDrop(source, target) {
   // Apply move locally
   // Apply move locally + get move object
 const move = mpChess.move({ from: source, to: target, promotion: 'q' })
+if (move?.captured) {
+
+  showCaptureExplosion(
+    "mpBoard",
+    move.to
+  );
+
+}
 
 // 🔊 Play sound
 mpPlayMoveSound(move)
@@ -55921,6 +56077,14 @@ const move = mpChess.move({
   to: target,
   promotion: piece
 })
+if (move?.captured) {
+
+  showCaptureExplosion(
+    "mpBoard",
+    move.to
+  );
+
+}
 
 // 🔊 Play sound
 mpPlayMoveSound(move)
@@ -56468,10 +56632,21 @@ if (!row.draw_request && mpDrawBtn.disabled) {
   const lastMove = mpGetLastMoveFromPGN(row.pgn)
 
   // 🔊 Play sound for opponent
-  if (lastMove && row.turn === mySide) {
-    mpPlayMoveSound(lastMove)
-    mpDrawArrow(lastMove.from, lastMove.to)
+if (lastMove && row.turn === mySide) {
+
+  if (lastMove.captured) {
+
+    showCaptureExplosion(
+      "mpBoard",
+      lastMove.to
+    );
+
   }
+
+  mpPlayMoveSound(lastMove)
+  mpDrawArrow(lastMove.from, lastMove.to)
+
+}
 
 if (mpBoard) {
   mpBoard.position(row.fen, true)
