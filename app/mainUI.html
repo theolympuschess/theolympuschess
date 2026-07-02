@@ -57405,15 +57405,24 @@ function subscribeToBattleRoom() {
 
   // 🏆 Result sync
 if (row.status === "finished" && row.result) {
-  // 🛑 Don't override local winner
-  if (battleWinnerDeclared) return;
-
   freezeBattleBoard();
 
+  // DRAW → always show modal to BOTH players
   if (row.result === "draw") {
     showBattleResultUI("Draw!");
-    
-  } else if (row.winner_id === currentUser.id) {
+
+    BattleModal.show(
+      "🤝 It’s a Draw!",
+      "🌟 Both of you played great!"
+    );
+
+    return;
+  }
+
+  // Only block duplicate Win/Lose handling
+  if (battleWinnerDeclared) return;
+
+  if (row.winner_id === currentUser.id) {
     showBattleResultUI("You Win!");
   } else {
     showBattleResultUI("Opponent Wins!");
@@ -58010,6 +58019,92 @@ function playBattleWrongSound() {
   battleWrongAudio.play().catch(() => {});
 }
 
+async function resetBattleRoom() {
+  console.log("🔄 Resetting battle room...");
+
+  // Leave realtime channel
+  if (battleChannel) {
+    await supabase.removeChannel(battleChannel);
+    battleChannel = null;
+  }
+
+  // Stop timer
+  if (battleTimer) {
+    clearInterval(battleTimer);
+    battleTimer = null;
+  }
+
+  // Reset all variables
+  battleRoom = null;
+  battleRole = null;
+  battleStarted = false;
+  battleWinnerDeclared = false;
+  battleYouFrozen = false;
+  battleTargetScore = null;
+  battleCurrentPuzzle = null;
+  battlePuzzleList = [];
+  battlePuzzleIndex = 0;
+  battleSeed = 0;
+  battleSolved = false;
+  battleStartAt = null;
+  battleTimeLeft = 180;
+  battleSideToMove = "w";
+  battleTapSource = null;
+
+  // Clear highlights
+  clearBattleHighlights();
+
+  // Unfreeze board
+  document
+    .getElementById("puzzleBattleBoard")
+    ?.classList.remove("battle-frozen");
+
+  // Reset board
+  if (battleBoard && battleChess) {
+    battleChess.reset();
+
+    // VERY IMPORTANT
+    battleBoard.draggable = true;
+
+    battleBoard.orientation("white");
+    battleBoard.position("start");
+  }
+
+  // Reset UI
+  document.getElementById("battleRoomCode").value = "";
+  document.getElementById("battleStatus").textContent =
+    "Create or Join a Room";
+
+  document.getElementById("battleResult")
+    ?.classList.add("hidden");
+
+  document.getElementById("battleWinnerText").textContent = "";
+
+  document.getElementById("p1Score").textContent = "0";
+  document.getElementById("p2Score").textContent = "0";
+  document.getElementById("p1Lives").textContent = "3";
+  document.getElementById("p2Lives").textContent = "3";
+
+  document.getElementById("youStreak").textContent = "0";
+  document.getElementById("oppStreak").textContent = "0";
+
+  renderBattleLives(3);
+  renderPOVLives(
+    document.getElementById("youLives"),
+    3
+  );
+  renderPOVLives(
+    document.getElementById("oppLives"),
+    3
+  );
+
+  console.log(
+    "✅ Battle fully reset.",
+    "Frozen:", battleYouFrozen,
+    "Draggable:", battleBoard?.draggable
+  );
+}
+
 
 // ===============================
 // 🪟 BATTLE MODAL CONTROLLER (ISOLATED FOR YOUR HTML)
@@ -58036,10 +58131,12 @@ const BattleModal = (() => {
 
     overlay.classList.remove("hidden");
 
-    btn.onclick = () => {
-      overlay.classList.add("hidden");
-      locked = false;
-    };
+  btn.onclick = async () => {
+  overlay.classList.add("hidden");
+  locked = false;
+
+  await resetBattleRoom();
+};
   };
 
   return { show };
