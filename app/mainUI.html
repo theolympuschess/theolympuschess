@@ -22895,7 +22895,46 @@ box-shadow:
 
 
 
+/* ===============================
+   ⚔️ PUZZLE BATTLE PROMOTION
+================================ */
 
+.battle-promo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.battle-promo-overlay.hidden {
+  display: none;
+}
+
+.battle-promo-box {
+  background: #15182b;
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+}
+
+.battle-promo-box button {
+  width: 52px;
+  height: 52px;
+  font-size: 26px;
+  background: #22264a;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+}
+
+.battle-promo-box button:hover {
+  background: #3b82f6;
+}
 
 
 
@@ -25736,6 +25775,26 @@ title="Voice volume"
 <span id="fenCopyStatus" class="fen-copy-status hidden">
   ✔ Copied
 </span>
+
+<!-- =========================
+     📥 Paste FEN
+========================= -->
+
+<textarea
+  id="pasteFenInput"
+  rows="3"
+  placeholder="Paste any valid FEN here..."
+  style="margin-top:10px;"
+></textarea>
+
+<button
+  id="loadFenBtn"
+  class="btn-secondary"
+  style="margin-top:8px;width:100%;">
+  📥 Load FEN
+</button>
+
+
 <div class="editor-field">
   <div class="editor-label">Castling rights</div>
 
@@ -29180,8 +29239,7 @@ let battleXPGranted = false;
 async function grantPuzzleBattleXP() {
   if (!currentProfile) return;
   if (battleXPGranted) return;
-   if (!battleWinnerDeclared) return; // 🛑 HARD STOP
-
+   
   battleXPGranted = true;
 
   const XP = 5;
@@ -29211,10 +29269,10 @@ addDailyXP(XP); // ⭐ ADD THIS
 
   console.log("🏆 Puzzle Battle XP granted:", XP);
     // 🪟 MODAL — XP CONFIRM
-  BattleModal.show(
-    "✨ XP Earned",
-    "Your win has been recorded and XP added successfully!"
-  );
+BattleModal.show(
+  "🔥 Clutch Victory!",
+  "You kept your cool and won the battle!"
+);
 
 }
 
@@ -29727,7 +29785,51 @@ document.getElementById("copyFenBtn").addEventListener("click", () => {
   });
 });
 
+// ===========================================
+// 📥 LOAD FEN INTO EDITOR
+// ===========================================
 
+document.getElementById("loadFenBtn").addEventListener("click", () => {
+
+  if (!editorBoard) return;
+
+  const fen = document.getElementById("pasteFenInput").value.trim();
+
+  if (!fen) return;
+
+  const safeFen = normalizeEditorFEN(fen);
+
+  // Validate FEN
+  if (!editorChess.load(safeFen)) {
+    alert("Invalid FEN.");
+    return;
+  }
+
+  // Update visual board
+  editorBoard.position(editorChess.fen(), false);
+
+  // --------------------------
+  // Update side to move
+  // --------------------------
+  const parts = safeFen.split(" ");
+
+  document.getElementById("editorTurn").value =
+    parts[1] || "w";
+
+  // --------------------------
+  // Update castling checkboxes
+  // --------------------------
+  const castle = parts[2] || "-";
+
+  castleWK.checked = castle.includes("K");
+  castleWQ.checked = castle.includes("Q");
+  castleBK.checked = castle.includes("k");
+  castleBQ.checked = castle.includes("q");
+
+  // Refresh generated FEN
+  syncEditorFEN();
+
+});
 
 
 
@@ -55691,7 +55793,47 @@ function mpAppendPGN(oldPgn, move) {
 
 
 function genRoomCode() {
-  return Math.random().toString(36).substring(2, 7).toUpperCase()
+
+  const words = [
+    "PAWN",
+    "KING",
+    "ROOK",
+    "MATE",
+    "FORK",
+    "MOVE",
+    "PLAY",
+    "PLAN",
+    "TRAP",
+    "PINS",
+    "JUMP",
+    "DUEL",
+    "TURN",
+    "OPEN",
+    "RACE",
+    "FLAG",
+    "ZOOM",
+    "FAST",
+    "WINS",
+    "EPIC",
+    "TACT",
+    "RANK",
+    "GRID",
+    "LIFT",
+    "MIND",
+    "BEST",
+    "GOAL",
+    "HUNT",
+    "TEAM",
+    "LOCK"
+  ];
+
+  const word = words[Math.floor(Math.random() * words.length)];
+
+  const number = Math.floor(Math.random() * 100)
+    .toString()
+    .padStart(2, "0");
+
+  return `${word}${number}`;
 }
 
 function startClock() {
@@ -57075,7 +57217,10 @@ let battleTargetScore = null; // Score to beat
 let battleWinnerDeclared = false;
 let battleYouFrozen = false;
 
-
+// ===============================
+// ♕ BATTLE PROMOTION STATE
+// ===============================
+let battlePendingPromotion = null;
 
 function freezeBattleBoard() {
   if (battleYouFrozen) return;
@@ -57224,10 +57369,106 @@ if (battleChess.turn() !== battleCurrentPuzzle.side) {
   );
 }
 
+// ===============================
+// ♕ SHOW BATTLE PROMOTION
+// ===============================
+function showBattlePromotion() {
+  document
+    .getElementById("battlePromoModal")
+    .classList.remove("hidden");
+}
+
+// ===============================
+// ♕ COMPLETE BATTLE PROMOTION
+// ===============================
+window.battleCompletePromotion = function(piece) {
+
+  document
+    .getElementById("battlePromoModal")
+    .classList.add("hidden");
+
+  if (!battlePendingPromotion) return;
+
+  const { source, target } = battlePendingPromotion;
+
+  battlePendingPromotion = null;
+
+  // Apply promotion
+  const move = battleChess.move({
+    from: source,
+    to: target,
+    promotion: piece
+  });
+
+  if (!move) return;
+
+  battleBoard.position(battleChess.fen(), false);
+
+  const played = move.san.replace(/[+#]/g, "").trim();
+  const expected = battleCurrentPuzzle.solution;
+
+  console.log("⚔️ Played:", played, "Expected:", expected);
+
+  // ✅ Correct
+  if (played === expected) {
+
+    playBattleCorrectSound();
+
+    battleSolved = true;
+
+    updateBattleScore(true);
+
+    setTimeout(() => {
+      loadNextBattlePuzzle();
+    }, 500);
+
+    return;
+  }
+
+  // ❌ Wrong
+  battleChess.undo();
+
+  playBattleWrongSound();
+
+  battleBoard.position(battleChess.fen(), false);
+
+  updateBattleScore(false);
+
+  return "snapback";
+};
+
+// expose to HTML buttons
+window.showBattlePromotion = showBattlePromotion;
 
 function handleBattleMove(source, target) {
-  if (battleYouFrozen) return "snapback";   // 🧊 STEP 1
+
+  if (battleYouFrozen) return "snapback";
   if (!battleCurrentPuzzle || battleSolved) return "snapback";
+
+  const piece = battleChess.get(source);
+  if (!piece) return "snapback";
+
+  // ===============================
+  // ♕ PROMOTION
+  // ===============================
+  const isPromotion =
+    piece.type === "p" &&
+    (
+      (piece.color === "w" && target[1] === "8") ||
+      (piece.color === "b" && target[1] === "1")
+    );
+
+  if (isPromotion) {
+
+    battlePendingPromotion = {
+      source,
+      target
+    };
+
+    showBattlePromotion();
+
+    return "snapback";
+  }
 
   const move = battleChess.move({
     from: source,
@@ -57242,14 +57483,13 @@ function handleBattleMove(source, target) {
 
   console.log("⚔️ Played:", played, "Expected:", expected);
 
-  // ✅ CORRECT MOVE
   if (played === expected) {
+
     playBattleCorrectSound();
 
     battleSolved = true;
-    updateBattleScore(true);
 
-    
+    updateBattleScore(true);
 
     setTimeout(() => {
       loadNextBattlePuzzle();
@@ -57258,8 +57498,8 @@ function handleBattleMove(source, target) {
     return;
   }
 
-  // ❌ WRONG MOVE — UNDO IT
   battleChess.undo();
+
   playBattleWrongSound();
 
   battleBoard.position(battleChess.fen(), false);
@@ -57272,7 +57512,48 @@ function handleBattleMove(source, target) {
 
 
 function generateRoomCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+
+const words = [
+  "PAWN",
+  "KING",
+  "ROOK",
+  "MATE",
+  "FORK",
+  "MOVE",
+  "PLAY",
+  "PLAN",
+  "TRAP",
+  "PINS",
+  "JUMP",
+  "DUEL",
+  "TURN",
+  "OPEN",
+  "RACE",
+  "FLAG",
+  "ZOOM",
+  "FAST",
+  "WINS",
+  "EPIC",
+  "TACT",
+  "RANK",
+  "GRID",
+  "LIFT",
+  "MIND",
+  "BEST",
+  "GOAL",
+  "HUNT",
+  "TEAM",
+  "LOCK"
+];
+
+  const word =
+    words[Math.floor(Math.random() * words.length)];
+
+  const number = Math.floor(Math.random() * 100)
+    .toString()
+    .padStart(2, "0");
+
+  return `${word}${number}`;
 }
 
 document.getElementById("createBattleRoom").onclick = async () => {
@@ -57403,12 +57684,17 @@ function subscribeToBattleRoom() {
     forceStartBattle();
   }
 
-  // 🏆 Result sync
+// 🏆 Result sync
 if (row.status === "finished" && row.result) {
+
   freezeBattleBoard();
 
-  // DRAW → always show modal to BOTH players
+  // Prevent duplicate popup
+  if (battleWinnerDeclared) return;
+  battleWinnerDeclared = true;
+
   if (row.result === "draw") {
+
     showBattleResultUI("Draw!");
 
     BattleModal.show(
@@ -57419,14 +57705,18 @@ if (row.status === "finished" && row.result) {
     return;
   }
 
-  // Only block duplicate Win/Lose handling
-  if (battleWinnerDeclared) return;
+  const youWon = row.winner_id === currentUser.id;
 
-  if (row.winner_id === currentUser.id) {
-    showBattleResultUI("You Win!");
-  } else {
-    showBattleResultUI("Opponent Wins!");
-  }
+  showBattleResultUI(
+    youWon ? "You Win!" : "Opponent Wins!"
+  );
+
+  BattleModal.show(
+    "⚔️ Battle Finished",
+    youWon
+      ? "🌟 Awesome job! You played brilliantly!"
+      : "💪 Great effort! Keep practicing!"
+  );
 }
 
 })
@@ -57540,7 +57830,7 @@ async function checkBattleEndState() {
 
 async function declareBattleDraw() {
   if (battleWinnerDeclared) return;
-  battleWinnerDeclared = true;
+
 
   freezeBattleBoard();
 
@@ -57555,12 +57845,7 @@ async function declareBattleDraw() {
       .eq("id", battleRoom.id);
   }
 
-  showBattleResultUI("Draw!");
-  // 🪟 MODAL — DRAW RESULT
-BattleModal.show(
-  "🤝 It’s a Draw!",
-  "🌟 Both of you played great!"
-);
+
 
 }
 
@@ -57755,7 +58040,7 @@ if (
 // 🏆 Declare winner
 async function declareBattleWinner(winner) {
   if (battleWinnerDeclared) return;
-  battleWinnerDeclared = true;
+  
 
   const youWon = winner === "you";
 
@@ -57774,15 +58059,7 @@ async function declareBattleWinner(winner) {
       .eq("id", battleRoom.id);
   }
 
-  // 🖥️ Show UI locally
-  showBattleResultUI(youWon ? "You Win!" : "Opponent Wins!");
-    // 🪟 MODAL — MATCH RESULT
-  BattleModal.show(
-    "⚔️ Battle Finished",
-    youWon
-      ? "🌟 Awesome job! You played brilliantly!"
-       : "💪 Great effort! Keep practicing!"
-  );
+
 
 
   // 🏆 XP — ONLY FOR WINNER
@@ -82594,6 +82871,22 @@ document.addEventListener("DOMContentLoaded", startApp);
   </div>
 </div>
 
+<!-- ===============================
+     ⚔️ PUZZLE BATTLE PROMOTION MODAL
+================================ -->
+<div id="battlePromoModal" class="battle-promo-overlay hidden">
+  <div class="battle-promo-box">
+
+    <button onclick="battleCompletePromotion('q')">♕</button>
+
+    <button onclick="battleCompletePromotion('r')">♖</button>
+
+    <button onclick="battleCompletePromotion('b')">♗</button>
+
+    <button onclick="battleCompletePromotion('n')">♘</button>
+
+  </div>
+</div>
 
 <div id="mpRematchModal" class="mp-modal hidden">
   <div class="mp-modal-box">
