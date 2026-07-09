@@ -25791,7 +25791,7 @@ title="Voice volume"
   id="loadFenBtn"
   class="btn-secondary"
   style="margin-top:8px;width:100%;">
-  📥 Load FEN
+  📥 Paste FEN / PGN
 </button>
 
 
@@ -29786,40 +29786,76 @@ document.getElementById("copyFenBtn").addEventListener("click", () => {
 });
 
 // ===========================================
-// 📥 LOAD FEN INTO EDITOR
+// 📥 LOAD FEN / PGN INTO EDITOR
 // ===========================================
 
 document.getElementById("loadFenBtn").addEventListener("click", () => {
 
   if (!editorBoard) return;
 
-  const fen = document.getElementById("pasteFenInput").value.trim();
+  const input = document.getElementById("pasteFenInput").value.trim();
 
-  if (!fen) return;
+  if (!input) return;
 
-  const safeFen = normalizeEditorFEN(fen);
+  let fen = "";
 
-  // Validate FEN
-  if (!editorChess.load(safeFen)) {
-    alert("Invalid FEN.");
+  // ==========================================
+  // 🧩 PGN DETECTION
+  // ==========================================
+  if (
+    input.includes("[Event") ||
+    input.includes("1.") ||
+    input.includes("[FEN")
+  ) {
+
+    // PGN contains custom starting position
+    const setupMatch = input.match(/\[SetUp\s+"1"\]/i);
+    const fenMatch = input.match(/\[FEN\s+"([^"]+)"\]/i);
+
+    if (setupMatch && fenMatch) {
+      fen = fenMatch[1].trim();
+    } else {
+      // Normal PGN → standard starting position
+      fen = "start";
+    }
+
+  } else {
+
+    // Assume FEN
+    fen = normalizeEditorFEN(input);
+
+  }
+
+  // ==========================================
+  // LOAD POSITION
+  // ==========================================
+  try {
+
+    if (fen === "start") {
+      editorChess.reset();
+    } else {
+      editorChess.load(fen);
+    }
+
+  } catch (e) {
+    alert("Invalid FEN or PGN.");
     return;
   }
 
-  // Update visual board
-  editorBoard.position(editorChess.fen(), false);
+  // Update board
+  editorBoard.position(editorChess.fen(), true);
 
-  // --------------------------
-  // Update side to move
-  // --------------------------
-  const parts = safeFen.split(" ");
+  // ==========================================
+  // Side to move
+  // ==========================================
+  const parts = editorChess.fen().split(" ");
 
-  document.getElementById("editorTurn").value =
-    parts[1] || "w";
+  document.getElementById("editorTurn").value = parts[1];
 
-  // --------------------------
-  // Update castling checkboxes
-  // --------------------------
-  const castle = parts[2] || "-";
+  // ==========================================
+  // Castling rights
+  // ==========================================
+  const castle = parts[2];
 
   castleWK.checked = castle.includes("K");
   castleWQ.checked = castle.includes("Q");
