@@ -76807,38 +76807,79 @@ const remaining =
       <div class="lp-att-card"
         onclick="LPAttendance.showStudent('${name}')">
 
-       <div style="
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:10px;
-">
+<div
+  style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+    gap:10px;
+  "
+>
 
-  <div class="lp-att-name">
-    ${name}
-  </div>
-
-  <button
-    onclick="
-  event.stopPropagation();
-  LPAttendance.openPDFDateModal('${name}');
-"
-
+  <div
+    class="lp-att-name"
     style="
-      border:none;
-      background:#2b3155;
-      color:white;
-      padding:5px 9px;
-      border-radius:8px;
-      cursor:pointer;
-      font-size:12px;
+      font-size:16px;
       font-weight:700;
+      color:white;
+      flex:1;
     "
   >
-    PDF
-  </button>
+    👨‍🎓 ${name}
+  </div>
+
+  <div
+    style="
+      display:flex;
+      gap:6px;
+      flex-shrink:0;
+    "
+  >
+
+    <button
+      onclick="
+event.stopPropagation();
+LPAttendance.openPDFDateModal('${name}');
+"
+      style="
+        border:none;
+        background:#2b3155;
+        color:white;
+        padding:5px 9px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:12px;
+        font-weight:700;
+      "
+    >
+      PDF
+    </button>
+
+    <button
+      onclick="
+event.stopPropagation();
+LPInvoice.openInvoiceModal('${name}');
+"
+      style="
+        border:none;
+        background:#0ea5e9;
+        color:white;
+        padding:5px 9px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:12px;
+        font-weight:700;
+      "
+    >
+      Invoice
+    </button>
+
+  </div>
 
 </div>
+
+
 
      <div class="lp-att-count">
   📚 ${batchMap[name] || "No Batch"}
@@ -78024,6 +78065,7 @@ pdf.save(
     deleteAttendance,
     openPDFDateModal,
 exportAttendancePDFWithRange,
+
 assignBatch,
 removeStudentFromBatch,
 deleteBatch,
@@ -78035,6 +78077,525 @@ saveSubscription
 
 })();
 window.LPAttendance = LPAttendance;
+// ======================================================
+// LP INVOICE SYSTEM
+// THE OLYMPUS CHESS ACADEMY
+// ======================================================
+
+const LPInvoice = (() => {
+
+let currentStudent = "";
+
+// --------------------------------------------------
+// Invoice Number Generator
+// --------------------------------------------------
+function generateInvoiceNo(){
+
+    const today = new Date();
+
+    const y = today.getFullYear();
+
+    const m = String(
+        today.getMonth()+1
+    ).padStart(2,"0");
+
+    const d = String(
+        today.getDate()
+    ).padStart(2,"0");
+
+    let counter =
+        localStorage.getItem("oca_invoice_counter");
+
+    if(!counter){
+
+        counter=1;
+
+    }else{
+
+        counter=Number(counter)+1;
+
+    }
+
+    localStorage.setItem(
+        "oca_invoice_counter",
+        counter
+    );
+
+    return `TOCA-${y}${m}${d}-${String(counter).padStart(3,"0")}`;
+
+}
+
+// --------------------------------------------------
+// Today's Date
+// --------------------------------------------------
+function getToday(){
+
+return new Date().toLocaleDateString(
+"en-IN",
+{
+day:"2-digit",
+month:"long",
+year:"numeric"
+}
+);
+
+}
+
+// --------------------------------------------------
+// Open Invoice
+// --------------------------------------------------
+function openInvoiceModal(student){
+
+currentStudent=student;
+
+document.getElementById(
+"lpInvoiceModal"
+).style.display="flex";
+
+document.getElementById(
+"lpInvStudent"
+).value=student;
+
+document.getElementById(
+"lpInvNo"
+).value=generateInvoiceNo();
+
+document.getElementById(
+"lpInvDate"
+).value=getToday();
+
+document.getElementById(
+"lpInvDiscount"
+).value=0;
+
+// default
+
+document.getElementById(
+"lpInvClasses"
+).value=8;
+
+document.getElementById(
+"lpInvPrice"
+).value=150;
+
+calculateTotal();
+
+}
+
+// --------------------------------------------------
+// Close
+// --------------------------------------------------
+function closeModal(){
+
+document.getElementById(
+"lpInvoiceModal"
+).style.display="none";
+
+}
+
+// --------------------------------------------------
+// Live Total
+// --------------------------------------------------
+function calculateTotal(){
+
+const classes=
+Number(
+document.getElementById(
+"lpInvClasses"
+).value
+)||0;
+
+const price=
+Number(
+document.getElementById(
+"lpInvPrice"
+).value
+)||0;
+
+const discount=
+Number(
+document.getElementById(
+"lpInvDiscount"
+).value
+)||0;
+
+const total=
+Math.max(
+(classes*price)-discount,
+0
+);
+
+document.getElementById(
+"lpInvoiceGrandTotal"
+).innerHTML=
+"₹"+total.toLocaleString();
+
+}
+// --------------------------------------------------
+// Auto Price
+// --------------------------------------------------
+
+function setupEvents(){
+
+document
+.querySelectorAll(
+'input[name="lpInvType"]'
+)
+.forEach(r=>{
+
+r.onchange=()=>{
+
+if(r.checked){
+
+if(r.value==="Batch"){
+
+document.getElementById(
+"lpInvPrice"
+).value=150;
+
+}else{
+
+document.getElementById(
+"lpInvPrice"
+).value=500;
+
+}
+
+calculateTotal();
+
+}
+
+};
+
+});
+
+[
+"lpInvClasses",
+"lpInvPrice",
+"lpInvDiscount"
+]
+.forEach(id=>{
+
+document
+.getElementById(id)
+.addEventListener(
+"input",
+calculateTotal
+);
+
+});
+
+}
+
+// Run once
+
+setTimeout(setupEvents,500);
+
+// --------------------------------------------------
+
+function generatePDF() {
+
+    const { jsPDF } = window.jspdf;
+
+    const pdf = new jsPDF("p", "mm", "a4");
+
+    // ====================================================
+    // COLORS
+    // ====================================================
+
+    const BLUE = [22, 82, 180];
+    const GOLD = [212, 175, 55];
+    const LIGHT = [245, 247, 250];
+    const DARK = [45, 45, 45];
+    const WHITE = [255,255,255];
+
+    // ====================================================
+    // VALUES
+    // ====================================================
+
+    const student =
+        document.getElementById("lpInvStudent").value || "-";
+
+    const invoiceNo =
+        document.getElementById("lpInvNo").value || "-";
+
+    const date =
+        document.getElementById("lpInvDate").value || "-";
+
+    const classes =
+        Number(document.getElementById("lpInvClasses").value) || 0;
+
+    const rate =
+        Number(document.getElementById("lpInvPrice").value) || 0;
+
+    const discount =
+        Number(document.getElementById("lpInvDiscount").value) || 0;
+
+    const type =
+        document.querySelector('input[name="lpInvType"]:checked').value;
+
+    const notes = "Chess Coaching";
+
+    const subtotal = classes * rate;
+
+    const total = Math.max(subtotal - discount, 0);
+
+    // ====================================================
+    // HEADER
+    // ====================================================
+
+    pdf.setFillColor(...BLUE);
+    pdf.rect(0,0,210,35,"F");
+
+    pdf.setTextColor(...WHITE);
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(22);
+
+    pdf.text("THE OLYMPUS CHESS ACADEMY",105,16,{
+        align:"center"
+    });
+
+    pdf.setFontSize(11);
+    pdf.setFont("helvetica","normal");
+
+    pdf.text(
+        "Professional Chess Coaching & Training",
+        105,
+        24,
+        {align:"center"}
+    );
+
+    pdf.setFillColor(...GOLD);
+    pdf.rect(0,35,210,3,"F");
+
+    // ====================================================
+    // TITLE
+    // ====================================================
+
+    pdf.setTextColor(...DARK);
+
+    pdf.setFontSize(22);
+    pdf.setFont("helvetica","bold");
+
+    pdf.text("INVOICE",15,50);
+
+    // ====================================================
+    // INVOICE BOX
+    // ====================================================
+
+    pdf.setFillColor(...LIGHT);
+    pdf.roundedRect(15,58,180,42,3,3,"F");
+
+    pdf.setFontSize(11);
+    pdf.setFont("helvetica","bold");
+
+    pdf.text("Invoice No",22,70);
+    pdf.text("Date",22,80);
+
+    pdf.text("Student",105,70);
+    pdf.text("Class Type",105,80);
+
+    pdf.setFont("helvetica","normal");
+
+    pdf.text(invoiceNo,50,70);
+
+    pdf.text(date,50,80);
+
+    pdf.text(student,135,70);
+
+    pdf.text(type,135,80);
+
+    // ====================================================
+    // TABLE HEADER
+    // ====================================================
+
+    let y = 115;
+
+    pdf.setFillColor(...BLUE);
+    pdf.rect(15,y,180,10,"F");
+
+    pdf.setTextColor(...WHITE);
+
+    pdf.setFont("helvetica","bold");
+
+    pdf.text("Description",20,y+7);
+
+    pdf.text("Qty",112,y+7);
+
+    pdf.text("Rate",138,y+7);
+
+    pdf.text("Amount",168,y+7);
+
+    // ====================================================
+    // TABLE ROW
+    // ====================================================
+
+    y += 10;
+
+    pdf.setTextColor(...DARK);
+
+    pdf.setDrawColor(220);
+
+    pdf.rect(15,y,180,14);
+
+    pdf.setFont("helvetica","normal");
+
+    pdf.text(notes,20,y+9);
+
+    pdf.text(String(classes),113,y+9);
+
+    pdf.text("Rs "+rate,138,y+9);
+
+    pdf.text("Rs "+subtotal,168,y+9);
+
+    // ====================================================
+    // TOTAL BOX
+    // ====================================================
+
+    y += 24;
+
+    pdf.setFillColor(250,250,250);
+
+    pdf.roundedRect(115,y,80,34,2,2,"F");
+
+    pdf.setFont("helvetica","normal");
+
+    pdf.text("Subtotal",122,y+10);
+
+    pdf.text("Rs "+subtotal,168,y+10);
+
+    pdf.text("Discount",122,y+20);
+
+    pdf.text("Rs "+discount,168,y+20);
+
+    pdf.setFont("helvetica","bold");
+
+    pdf.setFontSize(13);
+
+    pdf.setTextColor(...BLUE);
+
+    pdf.text("Grand Total",122,y+31);
+
+    pdf.text("Rs "+total,168,y+31);
+
+    // ====================================================
+    // NOTES
+    // ====================================================
+
+    y += 48;
+
+    pdf.setTextColor(...DARK);
+
+    pdf.setFontSize(13);
+
+    pdf.setFont("helvetica","bold");
+
+    pdf.text("Notes",15,y);
+
+    pdf.setFont("helvetica","normal");
+
+    pdf.setFontSize(10);
+
+    pdf.roundedRect(15,y+4,180,24,2,2);
+
+    pdf.text(notes,20,y+15);
+
+// ====================================================
+// SIGNATURE
+// ====================================================
+
+y += 52;
+
+// Signature line (slightly longer)
+pdf.setDrawColor(80);
+pdf.setLineWidth(0.4);
+pdf.line(118, y, 196, y);
+
+// Name (larger & bold)
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(13);
+pdf.text("Mrs. Ananya Sarkar", 157, y - 6, {
+    align: "center"
+});
+
+// Designation
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(10);
+pdf.text("Assistant Manager", 157, y + 4, {
+    align: "center"
+});
+
+// Label
+pdf.setFont("helvetica", "italic");
+pdf.setFontSize(10);
+pdf.text("Authorized Signature", 157, y + 11, {
+    align: "center"
+});
+
+    // ====================================================
+    // FOOTER
+    // ====================================================
+
+    pdf.setFillColor(...BLUE);
+
+    pdf.rect(0,284,210,13,"F");
+
+    pdf.setTextColor(...WHITE);
+
+    pdf.setFontSize(10);
+
+    pdf.text(
+        "Thank you for choosing The Olympus Chess Academy",
+        105,
+        292,
+        {
+            align:"center"
+        }
+    );
+
+    // ==========================
+// PAID STAMP (Bottom Left)
+// ==========================
+
+// Stamp border
+pdf.setDrawColor(200, 0, 0); // Red
+pdf.setLineWidth(1.2);
+pdf.roundedRect(18, 255, 45, 16, 2, 2);
+
+// Stamp text
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(22);
+pdf.setTextColor(200, 0, 0); // Red
+pdf.text("PAID", 40.5, 266, {
+  align: "center"
+});
+
+// Reset
+pdf.setTextColor(0, 0, 0);
+
+    pdf.save(`Invoice_${student}.pdf`);
+
+    closeModal();
+
+}
+
+// --------------------------------------------------
+
+return{
+
+openInvoiceModal,
+
+closeModal,
+
+calculateTotal,
+
+generatePDF
+
+};
+
+})();
+
+window.LPInvoice=LPInvoice;
 
 
 
@@ -85980,6 +86541,319 @@ window.addEventListener("DOMContentLoaded", () => {
 =========================================== -->
 
 <div id="networkBanner" class="networkBanner"></div>
+<!-- =======================================================
+     OLYMPUS INVOICE MODAL
+======================================================== -->
+<div id="lpInvoiceModal"
+style="
+position:fixed;
+inset:0;
+background:rgba(0,0,0,.72);
+display:none;
+justify-content:center;
+align-items:center;
+z-index:999999;
+backdrop-filter:blur(6px);
+padding:10px;
+">
+
+<div
+style="
+width:100%;
+max-width:520px;
+background:#111827;
+border-radius:16px;
+border:1px solid rgba(255,255,255,.08);
+overflow:hidden;
+box-shadow:0 20px 60px rgba(0,0,0,.45);
+">
+
+<!-- HEADER -->
+
+<div
+style="
+background:#0f172a;
+padding:12px 16px;
+border-bottom:1px solid rgba(255,255,255,.08);
+">
+
+<div
+style="
+font-size:18px;
+font-weight:800;
+color:#FFD700;
+">
+
+♟ THE OLYMPUS CHESS ACADEMY
+
+</div>
+
+<div
+style="
+font-size:11px;
+opacity:.8;
+margin-top:2px;
+">
+
+Professional Invoice Generator
+
+</div>
+
+</div>
+
+<!-- BODY -->
+
+<div
+style="
+padding:14px;
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+">
+
+<!-- Student -->
+
+<div>
+
+<label style="font-size:12px;">Student Name</label>
+
+<input
+id="lpInvStudent"
+type="text"
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Invoice -->
+
+<div>
+
+<label style="font-size:12px;">Invoice No.</label>
+
+<input
+id="lpInvNo"
+readonly
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Date -->
+
+<div>
+
+<label style="font-size:12px;">Date</label>
+
+<input
+id="lpInvDate"
+readonly
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Classes -->
+
+<div>
+
+<label style="font-size:12px;">Classes</label>
+
+<input
+id="lpInvClasses"
+type="number"
+value="8"
+min="1"
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Price -->
+
+<div>
+
+<label style="font-size:12px;">Rate / Class (₹)</label>
+
+<input
+id="lpInvPrice"
+type="number"
+value="200"
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Discount -->
+
+<div>
+
+<label style="font-size:12px;">Discount (₹)</label>
+
+<input
+id="lpInvDiscount"
+type="number"
+value="0"
+style="
+width:100%;
+padding:7px 10px;
+border-radius:8px;
+"
+>
+
+</div>
+
+<!-- Class Type -->
+
+<div style="grid-column:1/3;">
+
+<label style="font-size:12px;">Class Type</label>
+
+<div
+style="
+display:flex;
+align-items:center;
+gap:20px;
+margin-top:6px;
+"
+>
+
+<label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+
+<input
+type="radio"
+name="lpInvType"
+value="Batch"
+checked
+>
+
+Batch
+
+</label>
+
+<label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+
+<input
+type="radio"
+name="lpInvType"
+value="One-to-One"
+>
+
+One-to-One
+
+</label>
+
+</div>
+
+</div>
+
+<!-- Total -->
+
+<div
+style="
+grid-column:1/3;
+display:flex;
+justify-content:space-between;
+align-items:center;
+background:#1f2937;
+padding:12px 14px;
+border-radius:10px;
+margin-top:2px;
+">
+
+<div
+style="
+font-size:18px;
+font-weight:700;
+">
+
+Grand Total
+
+</div>
+
+<div
+id="lpInvoiceGrandTotal"
+style="
+font-size:24px;
+font-weight:800;
+color:#FFD700;
+">
+
+₹1600
+
+</div>
+
+</div>
+
+</div>
+
+<!-- FOOTER -->
+
+<div
+style="
+padding:12px 16px;
+display:flex;
+justify-content:flex-end;
+gap:8px;
+border-top:1px solid rgba(255,255,255,.08);
+">
+
+<button
+onclick="LPInvoice.closeModal()"
+style="
+padding:8px 14px;
+border:none;
+border-radius:8px;
+background:#374151;
+color:white;
+cursor:pointer;
+">
+
+Cancel
+
+</button>
+
+<button
+onclick="LPInvoice.generatePDF()"
+style="
+padding:8px 16px;
+border:none;
+border-radius:8px;
+background:#4f46e5;
+color:white;
+font-weight:700;
+cursor:pointer;
+">
+
+Generate PDF
+
+</button>
+
+</div>
+
+</div>
+
+</div>
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
