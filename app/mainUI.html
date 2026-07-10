@@ -10412,14 +10412,21 @@ No JS / No HTML changes
   justify-content: space-between;
   padding: 6px 12px;
   background: #1e223f;
+  border: 2px solid transparent;   /* Added */
   border-radius: 8px;
   font-size: 16px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+/* Active player's turn */
+.mp-player.active-turn {
+  border-color: #39ff14;
+  box-shadow: 0 0 14px rgba(57,255,20,.65);
 }
 
 .mp-opponent {
   margin-bottom: 6px;
 }
-
 
 .mp-you {
   margin-top: 6px;
@@ -55144,6 +55151,7 @@ function mpInstantMove(from, to, promotion = 'q') {
 
   if (mpBoard) {
     mpBoard.position(mpChess.fen(), false) // NO animation = instant
+    updateTurnHighlight();
   }
 
   // Sound + arrow
@@ -55701,7 +55709,7 @@ async function mpHardResetRoom(newSide = null, keepTime = false) {
   mpClearCheckHighlight()
 
   mpBoard.position(mpChess.fen(), false)
-
+updateTurnHighlight()
   // 🔥 REATTACH CHECK SYSTEM
   attachCheckHook(mpBoard, mpChess, "mpBoard")
 }
@@ -55945,7 +55953,27 @@ function stopClock() {
   }
 }
 
+function updateTurnHighlight() {
 
+  const youBar = document.querySelector(".mp-you");
+  const opponentBar = document.querySelector(".mp-opponent");
+
+  if (!youBar || !opponentBar) return;
+
+  let whiteBar;
+  let blackBar;
+
+  if (mySide === "w") {
+    whiteBar = youBar;
+    blackBar = opponentBar;
+  } else {
+    whiteBar = opponentBar;
+    blackBar = youBar;
+  }
+
+  whiteBar.classList.toggle("active-turn", serverTurn === "w");
+  blackBar.classList.toggle("active-turn", serverTurn === "b");
+}
 
 function highlightMpSquare(square) {
   clearMpHighlights()
@@ -56394,7 +56422,7 @@ mpBoard.orientation(mySide === 'b' ? 'black' : 'white')
 mpClearCheckHighlight()
 
 mpBoard.position(data.fen, false)
-
+updateTurnHighlight()
 // 🔥 REATTACH CHECK SYSTEM
 attachCheckHook(mpBoard, mpChess, "mpBoard")
 
@@ -56626,7 +56654,7 @@ if (mpBoard) {
   mpClearCheckHighlight()
 
   mpBoard.position(mpChess.fen(), false)
-
+updateTurnHighlight()
   // 🔥 REATTACH CHECK SYSTEM
   attachCheckHook(mpBoard, mpChess, "mpBoard")
 }
@@ -56836,6 +56864,7 @@ if (mpBoard) {
 
   // 🔥 REATTACH AFTER EVERY SERVER UPDATE
   attachCheckHook(mpBoard, mpChess, "mpBoard")
+  updateTurnHighlight();
 }
   // 🔥 FORCE NAME UPDATE AFTER BOARD RENDER
 setTimeout(() => {
