@@ -22944,7 +22944,87 @@ box-shadow:
 }
 
 
+/* ===========================================
+🌐 NETWORK STATUS BANNER
+=========================================== */
 
+.networkBanner{
+
+    position:fixed;
+
+    top:100px;
+
+    left:50%;
+
+    transform:translate(-50%,-120px);
+
+    min-width:280px;
+
+    max-width:500px;
+
+    padding:14px 22px;
+
+    border-radius:14px;
+
+    color:#fff;
+
+    font-size:15px;
+
+    font-weight:600;
+
+    text-align:center;
+
+    z-index:999999;
+
+    box-shadow:
+        0 8px 25px rgba(0,0,0,.28);
+
+    transition:
+        transform .35s ease,
+        background .25s ease,
+        opacity .25s ease;
+
+    opacity:0;
+
+    pointer-events:none;
+
+    backdrop-filter:blur(14px);
+
+    -webkit-backdrop-filter:blur(14px);
+
+}
+
+.networkBanner.show{
+
+    transform:translate(-50%,0);
+
+    opacity:1;
+
+}
+
+/* Offline */
+
+.networkBanner.offline{
+
+    background:#d32f2f;
+
+}
+
+/* Slow */
+
+.networkBanner.slow{
+
+    background:#ef6c00;
+
+}
+
+/* Online */
+
+.networkBanner.online{
+
+    background:#2e7d32;
+
+}
 
 
 
@@ -82530,15 +82610,202 @@ function createLogicPuzzle(diff){
 }
 
 
+/* ===========================================
+🌐 SMART NETWORK STATUS
+=========================================== */
+
+let networkHideTimer = null;
+
+let currentNetworkState = "";
+
+const networkBanner =
+document.getElementById("networkBanner");
+
+function showNetworkBanner(
+    message,
+    type = "offline",
+    autoHide = false
+){
+
+    if(!networkBanner) return;
+
+    clearTimeout(networkHideTimer);
+
+    networkBanner.className =
+        "networkBanner show " + type;
+
+    networkBanner.innerHTML = message;
+
+    if(autoHide){
+
+        networkHideTimer =
+setTimeout(()=>{
+
+    networkBanner.classList.remove("show");
+
+    if(currentNetworkState !== "offline"){
+        currentNetworkState = "";
+    }
+
+},2200);
+
+    }
+    
+
+}
+
+function hideNetworkBanner(){
+
+    if(!networkBanner) return;
+
+    clearTimeout(networkHideTimer);
+
+    networkBanner.classList.remove("show");
+
+    if(currentNetworkState !== "offline"){
+        currentNetworkState = "";
+    }
+
+}
 
 
+/* ===========================================
+📡 OFFLINE
+=========================================== */
 
+window.addEventListener("offline",()=>{
 
+    if(currentNetworkState==="offline")
+        return;
 
+    currentNetworkState="offline";
 
+    showNetworkBanner(
 
+        "📡 No Internet Connection<br><small>Trying to reconnect...</small>",
 
+        "offline"
 
+    );
+
+});
+
+/* ===========================================
+🌍 ONLINE
+=========================================== */
+
+window.addEventListener("online",()=>{
+
+    currentNetworkState="online";
+
+    showNetworkBanner(
+
+        "✅ Back Online",
+
+        "online",
+
+        true
+
+    );
+
+});
+
+/* ===========================================
+🐢 SLOW CONNECTION
+=========================================== */
+
+const connection =
+
+navigator.connection ||
+
+navigator.mozConnection ||
+
+navigator.webkitConnection;
+
+if(connection){
+
+    function checkConnection(){
+
+        if(!navigator.onLine)
+            return;
+
+        const slow =
+
+            connection.effectiveType==="slow-2g" ||
+
+            connection.effectiveType==="2g" ||
+
+            connection.downlink<1;
+
+        if(slow){
+
+    if(currentNetworkState==="slow")
+        return;
+
+    currentNetworkState="slow";
+
+    showNetworkBanner(
+
+        "🐢 Slow Network Detected<br><small>Some actions may take longer.</small>",
+
+        "slow",
+
+        true
+
+    );
+
+}else{
+
+    // Connection is no longer slow
+    if(currentNetworkState==="slow"){
+        currentNetworkState="";
+    }
+
+}
+
+    }
+
+    checkConnection();
+
+    connection.addEventListener(
+
+        "change",
+
+        checkConnection
+
+    );
+
+}
+
+/* ===========================================
+🚀 INITIAL CHECK
+=========================================== */
+
+if(!navigator.onLine){
+
+    currentNetworkState="offline";
+
+    showNetworkBanner(
+
+        "📡 No Internet Connection<br><small>Trying to reconnect...</small>",
+
+        "offline"
+
+    );
+
+}
+
+window.testSlowNetwork = function(){
+
+    currentNetworkState = "slow";
+
+    showNetworkBanner(
+        "🐢 Slow Network Detected<br><small>Some actions may take longer.</small>",
+        "slow",
+        true
+    );
+
+};
 
 // ============================================
 // SAFE START APP (WAIT FOR SUPABASE SESSION)
@@ -85708,6 +85975,11 @@ window.addEventListener("DOMContentLoaded", () => {
 </div>
 
 </div>
+<!-- ===========================================
+🌐 NETWORK STATUS BANNER
+=========================================== -->
+
+<div id="networkBanner" class="networkBanner"></div>
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
