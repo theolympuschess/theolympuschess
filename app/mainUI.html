@@ -25289,7 +25289,7 @@ title="Voice volume"
     cursor:pointer;
   "
 >
-  📥 Import PGN
+  📥 Import PGN / FEN
 </button>
 
 <!-- 🔥 PGN IMPORT MODAL -->
@@ -69242,24 +69242,51 @@ document.getElementById(
 
   try {
 
-    const testGame =
-      new Chess();
+    // =====================================
+// TRY TO LOAD AS PGN
+// =====================================
 
-    const loaded =
-      testGame.load_pgn(rawPgn);
+const testGame =
+  new Chess();
 
-    if (!loaded) {
+if (testGame.load_pgn(rawPgn)) {
 
-      showToast(
-        "❌ Invalid PGN"
-      );
+  // Normal PGN
+  puzzles =
+    splitPGN(rawPgn);
 
-      return;
-    }
+}
 
-    // 🔥 LOAD AS LIVE PUZZLES
-    puzzles =
-      splitPGN(rawPgn);
+// =====================================
+// TRY TO LOAD AS FEN
+// =====================================
+
+else {
+
+  const fenGame =
+    new Chess();
+
+  if (!fenGame.load(rawPgn)) {
+
+    showToast(
+      "❌ Invalid PGN or FEN"
+    );
+
+    return;
+
+  }
+
+  // Convert FEN into a valid PGN
+  puzzles = [
+
+`[Event "Imported FEN"]
+[FEN "${rawPgn}"]
+
+*`
+
+  ];
+
+}
 
     currentIndex = 0;
 
@@ -69270,7 +69297,7 @@ document.getElementById(
     closeImportPgnModal();
 
     showToast(
-      "✅ PGN Imported"
+      "✅ PGN / FEN Imported"
     );
 
   } catch(err) {
