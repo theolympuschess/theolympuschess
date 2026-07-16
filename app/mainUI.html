@@ -75431,6 +75431,25 @@ if (
 
   updateClassroomTitle();
 
+if (!isAdmin && roomCode) {
+
+  console.log("Updating classroom title...");
+
+  supabase
+    .from("live_puzzle_attempts")
+    .update({
+      classroom_title: classroomTitle
+    })
+    .eq("room_code", roomCode)
+    .eq("user_id", currentUserId)
+    .select()
+    .then(({ data, error }) => {
+      console.log("UPDATE DATA =", data);
+      console.log("UPDATE ERROR =", error);
+    });
+
+}
+
   return;
 }
     // ================= JOIN BANNER =================
@@ -77062,9 +77081,31 @@ function showStudent(name) {
 
                 <div class="lp-att-date-row">
 
-                  <div>
-                    🕒 ${time}
-                  </div>
+               <div style="
+  flex:1;
+">
+
+<div style="
+  font-size:16px;
+  font-weight:600;
+">
+  🕒 ${time}
+</div>
+
+  ${r.classroom_title ? `
+    <div style="
+      text-align:center;
+      font-size:15px;
+      color:#FFD700;
+      margin-top:-6px;
+      font-weight:700;
+      width:100%;
+    ">
+      📚 ${r.classroom_title}
+    </div>
+  ` : ""}
+
+</div>
 
                   <button
                     class="lp-att-delete"
@@ -78013,41 +78054,55 @@ if (uniqueDays.length === 0) {
 
 } else {
 
-  uniqueDays.forEach((day, index) => {
+rows.forEach((r, index) => {
 
-    if (y > 275) {
-      pdf.addPage();
-      y = 20;
-    }
+  const day =
+    new Date(r.started_at + "Z")
+    .toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
 
-    // alternating row colors
-    if (index % 2 === 0) {
-      pdf.setFillColor(248,249,251);
-    } else {
-      pdf.setFillColor(238,242,247);
-    }
+  if (y > 275) {
+    pdf.addPage();
+    y = 20;
+  }
 
-    pdf.roundedRect(
-      18,
-      y - 5,
-      170,
-      9,
-      2,
-      2,
-      "F"
-    );
+  if (index % 2 === 0) {
+    pdf.setFillColor(248,249,251);
+  } else {
+    pdf.setFillColor(238,242,247);
+  }
 
-    pdf.setTextColor(...softDark);
+  pdf.roundedRect(
+    18,
+    y - 5,
+    170,
+    9,
+    2,
+    2,
+    "F"
+  );
 
-    pdf.text(
-      "✓ " + day,
-      24,
-      y
-    );
+  pdf.setTextColor(...softDark);
 
-    y += 11;
+  let attendanceText = `✓ ${day}`;
 
-  });
+  if (r.classroom_title) {
+    attendanceText += ` - ${r.classroom_title}`;
+  }
+
+  pdf.text(
+    attendanceText,
+    24,
+    y
+  );
+
+  y += 11;
+
+});
 
 }
 
