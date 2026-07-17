@@ -23436,6 +23436,248 @@ box-shadow:
 
 }
 
+
+#mpCoachChallengeModal{
+
+    position:fixed;
+    inset:0;
+
+    background:rgba(0,0,0,.65);
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    z-index:99999;
+
+}
+
+
+#mpCoachChallengeModal.hidden{
+
+    display:none;
+
+}
+
+
+.mp-coach-challenge-box{
+
+    width:550px;
+    max-width:95%;
+
+    padding:30px;
+
+    border-radius:20px;
+
+    background:linear-gradient(
+        145deg,
+        #11193d,
+        #1a2557
+    );
+
+}
+
+
+.mp-coach-title{
+
+    color:#FFD700;
+    text-align:center;
+    font-size:28px;
+    margin-bottom:25px;
+
+}
+
+
+.mp-coach-section{
+
+    margin-bottom:20px;
+
+}
+
+
+.mp-coach-section h4{
+
+    color:#FFD700;
+    margin-bottom:10px;
+
+}
+
+
+.mp-coach-challenge-box select{
+
+    width:100%;
+    padding:15px;
+
+    border-radius:12px;
+
+    background:#262d58;
+    color:white;
+
+}
+
+
+.mpCoachActions{
+
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+
+    margin-top:25px;
+
+}
+
+
+.mpCoachActions button{
+
+    padding:12px 18px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+
+}
+
+
+
+
+.coachColorOption{
+
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    margin-bottom:15px;
+
+    color:white;
+    font-size:18px;
+
+}
+
+
+.coachColorOption input{
+
+    cursor:pointer;
+
+}
+
+
+.coachColorOption span{
+
+    cursor:pointer;
+
+}
+
+#mpCreateBtn{
+    background:linear-gradient(135deg,#FFB347,#FF7A00);
+}
+
+#mpCoachChallengeBtn{
+    background:linear-gradient(135deg,#00B4DB,#0083B0);
+}
+
+#mpChallengeBtn{
+    background:linear-gradient(135deg, #F9D423, #FFB347);
+}
+
+#mpJoinBtn{
+
+    width:100%;
+    padding:15px;
+
+    border:none;
+    border-radius:14px;
+
+    cursor:pointer;
+
+    font-size:16px;
+    font-weight:700;
+
+    color:white;
+
+    background:linear-gradient(
+        135deg,
+        #00C853,
+        #00A152
+    );
+
+    transition:.2s ease;
+
+    box-shadow:
+    0 6px 20px rgba(0,200,83,.25);
+
+}
+
+
+#mpJoinBtn:hover{
+
+    transform:translateY(-2px);
+
+    box-shadow:
+    0 10px 30px rgba(0,200,83,.35);
+
+}
+
+#mpLaunchCoachChallengeBtn{
+    background:linear-gradient(
+        135deg,
+        #D4AF37,
+        #C99700
+    );
+
+    color:white;
+    border:none;
+    border-radius:12px;
+    font-weight:700;
+
+    box-shadow:
+    0 4px 12px rgba(212,175,55,.18);
+
+    transition:.2s ease;
+}
+
+#mpLaunchCoachChallengeBtn:hover{
+
+    transform:translateY(-2px);
+
+    box-shadow:
+    0 6px 18px rgba(212,175,55,.25);
+
+}
+
+#mpCloseCoachChallengeBtn{
+
+    padding:14px 28px;
+    border:none;
+    border-radius:12px;
+
+    font-size:16px;
+    font-weight:700;
+
+    color:white;
+    cursor:pointer;
+
+    background:linear-gradient(
+        135deg,
+        #5F6C7B,
+        #3C4856
+    );
+
+    box-shadow:
+    0 6px 20px rgba(0,0,0,.25);
+
+    transition:all .2s ease;
+
+}
+
+#mpCloseCoachChallengeBtn:hover{
+
+    transform:translateY(-2px);
+
+    box-shadow:
+    0 10px 25px rgba(0,0,0,.35);
+
+}
+
+
   </style>
 </head>
 
@@ -25198,9 +25440,12 @@ title="Voice volume"
 <button id="mpCreateBtn">
 ⚔️ Launch Match
 </button>
+<button id="mpCoachChallengeBtn" data-role="admin-only">
+    🎯 Challenge Student
+</button>
 
 <button id="mpChallengeBtn" data-role="admin-only">
-    ⚔️ Student Match Setup
+    🏆 Student Battle
 </button>
 
 </div>
@@ -56452,6 +56697,125 @@ function stopClock() {
 let currentMatchChallenge = null;
 let currentChallengeID = null;
 
+const mpLaunchCoachChallengeBtn =
+document.getElementById(
+    "mpLaunchCoachChallengeBtn"
+);
+
+if (mpLaunchCoachChallengeBtn) {
+
+    mpLaunchCoachChallengeBtn.onclick =
+    async () => {
+
+        const student = document.getElementById(
+            "mpCoachChallengePlayer"
+        ).value;
+
+        const time = document.getElementById(
+            "mpCoachChallengeTime"
+        ).value;
+
+        const color = document.querySelector(
+            'input[name="coachColor"]:checked'
+        ).value;
+
+
+        let whitePlayer;
+        let blackPlayer;
+
+
+        // COACH WHITE
+
+        if (color === "white") {
+
+            whitePlayer = currentProfile.username;
+            blackPlayer = student;
+
+        }
+
+
+        // COACH BLACK
+
+        if (color === "black") {
+
+            whitePlayer = student;
+            blackPlayer = currentProfile.username;
+
+        }
+
+
+        // RANDOM COLORS
+
+        if (color === "random") {
+
+            if (Math.random() < 0.5) {
+
+                whitePlayer = currentProfile.username;
+                blackPlayer = student;
+
+            } else {
+
+                whitePlayer = student;
+                blackPlayer = currentProfile.username;
+
+            }
+
+        }
+
+
+        // TEMPORARY TEST
+
+    const challenge = await createMatchChallenge(
+
+    whitePlayer,
+    blackPlayer,
+    Number(time),
+    0
+
+);
+currentChallengeID = challenge.id;
+showChallengeWaitingModal(challenge);
+listenForChallengeUpdates(
+    challenge.id
+);
+mpCoachChallengeModal.classList.add("hidden");
+
+    };
+
+}
+
+const mpCoachChallengeBtn =
+document.getElementById("mpCoachChallengeBtn");
+
+const mpCoachChallengeModal =
+document.getElementById("mpCoachChallengeModal");
+
+const mpCloseCoachChallengeBtn =
+document.getElementById("mpCloseCoachChallengeBtn");
+
+if (mpCoachChallengeBtn) {
+
+    mpCoachChallengeBtn.onclick = async () => {
+
+        // We'll populate students later
+        await populateCoachChallengePlayers();
+
+        mpCoachChallengeModal.classList.remove("hidden");
+
+    };
+
+}
+
+if (mpCloseCoachChallengeBtn) {
+
+    mpCloseCoachChallengeBtn.onclick = () => {
+
+        mpCoachChallengeModal.classList.add("hidden");
+
+    };
+
+}
+
 const mpAcceptChallengeBtn =
 document.getElementById(
     "mpAcceptChallengeBtn"
@@ -56502,6 +56866,74 @@ if (mpCloseChallengeBtn) {
         mpChallengeModal.classList.add("hidden");
 
     };
+
+}
+
+async function populateCoachChallengePlayers() {
+
+    const player =
+    document.getElementById(
+        "mpCoachChallengePlayer"
+    );
+
+    if (!player) return;
+
+    // Clear old options
+    player.innerHTML = "";
+
+
+    // Fetch active students
+
+    const { data: students, error } =
+    await supabase
+        .from("profiles")
+        .select("username")
+        .eq("role", "student")
+        .eq("active", true);
+
+
+    if (error) {
+
+        console.error(error);
+        return;
+
+    }
+
+
+    // Sort alphabetically
+
+    students.sort((a,b)=>
+
+        a.username.localeCompare(
+            b.username
+        )
+
+    );
+
+
+    // Placeholder
+
+    player.innerHTML =
+
+    '<option value="">Select Student</option>';
+
+
+    // Add all students
+
+    students.forEach(student=>{
+
+        const option =
+        document.createElement("option");
+
+        option.value =
+        student.username;
+
+        option.textContent =
+        student.username;
+
+        player.appendChild(option);
+
+    });
 
 }
 
@@ -88717,6 +89149,97 @@ Generate PDF
             <button id="mpAcceptChallengeBtn">
 
                 Accept
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div id="mpCoachChallengeModal" class="hidden">
+
+    <div class="mp-coach-challenge-box">
+
+        <h3 class="mp-coach-title">
+            👑 Coach vs Student Match
+        </h3>
+
+        <div class="mp-coach-section">
+
+            <h4>TIME CONTROL</h4>
+
+            <select id="mpCoachChallengeTime">
+
+                <option value="60">1 Min</option>
+                <option value="120">2 Min</option>
+                <option value="180">3 Min</option>
+                <option value="300">5 Min</option>
+                <option value="600">10 Min</option>
+                <option value="900">15 Min</option>
+                <option value="1800">30 Min</option>
+
+            </select>
+
+        </div>
+
+        <div class="coachColorOption">
+
+    <input type="radio"
+           name="coachColor"
+           value="random"
+           checked>
+
+    <span>Random</span>
+
+</div>
+
+
+<div class="coachColorOption">
+
+    <input type="radio"
+           name="coachColor"
+           value="white">
+
+    <span>Coach White</span>
+
+</div>
+
+
+<div class="coachColorOption">
+
+    <input type="radio"
+           name="coachColor"
+           value="black">
+
+    <span>Coach Black</span>
+
+</div>
+
+
+        <div class="mp-coach-section">
+
+            <h4>SELECT STUDENT</h4>
+
+            <select id="mpCoachChallengePlayer">
+
+            </select>
+
+        </div>
+
+
+        <div class="mpCoachActions">
+
+            <button id="mpCloseCoachChallengeBtn">
+
+                Cancel
+
+            </button>
+
+            <button id="mpLaunchCoachChallengeBtn">
+
+                Launch Match
 
             </button>
 
