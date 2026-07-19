@@ -59886,6 +59886,7 @@ let battleTargetScore = null; // Score to beat
 let battleWinnerDeclared = false;
 let battleYouFrozen = false;
 
+
 // ===============================
 // ♕ BATTLE PROMOTION STATE
 // ===============================
@@ -59912,6 +59913,7 @@ function freezeBattleBoard() {
 let puzzleBattleChallengeChannel = null;
 let currentPuzzleBattleChallenge = null;
 let puzzleBattleChallengeUpdateChannel = null;
+let currentPBChallengeID = null;
 
 async function createPuzzleBattleChallenge(
     challengerId,
@@ -59990,6 +59992,7 @@ function listenForPuzzleBattleChallenges() {
 // BUTTON EVENTS
 // =====================================
 
+
 const pbAcceptChallengeBtn =
 document.getElementById(
     "pbAcceptChallengeBtn"
@@ -60031,14 +60034,28 @@ document.getElementById(
 
 if (pbCancelChallengeBtn) {
 
-    pbCancelChallengeBtn.onclick = () => {
+    pbCancelChallengeBtn.onclick =
+    async () => {
+
+        await supabase
+        .from("puzzle_battle_challenges")
+        .update({
+
+            status: "cancelled"
+
+        })
+   .eq(
+    "id",
+    currentPBChallengeID
+);
+
 
         document
-            .getElementById(
-                "pbChallengeModal"
-            )
-            .classList
-            .add("hidden");
+        .getElementById(
+            "pbChallengeModal"
+        )
+        .classList
+        .add("hidden");
 
     };
 
@@ -60075,15 +60092,19 @@ if (pbLaunchChallengeBtn) {
             "pbChallengeTime"
         ).value;
 
-        const result =
-        await createPuzzleBattleChallenge(
+const result =
+await createPuzzleBattleChallenge(
 
-            currentUser.id,
-            selectedStudentId,
-            battleTime
+    currentUser.id,
+    selectedStudentId,
+    battleTime
 
-        );
-        listenForPuzzleBattleChallengeUpdates(
+);
+
+// ADD THIS LINE
+currentPBChallengeID = result.data.id;
+
+listenForPuzzleBattleChallengeUpdates(
     result.data.id
 );
 
@@ -60264,6 +60285,38 @@ document.getElementById(
 return;
 
     }
+
+    // SHOW CANCELLED MESSAGE
+
+if (
+    payload.new.status === "cancelled"
+) {
+
+    // CLOSE STUDENT INVITATION MODAL
+
+    document
+    .getElementById(
+        "pbChallengeInvitationModal"
+    )
+    ?.classList
+    .add("hidden");
+
+
+    // UPDATE ADMIN STATUS TEXT
+
+    document.getElementById(
+        "pbChallengeStatus"
+    ).style.color = "#ff4d4d";
+
+    document.getElementById(
+        "pbChallengeStatus"
+    ).textContent =
+    "Challenge cancelled.";
+
+
+    return;
+
+}
 
 
                 // Challenger creates the room
@@ -60639,7 +60692,21 @@ document.getElementById(
 
 if (svsCancelBattleBtn) {
 
-    svsCancelBattleBtn.onclick = () => {
+    svsCancelBattleBtn.onclick =
+    async () => {
+
+        await supabase
+        .from("puzzle_battle_rooms")
+        .update({
+
+            status: "cancelled"
+
+        })
+        .eq(
+            "id",
+            currentSVSRoomID
+        );
+
 
         document
         .getElementById(
@@ -60783,6 +60850,8 @@ await supabase
 .single();
 
 
+
+
 if (error) {
 
     console.error(error);
@@ -60794,6 +60863,8 @@ if (error) {
     return;
 
 }
+
+currentSVSRoomID = data.id;
 
 
 document.getElementById(
@@ -60809,6 +60880,7 @@ document.getElementById(
 
 
 let currentSVSBattleRoom = null;
+let currentSVSRoomID = null;
 
 const svsAcceptBattleBtn =
 document.getElementById(
@@ -61065,6 +61137,38 @@ function listenForSVSBattleUpdates() {
                     "SVS UPDATE RECEIVED",
                     payload.new
                 );
+
+                // ADMIN CANCELLED THE BATTLE
+
+if (
+
+    payload.new.status === "cancelled"
+
+) {
+
+    // Close Student Invitation Modal
+
+    document
+    .getElementById(
+        "svsBattleInvitationModal"
+    )
+    ?.classList
+    .add("hidden");
+
+
+    // Close Admin Modal
+
+    document
+    .getElementById(
+        "svsBattleModal"
+    )
+    ?.classList
+    .add("hidden");
+
+
+    return;
+
+}
 
                 if (
 
