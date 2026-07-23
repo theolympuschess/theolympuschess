@@ -24263,6 +24263,16 @@ STUDENT VS STUDENT INVITATION
   box-shadow: 0 0 12px rgba(229, 57, 53, 0.5);
 }
 
+
+
+body.admin-view #lpRaiseHandBtn {
+    display: none !important;
+}
+
+
+
+
+
   </style>
 </head>
 
@@ -26684,7 +26694,9 @@ data-role="admin-only">
         
         <input id="lpRoomCodeInput" placeholder="Enter Classroom Code" />
         <button id="lpJoinRoomBtn">✅ Join Class</button>
+        <button id="lpRaiseHandBtn">✋ Raise Hand</button>
         <button id="lpExitRoomBtn">❌ Exit Class</button>
+        
         
         <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE PIECE FILTER -->
@@ -73325,6 +73337,7 @@ let timeLeft = 0;
 let timerInterval = null;
 let isTimeUp = false;
 let currentUserId = null;
+let currentUsername = "";
 let studentMoves = {}; 
 let movesChannel = null; 
 let lpExitedRoom = false;
@@ -73371,6 +73384,7 @@ let lpSfDebounce = null;
     // =====================================
 // 📥 IMPORT PGN MODAL
 // =====================================
+
 
 document.getElementById(
   "lpImportPgnBtn"
@@ -73662,6 +73676,7 @@ shareBtn.classList.toggle(
     }
   );
     document.getElementById("lpJoinRoomBtn").onclick = joinRoom;
+    document.getElementById("lpRaiseHandBtn").onclick = raiseHand;
 document.getElementById("lpNextPuzzleBtn").onclick = nextPuzzle;
 document.getElementById("lpPrevPuzzleBtn").onclick = prevPuzzle;
 
@@ -77528,6 +77543,32 @@ updateScore(currentUserId, pointPerMove);
 
  handleCorrectMove(move);
 }
+async function raiseHand() {
+
+    if (!roomCode) return;
+
+    if (isAdmin) return;
+
+    if (!movesChannel) return;
+
+    await movesChannel.send({
+
+        type: "broadcast",
+
+        event: "raise_hand",
+
+        payload: {
+
+            user_id: currentUserId,
+            username: currentUsername
+
+        }
+
+    });
+
+    showToast("✋ Hand Raised!");
+
+}
 function showToast(msg) {
   console.log(msg);
 }
@@ -78276,6 +78317,7 @@ if (!roomExists) {
       if (profile?.username) {
         username = profile.username;
       }
+      currentUsername = username;
     }
   } catch (err) {
     console.warn("Username fetch failed:", err);
@@ -79647,6 +79689,17 @@ if (!isAdmin && roomCode) {
 
   return;
 }
+if (payload.event === "raise_hand") {
+
+    if (!isAdmin) return;
+
+showJoinBanner(
+    `✋ ${payload.payload.username} Raised hand`,false
+    
+);
+
+    return;
+}
     // ================= JOIN BANNER =================
 if (
   payload.event ===
@@ -79661,6 +79714,19 @@ showJoinBanner(
 
   return;
 }
+    // PUT IT HERE
+
+    if (payload.event === "student_exit") {
+
+        if (!isAdmin) return;
+
+        showJoinBanner(
+            `🙎🏻‍♂️ ${payload.payload.username} left the classroom.`
+            
+        );
+
+        return;
+    }
       // ================= ANALYSIS SHARE =================
 if (
   payload.event ===
@@ -80174,6 +80240,20 @@ function generateCode() {
 }
   // ================= EXIT CLASSROOM =================
 async function exitLiveClassroom() {
+
+  // STUDENT LEFT CLASSROOM
+
+if (!isAdmin && roomCode && movesChannel) {
+
+    await movesChannel.send({
+        type: "broadcast",
+        event: "student_exit",
+        payload: {
+            username: currentUsername
+        }
+    });
+
+}
 
 
 // ADMIN FORCE CLOSE CLASSROOM
