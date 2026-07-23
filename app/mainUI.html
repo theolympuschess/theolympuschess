@@ -26330,7 +26330,7 @@ data-role="admin-only">
 
 </div>
   <div id="lpClassroomTitle">
-  Classroom name
+  📚 Live Classroom
 </div>
 
   <!-- MAIN 2-COLUMN LAYOUT -->
@@ -78701,9 +78701,24 @@ if (movesChannel) {
   supabase.removeChannel(movesChannel);
 }
   movesChannel = supabase.channel("lp-moves-" + roomCode)
-    .on("broadcast", { event: "*" }, payload => {
+    .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+         // ================= ADMIN EXIT =================
+     if (payload.event === "admin_exit") {
+
+       // Admin ignores his own event
+       if (isAdmin) return;
+
+       showJoinBanner(
+         "🚨 Teacher has ended the classroom."
+       );
+
+       await exitLiveClassroom();
+
+       return;
+     }
     // =====================================
 // ♟ SHARED ANALYSIS SYNC
 // =====================================
@@ -80159,11 +80174,24 @@ function generateCode() {
 }
   // ================= EXIT CLASSROOM =================
 async function exitLiveClassroom() {
+
+
+// ADMIN FORCE CLOSE CLASSROOM
+if (isAdmin && roomCode && movesChannel) {
+
+  await movesChannel.send({
+    type: "broadcast",
+    event: "admin_exit",
+    payload: {}
+  });
+
+}
+
 lpExitedRoom = true;
 
-  // 🔥 SAVE BEFORE RESET
-  const oldRoomCode = roomCode;
-  const wasAdmin = isAdmin;
+// SAVE BEFORE RESET
+const oldRoomCode = roomCode;
+const wasAdmin = isAdmin;
 
   // ================= TIMER RESET =================
   clearInterval(timerInterval);
