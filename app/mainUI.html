@@ -27195,6 +27195,15 @@ data-role="admin-only">
   style="width:120px;"
 >
 
+<button
+id="lpAskQuizBtn"
+class="lp-admin-btn"
+style="background:#3F51B5;">
+
+🧩 Ask Quiz
+
+</button>
+
 <button id="lpAskRaceBtn">
   🎯 Create Race 
 </button>
@@ -71013,7 +71022,7 @@ if(!saved.xp){
 
 saved.xp += amount;
 showJoinBanner(
-`🎉 You've been awarded ${amount} XP!`, false
+`🎉 You've been awarded ${amount} XP!`
 );
 
 localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
@@ -73593,6 +73602,24 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+  /***********************
+ * QUIZ SYSTEM STATE
+ ************************/
+
+let quizState = {
+
+  active: false,
+
+  question: null,
+
+  answers: {},
+
+  revealed: false,
+
+  locked: false
+
+};
+
   let allowAskCoach = true;
 
   let roomCode = null;
@@ -73683,7 +73710,34 @@ let lpSfDebounce = null;
     // =====================================
 // 📥 IMPORT PGN MODAL
 // =====================================
+document.getElementById("lpAskQuizBtn").onclick = askQuiz;
+// Quiz admin panel controls
+document.getElementById("lpQuizRevealBtn").onclick = () => {
+  if (!quizState.active || !quizState.question) return;
+  const { correctIndex, options } = quizState.question;
+  // broadcast reveal
+  movesChannel.send({
+    type: "broadcast",
+    event: "quiz_reveal",
+    payload: { correctIndex, options }
+  });
+  quizState.revealed = true;
+  quizState.locked = true;
+  updateAdminQuizPanel();
+};
 
+document.getElementById("lpQuizResetBtn").onclick = () => {
+  movesChannel.send({
+    type: "broadcast",
+    event: "quiz_reset",
+    payload: {}
+  });
+  resetQuizState();
+};
+
+document.getElementById("lpQuizClosePanelBtn").onclick = () => {
+  hideAdminQuizPanel();
+};
 
 const lpToggleAskCoachBtn =
 document.getElementById(
@@ -73768,6 +73822,8 @@ if (allowAskCoach) {
     );
 
 };
+
+
 
 document.getElementById(
   "lpImportPgnBtn"
@@ -76224,6 +76280,10 @@ function currentFenKey() {
     getDrawings().forEach(drawElement);
   }
 
+
+
+
+
   // =========================
   // DRAW
   // =========================
@@ -76523,6 +76583,588 @@ function currentFenKey() {
     "lpPositionChanged",
     redraw
   );
+}
+
+  function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ================= STUDENT QUIZ UI =================
+
+function showStudentQuizModal(question) {
+
+    const modal = document.getElementById("lpQuizModal");
+    const optionsDiv = document.getElementById("lpQuizOptions");
+    const feedback = document.getElementById("lpQuizFeedback");
+
+    if (!modal || !optionsDiv) return;
+
+    // Reset UI
+    feedback.textContent = "";
+    optionsDiv.innerHTML = "";
+
+    // A B C D
+    const optionLabels = ["A","B","C","D"];
+
+    question.options.forEach((opt, idx) => {
+
+        const btn = document.createElement("button");
+
+        btn.textContent =
+        `${optionLabels[idx]}. ${opt.san}`;
+
+        btn.dataset.index = idx;
+
+        btn.style.display = "block";
+        btn.style.width = "100%";
+        btn.style.padding = "10px";
+        btn.style.margin = "6px 0";
+        btn.style.background = "#3a405b";
+        btn.style.border = "none";
+        btn.style.borderRadius = "8px";
+        btn.style.color = "white";
+        btn.style.fontSize = "16px";
+        btn.style.cursor = "pointer";
+
+        btn.onclick = () => {
+
+            handleStudentQuizAnswer(idx);
+
+        };
+
+        optionsDiv.appendChild(btn);
+
+    });
+
+    modal.style.display = "flex";
+
+}
+
+
+// ====================================
+
+function hideStudentQuizModal() {
+
+    const modal =
+    document.getElementById("lpQuizModal");
+
+    if (modal) {
+
+        modal.style.display = "none";
+
+    }
+
+}
+
+
+// ====================================
+
+function handleStudentQuizAnswer(answerIndex) {
+
+    // Quiz already finished
+    if (
+        quizState.locked ||
+        quizState.revealed
+    ) {
+
+        return;
+
+    }
+
+    // Disable all buttons
+const buttons =
+document.querySelectorAll(
+"#lpQuizOptions button"
+);
+
+// Highlight selected answer
+buttons.forEach((btn,index) => {
+
+    btn.disabled = true;
+
+    if(index === answerIndex){
+
+        btn.style.background =
+        "linear-gradient(135deg,#4CAF50,#66BB6A)";
+
+        btn.style.color = "white";
+
+        btn.style.boxShadow =
+        "0 0 18px rgba(76,175,80,.8)";
+
+        btn.style.transform =
+        "scale(1.02)";
+
+        btn.style.fontWeight =
+        "700";
+
+    }
+
+    else{
+
+        btn.style.opacity = ".5";
+
+    }
+
+});
+
+
+    // Safety checks
+
+    if (!currentUser) return;
+
+    if (!movesChannel) return;
+
+
+    // Send answer to admin
+
+    movesChannel.send({
+
+        type : "broadcast",
+
+        event : "quiz_answer",
+
+        payload : {
+
+            userId :
+            currentUser.id,
+
+            username :
+            currentUsername || "Guest",
+
+            answerIndex :
+            answerIndex
+
+        }
+
+    });
+
+
+    // Show confirmation
+
+    document.getElementById(
+        "lpQuizFeedback"
+    ).textContent =
+
+    "✅ Answer submitted! Waiting for Coach...";
+
+}
+
+
+// ====================================
+
+function showQuizResult(correctIndex, options) {
+
+    const buttons =
+    document.querySelectorAll(
+        "#lpQuizOptions button"
+    );
+
+    const feedback =
+    document.getElementById(
+        "lpQuizFeedback"
+    );
+
+
+    // RESET ALL STYLES FIRST
+
+    buttons.forEach(btn => {
+
+        btn.style.background = "";
+        btn.style.border = "";
+        btn.style.boxShadow = "";
+        btn.style.transform = "";
+        btn.style.opacity = "1";
+        btn.style.color = "#FFFFFF";
+        btn.style.fontWeight = "700";
+
+    });
+
+
+    // HIGHLIGHT ANSWERS
+
+    buttons.forEach((btn, idx) => {
+
+        btn.disabled = true;
+
+        // CORRECT ANSWER
+
+        if (idx === correctIndex) {
+
+            btn.style.background =
+            "#22C55E";
+
+            btn.style.border =
+            "2px solid #FFFFFF";
+
+            btn.style.boxShadow =
+            "0 0 8px rgba(34,197,94,.5)";
+
+            btn.style.color =
+            "#FFFFFF";
+
+            btn.style.fontWeight =
+            "700";
+
+            btn.style.transform =
+            "scale(1.02)";
+
+        }
+
+        // WRONG ANSWERS
+
+        else {
+
+            btn.style.background =
+            "linear-gradient(135deg,#E53935,#C62828)";
+
+            btn.style.color =
+            "#FFFFFF";
+
+            btn.style.border =
+            "none";
+
+            btn.style.boxShadow =
+            "none";
+
+            btn.style.opacity =
+            ".9";
+
+        }
+
+    });
+
+
+    // SHOW CORRECT MOVE
+
+    feedback.textContent =
+
+    `🏆 Correct Move : ${options[correctIndex].san}`;
+
+}
+function resetQuizState() {
+  quizState.active = false;
+  quizState.question = null;
+  quizState.answers = {};
+  quizState.revealed = false;
+  quizState.locked = false;
+  // hide UI
+  hideStudentQuizModal();
+  hideAdminQuizPanel();
+}
+// ================= ASK QUIZ =================
+
+async function askQuiz() {
+
+    // Classroom must exist
+    if (!roomCode) {
+
+        showJoinBanner(
+            "Create classroom first.",
+            false
+        );
+
+        return;
+
+    }
+
+
+    // Puzzle library must exist
+    if (!puzzles.length) {
+
+        showJoinBanner(
+            "Load a puzzle library first.",
+            false
+        );
+
+        return;
+
+    }
+
+
+    // Puzzle already solved
+    if (moveIndex >= solutionMoves.length) {
+
+        showJoinBanner(
+            "Puzzle already solved.",
+            false
+        );
+
+        return;
+
+    }
+
+
+    // Correct move
+    const correctMove =
+    solutionMoves[moveIndex];
+
+    console.log("CORRECT MOVE:");
+console.log(correctMove);
+
+
+    // Current legal moves
+ const legalMoves =
+previewGame.moves({ verbose:true });
+
+    console.log("LEGAL MOVES:");
+console.log(legalMoves);
+
+
+    // Find correct move
+    const correctIdx =
+    legalMoves.findIndex(m =>
+
+        m.from === correctMove.from &&
+
+        m.to === correctMove.to &&
+
+        (m.promotion || "") ===
+        (correctMove.promotion || "")
+
+    );
+
+
+    // Safety check
+    if (correctIdx === -1) {
+
+        showJoinBanner(
+            "Correct move not found.",
+            false
+        );
+
+        return;
+
+    }
+
+
+    // Remove correct move
+    let otherMoves =
+    legalMoves.filter(
+
+        (_,idx)=>
+        idx !== correctIdx
+
+    );
+
+
+    // Need at least 3 wrong moves
+    if (otherMoves.length < 3) {
+
+        showJoinBanner(
+            "Not enough legal moves for quiz.",
+            false
+        );
+
+        return;
+
+    }
+
+
+    // Shuffle wrong moves
+    shuffleArray(otherMoves);
+
+
+    // Take first 3
+    const selectedOthers =
+    otherMoves.slice(0,3);
+
+
+    // Build options
+    let options = [
+
+        correctMove,
+
+        ...selectedOthers
+
+    ];
+
+
+    // Shuffle options
+    shuffleArray(options);
+
+
+    // Correct answer index
+    const correctIndex =
+    options.findIndex(m =>
+
+        m.from === correctMove.from &&
+
+        m.to === correctMove.to &&
+
+        (m.promotion || "") ===
+        (correctMove.promotion || "")
+
+    );
+
+
+    // Build question object
+    const question = {
+
+        options :
+
+        options.map(m => ({
+
+            from :
+            m.from,
+
+            to :
+            m.to,
+
+            promotion :
+            m.promotion || null,
+
+            san :
+            m.san
+
+        })),
+
+        correctIndex :
+        correctIndex
+
+    };
+
+
+    // Store state
+    quizState.active = true;
+
+    quizState.question =
+    question;
+
+    quizState.answers = {};
+
+    quizState.revealed = false;
+
+    quizState.locked = false;
+
+
+    // Broadcast question
+    if (movesChannel) {
+
+        await movesChannel.send({
+
+            type:"broadcast",
+
+            event:"quiz_question",
+
+            payload:{
+
+                question
+
+            }
+
+        });
+
+    }
+
+
+    // Notify admin
+    showJoinBanner(
+
+        "🧩 Quiz sent to students!",
+
+        false
+
+    );
+
+
+    // Open admin panel
+    showAdminQuizPanel();
+
+}
+
+
+
+function updateAdminQuizPanel() {
+  const list = document.getElementById("lpQuizAnswersList");
+  if (!list) return;
+  list.innerHTML = "";
+  const entries = Object.entries(quizState.answers);
+  if (entries.length === 0) {
+    list.innerHTML = "<div style='opacity:0.6;'>Waiting for answers...</div>";
+    return;
+  }
+  entries.forEach(([userId, data]) => {
+    const { username, answerIndex } = data;
+    const optionLabels = ['A', 'B', 'C', 'D'];
+    const label = optionLabels[answerIndex] || '?';
+    const div = document.createElement("div");
+    div.style.padding = "4px 0";
+    div.style.borderBottom = "1px solid #444";
+    div.textContent = `${username || userId}: ${label}`;
+    list.appendChild(div);
+  });
+}
+// ================= QUIZ ADMIN UI =================
+function showAdminQuizPanel() {
+
+    const panel =
+    document.getElementById(
+        "lpQuizAdminPanel"
+    );
+
+    if (!panel) return;
+
+    panel.style.display = "block";
+
+
+    // SHOW THE OPTIONS TO ADMIN
+
+    const optionDiv =
+    document.getElementById(
+        "lpQuizOptionsList"
+    );
+
+    if (
+        optionDiv &&
+        quizState.question
+    ) {
+
+        const labels =
+        ["A","B","C","D"];
+
+        optionDiv.innerHTML =
+
+        quizState.question.options
+
+        .map((move,index)=>`
+
+            <div style="
+                padding:6px 0;
+                font-size:16px;
+                font-weight:600;
+                color:${
+                    quizState.revealed &&
+                    index === quizState.question.correctIndex
+                    ? "#4CAF50"
+                    : "white"
+                };
+            ">
+
+                ${labels[index]}. ${move.san}
+
+            </div>
+
+        `)
+
+        .join("");
+
+    }
+
+
+    // SHOW STUDENT ANSWERS
+
+    updateAdminQuizPanel();
+
+}
+
+function hideAdminQuizPanel() {
+  const panel = document.getElementById("lpQuizAdminPanel");
+  if (panel) panel.style.display = "none";
 }
 
   // ================= PROMOTION SYSTEM =================
@@ -79311,6 +79953,63 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+    // ================= QUIZ EVENTS =================
+
+// 1. Quiz question (received by students)
+if (payload.event === "quiz_question") {
+  // Admin ignores (we already have the question)
+  if (isAdmin) return;
+  const { question } = payload.payload;
+  quizState.question = question;
+  quizState.active = true;
+  quizState.revealed = false;
+  quizState.locked = false;
+
+      showJoinBanner(
+        "🧩 Quiz Time! Choose the best move"
+    );
+  // show the modal
+  showStudentQuizModal(question);
+  return;
+}
+
+// 2. Student answers (received by admin)
+if (payload.event === "quiz_answer") {
+  if (!isAdmin) return;
+  const { userId, username, answerIndex } = payload.payload;
+  // store answer
+  quizState.answers[userId] = { username, answerIndex };
+  // update admin panel
+  updateAdminQuizPanel();
+  return;
+}
+
+// 3. Reveal (received by everyone)
+if (payload.event === "quiz_reveal") {
+  const { correctIndex, options } = payload.payload;
+  quizState.revealed = true;
+  quizState.locked = true;
+  // show correct answer to students (if not admin)
+  if (!isAdmin) {
+    showQuizResult(correctIndex, options);
+  } else {
+    // admin may update panel
+    updateAdminQuizPanel();
+  }
+  return;
+}
+
+// 4. Reset quiz (admin only)
+if (payload.event === "quiz_reset") {
+  resetQuizState();
+  if (!isAdmin) {
+    hideStudentQuizModal();
+  } else {
+    hideAdminQuizPanel();
+  }
+  return;
+}
 
 // ================= XP AWARD =================
     if(payload.event==="award_xp"){
@@ -92512,6 +93211,98 @@ font-weight:700;
 </button>
 
 </div>
+
+<!-- QUIZ ADMIN PANEL -->
+<div id="lpQuizAdminPanel"
+style="
+display:none;
+position:fixed;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%) translateX(300px);
+background:#1e1e2f;
+border:2px solid gold;
+border-radius:16px;
+padding:20px;
+width:420px;
+max-width:90vw;
+color:white;
+z-index:999999;
+box-shadow:0 0 30px rgba(0,0,0,.7);
+">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 style="margin:0;">📊 Quiz Results</h3>
+    <button id="lpQuizClosePanelBtn" style="background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer;">&times;</button>
+  </div>
+  <div
+id="lpQuizOptionsList"
+
+style="
+margin:15px 0;
+background:rgba(255,255,255,.05);
+padding:10px;
+border-radius:10px;
+line-height:1.8;
+">
+
+</div>
+ <div
+id="lpQuizAnswersList"
+style="
+margin:15px 0;
+max-height:250px;
+overflow-y:auto;
+background:rgba(255,255,255,.05);
+padding:10px;
+border-radius:10px;
+">
+</div>
+  <button
+id="lpQuizRevealBtn"
+class="lp-admin-btn"
+style="
+background:#4CAF50;
+margin-top:15px;
+width:100%;
+">
+🔓 Reveal Answer
+</button>
+
+
+<button
+id="lpQuizResetBtn"
+class="lp-admin-btn"
+style="
+background:#3B82F6;
+margin-top:10px;
+width:100%;
+">
+🔄 Reset Quiz
+</button>
+</div>
+
+<!-- STUDENT QUIZ MODAL -->
+<div id="lpQuizModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:transparent; justify-content:center; align-items:center; z-index:9999;">
+  <div style="
+background:#2a2f4a;
+padding:20px;
+border-radius:16px;
+max-width:380px;
+width:80%;
+text-align:center;
+color:white;
+box-shadow:0 8px 30px rgba(0,0,0,0.6);
+transform:translateX(390px);
+">
+    <h2 style="margin-top:0;">🧩 Grandmaster Challenge!</h2>
+    <p style="margin-bottom:20px;">Can you find the best move?</p>
+    <div id="lpQuizOptions" style="display:flex; flex-direction:column; gap:10px; margin:20px 0;"></div>
+    <div id="lpQuizFeedback" style="font-weight:bold; margin-top:10px;"></div>
+    <button id="lpQuizCloseBtn" style="margin-top:20px; background:#555; border:none; color:white; padding:8px 20px; border-radius:8px; cursor:pointer; display:none;">Close</button>
+  </div>
+</div>
+
+
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
