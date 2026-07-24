@@ -24541,6 +24541,31 @@ body.admin-view #lpJoinRoomBtn {
 
 }
 
+#xpMenu button{
+
+padding:10px 16px;
+border:none;
+border-radius:10px;
+cursor:pointer;
+font-weight:700;
+color:white;
+transition:.2s;
+
+}
+
+#xpMenu button:hover{
+
+transform:translateY(-2px);
+filter:brightness(1.1);
+
+}
+
+#xpMenu button:active{
+
+transform:scale(.97);
+
+}
+
   </style>
 </head>
 
@@ -70993,9 +71018,9 @@ if(!saved.xp){
 }
 
 saved.xp += amount;
- showJoinBanner(
-  `🏆 +${amount} XP Awarded`,
-  false
+showJoinBanner(
+`🏆 Coach awarded you ${amount} XP!`
+
 );
 
 localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
@@ -73643,6 +73668,7 @@ let totalRacePuzzles = 0;
 let pointPerMove = 10;
 let negativePoint = -5;
 let noMovePenaltyMultiplier = 2;
+let selectedXPStudentId = "";
 // =====================================
 // ♟ LIVE PUZZLE STOCKFISH ENGINE
 // =====================================
@@ -74123,7 +74149,7 @@ const message =
 btn.dataset.message;
 
 showJoinBanner(
-`You ${message}`,
+"Request sent to Coach ✅",
 false
 );
 
@@ -74949,6 +74975,56 @@ function initLivePuzzleSfWorker() {
   );
 
 }
+
+window.openXPMenu = function(studentId){
+  console.log("XP CLICKED",studentId);
+  console.log(
+document.getElementById("xpMenu")
+);
+
+selectedXPStudentId = studentId;
+
+document.getElementById(
+"xpMenu"
+).style.display = "block";
+
+};
+
+window.giveXP = async function(amount){
+
+await movesChannel.send({
+
+type:"broadcast",
+
+event:"award_xp",
+
+payload:{
+
+studentId:
+selectedXPStudentId,
+
+amount:
+amount
+
+}
+
+});
+
+
+document.getElementById(
+"xpMenu"
+).style.display = "none";
+
+
+showJoinBanner(
+
+`🏆 +${amount} XP Sent to the student`,
+
+false
+
+);
+
+};
 
 // =====================================
 // ♟ HANDLE ENGINE MESSAGE
@@ -78557,6 +78633,13 @@ if (s.correct === true) {
 
    const name = s.username || "Guest";
 
+const xpOnClick = isAdmin
+? `onclick="openXPMenu('${s.user_id}')"`
+: "";
+
+const xpCursor = isAdmin
+? "pointer"
+: "default";
 
 div.innerHTML = `
   <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -78574,13 +78657,19 @@ div.innerHTML = `
     ${badge}
   </span>
 
-  <strong style="
+<strong
+${xpOnClick}
+
+style="
     font-size:18px;
     font-weight:600;
     letter-spacing:0.3px;
-  ">
+    cursor:${xpCursor};
+">
+
     ${name}
-  </strong>
+
+</strong>
  <span style="
   margin-left:10px;
   font-weight:700;
@@ -79229,6 +79318,28 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+// ================= XP AWARD =================
+    if(payload.event==="award_xp"){
+
+if(
+currentUser.id !==
+payload.payload.studentId
+){
+
+return;
+
+}
+
+
+addDailyXP(
+payload.payload.amount
+);
+
+
+return;
+
+}
 
 // ================= RAISE HAND =================
     if(payload.event==="student_action"){
@@ -92341,7 +92452,67 @@ Generate PDF
 <button data-message="Want to go to washroom 🚽 ">
 🚽 I need to go to washroom
 </button>
+</div>
 
+<div id="xpMenu" style="
+display:none;
+position:fixed;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+padding:18px;
+border-radius:15px;
+background:#1e1e2f;
+border:2px solid gold;
+z-index:999999;
+box-shadow:0 0 25px rgba(0,0,0,.6);
+text-align:center;
+min-width:320px;
+">
+
+<h3 style="
+margin:0 0 15px;
+color:gold;
+font-size:20px;
+">
+🏆 Award XP
+</h3>
+
+<div style="
+display:flex;
+gap:8px;
+justify-content:center;
+flex-wrap:wrap;
+margin-bottom:15px;
+">
+
+<button style="background:#4caf50;" onclick="giveXP(1)">+1 XP</button>
+
+<button style="background:#42a5f5;" onclick="giveXP(2)">+2 XP</button>
+
+<button style="background:#ff9800;" onclick="giveXP(3)">+3 XP</button>
+
+<button style="background:#ab47bc;" onclick="giveXP(4)">+4 XP</button>
+
+<button style="background:#f44336;" onclick="giveXP(5)">+5 XP</button>
+
+</div>
+
+<button
+onclick="document.getElementById('xpMenu').style.display='none'"
+style="
+background:#555;
+color:white;
+padding:8px 18px;
+border:none;
+border-radius:8px;
+cursor:pointer;
+font-weight:700;
+">
+
+❌ Close
+
+</button>
 
 </div>
 </body>
