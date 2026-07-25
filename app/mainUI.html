@@ -73727,7 +73727,8 @@ let quizState = {
 
   revealed: false,
 
-  locked: false
+  locked: false,
+   scoreAwarded: false
 
 };
 
@@ -73834,6 +73835,10 @@ document.getElementById("lpQuizRevealBtn").onclick = () => {
   });
   quizState.revealed = true;
   quizState.locked = true;
+  awardQuizPoints();
+    // 🔥 Sync updated scores to everyone
+
+
   showAdminQuizPanel();   // <-- rebuilds the options list
 };
 
@@ -76967,6 +76972,38 @@ function resetQuizState() {
   hideStudentQuizModal();
   hideAdminQuizPanel();
 }
+// ================= QUIZ POINTS ADD =================
+
+function awardQuizPoints() {
+
+  if (quizState.scoreAwarded) return;
+  if (!quizState.question) return;
+
+  // ✅ Always use the latest admin values
+  pointPerMove =
+    parseInt(document.getElementById("lpPointPerMove")?.value) || 0;
+
+  const negInput =
+    parseInt(document.getElementById("lpNegativePoint")?.value);
+
+  negativePoint =
+    negInput ? -Math.abs(negInput) : 0;
+
+  Object.entries(quizState.answers).forEach(([userId, answer]) => {
+
+    const correct =
+      answer.answerIndex === quizState.question.correctIndex;
+
+    updateScore(
+      userId,
+      correct ? pointPerMove : negativePoint,
+      true
+    );
+
+  });
+
+  quizState.scoreAwarded = true;
+}
 // ================= ASK QUIZ =================
 
 async function askQuiz() {
@@ -77151,6 +77188,8 @@ console.log(legalMoves);
     quizState.revealed = false;
 
     quizState.locked = false;
+
+    quizState.scoreAwarded = false;
 
 
     // Broadcast question
@@ -77606,12 +77645,32 @@ if (move.san) {
 moveIndex++;
 
 handleCorrectMove(move);}
-function updateScore(userId, delta) {
-  if (!playerScores[userId]) {
+function updateScore(userId, delta, sync = false) {
+
+  if (playerScores[userId] === undefined) {
     playerScores[userId] = 0;
   }
 
   playerScores[userId] += delta;
+
+  // Refresh local UI
+  loadStudents();
+
+  if (
+    sync &&
+    movesChannel &&
+    isAdmin
+  ) {
+    movesChannel.send({
+      type: "broadcast",
+      event: "score_update",
+      payload: {
+        userId,
+        score: playerScores[userId]
+      }
+    });
+  }
+
 }
 
   // ================= LOAD LIBRARY LIST =================
@@ -80208,6 +80267,18 @@ if (payload.event === "quiz_reset") {
   } else {
     hideAdminQuizPanel();
   }
+  return;
+}
+
+// 4. Score update (received by everyone)
+if (payload.event === "score_update") {
+
+  const { userId, score } = payload.payload;
+
+  playerScores[userId] = score;
+
+  loadStudents();
+
   return;
 }
 
@@ -93494,7 +93565,7 @@ color:white;
 box-shadow:0 8px 30px rgba(0,0,0,0.6);
 transform:translateX(390px);
 ">
-    <h2 style="margin-top:0;">🧩 Grandmaster Challenge!</h2>
+    <h2 style="margin-top:0;"> Grandmaster Challenge!</h2>
     <p style="margin-bottom:20px;">Can you find the best move?</p>
     <div id="lpQuizOptions" style="display:flex; flex-direction:column; gap:10px; margin:20px 0;"></div>
     <div id="lpQuizFeedback" style="font-weight:bold; margin-top:10px;"></div>
