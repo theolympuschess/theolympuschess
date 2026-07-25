@@ -73834,7 +73834,7 @@ document.getElementById("lpQuizRevealBtn").onclick = () => {
   });
   quizState.revealed = true;
   quizState.locked = true;
-  updateAdminQuizPanel();
+  showAdminQuizPanel();   // <-- rebuilds the options list
 };
 
 document.getElementById("lpQuizResetBtn").onclick = () => {
@@ -77191,24 +77191,88 @@ console.log(legalMoves);
 
 
 function updateAdminQuizPanel() {
-  const list = document.getElementById("lpQuizAnswersList");
-  if (!list) return;
-  list.innerHTML = "";
-  const entries = Object.entries(quizState.answers);
-  if (entries.length === 0) {
-    list.innerHTML = "<div style='opacity:0.6;'>Waiting for answers...</div>";
-    return;
-  }
-  entries.forEach(([userId, data]) => {
-    const { username, answerIndex } = data;
-    const optionLabels = ['A', 'B', 'C', 'D'];
-    const label = optionLabels[answerIndex] || '?';
-    const div = document.createElement("div");
-    div.style.padding = "4px 0";
-    div.style.borderBottom = "1px solid #444";
-    div.textContent = `${username || userId}: ${label}`;
-    list.appendChild(div);
-  });
+
+    const list = document.getElementById("lpQuizAnswersList");
+    if (!list) return;
+
+    list.innerHTML = "";
+
+    const entries = Object.entries(quizState.answers);
+
+    if (entries.length === 0) {
+        list.innerHTML =
+            "<div style='opacity:.6;'>Waiting for answers...</div>";
+        return;
+    }
+
+    const optionLabels = ["A", "B", "C", "D"];
+
+    entries.forEach(([userId, data]) => {
+
+        const { username, answerIndex } = data;
+
+        const label = optionLabels[answerIndex] || "?";
+
+        const div = document.createElement("div");
+
+        div.style.display = "flex";
+        div.style.justifyContent = "space-between";
+        div.style.alignItems = "center";
+        div.style.padding = "8px 10px";
+        div.style.marginBottom = "6px";
+        div.style.borderRadius = "8px";
+        div.style.fontWeight = "600";
+        div.style.transition = ".25s";
+
+        // ==========================
+        // BEFORE REVEAL
+        // ==========================
+        if (!quizState.revealed) {
+
+            div.style.background = "rgba(255,255,255,.05)";
+            div.style.borderLeft = "4px solid #666";
+
+            div.innerHTML = `
+                <span>${username || userId}</span>
+                <span>${label}</span>
+            `;
+
+        }
+
+        // ==========================
+        // AFTER REVEAL
+        // ==========================
+        else {
+
+            const isCorrect =
+                answerIndex === quizState.question.correctIndex;
+
+            if (isCorrect) {
+
+                div.style.background = "rgba(34,197,94,.18)";
+                div.style.borderLeft = "5px solid #22C55E";
+
+            } else {
+
+                div.style.background = "rgba(239,68,68,.18)";
+                div.style.borderLeft = "5px solid #EF4444";
+
+            }
+
+            div.innerHTML = `
+                <span>
+                    ${isCorrect ? "✅" : "❌"} ${username || userId}
+                </span>
+
+                <span>${label}</span>
+            `;
+
+        }
+
+        list.appendChild(div);
+
+    });
+
 }
 // ================= QUIZ ADMIN UI =================
 function showAdminQuizPanel() {
@@ -77240,29 +77304,54 @@ function showAdminQuizPanel() {
 
         optionDiv.innerHTML =
 
-        quizState.question.options
+quizState.question.options
 
-        .map((move,index)=>`
+.map((move,index)=>{
 
-            <div style="
-                padding:6px 0;
-                font-size:16px;
-                font-weight:600;
-                color:${
-                    quizState.revealed &&
-                    index === quizState.question.correctIndex
-                    ? "#4CAF50"
+    const isCorrect =
+        quizState.revealed &&
+        index === quizState.question.correctIndex;
+
+    return `
+
+        <div style="
+            padding:8px 10px;
+            margin-bottom:6px;
+            border-radius:8px;
+
+            font-size:16px;
+            font-weight:600;
+
+            background:${
+                isCorrect
+                    ? "rgba(34,197,94,.18)"
+                    : "transparent"
+            };
+
+            border-left:${
+                isCorrect
+                    ? "5px solid #22C55E"
+                    : "5px solid transparent"
+            };
+
+            color:${
+                isCorrect
+                    ? "#22C55E"
                     : "white"
-                };
-            ">
+            };
 
-                ${labels[index]}. ${move.san}
+            transition:.25s;
+        ">
 
-            </div>
+            ${isCorrect ? "✅ " : ""}${labels[index]}. ${move.san}
 
-        `)
+        </div>
 
-        .join("");
+    `;
+
+})
+
+.join("");
 
     }
 
@@ -93330,12 +93419,12 @@ display:none;
 position:fixed;
 top:50%;
 left:50%;
-transform:translate(-50%,-50%) translateX(300px);
+transform:translate(-50%,-50%) translateX(750px);
 background:#1e1e2f;
 border:2px solid gold;
 border-radius:16px;
 padding:20px;
-width:420px;
+width:280px;
 max-width:90vw;
 color:white;
 z-index:999999;
@@ -93353,7 +93442,7 @@ margin:15px 0;
 background:rgba(255,255,255,.05);
 padding:10px;
 border-radius:10px;
-line-height:1.8;
+line-height:1.2;
 ">
 
 </div>
