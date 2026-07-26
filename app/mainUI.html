@@ -73831,7 +73831,11 @@ document.getElementById("lpQuizRevealBtn").onclick = () => {
   movesChannel.send({
     type: "broadcast",
     event: "quiz_reveal",
-    payload: { correctIndex, options }
+    payload: {
+  correctIndex,
+  options,
+  answers: quizState.answers
+}
   });
   quizState.revealed = true;
   quizState.locked = true;
@@ -76875,7 +76879,7 @@ buttons.forEach((btn,index) => {
 
 // ====================================
 
-function showQuizResult(correctIndex, options) {
+function showQuizResult(correctIndex, options, answers = {}) {
 
     const buttons =
     document.querySelectorAll(
@@ -76986,31 +76990,162 @@ else {
 
     // SHOW CORRECT MOVE
 
-  const studentCorrect =
+// ===============================
+// SHOW STUDENT RESULT
+// ===============================
+
+const hasAnswered =
+    Number.isInteger(quizState.selectedAnswer);
+
+const studentCorrect =
+    hasAnswered &&
     quizState.selectedAnswer === correctIndex;
 
-if (studentCorrect) {
+
+// ⏱️ DID NOT ANSWER
+if (!hasAnswered) {
 
     feedback.innerHTML = `
-        <div style="color:#22C55E;font-weight:800;font-size:18px;margin-bottom:6px;">
+        <div style="
+            color:#FFD54F;
+            font-weight:800;
+            font-size:18px;
+            margin-bottom:6px;
+        ">
+            😕 No answer submitted
+        </div>
+
+        <div style="
+            color:#fff;
+            font-weight:700;
+            font-size:16px;
+        ">
+            ✅ Correct Move is: ${options[correctIndex].san}
+        </div>
+    `;
+
+}
+
+
+// 🎉 CORRECT
+else if (studentCorrect) {
+
+    feedback.innerHTML = `
+        <div style="
+            color:#22C55E;
+            font-weight:800;
+            font-size:18px;
+            margin-bottom:6px;
+        ">
             🎉 Correct!
         </div>
+
         <div style="color:#fff;font-weight:700;">
             🏆 You found the correct move: ${options[correctIndex].san} ✅
         </div>
     `;
 
-} else {
+}
+
+
+// ❌ WRONG
+else {
 
     feedback.innerHTML = `
-        <div style="color:#fff;font-weight:700;margin-bottom:6px;">
+        <div style="
+            color:#fff;
+            font-weight:700;
+            margin-bottom:6px;
+        ">
             ❌ Wrong: ${options[quizState.selectedAnswer].san}
         </div>
-        <div style="color:#fff;font-weight:700;font-size:16px;">
-            ✅ Correct Move is: ${options[correctIndex].san} 
+
+        <div style="
+            color:#fff;
+            font-weight:700;
+            font-size:16px;
+        ">
+            ✅ Correct Move is: ${options[correctIndex].san}
         </div>
     `;
 
+}
+
+// ===============================
+// 👥 SHOW CLASS ANSWERS AFTER REVEAL
+// ===============================
+
+const oldClassAnswers =
+    document.getElementById("lpQuizClassAnswers");
+
+if (oldClassAnswers) {
+    oldClassAnswers.remove();
+}
+
+const entries = Object.entries(answers);
+
+if (entries.length > 0) {
+
+    const classAnswers =
+        document.createElement("div");
+
+    classAnswers.id = "lpQuizClassAnswers";
+
+    classAnswers.style.marginTop = "18px";
+    classAnswers.style.paddingTop = "12px";
+    classAnswers.style.borderTop =
+        "1px solid rgba(255,255,255,.15)";
+        classAnswers.style.maxHeight = "130px";
+classAnswers.style.overflowY = "auto";
+classAnswers.style.paddingRight = "5px";
+
+    classAnswers.innerHTML = `
+        <div style="
+            font-weight:800;
+            margin-bottom:10px;
+            color:#FFD54F;
+        ">
+            👨🏻‍🎓 Class Answers
+        </div>
+    `;
+
+    const labels = ["A", "B", "C", "D"];
+
+    entries.forEach(([userId, data]) => {
+
+        const answerIndex = data.answerIndex;
+
+        const isCorrect =
+            answerIndex === correctIndex;
+
+        const label =
+            labels[answerIndex] || "?";
+
+        const move =
+            options?.[answerIndex]?.san || "?";
+
+        const row =
+            document.createElement("div");
+
+        row.style.padding = "6px 8px";
+        row.style.marginBottom = "5px";
+        row.style.borderRadius = "7px";
+
+        row.style.background =
+            isCorrect
+                ? "rgba(34,197,94,.14)"
+                : "rgba(239,68,68,.14)";
+
+        row.innerHTML = `
+            ${isCorrect ? "✅" : "❌"}
+            <strong>${data.username || "Student"}</strong>
+            &nbsp; ${label}) ${move}
+        `;
+
+        classAnswers.appendChild(row);
+    });
+
+    feedback.appendChild(classAnswers);
 }
 
 }
@@ -77020,6 +77155,10 @@ function resetQuizState() {
   quizState.answers = {};
   quizState.revealed = false;
   quizState.locked = false;
+
+  // 🔥 Clear student's previous Quiz answer
+  quizState.selectedAnswer = null;
+
   // hide UI
   hideStudentQuizModal();
   hideAdminQuizPanel();
@@ -77282,7 +77421,7 @@ console.log(legalMoves);
 
 
 
-function updateAdminQuizPanel() {
+async function updateAdminQuizPanel() {
 
     const list = document.getElementById("lpQuizAnswersList");
     if (!list) return;
@@ -77291,11 +77430,11 @@ function updateAdminQuizPanel() {
 
     const entries = Object.entries(quizState.answers);
 
-    if (entries.length === 0) {
-        list.innerHTML =
-            "<div style='opacity:.6;'>Waiting for answers...</div>";
-        return;
-    }
+   if (entries.length === 0 && !quizState.revealed) {
+    list.innerHTML =
+        "<div style='opacity:.6;'>Waiting for answers...</div>";
+    return;
+}
 
     const optionLabels = ["A", "B", "C", "D"];
 
@@ -77370,6 +77509,82 @@ div.style.gap = "18px";
         list.appendChild(div);
 
     });
+
+        // ==========================================
+    // ⏱️ SHOW STUDENTS WHO DID NOT ANSWER
+    // ONLY AFTER REVEAL
+    // ==========================================
+
+    if (quizState.revealed) {
+
+        const { data: classroomStudents, error } = await supabase
+            .from("live_puzzle_attempts")
+            .select("user_id, username")
+            .eq("room_code", roomCode);
+
+        if (!error && classroomStudents) {
+
+            // Remove duplicate students
+            const uniqueStudents = {};
+
+            classroomStudents.forEach(s => {
+
+                const key =
+                    (s.username || "").trim().toLowerCase()
+                    || s.user_id;
+
+                if (!uniqueStudents[key]) {
+                    uniqueStudents[key] = s;
+                }
+
+            });
+
+            Object.values(uniqueStudents).forEach(student => {
+
+                // Already submitted Quiz answer?
+                if (quizState.answers[student.user_id]) {
+                    return;
+                }
+
+                const div = document.createElement("div");
+
+                div.style.display = "flex";
+                div.style.justifyContent = "flex-start";
+                div.style.alignItems = "center";
+                div.style.gap = "18px";
+
+                div.style.padding = "8px 10px";
+                div.style.marginBottom = "6px";
+                div.style.borderRadius = "8px";
+                div.style.fontWeight = "600";
+
+                // Neutral/yellow = did not answer
+                div.style.background =
+                    "rgba(255,193,7,.12)";
+
+                div.style.borderLeft =
+                    "5px solid #FFC107";
+
+                div.innerHTML = `
+                    <span>
+                        😕 ${student.username || "Guest"}
+                    </span>
+
+                    <span style="
+                        color:#FFD54F;
+                        opacity:.9;
+                    ">
+                        No Answer
+                    </span>
+                `;
+
+                list.appendChild(div);
+
+            });
+
+        }
+
+    }
 
 }
 // ================= QUIZ ADMIN UI =================
@@ -80284,6 +80499,9 @@ if (payload.event === "quiz_question") {
   quizState.revealed = false;
   quizState.locked = false;
 
+    // 🔥 New quiz = student has not answered yet
+  quizState.selectedAnswer = null;
+
       showJoinBanner(
         "🧩 Quiz Time! Choose the best move"
     );
@@ -80310,16 +80528,37 @@ if (payload.event === "quiz_answer") {
 
 // 3. Reveal (received by everyone)
 if (payload.event === "quiz_reveal") {
-  const { correctIndex, options } = payload.payload;
+
+  const {
+    correctIndex,
+    options,
+    answers
+  } = payload.payload;
+
+  // 🔥 Store everyone's answers received from admin
+  if (answers) {
+    quizState.answers = answers;
+  }
+
   quizState.revealed = true;
   quizState.locked = true;
-  // show correct answer to students (if not admin)
+
+  // Show correct answer + class answers to students
   if (!isAdmin) {
-    showQuizResult(correctIndex, options);
+
+    showQuizResult(
+      correctIndex,
+      options,
+      quizState.answers
+    );
+
   } else {
-    // admin may update panel
+
+    // Admin may update panel
     updateAdminQuizPanel();
+
   }
+
   return;
 }
 
@@ -93585,7 +93824,7 @@ line-height:1.2;
 id="lpQuizAnswersList"
 style="
 margin:15px 0;
-max-height:250px;
+max-height:130px;
 overflow-y:auto;
 background:rgba(255,255,255,.05);
 padding:10px;
