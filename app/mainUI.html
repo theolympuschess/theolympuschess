@@ -27299,6 +27299,9 @@ data-role="admin-only">
     >
 
     <button id="lpAskPuzzleBtn">📢 Ask Puzzle</button>
+    <button id="lpAskRaceBtn">
+🏁 Create Race 
+</button>
     <input
   id="lpRaceStartInput"
   type="number"
@@ -27321,10 +27324,15 @@ style="background:#3F51B5;">
 🧩 Ask Quiz
 
 </button>
-
-<button id="lpAskRaceBtn">
-  🎯 Create Race 
+<button
+  id="lpAskSquareBtn"
+  type="button"
+  data-role="admin-only"
+>
+  🎯 Ask Square
 </button>
+
+
 
     <div id="lpPuzzleInfo" style="
       margin-top:10px;
@@ -73755,6 +73763,24 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+// ================= FIND SQUARE STATE =================
+
+let squareGameState = {
+
+  active: false,
+
+  target: null,
+
+  answers: {},
+
+  locked: false,
+
+  selectedSquare: null,
+
+    revealed: false
+
+};
+
   /***********************
  * QUIZ SYSTEM STATE
  ************************/
@@ -73900,6 +73926,10 @@ document.getElementById("lpQuizResetBtn").onclick = () => {
 document.getElementById("lpQuizClosePanelBtn").onclick = () => {
   hideAdminQuizPanel();
 };
+
+document
+  .getElementById("lpAskSquareBtn")
+  ?.addEventListener("click", askSquareGame);
 
 const lpToggleAskCoachBtn =
 document.getElementById(
@@ -77461,7 +77491,66 @@ console.log(legalMoves);
 
 }
 
+// ================= ASK SQUARE =================
 
+async function askSquareGame() {
+
+  if (!roomCode) {
+
+    showJoinBanner(
+      "Create classroom first.",
+      false
+    );
+
+    return;
+  }
+
+  if (!movesChannel) return;
+
+
+  // Generate a1-h8
+  const files = "abcdefgh";
+
+  const file =
+    files[Math.floor(Math.random() * 8)];
+
+  const rank =
+    Math.floor(Math.random() * 8) + 1;
+
+  const target =
+    file + rank;
+
+
+  // Store admin state
+  squareGameState.active = true;
+  squareGameState.target = target;
+  squareGameState.answers = {};
+  squareGameState.locked = false;
+  squareGameState.selectedSquare = null;
+  squareGameState.revealed = false;
+
+
+  // Send SAME square to everyone
+  await movesChannel.send({
+
+    type: "broadcast",
+
+    event: "square_game_start",
+
+    payload: {
+      target
+    }
+
+  });
+
+
+  showJoinBanner(
+    `🎯 Find Square sent: ${target.toUpperCase()}`,
+    false
+  );
+  showSquareAdminPanel();
+
+}
 
 async function updateAdminQuizPanel() {
 
@@ -77720,6 +77809,561 @@ quizState.question.options
 function hideAdminQuizPanel() {
   const panel = document.getElementById("lpQuizAdminPanel");
   if (panel) panel.style.display = "none";
+}
+
+
+
+// ================= SHOW FIND SQUARE MODAL =================
+
+function showSquareGameModal(target) {
+
+  const modal =
+    document.getElementById(
+      "lpSquareGameModal"
+    );
+
+  const board =
+    document.getElementById(
+      "lpSquareGameBoard"
+    );
+
+  const question =
+    document.getElementById(
+      "lpSquareGameQuestion"
+    );
+
+  const feedback =
+    document.getElementById(
+      "lpSquareGameFeedback"
+    );
+
+  if (!modal || !board) return;
+
+
+  question.textContent =
+    `Find ${target.toUpperCase()}`;
+
+  feedback.textContent = "";
+
+  board.innerHTML = "";
+
+
+  const files = "abcdefgh";
+
+
+  // Rank 8 → 1, like normal White-side board
+  for (let rank = 8; rank >= 1; rank--) {
+
+    for (let f = 0; f < 8; f++) {
+
+      const square =
+        files[f] + rank;
+
+      const cell =
+        document.createElement("div");
+
+
+     const isLight =
+  (f + rank) % 2 === 0;
+
+
+      cell.dataset.square =
+        square;
+
+
+      Object.assign(
+        cell.style,
+        {
+          position: "relative",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          cursor: "pointer",
+
+          userSelect: "none"
+        }
+      );
+
+
+      // Coordinates
+
+
+
+
+
+
+      cell.onclick = () => {
+
+        handleSquareGameAnswer(
+          square,
+          cell
+        );
+
+      };
+
+
+      board.appendChild(cell);
+
+    }
+
+  }
+
+
+  modal.style.display =
+    "flex";
+}
+
+// ================= STUDENT SQUARE ANSWER =================
+
+function handleSquareGameAnswer(
+  square,
+  cell
+) {
+
+  if (
+    !squareGameState.active ||
+    squareGameState.locked
+  ) {
+    return;
+  }
+
+
+  squareGameState.locked = true;
+
+  squareGameState.selectedSquare =
+    square;
+
+
+  const correct =
+  square === squareGameState.target;
+
+
+// Highlight selection ONLY — don't reveal result
+cell.style.outline =
+  "4px solid #ffd54f";
+
+cell.style.outlineOffset =
+  "-4px";
+
+cell.style.boxShadow =
+  "inset 0 0 14px rgba(255,213,79,.45)";
+
+
+const feedback =
+  document.getElementById(
+    "lpSquareGameFeedback"
+  );
+
+
+if (feedback) {
+
+  feedback.innerHTML = `
+    <div style="
+      color:#ffd54f;
+      font-weight:800;
+    ">
+      🔒 Answer submitted: ${square.toUpperCase()}
+    </div>
+
+    <div style="
+      margin-top:4px;
+      color:white;
+      font-weight:600;
+    ">
+      Waiting for Coach to reveal...
+    </div>
+  `;
+
+}
+
+
+  if (
+    !currentUserId ||
+    !movesChannel
+  ) {
+    return;
+  }
+
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event: "square_game_answer",
+
+    payload: {
+
+      userId:
+        currentUserId,
+
+      username:
+        currentUsername || "Guest",
+
+      square,
+
+      correct
+
+    }
+
+  });
+
+}
+
+// ================= SHOW SQUARE RESULT =================
+
+function showSquareGameResult(target) {
+
+  const board =
+    document.getElementById("lpSquareGameBoard");
+
+  const feedback =
+    document.getElementById("lpSquareGameFeedback");
+
+  if (!board) return;
+
+
+  const correctCell =
+    board.querySelector(
+      `[data-square="${target}"]`
+    );
+
+
+  // Highlight correct square GREEN
+  if (correctCell) {
+
+    correctCell.style.outline =
+      "4px solid #22c55e";
+
+    correctCell.style.outlineOffset =
+      "-4px";
+
+    correctCell.style.boxShadow =
+      "inset 0 0 18px rgba(34,197,94,.65)";
+
+  }
+
+
+  if (!feedback) return;
+
+
+  // Student answered correctly
+  if (
+    squareGameState.selectedSquare === target
+  ) {
+
+    feedback.innerHTML = `
+      <div style="
+        color:#22c55e;
+        font-size:18px;
+        font-weight:800;
+      ">
+        🎉 Correct!
+      </div>
+
+      <div>
+        🎯 You found ${target.toUpperCase()}!
+      </div>
+    `;
+
+  }
+
+  // Student answered incorrectly
+  else if (squareGameState.selectedSquare) {
+
+    feedback.innerHTML = `
+      <div style="
+        color:#ef4444;
+        font-weight:800;
+      ">
+        ❌ Your answer:
+        ${squareGameState.selectedSquare.toUpperCase()}
+      </div>
+
+      <div style="
+        margin-top:5px;
+        font-weight:700;
+      ">
+        ✅ Correct Square:
+        ${target.toUpperCase()}
+      </div>
+    `;
+
+  }
+
+  // Student never answered
+  else {
+
+    feedback.innerHTML = `
+      <div style="
+        color:#fbbf24;
+        font-weight:800;
+      ">
+        ⏳ No Answer
+      </div>
+
+      <div style="
+        margin-top:5px;
+        font-weight:700;
+      ">
+        ✅ Correct Square:
+        ${target.toUpperCase()}
+      </div>
+    `;
+
+  }
+
+}
+
+// ================= CLOSE SQUARE GAME =================
+
+function hideSquareGameModal() {
+
+  const modal =
+    document.getElementById(
+      "lpSquareGameModal"
+    );
+
+  if (modal) {
+    modal.style.display = "none";
+  }
+
+}
+
+// ================= ADMIN SQUARE PANEL =================
+
+function showSquareAdminPanel() {
+
+  const panel =
+    document.getElementById("lpSquareAdminPanel");
+
+  if (!panel) return;
+
+  panel.style.display = "block";
+
+  updateSquareAdminPanel();
+}
+
+
+function hideSquareAdminPanel() {
+
+  const panel =
+    document.getElementById("lpSquareAdminPanel");
+
+  if (panel) {
+    panel.style.display = "none";
+  }
+
+}
+
+
+function updateSquareAdminPanel() {
+
+  const targetEl =
+    document.getElementById("lpSquareAdminTarget");
+
+  const list =
+    document.getElementById("lpSquareAnswersList");
+
+  if (!list) return;
+
+
+  // ================= TARGET =================
+
+  if (targetEl) {
+
+    targetEl.textContent =
+      `Target: ${squareGameState.target?.toUpperCase() || "-"}`;
+
+  }
+
+
+  // ================= ANSWERS =================
+
+  list.innerHTML = "";
+
+  const entries =
+    Object.entries(squareGameState.answers);
+
+
+  if (entries.length === 0) {
+
+    list.innerHTML = `
+      <div style="
+        opacity:.6;
+        text-align:center;
+        padding:12px;
+      ">
+        Waiting for answers...
+      </div>
+    `;
+
+    return;
+  }
+
+
+  entries.forEach(([userId, data]) => {
+
+    const row =
+      document.createElement("div");
+
+
+    row.style.display = "flex";
+    row.style.justifyContent = "space-between";
+    row.style.alignItems = "center";
+    row.style.padding = "9px 10px";
+    row.style.marginBottom = "6px";
+    row.style.borderRadius = "8px";
+    row.style.fontWeight = "700";
+
+
+    // BEFORE REVEAL:
+    // Don't tell admin correct/wrong yet
+
+    if (!squareGameState.revealed) {
+
+      row.style.background =
+        "rgba(255,255,255,.07)";
+
+      row.style.borderLeft =
+        "4px solid #777";
+
+      row.innerHTML = `
+        <span>${data.username || userId}</span>
+
+        <span>
+          ${data.square?.toUpperCase() || "?"}
+        </span>
+      `;
+
+    }
+
+    // AFTER REVEAL
+    else {
+
+      if (data.correct) {
+
+        row.style.background =
+          "rgba(34,197,94,.18)";
+
+        row.style.borderLeft =
+          "5px solid #22c55e";
+
+      } else {
+
+        row.style.background =
+          "rgba(239,68,68,.18)";
+
+        row.style.borderLeft =
+          "5px solid #ef4444";
+
+      }
+
+
+      row.innerHTML = `
+        <span>
+          ${data.correct ? "✅" : "❌"}
+          ${data.username || userId}
+        </span>
+
+        <span>
+          ${data.square?.toUpperCase() || "?"}
+        </span>
+      `;
+
+    }
+
+
+    list.appendChild(row);
+
+  });
+
+}
+
+// ================= REVEAL SQUARE ANSWER =================
+
+document
+  .getElementById("lpSquareRevealBtn")
+  ?.addEventListener("click", async () => {
+
+    if (
+      !squareGameState.active ||
+      !squareGameState.target
+    ) {
+      return;
+    }
+
+
+    squareGameState.revealed = true;
+    squareGameState.locked = true;
+
+
+    // Update admin UI
+    updateSquareAdminPanel();
+
+
+    // Broadcast correct square
+    if (movesChannel) {
+
+      await movesChannel.send({
+
+        type: "broadcast",
+
+        event: "square_game_reveal",
+
+        payload: {
+
+          target:
+            squareGameState.target
+
+        }
+
+      });
+
+    }
+
+  });
+
+  // ================= RESET SQUARE GAME =================
+
+document
+  .getElementById("lpSquareResetBtn")
+  ?.addEventListener("click", async () => {
+
+    if (movesChannel) {
+
+      await movesChannel.send({
+
+        type: "broadcast",
+
+        event: "square_game_reset",
+
+        payload: {}
+
+      });
+
+    }
+
+
+    resetSquareGame();
+
+  });
+
+
+function resetSquareGame() {
+
+  squareGameState.active = false;
+  squareGameState.target = null;
+  squareGameState.answers = {};
+  squareGameState.locked = false;
+  squareGameState.selectedSquare = null;
+  squareGameState.revealed = false;
+
+  hideSquareGameModal();
+  hideSquareAdminPanel();
+
 }
 
   // ================= PROMOTION SYSTEM =================
@@ -80654,6 +81298,96 @@ if (payload.event === "score_update") {
   playerScores[userId] = score;
 
   loadStudents();
+
+  return;
+}
+
+// ================= FIND SQUARE START =================
+
+if (payload.event === "square_game_start") {
+
+  if (isAdmin) return;
+
+  const { target } =
+    payload.payload;
+
+  squareGameState.active = true;
+  squareGameState.target = target;
+  squareGameState.locked = false;
+  squareGameState.selectedSquare = null;
+
+  showSquareGameModal(target);
+
+  showJoinBanner(
+    `🎯 Find ${target.toUpperCase()}!`
+  );
+
+  return;
+}
+
+
+// ================= FIND SQUARE ANSWER =================
+
+if (payload.event === "square_game_answer") {
+
+  if (!isAdmin) return;
+
+  const {
+    userId,
+    username,
+    square,
+    correct
+  } = payload.payload;
+
+
+  squareGameState.answers[userId] = {
+    username,
+    square,
+    correct
+  };
+
+
+  showJoinBanner(
+    `🎯 ${username || "Student"} submitted ${square.toUpperCase()}`,
+    false
+  );
+
+  console.log(
+    "🎯 Square answers:",
+    squareGameState.answers
+  );
+
+  updateSquareAdminPanel();
+
+  return;
+}
+
+// ================= FIND SQUARE REVEAL =================
+
+if (payload.event === "square_game_reveal") {
+
+  if (isAdmin) return;
+
+  const { target } =
+    payload.payload;
+
+
+  squareGameState.revealed = true;
+  squareGameState.locked = true;
+
+
+  showSquareGameResult(target);
+
+  return;
+}
+
+// ================= FIND SQUARE RESET =================
+
+if (payload.event === "square_game_reset") {
+
+  if (isAdmin) return;
+
+  resetSquareGame();
 
   return;
 }
@@ -94515,6 +95249,178 @@ transform:translateX(390px);
   </div>
 </div>
 
+<!-- ================= FIND THE SQUARE MODAL ================= -->
+
+<div
+  id="lpSquareGameModal"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:99999;
+background:rgba(5,8,20,.92);
+backdrop-filter:blur(3px);
+-webkit-backdrop-filter:blur(3px);
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div style="
+   width:min(94vw,560px);
+    background:#171b2d;
+    border:1px solid rgba(255,213,79,.45);
+    border-radius:16px;
+    padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+    text-align:center;
+  ">
+
+    <div style="
+      font-size:22px;
+      font-weight:800;
+      color:#ffd54f;
+      margin-bottom:6px;
+    ">
+      🎯 Find the Square
+    </div>
+
+    <div
+      id="lpSquareGameQuestion"
+      style="
+        font-size:20px;
+        font-weight:700;
+        margin-bottom:15px;
+      "
+    ></div>
+
+    <div
+      id="lpSquareGameBoard"
+      style="
+      width:min(82vw,480px);
+        aspect-ratio:1/1;
+        margin:auto;
+        display:grid;
+        grid-template-columns:repeat(8,1fr);
+        grid-template-rows:repeat(8,1fr);
+        border:3px solid #555;
+      "
+    ></div>
+
+    <div
+      id="lpSquareGameFeedback"
+      style="
+        min-height:25px;
+        margin-top:14px;
+        font-weight:700;
+      "
+    ></div>
+
+  </div>
+</div>
+
+<!-- ================= FIND SQUARE ADMIN RESULTS ================= -->
+
+<div
+  id="lpSquareAdminPanel"
+  style="
+    display:none;
+    position:fixed;
+    top:310px;
+    right:32px;
+    width:280px;
+    z-index:99998;
+    background:#1d1f31;
+    border:2px solid #ffd700;
+    border-radius:16px;
+    padding:18px;
+    box-shadow:0 15px 45px rgba(0,0,0,.45);
+    color:white;
+  "
+>
+
+  <div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+  ">
+    <strong style="font-size:18px;">
+      🎯 Square Results
+    </strong>
+
+    <span
+      onclick="hideSquareAdminPanel()"
+      style="
+        cursor:pointer;
+        font-size:20px;
+        font-weight:800;
+      "
+    >
+      ×
+    </span>
+  </div>
+
+
+  <div
+    id="lpSquareAdminTarget"
+    style="
+      background:rgba(255,255,255,.06);
+      padding:10px;
+      border-radius:9px;
+      margin-bottom:12px;
+      font-weight:700;
+      text-align:center;
+    "
+  ></div>
+
+
+  <div
+    id="lpSquareAnswersList"
+    style="
+      max-height:250px;
+      overflow-y:auto;
+      margin-bottom:14px;
+    "
+  ></div>
+
+
+  <button
+    id="lpSquareRevealBtn"
+    type="button"
+    style="
+      width:100%;
+      padding:10px;
+      border:0;
+      border-radius:8px;
+      background:#4caf50;
+      color:white;
+      cursor:pointer;
+      margin-bottom:8px;
+      font-weight:700;
+    "
+  >
+    🔓 Reveal Answer
+  </button>
+
+
+  <button
+    id="lpSquareResetBtn"
+    type="button"
+    style="
+      width:100%;
+      padding:10px;
+      border:0;
+      border-radius:8px;
+      background:#3b82f6;
+      color:white;
+      cursor:pointer;
+      font-weight:700;
+    "
+  >
+    ⚠️ Reset / Exit
+  </button>
+
+</div>
 
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
