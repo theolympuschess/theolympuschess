@@ -24671,6 +24671,13 @@ transform:scale(.97);
 
 }
 
+
+
+/* 👨‍🎓 STUDENT VIEW — TALLER STUDENT LIST */
+body.student-view #lpStudentsContainer {
+    max-height: 460px !important;
+}
+
   </style>
 </head>
 
@@ -27341,10 +27348,19 @@ style="background:#3F51B5;">
 
 </div>
 
-      <!-- STUDENTS -->
-      <div id="lpStudentsList" style="margin-top:20px;">
-        <h3>👨‍🎓 Students</h3>
-        <div id="lpStudentsContainer"></div>
+   <!-- STUDENTS -->
+<div id="lpStudentsList" style="margin-top:20px;">
+  <h3>👨‍🎓 Students</h3>
+
+  <div
+    id="lpStudentsContainer"
+    style="
+      max-height:250px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding-right:5px;
+    "
+  ></div>
         
       </div>
 
@@ -57596,7 +57612,7 @@ function mpAppendPGN(oldPgn, move) {
 }
 
 
-function genRoomCode() {
+async function genRoomCode() {
 
   const words = [
     "PAWN",
@@ -57631,13 +57647,39 @@ function genRoomCode() {
     "LOCK"
   ];
 
-  const word = words[Math.floor(Math.random() * words.length)];
+  while (true) {
 
-  const number = Math.floor(Math.random() * 100)
-    .toString()
-    .padStart(2, "0");
+    const word =
+      words[Math.floor(Math.random() * words.length)];
 
-  return `${word}${number}`;
+    // 4 digits: 0000–9999
+    const number =
+      Math.floor(Math.random() * 10000)
+        .toString()
+        .padStart(4, "0");
+
+    const code = `${word}${number}`;
+
+    // 🔍 Check whether room code already exists
+    const { data, error } = await supabase
+      .from("live_match_rooms")
+      .select("room_code")
+      .eq("room_code", code)
+      .maybeSingle();
+
+    if (error) {
+      console.error(
+        "Room code check failed:",
+        error
+      );
+      throw error;
+    }
+
+    // ✅ Never used / currently doesn't exist
+    if (!data) {
+      return code;
+    }
+  }
 }
 
 function startClock() {
@@ -58828,7 +58870,7 @@ async function createChallengeLiveMatchRoom(challenge) {
 
     // Generate room code
 
-    const roomCode = genRoomCode();
+    const roomCode = await genRoomCode();
 
     console.log("Generated room code:", roomCode);
 
@@ -62175,9 +62217,9 @@ const words = [
   const word =
     words[Math.floor(Math.random() * words.length)];
 
-  const number = Math.floor(Math.random() * 100)
-    .toString()
-    .padStart(2, "0");
+ const number = Math.floor(Math.random() * 10000)
+  .toString()
+  .padStart(4, "0");
 
   return `${word}${number}`;
 }
@@ -77095,7 +77137,7 @@ if (entries.length > 0) {
     classAnswers.style.paddingTop = "12px";
     classAnswers.style.borderTop =
         "1px solid rgba(255,255,255,.15)";
-        classAnswers.style.maxHeight = "130px";
+        classAnswers.style.maxHeight = "230px";
 classAnswers.style.overflowY = "auto";
 classAnswers.style.paddingRight = "5px";
 
@@ -79876,7 +79918,7 @@ async function createRoom() {
 
   
 
-  roomCode = generateCode();
+roomCode = await generateCode();
 
   // ✅ CLEAR INPUT
   document.getElementById(
@@ -82089,10 +82131,9 @@ await loadStudents();
   } 
 }
   // ================= UTIL =================
-function generateCode() {
+async function generateCode() {
 
   const words = [
-
     "KNIGHT",
     "BISHOP",
     "ROOK",
@@ -82107,27 +82148,36 @@ function generateCode() {
     "BLITZ",
     "RAPID",
     "PUZZLE"
-
   ];
 
-  const randomWord =
-    words[
-      Math.floor(
-        Math.random() *
-        words.length
-      )
-    ];
+  while (true) {
 
-  const randomNumber =
-    Math.floor(
-      10 + Math.random() * 90
-    );
+    const randomWord =
+      words[Math.floor(Math.random() * words.length)];
 
-  return (
-    randomWord +
-    randomNumber
-  );
+    const randomNumber =
+      Math.floor(1000 + Math.random() * 9000);
 
+    const code =
+      randomWord + randomNumber;
+
+    // 🔍 Check whether this room code was ever used
+    const { data, error } = await supabase
+      .from("live_puzzle_rooms")
+      .select("code")
+      .eq("code", code)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Room code check failed:", error);
+      throw error;
+    }
+
+    // Never used before
+    if (!data) {
+      return code;
+    }
+  }
 }
   // ================= EXIT CLASSROOM =================
 async function exitLiveClassroom() {
@@ -93824,7 +93874,7 @@ line-height:1.2;
 id="lpQuizAnswersList"
 style="
 margin:15px 0;
-max-height:130px;
+max-height:250px;
 overflow-y:auto;
 background:rgba(255,255,255,.05);
 padding:10px;
