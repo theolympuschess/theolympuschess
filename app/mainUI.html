@@ -92622,12 +92622,17 @@ allGames.forEach(m => {
   overlay.classList.remove("pcs-hidden");
 }
 // =============================
-// 👥 GLOBAL LEADERBOARD (SUPABASE)
+// 👥 GLOBAL LEADERBOARD
+// 📅 ALL TIME + MONTH + CUSTOM RANGE
 // =============================
-async function openPlayersList(){
+async function openPlayersList(
+  selectedMonth = "all",
+  rangeFrom = "",
+  rangeTo = ""
+){
 
   const nameInput = document.getElementById("pairing-tournament-name");
-  const tournamentName = nameInput.value || "Olympus Tournament";
+  const tournamentName = nameInput?.value || "Olympus Tournament";
 
   const overlay = document.getElementById("pcs-modal-overlay");
   const title = document.getElementById("pcs-modal-title");
@@ -92644,9 +92649,314 @@ async function openPlayersList(){
     .select("*");
 
   if(error){
+    console.error(error);
     content.innerHTML = "❌ Error loading data";
     overlay.classList.remove("pcs-hidden");
     return;
+  }
+
+  // Remove student master
+  const tournaments = data.filter(t =>
+    t.name !== "__student_master__"
+  );
+
+  // =============================
+  // 📅 GET MONTH KEY
+  // =============================
+  function getTournamentMonth(t){
+
+    const dateValue =
+      t.data?.savedAt ||
+      t.created_at;
+
+    if(!dateValue) return null;
+
+    const d = new Date(dateValue);
+
+    if(isNaN(d.getTime())) return null;
+
+    return `${d.getFullYear()}-${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}`;
+  }
+
+  // =============================
+  // 📅 FIND AVAILABLE MONTHS
+  // =============================
+  const availableMonths = new Set();
+
+  tournaments.forEach(t => {
+
+    const key = getTournamentMonth(t);
+
+    if(key){
+      availableMonths.add(key);
+    }
+
+  });
+
+  // newest first for normal dropdown
+  const months = [...availableMonths]
+    .sort()
+    .reverse();
+
+  // =============================
+  // 📅 MONTH LABEL
+  // =============================
+  function monthLabel(month){
+
+    if(!month) return "";
+
+    const [year, mon] = month.split("-");
+
+    return new Date(
+      Number(year),
+      Number(mon) - 1,
+      1
+    ).toLocaleString(undefined, {
+      month: "long",
+      year: "numeric"
+    });
+  }
+
+  // =============================
+  // 📅 FILTER UI
+  // =============================
+  let filterHTML = `
+    <div style="
+      margin-bottom:18px;
+      padding:10px;
+      background:#151515;
+      border:1px solid #333;
+      border-radius:8px;
+    ">
+
+      <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        gap:10px;
+      ">
+
+        <span style="
+          color:#ffd700;
+          font-weight:bold;
+        ">
+          📅 History:
+        </span>
+
+        <select
+          onchange="PCS.openPlayersList(this.value)"
+          style="
+            flex:1;
+            background:#0d0d0d;
+            color:white;
+            border:1px solid #ffd700;
+            border-radius:6px;
+            padding:7px 12px;
+            cursor:pointer;
+          "
+        >
+
+          <option
+            value="all"
+            ${selectedMonth === "all" ? "selected" : ""}
+          >
+            All Time
+          </option>
+
+          <option
+            value="custom"
+            ${selectedMonth === "custom" ? "selected" : ""}
+          >
+            Custom Range...
+          </option>
+  `;
+
+  // individual months
+  months.forEach(month => {
+
+    filterHTML += `
+      <option
+        value="${month}"
+        ${selectedMonth === month ? "selected" : ""}
+      >
+        ${monthLabel(month)}
+      </option>
+    `;
+
+  });
+
+  filterHTML += `
+        </select>
+      </div>
+  `;
+
+  // =============================
+  // 📆 CUSTOM RANGE UI
+  // =============================
+  if(selectedMonth === "custom"){
+
+    // oldest -> newest for range dropdowns
+    const rangeMonths = [...months].sort();
+
+    // default values
+    if(!rangeFrom && rangeMonths.length){
+      rangeFrom = rangeMonths[0];
+    }
+
+    if(!rangeTo && rangeMonths.length){
+      rangeTo = rangeMonths[rangeMonths.length - 1];
+    }
+
+    let fromOptions = "";
+    let toOptions = "";
+
+    rangeMonths.forEach(month => {
+
+      fromOptions += `
+        <option
+          value="${month}"
+          ${rangeFrom === month ? "selected" : ""}
+        >
+          ${monthLabel(month)}
+        </option>
+      `;
+
+      toOptions += `
+        <option
+          value="${month}"
+          ${rangeTo === month ? "selected" : ""}
+        >
+          ${monthLabel(month)}
+        </option>
+      `;
+
+    });
+
+    filterHTML += `
+
+      <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        gap:8px;
+        margin-top:10px;
+        flex-wrap:wrap;
+      ">
+
+        <span style="color:#aaa;">
+          From
+        </span>
+
+        <select
+          id="pcs-history-from"
+          style="
+            background:#0d0d0d;
+            color:white;
+            border:1px solid #555;
+            border-radius:6px;
+            padding:6px;
+          "
+        >
+          ${fromOptions}
+        </select>
+
+        <span style="color:#aaa;">
+          To
+        </span>
+
+        <select
+          id="pcs-history-to"
+          style="
+            background:#0d0d0d;
+            color:white;
+            border:1px solid #555;
+            border-radius:6px;
+            padding:6px;
+          "
+        >
+          ${toOptions}
+        </select>
+
+        <button
+          onclick="
+            PCS.openPlayersList(
+              'custom',
+              document.getElementById('pcs-history-from').value,
+              document.getElementById('pcs-history-to').value
+            )
+          "
+          style="
+            background:#ffd700;
+            color:#111;
+            border:none;
+            border-radius:6px;
+            padding:7px 14px;
+            font-weight:bold;
+            cursor:pointer;
+          "
+        >
+          Apply
+        </button>
+
+      </div>
+    `;
+  }
+
+  filterHTML += `
+    </div>
+  `;
+
+  // =============================
+  // 📅 FILTER TOURNAMENTS
+  // =============================
+  let filteredTournaments = tournaments;
+
+  // SINGLE MONTH
+  if(
+    selectedMonth !== "all" &&
+    selectedMonth !== "custom"
+  ){
+
+    filteredTournaments = tournaments.filter(t => {
+
+      return getTournamentMonth(t) === selectedMonth;
+
+    });
+
+  }
+
+  // CUSTOM RANGE
+  else if(selectedMonth === "custom"){
+
+    // safety: swap if From > To
+    if(rangeFrom && rangeTo && rangeFrom > rangeTo){
+
+      const temp = rangeFrom;
+      rangeFrom = rangeTo;
+      rangeTo = temp;
+
+    }
+
+    filteredTournaments = tournaments.filter(t => {
+
+      const key = getTournamentMonth(t);
+
+      if(!key) return false;
+
+      if(rangeFrom && key < rangeFrom){
+        return false;
+      }
+
+      if(rangeTo && key > rangeTo){
+        return false;
+      }
+
+      return true;
+
+    });
+
   }
 
   // =============================
@@ -92654,110 +92964,318 @@ async function openPlayersList(){
   // =============================
   let playerMap = {};
 
-  // base from studentDB
-  studentDB.forEach(s => {
-   playerMap[s.name] = {
-  name: s.name,
-  rating: s.rating || 0,
-  totalPoints: 0,
-  gamesPlayed: 0
-};
-  });
+  // ALL TIME:
+  // show all known students,
+  // including students with zero tournament points.
+  if(selectedMonth === "all"){
 
-  // =============================
-  // 🧮 PROCESS ALL TOURNAMENTS
-  // =============================
-// =============================
-// 🧮 PROCESS ALL TOURNAMENTS (FIXED FINAL)
-// =============================
-data.forEach(t => {
+    studentDB.forEach(s => {
 
-  if(t.name === "__student_master__") return;
-
-  // 🔥 USE FINAL PLAYER STATE (NOT MATCH HISTORY)
-  let tournamentPlayers = t.data?.players || [];
-
-  tournamentPlayers.forEach(tp => {
-
-    if(!playerMap[tp.name]){
-      playerMap[tp.name] = {
-        name: tp.name,
-        rating: tp.rating || 0,
+      playerMap[s.name] = {
+        name: s.name,
+        rating: s.rating || 0,
         totalPoints: 0,
-        gamesPlayed: 0
+        gamesPlayed: 0,
+        tournamentsPlayed: 0,
+        lastDate: null
       };
+
+    });
+
+  }
+
+  // =============================
+// 📅 PROCESS OLDEST → NEWEST
+// =============================
+filteredTournaments = [...filteredTournaments].sort((a, b) => {
+
+  const dateA = new Date(
+    a.data?.savedAt || a.created_at || 0
+  ).getTime();
+
+  const dateB = new Date(
+    b.data?.savedAt || b.created_at || 0
+  ).getTime();
+
+  return dateA - dateB;
+});
+
+  // =============================
+  // 🧮 PROCESS TOURNAMENTS
+  // =============================
+  filteredTournaments.forEach(t => {
+
+    const tournamentPlayers =
+      t.data?.players || [];
+
+    const tournamentDate =
+      t.data?.savedAt ||
+      t.created_at ||
+      null;
+
+      // =============================
+// 🎮 COUNT REAL GAMES SAFELY
+// =============================
+const gameCountByPlayer = {};
+
+const tournamentRounds = t.data?.allMatches || [];
+
+// Prevent duplicate round/match records
+const seenGames = new Set();
+
+tournamentRounds.forEach((r, roundIndex) => {
+
+  (r.matches || []).forEach((m, matchIndex) => {
+
+    // BYE = no actual game played
+    if(m.result === "BYE") return;
+
+    // Need both players
+    if(!m.p1 || !m.p2) return;
+
+    // Count completed games only
+    if(
+      m.result !== "1-0" &&
+      m.result !== "0-1" &&
+      m.result !== "0.5-0.5"
+    ){
+      return;
     }
 
-    // ✅ FINAL CORRECT SCORE (NO DUPLICATE COUNTING)
-    playerMap[tp.name].totalPoints += tp.score || 0;
+    // Round-aware identity.
+    // Same two players in DIFFERENT rounds still count separately.
+   const roundNumber = r.round ?? roundIndex;
 
-    // ✅ APPROX GAME COUNT (FROM OPPONENTS)
-    playerMap[tp.name].gamesPlayed += tp.opponents?.length || 0;
+    const key =
+      `${roundNumber}|${matchIndex}|${m.p1.name}|${m.p2.name}|${m.result}`;
+
+    if(seenGames.has(key)) return;
+
+    seenGames.add(key);
+
+    gameCountByPlayer[m.p1.name] =
+      (gameCountByPlayer[m.p1.name] || 0) + 1;
+
+    gameCountByPlayer[m.p2.name] =
+      (gameCountByPlayer[m.p2.name] || 0) + 1;
 
   });
 
 });
 
+    tournamentPlayers.forEach(tp => {
+
+      if(!playerMap[tp.name]){
+
+        playerMap[tp.name] = {
+          name: tp.name,
+          rating: tp.rating || 0,
+          totalPoints: 0,
+          gamesPlayed: 0,
+          tournamentsPlayed: 0,
+          lastDate: null
+        };
+
+      }
+
+      const p = playerMap[tp.name];
+
+      // =============================
+      // 🏆 POINTS
+      // =============================
+      p.totalPoints +=
+        Number(tp.score) || 0;
+
+   // =============================
+// 🎮 REAL GAMES PLAYED
+// =============================
+p.gamesPlayed +=
+  gameCountByPlayer[tp.name] || 0;
+
+      // tournament count
+      p.tournamentsPlayed++;
+
+// =============================
+// ⭐ LATEST RATING IN PERIOD
+// =============================
+const rating = Number(tp.rating);
+
+if(Number.isFinite(rating)){
+
+  if(tournamentDate){
+
+    const currentTime =
+      new Date(tournamentDate).getTime();
+
+    const previousTime =
+      p.lastDate
+        ? new Date(p.lastDate).getTime()
+        : -Infinity;
+
+    if(currentTime >= previousTime){
+      p.rating = rating;
+      p.lastDate = tournamentDate;
+    }
+
+  }
+  else if(p.lastDate === null){
+
+    p.rating = rating;
+
+  }
+
+}
+
+    });
+
+  });
+
+  // =============================
+  // ⭐ ALL TIME = CURRENT RATING
+  // =============================
+  if(selectedMonth === "all"){
+
+    Object.values(playerMap).forEach(p => {
+
+      const student = studentDB.find(s =>
+        s.name.toLowerCase() ===
+        p.name.toLowerCase()
+      );
+
+      if(student){
+        p.rating = student.rating || p.rating;
+      }
+
+    });
+
+  }
+
   // =============================
   // 🔥 SORT
   // =============================
-  let sorted = Object.values(playerMap);
+  let sorted =
+    Object.values(playerMap);
 
-  sorted.sort((a,b)=>{
+  sorted.sort((a,b) => {
+
+    // 1️⃣ points
     if(b.totalPoints !== a.totalPoints){
       return b.totalPoints - a.totalPoints;
     }
-    return (b.rating || 0) - (a.rating || 0);
+
+    // 2️⃣ rating
+    return (b.rating || 0) -
+           (a.rating || 0);
+
   });
 
   // =============================
   // 🎯 RENDER
   // =============================
-  content.innerHTML = "";
+  content.innerHTML = filterHTML;
 
+  // =============================
+  // 📅 RANGE INFORMATION
+  // =============================
+  if(selectedMonth === "custom" && rangeFrom && rangeTo){
+
+    const info = document.createElement("div");
+
+    info.style.cssText = `
+      text-align:center;
+      color:#aaa;
+      font-size:12px;
+      margin-bottom:12px;
+    `;
+
+    info.innerHTML = `
+      Showing:
+      <span style="color:#ffd700;">
+        ${monthLabel(rangeFrom)}
+      </span>
+
+      →
+
+      <span style="color:#ffd700;">
+        ${monthLabel(rangeTo)}
+      </span>
+
+      &nbsp; | &nbsp;
+
+      ${filteredTournaments.length}
+      tournament${filteredTournaments.length === 1 ? "" : "s"}
+    `;
+
+    content.appendChild(info);
+  }
+
+  // =============================
+  // EMPTY
+  // =============================
   if(sorted.length === 0){
-    content.innerHTML = `<div class="pcs-empty">No players</div>`;
+
+    content.innerHTML += `
+      <div class="pcs-empty">
+        No tournament history found for this period.
+      </div>
+    `;
+
     overlay.classList.remove("pcs-hidden");
     return;
   }
 
-  sorted.forEach((p, index)=>{
+  // =============================
+  // 👥 PLAYER ROWS
+  // =============================
+  sorted.forEach((p, index) => {
 
-    let div = document.createElement("div");
-    div.className = "pcs-match-line";
+    const div =
+      document.createElement("div");
+
+    div.className =
+      "pcs-match-line";
 
     div.innerHTML = `
-  <div class="pcs-player-row ${index === 0 ? 'top1' : index === 1 ? 'top2' : index === 2 ? 'top3' : ''}">
+      <div class="pcs-player-row ${
+        index === 0 ? "top1" :
+        index === 1 ? "top2" :
+        index === 2 ? "top3" :
+        ""
+      }">
 
-    <span class="rank">
-  ${
-    index === 0 ? "🥇" :
-    index === 1 ? "🥈" :
-    index === 2 ? "🥉" :
-    index + 1
-  }
-</span>
+        <span class="rank">
+          ${
+            index === 0 ? "🥇" :
+            index === 1 ? "🥈" :
+            index === 2 ? "🥉" :
+            index + 1
+          }
+        </span>
 
-    <span class="player-name player-link" onclick="PCS.openPlayerProfile('${p.name}')">
-      ${p.name}
-    </span>
+        <span
+          class="player-name player-link"
+          onclick="PCS.openPlayerProfile('${p.name}')"
+        >
+          ${p.name}
+        </span>
 
-    <span class="player-points">
-      ${p.totalPoints.toFixed(1)} pts
-    </span>
+        <span class="player-points">
+          ${p.totalPoints.toFixed(1)} pts
+        </span>
 
-    <span class="player-games">
-      (${p.gamesPlayed || 0} games)
-    </span>
+        <span class="player-games">
+          (${p.gamesPlayed} games)
+        </span>
 
-    <span class="player-rating">
-      ⭐ ${p.rating || 0}
-    </span>
+        <span class="player-rating">
+          ⭐ ${p.rating || 0}
+        </span>
 
-  </div>
-`;
+      </div>
+    `;
 
     content.appendChild(div);
+
   });
 
   overlay.classList.remove("pcs-hidden");
