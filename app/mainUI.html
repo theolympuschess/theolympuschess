@@ -24712,6 +24712,16 @@ body.student-view #lpStudentsContainer {
   border: 1px solid #467573 !important;
 }
 
+#lpAskSafeBtn {
+  background: #46563d !important;
+  color: #f4faef !important;
+  border: 1px solid #607255 !important;
+}
+
+#lpAskSafeBtn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
 
 /* Subtle hover */
 #lpAskPuzzleBtn:hover,
@@ -27359,6 +27369,14 @@ data-role="admin-only">
   placeholder="To Puzzle"
   style="width:120px;"
 >
+
+<button
+  id="lpAskSafeBtn"
+  type="button"
+  data-role="admin-only"
+>
+  🛡️ Ask Safe
+</button>
 
 <button
   id="lpAskSquareBtn"
@@ -73827,6 +73845,2648 @@ let squareGameState = {
 
 };
 
+// ==========================================
+// 🛡️ ASK SAFE — ISOLATED STATE
+// ==========================================
+
+let safeGameState = {
+
+  active: false,
+
+  challengeId: null,
+
+  // Piece controlled by student
+  playerPiece: null,
+  playerSquare: null,
+
+  // Position received/generated
+  pieces: [],
+
+  // Valid destinations
+  legalSquares: [],
+
+  // One OR multiple correct answers
+  safeSquares: [],
+
+  // Admin answers
+  answers: {},
+
+  // Student's answer
+  selectedSquare: null,
+
+  revealed: false,
+  locked: false
+
+};
+
+// ==========================================
+// 🛡️ ASK SAFE — BOARD / MOVEMENT ENGINE
+// Completely isolated from main chessboard
+// ==========================================
+
+const SAFE_FILES = [
+  "a","b","c","d","e","f","g","h"
+];
+
+
+// ===============================
+// SQUARE → COORDINATES
+// ===============================
+
+function safeSquareToXY(square) {
+
+  if (
+    typeof square !== "string" ||
+    !/^[a-h][1-8]$/.test(square)
+  ) {
+    return null;
+  }
+
+  return {
+    x: SAFE_FILES.indexOf(square[0]),
+    y: Number(square[1]) - 1
+  };
+}
+
+
+// ===============================
+// COORDINATES → SQUARE
+// ===============================
+
+function safeXYToSquare(x, y) {
+
+  if (
+    x < 0 || x > 7 ||
+    y < 0 || y > 7
+  ) {
+    return null;
+  }
+
+  return SAFE_FILES[x] + (y + 1);
+}
+
+
+// ===============================
+// BOARD BOUNDARY
+// ===============================
+
+function safeInsideBoard(x, y) {
+
+  return (
+    x >= 0 && x < 8 &&
+    y >= 0 && y < 8
+  );
+}
+
+
+// ===============================
+// GET PIECE ON SQUARE
+// ===============================
+
+function safeGetPieceAt(square, pieces) {
+
+  return pieces.find(
+    piece => piece.square === square
+  ) || null;
+}
+
+
+// ===============================
+// OCCUPIED?
+// ===============================
+
+function safeIsOccupied(square, pieces) {
+
+  return !!safeGetPieceAt(
+    square,
+    pieces
+  );
+}
+
+
+// ==========================================
+// 🛡️ ATTACK DETECTION
+// ==========================================
+
+function safeIsSquareAttacked(
+  targetSquare,
+  enemyPieces,
+  allPieces
+) {
+
+  for (const enemy of enemyPieces) {
+
+    if (
+      safePieceAttacksSquare(
+        enemy,
+        targetSquare,
+        allPieces
+      )
+    ) {
+      return true;
+    }
+
+  }
+
+  return false;
+}
+
+
+// ===============================
+// DOES ONE PIECE ATTACK TARGET?
+// ===============================
+
+function safePieceAttacksSquare(
+  piece,
+  targetSquare,
+  allPieces
+) {
+
+  const from =
+    safeSquareToXY(piece.square);
+
+  const target =
+    safeSquareToXY(targetSquare);
+
+  if (!from || !target) {
+    return false;
+  }
+
+  const dx =
+    target.x - from.x;
+
+  const dy =
+    target.y - from.y;
+
+
+  // Cannot attack own square
+  if (dx === 0 && dy === 0) {
+    return false;
+  }
+
+
+  // ==========================
+  // PAWN
+  // Enemy pawns ARE supported
+  // ==========================
+
+  if (piece.type === "p") {
+
+    const direction =
+      piece.color === "w"
+        ? 1
+        : -1;
+
+    return (
+      Math.abs(dx) === 1 &&
+      dy === direction
+    );
+  }
+
+
+  // ==========================
+  // KNIGHT
+  // ==========================
+
+  if (piece.type === "n") {
+
+    return (
+      (
+        Math.abs(dx) === 1 &&
+        Math.abs(dy) === 2
+      ) ||
+      (
+        Math.abs(dx) === 2 &&
+        Math.abs(dy) === 1
+      )
+    );
+  }
+
+
+  // ==========================
+  // KING
+  // ==========================
+
+  if (piece.type === "k") {
+
+    return (
+      Math.abs(dx) <= 1 &&
+      Math.abs(dy) <= 1
+    );
+  }
+
+
+  // ==========================
+  // BISHOP
+  // ==========================
+
+  if (piece.type === "b") {
+
+    if (
+      Math.abs(dx) !==
+      Math.abs(dy)
+    ) {
+      return false;
+    }
+
+    return safeRayClear(
+      piece.square,
+      targetSquare,
+      allPieces
+    );
+  }
+
+
+  // ==========================
+  // ROOK
+  // ==========================
+
+  if (piece.type === "r") {
+
+    if (
+      dx !== 0 &&
+      dy !== 0
+    ) {
+      return false;
+    }
+
+    return safeRayClear(
+      piece.square,
+      targetSquare,
+      allPieces
+    );
+  }
+
+
+  // ==========================
+  // QUEEN
+  // ==========================
+
+  if (piece.type === "q") {
+
+    const diagonal =
+      Math.abs(dx) ===
+      Math.abs(dy);
+
+    const straight =
+      dx === 0 ||
+      dy === 0;
+
+    if (
+      !diagonal &&
+      !straight
+    ) {
+      return false;
+    }
+
+    return safeRayClear(
+      piece.square,
+      targetSquare,
+      allPieces
+    );
+  }
+
+
+  return false;
+}
+
+
+// ==========================================
+// 🧱 SLIDING PIECE BLOCKER CHECK
+// ==========================================
+
+function safeRayClear(
+  fromSquare,
+  targetSquare,
+  allPieces
+) {
+
+  const from =
+    safeSquareToXY(fromSquare);
+
+  const target =
+    safeSquareToXY(targetSquare);
+
+  if (!from || !target) {
+    return false;
+  }
+
+
+  const stepX =
+    Math.sign(
+      target.x - from.x
+    );
+
+  const stepY =
+    Math.sign(
+      target.y - from.y
+    );
+
+
+  let x =
+    from.x + stepX;
+
+  let y =
+    from.y + stepY;
+
+
+  while (
+    x !== target.x ||
+    y !== target.y
+  ) {
+
+    const square =
+      safeXYToSquare(x, y);
+
+    if (
+      safeIsOccupied(
+        square,
+        allPieces
+      )
+    ) {
+      return false;
+    }
+
+    x += stepX;
+    y += stepY;
+  }
+
+
+  return true;
+}
+
+
+// ==========================================
+// 🛡️ STUDENT PIECE LEGAL DESTINATIONS
+// ==========================================
+
+function safeGetLegalMoves(
+  playerPiece,
+  allPieces
+) {
+
+  if (!playerPiece) {
+    return [];
+  }
+
+  const from =
+    safeSquareToXY(
+      playerPiece.square
+    );
+
+  if (!from) {
+    return [];
+  }
+
+
+  const legal = [];
+
+
+  // ==================================
+  // KNIGHT
+  // ==================================
+
+  if (playerPiece.type === "n") {
+
+    const jumps = [
+      [1,2],
+      [2,1],
+      [2,-1],
+      [1,-2],
+      [-1,-2],
+      [-2,-1],
+      [-2,1],
+      [-1,2]
+    ];
+
+
+    for (const [dx,dy] of jumps) {
+
+      const square =
+        safeXYToSquare(
+          from.x + dx,
+          from.y + dy
+        );
+
+      if (!square) continue;
+
+
+      const occupant =
+        safeGetPieceAt(
+          square,
+          allPieces
+        );
+
+
+      // Can't land on friendly piece
+      if (
+        occupant &&
+        occupant.color ===
+          playerPiece.color
+      ) {
+        continue;
+      }
+
+
+      legal.push(square);
+    }
+
+
+    return legal;
+  }
+
+
+  // ==================================
+  // KING
+  // ==================================
+
+  if (playerPiece.type === "k") {
+
+    for (
+      let dx = -1;
+      dx <= 1;
+      dx++
+    ) {
+
+      for (
+        let dy = -1;
+        dy <= 1;
+        dy++
+      ) {
+
+        if (
+          dx === 0 &&
+          dy === 0
+        ) {
+          continue;
+        }
+
+
+        const square =
+          safeXYToSquare(
+            from.x + dx,
+            from.y + dy
+          );
+
+        if (!square) continue;
+
+
+        const occupant =
+          safeGetPieceAt(
+            square,
+            allPieces
+          );
+
+
+        if (
+          occupant &&
+          occupant.color ===
+            playerPiece.color
+        ) {
+          continue;
+        }
+
+
+        legal.push(square);
+      }
+
+    }
+
+
+    return legal;
+  }
+
+
+  // ==================================
+  // BISHOP / ROOK / QUEEN
+  // ==================================
+
+  let directions = [];
+
+
+  if (playerPiece.type === "b") {
+
+    directions = [
+      [1,1],
+      [1,-1],
+      [-1,1],
+      [-1,-1]
+    ];
+
+  }
+
+
+  else if (
+    playerPiece.type === "r"
+  ) {
+
+    directions = [
+      [1,0],
+      [-1,0],
+      [0,1],
+      [0,-1]
+    ];
+
+  }
+
+
+  else if (
+    playerPiece.type === "q"
+  ) {
+
+    directions = [
+      [1,0],
+      [-1,0],
+      [0,1],
+      [0,-1],
+
+      [1,1],
+      [1,-1],
+      [-1,1],
+      [-1,-1]
+    ];
+
+  }
+
+
+  for (const [dx,dy] of directions) {
+
+    let x =
+      from.x + dx;
+
+    let y =
+      from.y + dy;
+
+
+    while (
+      safeInsideBoard(x,y)
+    ) {
+
+      const square =
+        safeXYToSquare(x,y);
+
+      const occupant =
+        safeGetPieceAt(
+          square,
+          allPieces
+        );
+
+
+      if (occupant) {
+
+        // Enemy piece can be captured
+        if (
+          occupant.color !==
+          playerPiece.color
+        ) {
+          legal.push(square);
+        }
+
+        // Can't move through any piece
+        break;
+      }
+
+
+      legal.push(square);
+
+      x += dx;
+      y += dy;
+    }
+
+  }
+
+
+  return legal;
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — SIMULATE PLAYER MOVE
+// ==========================================
+
+function safeSimulateMove(
+  playerPiece,
+  destination,
+  allPieces
+) {
+
+  // Remove the player's OLD position
+  // and remove any enemy captured on destination
+  const nextPieces =
+    allPieces.filter(piece => {
+
+      if (
+        piece.square === playerPiece.square &&
+        piece.type === playerPiece.type &&
+        piece.color === playerPiece.color
+      ) {
+        return false;
+      }
+
+      if (
+        piece.square === destination
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+
+
+  // Create moved player piece
+  const movedPiece = {
+    ...playerPiece,
+    square: destination
+  };
+
+
+  nextPieces.push(movedPiece);
+
+
+  return {
+    movedPiece,
+    pieces: nextPieces
+  };
+}
+
+
+// ==========================================
+// 🛡️ IS A DESTINATION SAFE?
+// ==========================================
+
+function safeIsDestinationSafe(
+  playerPiece,
+  destination,
+  allPieces
+) {
+
+  const simulation =
+    safeSimulateMove(
+      playerPiece,
+      destination,
+      allPieces
+    );
+
+
+  // Only opponent pieces can attack
+  const enemies =
+    simulation.pieces.filter(
+      piece =>
+        piece.color !==
+        playerPiece.color
+    );
+
+
+  return !safeIsSquareAttacked(
+    destination,
+    enemies,
+    simulation.pieces
+  );
+}
+
+
+// ==========================================
+// 🛡️ GET ALL SAFE LEGAL DESTINATIONS
+// ==========================================
+
+function safeGetSafeMoves(
+  playerPiece,
+  allPieces
+) {
+
+  const legalSquares =
+    safeGetLegalMoves(
+      playerPiece,
+      allPieces
+    );
+
+
+  const safeSquares =
+    legalSquares.filter(square => {
+
+      return safeIsDestinationSafe(
+        playerPiece,
+        square,
+        allPieces
+      );
+
+    });
+
+
+ // 👑 For King, attacked destinations
+// are not legal chess destinations.
+if (playerPiece.type === "k") {
+
+  return {
+    legalSquares: [...safeSquares],
+    safeSquares: [...safeSquares]
+  };
+
+}
+
+
+return {
+  legalSquares,
+  safeSquares
+};
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — CHALLENGE GENERATOR
+// ==========================================
+
+// Student can ONLY control these pieces
+const SAFE_PLAYER_TYPES = [
+  "q",
+  "r",
+  "b",
+  "n"
+];
+
+// Enemy pieces may include pawns
+const SAFE_ENEMY_TYPES = [
+  "p",
+  "n",
+  "b",
+  "r",
+  "q"
+  
+];
+
+// Friendly blockers.
+// No extra friendly king — avoids weird duplicate kings.
+const SAFE_FRIENDLY_TYPES = [
+  "p",
+  "n",
+  "b",
+  "r",
+  "q"
+];
+
+
+function safeRandomItem(array) {
+
+  return array[
+    Math.floor(
+      Math.random() * array.length
+    )
+  ];
+}
+
+
+function safeRandomSquare() {
+
+  return (
+    SAFE_FILES[
+      Math.floor(Math.random() * 8)
+    ] +
+    (
+      Math.floor(Math.random() * 8) + 1
+    )
+  );
+}
+
+
+// ==========================================
+// CREATE RANDOM UNIQUE PIECE
+// ==========================================
+
+function safeCreateRandomPiece(
+  occupied,
+  color,
+  allowedTypes
+) {
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+
+    const square =
+      safeRandomSquare();
+
+    if (occupied.has(square)) {
+      continue;
+    }
+
+    const piece = {
+      type: safeRandomItem(allowedTypes),
+      color,
+      square
+    };
+
+    occupied.add(square);
+
+    return piece;
+  }
+
+  return null;
+}
+
+
+// ==========================================
+// GENERATE ONE CANDIDATE POSITION
+// ==========================================
+
+function safeGenerateCandidate() {
+
+  const occupied =
+    new Set();
+
+
+  // Student piece color is White for now.
+  // This keeps the exercise visually consistent.
+  const playerPiece = {
+
+    type:
+      safeRandomItem(
+        SAFE_PLAYER_TYPES
+      ),
+
+    color: "w",
+
+    square:
+      safeRandomSquare()
+
+  };
+
+
+  occupied.add(
+    playerPiece.square
+  );
+
+
+  const pieces = [
+    playerPiece
+  ];
+
+
+  // ======================================
+  // ENEMY PIECES
+  // ======================================
+
+  // Crowded enough to make attack
+  // calculation meaningful.
+  const enemyCount =
+    9 +
+    Math.floor(
+      Math.random() * 5
+    );
+
+  // 9–13 enemies
+
+
+  for (
+    let i = 0;
+    i < enemyCount;
+    i++
+  ) {
+
+    const piece =
+      safeCreateRandomPiece(
+        occupied,
+        "b",
+        SAFE_ENEMY_TYPES
+      );
+
+    if (piece) {
+      pieces.push(piece);
+    }
+
+  }
+
+
+ 
+
+
+  return {
+    playerPiece,
+    pieces
+  };
+}
+
+
+// ==========================================
+// SCORE POSITION DIFFICULTY
+// ==========================================
+
+function safeChallengeDifficulty(
+  legalSquares,
+  safeSquares,
+  pieces
+) {
+
+  const legalCount =
+    legalSquares.length;
+
+  const safeCount =
+    safeSquares.length;
+
+  const unsafeCount =
+    legalCount - safeCount;
+
+
+  // More choices + fewer safe answers +
+  // crowded board = harder.
+
+  return (
+    (legalCount * 2) +
+    (unsafeCount * 3) +
+    pieces.length -
+    (safeCount * 4)
+  );
+}
+
+
+// ==========================================
+// VALIDATE GENERATED CANDIDATE
+// ==========================================
+
+function safeValidateCandidate(
+  playerPiece,
+  pieces
+) {
+
+  // Student's piece should begin in danger.
+  // Otherwise "Save the piece" has less meaning.
+
+  const enemies =
+    pieces.filter(
+      piece =>
+        piece.color !==
+        playerPiece.color
+    );
+
+
+  const currentlyAttacked =
+    safeIsSquareAttacked(
+      playerPiece.square,
+      enemies,
+      pieces
+    );
+
+
+  if (!currentlyAttacked) {
+    return null;
+  }
+
+
+  const result =
+    safeGetSafeMoves(
+      playerPiece,
+      pieces
+    );
+
+
+  const legalSquares =
+    result.legalSquares;
+
+  const safeSquares =
+    result.safeSquares;
+
+
+  // Must actually have choices
+  if (legalSquares.length < 3) {
+    return null;
+  }
+
+
+  // Must have a solution
+  if (safeSquares.length === 0) {
+    return null;
+  }
+
+
+  // Avoid trivial positions where almost
+  // every legal move is safe.
+  if (
+    safeSquares.length >=
+    legalSquares.length
+  ) {
+    return null;
+  }
+
+
+  // Prefer only a small number of correct
+  // answers.
+  if (safeSquares.length > 3) {
+    return null;
+  }
+
+
+  // Need meaningful danger alternatives
+  const unsafeCount =
+    legalSquares.length -
+    safeSquares.length;
+
+
+  if (unsafeCount < 2) {
+    return null;
+  }
+
+
+  return {
+
+    legalSquares:
+      [...legalSquares],
+
+    safeSquares:
+      [...safeSquares],
+
+    difficulty:
+      safeChallengeDifficulty(
+        legalSquares,
+        safeSquares,
+        pieces
+      )
+
+  };
+}
+
+
+// ==========================================
+// GENERATE DIFFICULT VALID CHALLENGE
+// ==========================================
+
+function generateSafeChallenge() {
+
+  const MAX_ATTEMPTS = 500;
+
+  let bestChallenge = null;
+
+
+  for (
+    let attempt = 0;
+    attempt < MAX_ATTEMPTS;
+    attempt++
+  ) {
+
+    const candidate =
+      safeGenerateCandidate();
+
+
+    const validation =
+      safeValidateCandidate(
+        candidate.playerPiece,
+        candidate.pieces
+      );
+
+
+    if (!validation) {
+      continue;
+    }
+
+
+    const challenge = {
+
+      challengeId:
+        "safe_" +
+        Date.now().toString(36) +
+        "_" +
+        Math.random()
+          .toString(36)
+          .slice(2, 8),
+
+      playerPiece: {
+        ...candidate.playerPiece
+      },
+
+      pieces:
+        candidate.pieces.map(
+          piece => ({ ...piece })
+        ),
+
+      legalSquares:
+        [...validation.legalSquares],
+
+      safeSquares:
+        [...validation.safeSquares],
+
+      difficulty:
+        validation.difficulty
+
+    };
+
+
+    if (
+      !bestChallenge ||
+      challenge.difficulty >
+        bestChallenge.difficulty
+    ) {
+
+      bestChallenge =
+        challenge;
+
+    }
+
+
+    // Excellent challenge:
+    // many possible moves, only 1–2 safe.
+    if (
+      challenge.legalSquares.length >= 6 &&
+      challenge.safeSquares.length <= 2
+    ) {
+
+      return challenge;
+    }
+
+  }
+
+
+  // Return best valid candidate found
+  if (bestChallenge) {
+
+    console.log(
+      "🛡️ Safe challenge generated:",
+      bestChallenge
+    );
+
+    return bestChallenge;
+  }
+
+
+  console.warn(
+    "🛡️ Could not generate a valid Safe challenge."
+  );
+
+  return null;
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — PIECE DISPLAY
+// ==========================================
+
+const SAFE_PIECE_SYMBOLS = {
+
+  w: {
+    k: "♔",
+    q: "♕",
+    r: "♖",
+    b: "♗",
+    n: "♘",
+    p: "♙"
+  },
+
+  b: {
+    k: "♚",
+    q: "♛",
+    r: "♜",
+    b: "♝",
+    n: "♞",
+    p: "♟"
+  }
+
+};
+
+
+const SAFE_PIECE_NAMES = {
+  k: "King",
+  q: "Queen",
+  r: "Rook",
+  b: "Bishop",
+  n: "Knight",
+  p: "Pawn"
+};
+
+
+function safeGetPieceSymbol(piece) {
+
+  return (
+    SAFE_PIECE_SYMBOLS
+      [piece.color]
+      ?.[piece.type]
+    || ""
+  );
+}
+
+
+function safeGetPieceName(type) {
+
+  return (
+    SAFE_PIECE_NAMES[type]
+    || "Piece"
+  );
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RENDER STUDENT BOARD
+// ==========================================
+
+function renderSafeGameBoard() {
+
+  const board =
+    document.getElementById(
+      "lpSafeGameBoard"
+    );
+
+  if (!board) return;
+
+
+  board.innerHTML = "";
+
+
+  // Render rank 8 → rank 1
+  for (
+    let rank = 8;
+    rank >= 1;
+    rank--
+  ) {
+
+    for (
+      let fileIndex = 0;
+      fileIndex < 8;
+      fileIndex++
+    ) {
+
+      const square =
+        SAFE_FILES[fileIndex] +
+        rank;
+
+
+      const cell =
+        document.createElement("div");
+
+
+      cell.dataset.square =
+        square;
+
+
+      const isLight =
+        (fileIndex + rank) % 2 === 0;
+
+
+      Object.assign(
+        cell.style,
+        {
+          position: "relative",
+
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          cursor: "default",
+
+          boxSizing:
+            "border-box"
+        }
+      );
+      // ======================================
+// 🛡️ BOARD COORDINATES
+// ======================================
+
+// Rank numbers: 8 → 1 on LEFT edge
+if (fileIndex === 0) {
+
+  const rankLabel =
+    document.createElement("span");
+
+  rankLabel.textContent =
+    rank;
+
+  Object.assign(
+    rankLabel.style,
+    {
+      position: "absolute",
+      top: "2px",
+      left: "3px",
+
+      fontSize: "11px",
+      fontWeight: "800",
+
+      color:
+        isLight
+          ? "#b58863"
+          : "#f0d9b5",
+
+      lineHeight: "1",
+
+      pointerEvents: "none",
+      zIndex: "3"
+    }
+  );
+
+  cell.appendChild(
+    rankLabel
+  );
+
+}
+
+
+// File letters: a → h on BOTTOM edge
+if (rank === 1) {
+
+  const fileLabel =
+    document.createElement("span");
+
+  fileLabel.textContent =
+    SAFE_FILES[fileIndex];
+
+  Object.assign(
+    fileLabel.style,
+    {
+      position: "absolute",
+      right: "3px",
+      bottom: "2px",
+
+      fontSize: "11px",
+      fontWeight: "800",
+
+      color:
+        isLight
+          ? "#b58863"
+          : "#f0d9b5",
+
+      lineHeight: "1",
+
+      pointerEvents: "none",
+      zIndex: "3"
+    }
+  );
+
+  cell.appendChild(
+    fileLabel
+  );
+
+}
+
+
+      const piece =
+        safeGetPieceAt(
+          square,
+          safeGameState.pieces
+        );
+
+
+ if (piece) {
+
+  const pieceEl =
+    document.createElement("img");
+
+
+  // chessboard.js piece codes:
+  // wQ, wR, wB, wN, wK
+  // bQ, bR, bB, bN, bK, bP
+
+  const pieceCode =
+    piece.color +
+    piece.type.toUpperCase();
+
+
+  // Use SAME piece theme as Live Puzzle board
+  pieceEl.src =
+    getPieceThemePath(
+      currentPieceTheme
+    ).replace(
+      "{piece}",
+      pieceCode
+    );
+
+
+  pieceEl.alt =
+    pieceCode;
+
+
+  Object.assign(
+    pieceEl.style,
+    {
+      width: "88%",
+      height: "88%",
+
+      objectFit: "contain",
+
+      cursor:
+        (
+          piece.square ===
+          safeGameState.playerSquare
+        )
+          ? "grab"
+          : "default",
+
+      userSelect: "none",
+
+      pointerEvents: "auto",
+
+      filter:
+        "drop-shadow(0 2px 2px rgba(0,0,0,.35))"
+    }
+  );
+
+
+  cell.appendChild(
+    pieceEl
+  );
+
+}
+
+
+      cell.onclick = () => {
+
+        handleSafeGameSquareClick(
+          square
+        );
+
+      };
+
+
+      board.appendChild(
+        cell
+      );
+
+    }
+
+  }
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — OPEN CHALLENGE
+// ==========================================
+
+function showSafeGameModal(
+  challenge
+) {
+
+  if (!challenge) return;
+
+
+  safeGameState.active = true;
+
+  safeGameState.challengeId =
+    challenge.challengeId;
+
+  safeGameState.playerPiece = {
+    ...challenge.playerPiece
+  };
+
+  safeGameState.playerSquare =
+    challenge.playerPiece.square;
+
+  safeGameState.pieces =
+    challenge.pieces.map(
+      piece => ({ ...piece })
+    );
+
+  safeGameState.legalSquares =
+    [...challenge.legalSquares];
+
+  safeGameState.safeSquares =
+    [...challenge.safeSquares];
+
+  safeGameState.selectedSquare =
+    null;
+
+  safeGameState.revealed =
+    false;
+
+  safeGameState.locked =
+    false;
+
+
+  const question =
+    document.getElementById(
+      "lpSafeGameQuestion"
+    );
+
+
+  if (question) {
+
+    const name =
+      safeGetPieceName(
+        challenge.playerPiece.type
+      );
+
+    question.textContent =
+      `Save the white: ${name}!`;
+
+  }
+
+
+  const feedback =
+    document.getElementById(
+      "lpSafeGameFeedback"
+    );
+
+
+  if (feedback) {
+
+    feedback.textContent =
+      "Click your piece to see its legal moves.";
+
+  }
+
+
+  renderSafeGameBoard();
+
+
+  const modal =
+    document.getElementById(
+      "lpSafeGameModal"
+    );
+
+
+  if (modal) {
+
+    modal.style.display =
+      "flex";
+
+  }
+
+}
+
+// 🧪 TEMP — expose Ask Safe for console testing
+window.testAskSafe = function () {
+
+  const challenge =
+    generateSafeChallenge();
+
+  console.log(
+    "🛡️ Generated Safe Challenge:",
+    challenge
+  );
+
+  if (!challenge) {
+    console.warn(
+      "🛡️ No valid challenge generated."
+    );
+    return;
+  }
+
+  showSafeGameModal(
+    challenge
+  );
+};
+
+// ==========================================
+// 🛡️ ASK SAFE — CLICK HANDLING
+// ==========================================
+
+function handleSafeGameSquareClick(
+  square
+) {
+
+  if (
+    !safeGameState.active ||
+    safeGameState.locked ||
+    safeGameState.revealed
+  ) {
+    return;
+  }
+
+
+  // ======================================
+  // FIRST CLICK — STUDENT'S PIECE
+  // ======================================
+
+  if (
+    square ===
+    safeGameState.playerSquare
+  ) {
+
+    highlightSafeLegalMoves();
+
+    const feedback =
+      document.getElementById(
+        "lpSafeGameFeedback"
+      );
+
+
+    if (feedback) {
+
+      feedback.textContent =
+        "Choose a legal square where the piece will be safe.";
+
+    }
+
+
+    return;
+  }
+
+
+  // ======================================
+  // DESTINATION CLICK
+  // ======================================
+
+  if (
+    !safeGameState.legalSquares
+      .includes(square)
+  ) {
+
+    return;
+  }
+
+
+  submitSafeGameAnswer(
+    square
+  );
+
+}
+
+// ==========================================
+// 🛡️ HIGHLIGHT LEGAL DESTINATIONS
+// ==========================================
+
+function highlightSafeLegalMoves() {
+
+  const board =
+    document.getElementById(
+      "lpSafeGameBoard"
+    );
+
+  if (!board) return;
+
+
+  safeGameState.legalSquares
+    .forEach(square => {
+
+      const cell =
+        board.querySelector(
+          `[data-square="${square}"]`
+        );
+
+      if (!cell) return;
+
+
+   cell.style.boxShadow =
+  "inset 0 0 0 4px #38bdf8, inset 0 0 16px rgba(56,189,248,.65)";
+
+cell.style.cursor =
+  "pointer";
+
+    });
+
+}
+
+// ==========================================
+// 🛡️ STUDENT SUBMITS SAFE SQUARE
+// ==========================================
+
+function submitSafeGameAnswer(
+  square
+) {
+
+  if (
+    safeGameState.locked ||
+    safeGameState.selectedSquare
+  ) {
+    return;
+  }
+
+
+  safeGameState.selectedSquare =
+    square;
+
+  safeGameState.locked =
+    true;
+
+
+  // ======================================
+  // MOVE PIECE VISUALLY
+  // ======================================
+
+  const simulation =
+    safeSimulateMove(
+      safeGameState.playerPiece,
+      square,
+      safeGameState.pieces
+    );
+
+
+  safeGameState.playerPiece = {
+    ...simulation.movedPiece
+  };
+
+  safeGameState.playerSquare =
+    square;
+
+  safeGameState.pieces =
+    simulation.pieces.map(
+      piece => ({ ...piece })
+    );
+
+
+  renderSafeGameBoard();
+
+
+  // ======================================
+  // YELLOW — SUBMITTED
+  // NO CORRECT / WRONG YET
+  // ======================================
+
+  const board =
+    document.getElementById(
+      "lpSafeGameBoard"
+    );
+
+
+  const selectedCell =
+    board?.querySelector(
+      `[data-square="${square}"]`
+    );
+
+
+  if (selectedCell) {
+
+    selectedCell.style.outline =
+      "6px solid #FFD600";
+
+    selectedCell.style.outlineOffset =
+      "-6px";
+
+    selectedCell.style.boxShadow =
+      "inset 0 0 30px rgba(255,214,0,.9)";
+
+    selectedCell.style.filter =
+      "brightness(1.22)";
+
+  }
+
+
+  const feedback =
+    document.getElementById(
+      "lpSafeGameFeedback"
+    );
+
+
+  if (feedback) {
+
+    feedback.innerHTML = `
+      <div style="
+        color:#FFD54F;
+        font-weight:800;
+      ">
+        🔒 Answer submitted: ${square}
+      </div>
+
+      <div style="
+        margin-top:5px;
+        color:#fff;
+      ">
+        Waiting for Coach to reveal...
+      </div>
+    `;
+
+  }
+
+  // ======================================
+// 🛡️ SEND ANSWER TO ADMIN
+// ======================================
+
+if (
+  !isAdmin &&
+  movesChannel
+) {
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event: "safe_game_answer",
+
+    payload: {
+
+      challengeId:
+        safeGameState.challengeId,
+
+      userId:
+        currentUserId,
+
+      username:
+        currentUsername || "Guest",
+
+      square:
+        square
+
+    }
+
+  });
+
+}
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN START
+// ==========================================
+
+async function askSafeGame() {
+
+  if (!isAdmin) return;
+
+  if (!movesChannel) {
+    showToast("❌ Classroom is not ready");
+    return;
+  }
+
+
+  // Generate ONE challenge on Admin
+  const challenge =
+    generateSafeChallenge();
+
+
+  if (!challenge) {
+
+    showToast(
+      "❌ Could not generate Safe challenge"
+    );
+
+    return;
+  }
+
+
+  // Store authoritative challenge on Admin
+  safeGameState.active = true;
+
+  safeGameState.challengeId =
+    challenge.challengeId;
+
+  safeGameState.playerPiece = {
+    ...challenge.playerPiece
+  };
+
+  safeGameState.playerSquare =
+    challenge.playerPiece.square;
+
+  safeGameState.pieces =
+    challenge.pieces.map(
+      piece => ({ ...piece })
+    );
+
+  safeGameState.legalSquares =
+    [...challenge.legalSquares];
+
+  safeGameState.safeSquares =
+    [...challenge.safeSquares];
+
+  safeGameState.answers = {};
+
+  safeGameState.selectedSquare = null;
+
+  safeGameState.revealed = false;
+
+  safeGameState.locked = false;
+
+// 🛡️ SHOW ADMIN ANSWER PANEL
+renderSafeAdminAnswers();
+
+// 🛡️ SHOW EXACT CHALLENGE PREVIEW
+renderSafeAdminBoard();
+  // ======================================
+  // BROADCAST EXACT SAME CHALLENGE
+  // ======================================
+
+  await movesChannel.send({
+
+    type: "broadcast",
+
+    event: "safe_game_start",
+
+    payload: {
+
+      challengeId:
+        challenge.challengeId,
+
+      playerPiece:
+        challenge.playerPiece,
+
+      pieces:
+        challenge.pieces,
+
+      legalSquares:
+        challenge.legalSquares
+
+      // 🔒 IMPORTANT:
+      // safeSquares intentionally NOT sent
+      // to students before Coach reveals.
+    }
+
+  });
+
+
+  showJoinBanner(
+    "🛡️ Safe Square Challenge Started", false
+  );
+
+
+  console.log(
+    "🛡️ SAFE CHALLENGE:",
+    challenge
+  );
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — BUTTON
+// ==========================================
+
+const lpAskSafeBtn =
+  document.getElementById(
+    "lpAskSafeBtn"
+  );
+
+
+if (lpAskSafeBtn) {
+
+  lpAskSafeBtn.onclick = () => {
+
+    askSafeGame();
+
+  };
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN ANSWER LIST
+// ==========================================
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN ANSWER LIST
+// ==========================================
+
+function renderSafeAdminAnswers() {
+
+  if (!isAdmin) return;
+
+  const panel =
+    document.getElementById(
+      "lpSafeAdminPanel"
+    );
+
+  const container =
+    document.getElementById(
+      "lpSafeAdminAnswers"
+    );
+
+  if (!panel || !container) return;
+
+
+  panel.style.display =
+    safeGameState.active
+      ? "block"
+      : "none";
+
+
+  const answers =
+    Object.values(
+      safeGameState.answers
+    );
+
+
+  if (answers.length === 0) {
+
+    container.innerHTML = `
+      <div style="
+        opacity:.7;
+        padding:8px 0;
+        text-align:center;
+      ">
+        Waiting for student answers...
+      </div>
+    `;
+
+    return;
+  }
+
+
+  container.innerHTML =
+    answers.map(answer => {
+
+      // ==================================
+      // BEFORE REVEAL — NEUTRAL
+      // ==================================
+
+      let icon = "";
+      let background =
+        "rgba(255,255,255,.06)";
+
+      let border =
+        "transparent";
+
+      let squareColor =
+        "#FFD54F";
+
+
+      // ==================================
+      // AFTER REVEAL — CORRECT / WRONG
+      // ==================================
+
+      if (safeGameState.revealed) {
+
+        const correct =
+          safeGameState.safeSquares
+            .includes(answer.square);
+
+
+        if (correct) {
+
+          icon = "✅";
+
+          background =
+            "rgba(34,197,94,.20)";
+
+          border =
+            "#22c55e";
+
+          squareColor =
+            "#86efac";
+
+        } else {
+
+          icon = "❌";
+
+          background =
+            "rgba(239,68,68,.20)";
+
+          border =
+            "#ef4444";
+
+          squareColor =
+            "#fca5a5";
+
+        }
+
+      }
+
+
+      return `
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+
+          padding:10px;
+          margin-bottom:7px;
+
+          background:${background};
+
+          border-left:
+            5px solid ${border};
+
+          border-radius:8px;
+        ">
+
+          <div style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            min-width:0;
+          ">
+
+            ${
+              icon
+                ? `<span>${icon}</span>`
+                : ""
+            }
+
+            <strong>
+              ${answer.username}
+            </strong>
+
+          </div>
+
+
+          <span style="
+            color:${squareColor};
+            font-weight:800;
+            font-size:17px;
+            text-transform:lowercase;
+          ">
+            ${answer.square}
+          </span>
+
+        </div>
+
+      `;
+
+    }).join("");
+
+}
+
+// ==========================================
+// 🛡️ ADMIN — SHOW SAFE SQUARES
+// ==========================================
+
+function revealSafeAdminBoard() {
+
+  const board =
+    document.getElementById(
+      "lpSafeAdminBoard"
+    );
+
+  if (!board) return;
+
+
+  // ======================================
+  // 🟢 CORRECT / SAFE SQUARES
+  // ======================================
+
+  safeGameState.safeSquares
+    .forEach(square => {
+
+      const cell =
+        board.querySelector(
+          `[data-square="${square}"]`
+        );
+
+      if (!cell) return;
+
+
+      cell.style.outline =
+        "4px solid #22c55e";
+
+      cell.style.outlineOffset =
+        "-4px";
+
+      cell.style.boxShadow =
+        "inset 0 0 18px rgba(34,197,94,.75)";
+
+    });
+
+
+  // ======================================
+  // 🔴 WRONG STUDENT ANSWERS
+  // ======================================
+
+  Object.values(
+    safeGameState.answers
+  ).forEach(answer => {
+
+    if (!answer?.square) return;
+
+
+    // Correct answers stay GREEN
+    if (
+      safeGameState.safeSquares
+        .includes(answer.square)
+    ) {
+      return;
+    }
+
+
+    const cell =
+      board.querySelector(
+        `[data-square="${answer.square}"]`
+      );
+
+    if (!cell) return;
+
+
+    cell.style.outline =
+      "4px solid #ef4444";
+
+    cell.style.outlineOffset =
+      "-4px";
+
+    cell.style.boxShadow =
+      "inset 0 0 18px rgba(239,68,68,.75)";
+
+  });
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN REVEAL
+// ==========================================
+
+async function revealSafeGame() {
+
+  if (!isAdmin) return;
+
+  if (
+    !safeGameState.active ||
+    safeGameState.revealed
+  ) {
+    return;
+  }
+
+  safeGameState.revealed = true;
+  safeGameState.locked = true;
+
+
+  // 🔥 Update Admin list with results
+  renderSafeAdminAnswers();
+
+  revealSafeAdminBoard();
+
+
+  // 🔥 Tell ALL students the correct safe squares
+  if (movesChannel) {
+
+    await movesChannel.send({
+
+      type: "broadcast",
+
+      event: "safe_game_reveal",
+
+      payload: {
+
+        challengeId:
+          safeGameState.challengeId,
+
+        safeSquares:
+          [...safeGameState.safeSquares]
+
+      }
+
+    });
+
+  }
+
+
+
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RESET / EXIT
+// ==========================================
+
+async function resetSafeGame() {
+
+  if (!isAdmin) return;
+
+
+  // Tell students to close Safe Game
+  if (movesChannel) {
+
+    await movesChannel.send({
+
+      type: "broadcast",
+
+      event: "safe_game_reset",
+
+      payload: {
+
+        challengeId:
+          safeGameState.challengeId
+
+      }
+
+    });
+
+  }
+
+
+  clearSafeGameState();
+
+
+
+
+}
+
+// ==========================================
+// 🛡️ CLEAR ONLY SAFE GAME
+// ==========================================
+
+function clearSafeGameState() {
+
+  safeGameState.active = false;
+  safeGameState.challengeId = null;
+
+  safeGameState.playerPiece = null;
+  safeGameState.playerSquare = null;
+
+  safeGameState.pieces = [];
+  safeGameState.legalSquares = [];
+  safeGameState.safeSquares = [];
+
+  safeGameState.answers = {};
+  safeGameState.selectedSquare = null;
+
+  safeGameState.revealed = false;
+  safeGameState.locked = false;
+
+
+  const studentModal =
+    document.getElementById(
+      "lpSafeGameModal"
+    );
+
+  if (studentModal) {
+    studentModal.style.display = "none";
+  }
+
+
+  const adminPanel =
+    document.getElementById(
+      "lpSafeAdminPanel"
+    );
+
+  if (adminPanel) {
+    adminPanel.style.display = "none";
+  }
+
+
+  const feedback =
+    document.getElementById(
+      "lpSafeGameFeedback"
+    );
+
+  if (feedback) {
+    feedback.innerHTML = "";
+  }
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN BUTTON HANDLERS
+// ==========================================
+
+const lpSafeRevealBtn =
+  document.getElementById(
+    "lpSafeRevealBtn"
+  );
+
+if (lpSafeRevealBtn) {
+
+  lpSafeRevealBtn.onclick = () => {
+    revealSafeGame();
+  };
+
+}
+
+
+const lpSafeResetBtn =
+  document.getElementById(
+    "lpSafeResetBtn"
+  );
+
+if (lpSafeResetBtn) {
+
+  lpSafeResetBtn.onclick = () => {
+    resetSafeGame();
+  };
+
+}
+
+// ==========================================
+// 🛡️ STUDENT — SHOW REVEALED RESULT
+// ==========================================
+
+function revealSafeGameAnswer() {
+
+  const board =
+    document.getElementById(
+      "lpSafeGameBoard"
+    );
+
+  const feedback =
+    document.getElementById(
+      "lpSafeGameFeedback"
+    );
+
+  if (!board) return;
+
+
+  const selected =
+    safeGameState.selectedSquare;
+
+
+  // ======================================
+  // 🟢 SHOW ALL CORRECT SAFE SQUARES
+  // ======================================
+
+  safeGameState.safeSquares
+    .forEach(square => {
+
+      const cell =
+        board.querySelector(
+          `[data-square="${square}"]`
+        );
+
+      if (!cell) return;
+
+      cell.style.outline =
+        "6px solid #22c55e";
+
+      cell.style.outlineOffset =
+        "-6px";
+
+      cell.style.boxShadow =
+        "inset 0 0 28px rgba(34,197,94,.75)";
+
+    });
+
+
+  // ======================================
+  // NO ANSWER
+  // ======================================
+
+  if (!selected) {
+
+    if (feedback) {
+
+      feedback.innerHTML = `
+        <div style="color:#FFD54F;">
+          ⏳ No Answer
+        </div>
+
+        <div style="margin-top:5px;">
+          Safe:
+          ${safeGameState.safeSquares.join(", ")}
+        </div>
+      `;
+
+    }
+
+    return;
+  }
+
+
+  const correct =
+    safeGameState.safeSquares
+      .includes(selected);
+
+
+  // ======================================
+  // CORRECT
+  // ======================================
+
+  if (correct) {
+
+    if (feedback) {
+
+      feedback.innerHTML = `
+        <div style="
+          color:#22c55e;
+          font-size:18px;
+          font-weight:800;
+        ">
+          ✅ Correct! ${selected} is safe.
+        </div>
+      `;
+
+    }
+
+    return;
+  }
+
+
+  // ======================================
+  // WRONG — RED SELECTED SQUARE
+  // ======================================
+
+  const selectedCell =
+    board.querySelector(
+      `[data-square="${selected}"]`
+    );
+
+
+  if (selectedCell) {
+
+    selectedCell.style.outline =
+      "6px solid #ef4444";
+
+    selectedCell.style.outlineOffset =
+      "-6px";
+
+    selectedCell.style.boxShadow =
+      "inset 0 0 28px rgba(239,68,68,.75)";
+
+  }
+
+
+  if (feedback) {
+
+    feedback.innerHTML = `
+      <div style="
+        color:#ef4444;
+        font-weight:800;
+      ">
+        ❌ Your answer: ${selected}
+      </div>
+
+      <div style="
+        color:#22c55e;
+        margin-top:5px;
+        font-weight:800;
+      ">
+        ✅ Safe: ${safeGameState.safeSquares.join(", ")}
+      </div>
+    `;
+
+  }
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — ADMIN BOARD PREVIEW
+// ==========================================
+
+function renderSafeAdminBoard() {
+
+  const board =
+    document.getElementById(
+      "lpSafeAdminBoard"
+    );
+
+  if (!board) return;
+
+
+  board.innerHTML = "";
+
+
+  for (let rank = 8; rank >= 1; rank--) {
+
+    for (
+      let fileIndex = 0;
+      fileIndex < 8;
+      fileIndex++
+    ) {
+
+      const square =
+        SAFE_FILES[fileIndex] + rank;
+
+
+      const cell =
+        document.createElement("div");
+
+
+      cell.dataset.square =
+        square;
+
+
+      const isLight =
+        (fileIndex + rank) % 2 === 0;
+
+
+      Object.assign(cell.style, {
+
+        position: "relative",
+
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+
+        background:
+          isLight
+            ? "#f0d9b5"
+            : "#b58863",
+
+        boxSizing: "border-box"
+
+      });
+
+
+      const piece =
+        safeGetPieceAt(
+          square,
+          safeGameState.pieces
+        );
+
+
+      if (piece) {
+
+        const pieceEl =
+          document.createElement("img");
+
+
+        const pieceCode =
+          piece.color +
+          piece.type.toUpperCase();
+
+
+        pieceEl.src =
+          getPieceThemePath(
+            currentPieceTheme
+          ).replace(
+            "{piece}",
+            pieceCode
+          );
+
+
+        Object.assign(
+          pieceEl.style,
+          {
+            width: "88%",
+            height: "88%",
+            objectFit: "contain",
+
+            userSelect: "none",
+
+            filter:
+              "drop-shadow(0 1px 1px rgba(0,0,0,.35))"
+          }
+        );
+
+
+        cell.appendChild(
+          pieceEl
+        );
+
+      }
+
+
+      board.appendChild(cell);
+
+    }
+
+  }
+
+}
+
   /***********************
  * QUIZ SYSTEM STATE
  ************************/
@@ -81443,6 +84103,267 @@ if (payload.event === "square_game_reset") {
   resetSquareGame();
 
   return;
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RECEIVE RESET
+// ==========================================
+
+if (
+  payload.event ===
+  "safe_game_reset"
+) {
+
+  if (isAdmin) return;
+
+
+  const data =
+    payload.payload;
+
+
+  // Ignore reset from an older challenge
+  if (
+    data?.challengeId &&
+    safeGameState.challengeId &&
+    data.challengeId !==
+      safeGameState.challengeId
+  ) {
+    return;
+  }
+
+
+  clearSafeGameState();
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RECEIVE START
+// ==========================================
+
+if (
+  payload.event ===
+  "safe_game_start"
+) {
+
+  // Admin generated it.
+  // Only students need to open the game modal.
+  if (isAdmin) return;
+
+
+  const data =
+    payload.payload;
+
+
+  if (
+    !data ||
+    !data.challengeId ||
+    !data.playerPiece ||
+    !Array.isArray(data.pieces) ||
+    !Array.isArray(data.legalSquares)
+  ) {
+
+    console.warn(
+      "🛡️ Invalid Safe challenge received",
+      data
+    );
+
+    return;
+  }
+
+
+  // Build student's challenge.
+  // safeSquares is deliberately unknown.
+  const challenge = {
+
+    challengeId:
+      data.challengeId,
+
+    playerPiece:
+      data.playerPiece,
+
+    pieces:
+      data.pieces,
+
+    legalSquares:
+      data.legalSquares,
+
+    safeSquares: []
+
+  };
+
+
+  showSafeGameModal(
+    challenge
+  );
+
+
+  showJoinBanner(
+    "🛡️ Find the Safe Square!"
+  );
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RECEIVE STUDENT ANSWER
+// ==========================================
+
+if (
+  payload.event ===
+  "safe_game_answer"
+) {
+
+  if (!isAdmin) return;
+
+
+  const data =
+    payload.payload;
+
+
+  if (
+    !data ||
+    !data.challengeId ||
+    !data.userId ||
+    !data.square
+  ) {
+    return;
+  }
+
+
+  // Ignore answer from an OLD challenge
+  if (
+    !safeGameState.active ||
+    data.challengeId !==
+      safeGameState.challengeId
+  ) {
+
+    console.warn(
+      "🛡️ Ignored stale Safe answer",
+      data
+    );
+
+    return;
+  }
+
+
+  // Ignore after Reveal / lock
+  if (
+    safeGameState.revealed ||
+    safeGameState.locked
+  ) {
+    return;
+  }
+
+
+  // Square must actually be one of the
+  // legal destinations generated by Admin
+  if (
+    !safeGameState.legalSquares
+      .includes(data.square)
+  ) {
+
+    console.warn(
+      "🛡️ Invalid Safe answer:",
+      data.square
+    );
+
+    return;
+  }
+
+
+  // ======================================
+  // ONE ANSWER PER STUDENT
+  // ======================================
+
+  if (
+    safeGameState.answers[
+      data.userId
+    ]
+  ) {
+
+    return;
+  }
+
+
+  safeGameState.answers[
+    data.userId
+  ] = {
+
+    userId:
+      data.userId,
+
+    username:
+      data.username || "Guest",
+
+    square:
+      data.square
+
+  };
+
+  // 🔥 ADMIN BANNER — STUDENT PLAYED
+const safePieceLetters = {
+  q: "Q",
+  r: "R",
+  b: "B",
+  n: "N",
+  k: "K"
+};
+
+const pieceLetter =
+  safePieceLetters[
+    safeGameState.playerPiece?.type
+  ] || "";
+
+showJoinBanner(
+  `♟️ ${data.username || "Guest"} played ${pieceLetter}${data.square}`, false
+);
+
+
+  console.log(
+    "🛡️ Safe answer received:",
+    safeGameState.answers[
+      data.userId
+    ]
+  );
+
+
+  renderSafeAdminAnswers();
+
+}
+
+// ==========================================
+// 🛡️ ASK SAFE — RECEIVE REVEAL
+// ==========================================
+
+if (
+  payload.event ===
+  "safe_game_reveal"
+) {
+
+  if (isAdmin) return;
+
+  const data =
+    payload.payload;
+
+
+  if (
+    !data ||
+    data.challengeId !==
+      safeGameState.challengeId ||
+    !Array.isArray(data.safeSquares)
+  ) {
+    return;
+  }
+
+
+  safeGameState.safeSquares =
+    [...data.safeSquares];
+
+  safeGameState.revealed = true;
+  safeGameState.locked = true;
+
+
+  revealSafeGameAnswer();
+
 }
 
 // ================= XP AWARD =================
@@ -95379,7 +98300,7 @@ backdrop-filter:blur(3px);
     display:none;
     position:fixed;
     top:310px;
-    right:32px;
+    right:80px;
     width:280px;
     z-index:99998;
     background:#1d1f31;
@@ -95472,6 +98393,208 @@ backdrop-filter:blur(3px);
   >
     ⚠️ Reset / Exit
   </button>
+
+</div>
+
+<!-- ==========================================
+     🛡️ ASK SAFE — STUDENT MODAL
+========================================== -->
+
+<div
+  id="lpSafeGameModal"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:100000;
+    background:rgba(5,8,20,.92);
+    backdrop-filter:blur(3px);
+    -webkit-backdrop-filter:blur(3px);
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div
+    style="
+      width:min(94vw,600px);
+      max-height:94vh;
+      overflow-y:auto;
+      background:#171a2b;
+      border:2px solid #66785d;
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 18px 55px rgba(0,0,0,.55);
+      color:#fff;
+      text-align:center;
+    "
+  >
+
+    <div style="
+      font-size:22px;
+      font-weight:800;
+      margin-bottom:4px;
+    ">
+      🛡️ Find the Safe Square
+    </div>
+
+    <div
+      id="lpSafeGameQuestion"
+      style="
+        font-size:18px;
+        font-weight:700;
+        margin-bottom:14px;
+        color:#dce8d6;
+      "
+    >
+      Save the piece!
+    </div>
+
+    <div
+      id="lpSafeGameBoard"
+      style="
+        width:min(82vw,480px);
+        aspect-ratio:1/1;
+        margin:auto;
+        display:grid;
+        grid-template-columns:repeat(8,1fr);
+        grid-template-rows:repeat(8,1fr);
+        border:3px solid #555;
+        border-radius:5px;
+        overflow:hidden;
+        user-select:none;
+      "
+    ></div>
+
+    <div
+      id="lpSafeGameFeedback"
+      style="
+        min-height:48px;
+        margin-top:14px;
+        font-size:16px;
+        font-weight:700;
+      "
+    >
+      Click your piece to begin.
+    </div>
+
+  </div>
+</div>
+
+<!-- ==========================================
+     🛡️ ASK SAFE — ADMIN RESULTS
+========================================== -->
+
+<div
+  id="lpSafeAdminPanel"
+  data-role="admin-only"
+  style="
+    display:none;
+    position:fixed;
+    top:250px;
+    right:80px;
+    width:280px;
+    z-index:99998;
+    background:#1d1f31;
+    border:2px solid #607255;
+    border-radius:16px;
+    padding:18px;
+    box-shadow:0 15px 45px rgba(0,0,0,.45);
+    color:white;
+  "
+>
+
+  <div style="
+    font-size:18px;
+    font-weight:800;
+    margin-bottom:10px;
+  ">
+    🛡️ Safe Square Answers
+  </div>
+
+  <!-- 🛡️ ADMIN CHALLENGE PREVIEW -->
+<div
+  id="lpSafeAdminBoard"
+  style="
+    width:230px;
+    height:230px;
+    margin:0 auto 12px auto;
+
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    grid-template-rows:repeat(8,1fr);
+
+    border:2px solid #607255;
+    border-radius:6px;
+    overflow:hidden;
+
+    user-select:none;
+    pointer-events:none;
+  "
+></div>
+
+
+<div
+  id="lpSafeAdminAnswers"
+  style="
+    max-height:235px;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding-right:4px;
+  "
+></div>
+
+
+  <div style="
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+  ">
+
+<button
+  id="lpSafeRevealBtn"
+  type="button"
+  style="
+    flex:1;
+    min-height:48px;
+
+    background:#4caf50;
+    color:white;
+
+    border:1px solid white;
+    border-radius:8px;
+
+    font-weight:700;
+    font-size:14px;
+
+    cursor:pointer;
+  "
+>
+  🔓 Reveal Answer
+</button>
+
+<button
+  id="lpSafeResetBtn"
+  type="button"
+  style="
+    flex:1;
+    min-height:48px;
+
+    background:#3b82f6;
+    color:white;
+
+    border:none;
+    border-radius:8px;
+
+    font-weight:700;
+    font-size:14px;
+
+    cursor:pointer;
+  "
+>
+  ⚠️ Reset / Exit
+</button>
+
+  </div>
 
 </div>
 
