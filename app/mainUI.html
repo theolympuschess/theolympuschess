@@ -24749,17 +24749,52 @@ body.student-view #lpStudentsContainer {
 ========================================== */
 
 @keyframes lpVisionPieceBlink {
-  0%, 100% {
+  0%, 8% {
     opacity: 1;
   }
 
-  50% {
+  18% {
     opacity: 0;
+  }
+
+  90% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
   }
 }
 
 #lpVisionGameBoard .lp-vision-piece {
-  animation: lpVisionPieceBlink 1.0s ease-in-out infinite;
+  animation: lpVisionPieceBlink 1.3s ease-in-out infinite;
+}
+
+
+/* ==========================================
+   👑 ASK VISION — HARD-TO-SEE KING
+========================================== */
+
+@keyframes lpVisionKingBlink {
+  0%, 4% {
+    opacity: 0.18;
+  }
+
+  10% {
+    opacity: 0;
+  }
+
+  92% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0.18;
+  }
+}
+
+#lpVisionGameBoard .lp-vision-piece.lp-vision-king {
+  animation-name: lpVisionKingBlink;
 }
 
   </style>
@@ -73918,21 +73953,15 @@ function generateVisionChallenge() {
 
 
 // ======================================
-// 36–46 TOTAL PIECES
-// Dense Vision challenge
-// ======================================
-
-// ======================================
-// 44–54 TOTAL PIECES
-// Very dense Vision challenge
+// 58–63 TOTAL PIECES
+// MAXIMUM DENSITY VISION
 // ======================================
 
 const pieceCount =
-  44 +
+  58 +
   Math.floor(
-    Math.random() * 11
+    Math.random() * 6
   );
-
 
   // ======================================
   // RANDOMLY WHITE OR BLACK
@@ -74159,6 +74188,306 @@ document
 
 
   // ==========================================
+// 👁 ASK VISION — ADMIN MINI BOARD
+// ==========================================
+
+function renderVisionAdminBoard() {
+
+  const board =
+    document.getElementById(
+      "lpVisionAdminBoard"
+    );
+
+  if (!board) return;
+
+
+  board.innerHTML = "";
+
+
+  const files = "abcdefgh";
+
+
+  // ======================================
+  // PIECES BY SQUARE
+  // ======================================
+
+  const piecesBySquare = {};
+
+  visionGameState.pieces
+    .forEach(piece => {
+
+      piecesBySquare[piece.square] =
+        piece;
+
+    });
+
+
+  // ======================================
+  // BUILD BOARD
+  // White perspective
+  // ======================================
+
+  for (
+    let rank = 8;
+    rank >= 1;
+    rank--
+  ) {
+
+    for (
+      let f = 0;
+      f < 8;
+      f++
+    ) {
+
+      const square =
+        files[f] + rank;
+
+
+      const cell =
+        document.createElement("div");
+
+
+      cell.dataset.square =
+        square;
+
+
+      const isLight =
+        (f + rank) % 2 === 0;
+
+
+      Object.assign(
+        cell.style,
+        {
+
+          position: "relative",
+
+          display: "flex",
+
+          alignItems: "center",
+
+          justifyContent: "center",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          boxSizing: "border-box",
+
+          userSelect: "none"
+
+        }
+      );
+
+
+      // ======================================
+      // PIECE
+      // ======================================
+
+      const piece =
+        piecesBySquare[square];
+
+
+      if (piece) {
+
+        const img =
+          document.createElement("img");
+
+
+        img.src =
+          getVisionPieceImage(
+            piece.color,
+            piece.type
+          );
+
+
+        Object.assign(
+          img.style,
+          {
+
+            width: "88%",
+
+            height: "88%",
+
+            objectFit: "contain",
+
+            pointerEvents: "none",
+
+            userSelect: "none"
+
+          }
+        );
+
+
+        cell.appendChild(img);
+
+      }
+
+
+      board.appendChild(cell);
+
+    }
+
+  }
+
+}
+
+// ==========================================
+// 👁 ASK VISION — LIVE STUDENT SELECTIONS
+// 🟡 Show submitted squares before reveal
+// ==========================================
+
+function updateVisionAdminBoardSelections() {
+
+  const board =
+    document.getElementById(
+      "lpVisionAdminBoard"
+    );
+
+  if (!board) return;
+
+
+  // Rebuild original board first.
+  // This removes previous yellow selections.
+  renderVisionAdminBoard();
+
+
+  // After reveal use final result colors instead.
+  if (visionGameState.revealed) {
+
+    revealVisionAdminBoard();
+
+    return;
+  }
+
+
+  // ======================================
+  // 🟡 STUDENT SUBMITTED SQUARES
+  // ======================================
+
+  Object.values(
+    visionGameState.answers
+  ).forEach(data => {
+
+    const square =
+      data?.square;
+
+    if (!square) return;
+
+
+    const cell =
+      board.querySelector(
+        `[data-square="${square}"]`
+      );
+
+    if (!cell) return;
+
+
+    cell.style.outline =
+      "4px solid #FFD600";
+
+    cell.style.outlineOffset =
+      "-4px";
+
+    cell.style.boxShadow =
+      "inset 0 0 16px rgba(255,214,0,.9)";
+
+  });
+
+}
+
+// ==========================================
+// 👁 ASK VISION — ADMIN BOARD RESULTS
+// 🟢 Correct King square
+// 🔴 Wrong student answers
+// ==========================================
+
+function revealVisionAdminBoard() {
+
+  const board =
+    document.getElementById(
+      "lpVisionAdminBoard"
+    );
+
+  if (
+    !board ||
+    !visionGameState.kingSquare
+  ) {
+    return;
+  }
+
+
+  // ======================================
+  // 🔴 WRONG STUDENT ANSWERS
+  // ======================================
+
+  Object.values(
+    visionGameState.answers
+  ).forEach(data => {
+
+    const square =
+      data?.square;
+
+    if (
+      !square ||
+      square === visionGameState.kingSquare
+    ) {
+      return;
+    }
+
+
+    const cell =
+      board.querySelector(
+        `[data-square="${square}"]`
+      );
+
+    if (!cell) return;
+
+
+    cell.style.outline =
+      "4px solid #EF4444";
+
+    cell.style.outlineOffset =
+      "-4px";
+
+    cell.style.boxShadow =
+      "inset 0 0 16px rgba(239,68,68,.9)";
+
+    cell.style.zIndex =
+      "2";
+
+  });
+
+
+  // ======================================
+  // 🟢 ACTUAL KING SQUARE
+  // Do this LAST so green always wins
+  // ======================================
+
+  const correctCell =
+    board.querySelector(
+      `[data-square="${visionGameState.kingSquare}"]`
+    );
+
+
+  if (correctCell) {
+
+    correctCell.style.outline =
+      "4px solid #22C55E";
+
+    correctCell.style.outlineOffset =
+      "-4px";
+
+    correctCell.style.boxShadow =
+      "inset 0 0 18px rgba(34,197,94,.95)";
+
+    correctCell.style.zIndex =
+      "3";
+
+  }
+
+}
+  // ==========================================
 // 👁 ASK VISION — STUDENT MODAL
 // ==========================================
 
@@ -74315,11 +74644,13 @@ cell.onclick = () => {
             "img"
           );
 
-          img.className =
-  "lp-vision-piece";
+img.className =
+  piece.type === "k"
+    ? "lp-vision-piece lp-vision-king"
+    : "lp-vision-piece";
 
   img.style.animationDelay =
-  `${Math.random() * -1.0}s`;
+  `${Math.random() * -1.3}s`;
 
 
         img.src =
@@ -74660,6 +74991,10 @@ document
 
     renderVisionAdminAnswers();
 
+    // 👁 Show correct + wrong squares
+// on Admin mini board
+revealVisionAdminBoard();
+
 
     // ======================================
     // BROADCAST AUTHORITATIVE ANSWER
@@ -74928,7 +75263,13 @@ function showVisionAdminPanel() {
 
   }
 
+  // 👁 Show authoritative challenge
+// on Coach mini board
+renderVisionAdminBoard();
+
 }
+
+
 
 // ==========================================
 // 👁 ASK VISION — HIDE PIECES
@@ -75050,6 +75391,24 @@ function showVisionGameResult(
     );
 
   if (!board) return;
+
+  // ======================================
+// 👁 REVEAL ORIGINAL BOARD
+// Show all pieces again
+// ======================================
+
+board
+  .querySelectorAll("img")
+  .forEach(img => {
+
+    img.style.display = "block";
+
+    // Stop memory blinking after reveal
+    img.style.animation = "none";
+
+    img.style.opacity = "1";
+
+  });
 
 
   // ======================================
@@ -85147,6 +85506,16 @@ supabase.channel("lp-moves-" + roomCode).send({
 
   // 🔥 FORCE STUDENT UI UPDATE ALSO
   loadStudents();
+  // 📢 ADMIN CONFIRMATION
+// Don't show Puzzle banner when askPuzzle()
+// was called internally by Ask Race.
+if (!isRaceMode) {
+  showJoinBanner(
+    "📢 Puzzle sent to students!",
+    false
+  );
+}
+
 }
 
 // ================= ASK RACE =================
@@ -85231,6 +85600,11 @@ if (currentUserId) {
 
   // 🔥 START FIRST PUZZLE
   await askPuzzle();
+  // 🏁 ADMIN CONFIRMATION
+showJoinBanner(
+  "🏁 Puzzle race sent to students!",
+  false
+);
 }
 
 
@@ -85673,6 +86047,10 @@ if (
 
 
   renderVisionAdminAnswers();
+
+  // 👁 SHOW STUDENT SELECTION LIVE
+// ON ADMIN MINI BOARD
+updateVisionAdminBoardSelections();
 
 
   showJoinBanner(
@@ -100453,7 +100831,7 @@ backdrop-filter:blur(3px);
   style="
     display:none;
     position:fixed;
-    top:310px;
+    top:150px;
     right:80px;
     width:280px;
     z-index:99998;
@@ -100488,6 +100866,28 @@ backdrop-filter:blur(3px);
   >
     Memorizing...
   </div>
+
+  <!-- 👁 VISION ADMIN MINI BOARD -->
+
+<div
+  id="lpVisionAdminBoard"
+  style="
+    width:230px;
+    height:230px;
+
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    grid-template-rows:repeat(8,1fr);
+
+    margin:0 auto 14px auto;
+
+    border:2px solid #8b9dc3;
+    border-radius:7px;
+
+    overflow:hidden;
+    box-sizing:border-box;
+  "
+></div>
 
 
 <button
