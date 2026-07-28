@@ -73841,6 +73841,8 @@ let squareGameState = {
 
   selectedSquare: null,
 
+  flipped: false,
+
     revealed: false
 
 };
@@ -80227,8 +80229,18 @@ async function askSquareGame() {
     file + rank;
 
 
-  // Store admin state
-  squareGameState.active = true;
+// ======================================
+// 🔄 ASK SQUARE ORIENTATION
+// 50% White side / 50% Black side
+// ======================================
+
+const flipped =
+  Math.random() < 0.5;
+
+
+// Store admin state
+squareGameState.active = true;
+squareGameState.flipped = flipped;
   squareGameState.target = target;
   squareGameState.answers = {};
   squareGameState.locked = false;
@@ -80243,9 +80255,10 @@ async function askSquareGame() {
 
     event: "square_game_start",
 
-    payload: {
-      target
-    }
+ payload: {
+  target,
+  flipped
+}
 
   });
 
@@ -80546,31 +80559,62 @@ function showSquareGameModal(target) {
   if (!modal || !board) return;
 
 
-  question.textContent =
-    `Find ${target.toLowerCase()}`;
+question.innerHTML =
+  squareGameState.flipped
+    ? `
+        <div style="
+          color:#fbbf24;
+          font-size:14px;
+          font-weight:800;
+          margin-bottom:4px;
+        ">
+          🔄 Flipped!
+        </div>
+
+        <div>
+          Find ${target.toLowerCase()}
+        </div>
+      `
+    : `Find ${target.toLowerCase()}`;
 
   feedback.textContent = "";
 
   board.innerHTML = "";
 
 
-  const files = "abcdefgh";
+const files =
+  squareGameState.flipped
+    ? "hgfedcba"
+    : "abcdefgh";
 
 
-  // Rank 8 → 1, like normal White-side board
-  for (let rank = 8; rank >= 1; rank--) {
+const ranks =
+  squareGameState.flipped
+    ? [1, 2, 3, 4, 5, 6, 7, 8]
+    : [8, 7, 6, 5, 4, 3, 2, 1];
 
-    for (let f = 0; f < 8; f++) {
 
-      const square =
-        files[f] + rank;
+for (const rank of ranks) {
+
+  for (let f = 0; f < 8; f++) {
+
+    const square =
+      files[f] + rank;
 
       const cell =
         document.createElement("div");
 
 
-     const isLight =
-  (f + rank) % 2 === 0;
+const actualFileIndex =
+  "abcdefgh".indexOf(
+    square[0]
+  );
+
+const actualRank =
+  Number(square[1]);
+
+const isLight =
+  (actualFileIndex + actualRank) % 2 === 0;
 
 
       cell.dataset.square =
@@ -81073,6 +81117,7 @@ function resetSquareGame() {
   squareGameState.locked = false;
   squareGameState.selectedSquare = null;
   squareGameState.revealed = false;
+  squareGameState.flipped = false;
 
   hideSquareGameModal();
   hideSquareAdminPanel();
@@ -84017,22 +84062,35 @@ if (payload.event === "score_update") {
 
 // ================= FIND SQUARE START =================
 
+// ================= FIND SQUARE START =================
+
 if (payload.event === "square_game_start") {
 
   if (isAdmin) return;
 
-  const { target } =
-    payload.payload;
+  const {
+    target,
+    flipped = false
+  } = payload.payload;
+
 
   squareGameState.active = true;
   squareGameState.target = target;
+
+  // 🔄 Orientation belongs ONLY to Ask Square
+  squareGameState.flipped = flipped;
+
   squareGameState.locked = false;
   squareGameState.selectedSquare = null;
 
+
   showSquareGameModal(target);
 
+
   showJoinBanner(
-    `🎯 Find ${target.toLowerCase()}!`
+    flipped
+      ? `🔄 Flipped! Find ${target.toLowerCase()}!`
+      : `🎯 Find ${target.toLowerCase()}!`
   );
 
   return;
