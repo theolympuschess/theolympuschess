@@ -24797,6 +24797,208 @@ body.student-view #lpStudentsContainer {
   animation-name: lpVisionKingBlink;
 }
 
+
+/* =========================================
+   📥 STUDY PGN IMPORT MODAL — ISOLATED
+========================================= */
+
+.study-pgn-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.study-pgn-import-overlay.open {
+  display: flex;
+}
+
+
+/* MODAL BOX */
+.study-pgn-import-box {
+  width: min(520px, calc(100vw - 32px));
+  padding: 18px;
+
+  background: #151515;
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  border-radius: 14px;
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.65),
+    0 0 25px rgba(255, 215, 0, 0.08);
+}
+
+
+/* HEADER */
+.study-pgn-import-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 14px;
+
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+
+/* CLOSE X */
+.study-pgn-import-close {
+  border: none;
+  background: transparent;
+
+  color: #aaa;
+  font-size: 26px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.study-pgn-import-close:hover {
+  color: #fff;
+}
+
+
+/* DROP AREA */
+.study-pgn-drop-zone {
+  padding: 18px;
+
+  border: 2px dashed rgba(255, 215, 0, 0.45);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.025);
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+
+/* FILE CURRENTLY DRAGGED OVER IT */
+.study-pgn-drop-zone.dragging {
+  border-color: #ffd700;
+  background: rgba(255, 215, 0, 0.08);
+  transform: scale(1.01);
+}
+
+
+.study-pgn-drop-title {
+  text-align: center;
+
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 700;
+
+  pointer-events: none;
+}
+
+
+.study-pgn-drop-or {
+  margin: 9px 0 11px;
+
+  text-align: center;
+
+  color: #888;
+  font-size: 12px;
+
+  pointer-events: none;
+}
+
+
+/* PGN TEXTAREA */
+.study-pgn-import-text {
+  display: block;
+
+  width: 100%;
+  height: 210px;
+
+  box-sizing: border-box;
+  resize: vertical;
+
+  padding: 12px;
+
+  border: 1px solid #3b3b3b;
+  border-radius: 8px;
+  outline: none;
+
+  background: #0c0c0c;
+  color: #eee;
+
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.study-pgn-import-text:focus {
+  border-color: #ffd700;
+}
+
+
+/* DROPPED FILE NAME */
+.study-pgn-file-name {
+  min-height: 18px;
+
+  margin-top: 9px;
+
+  color: #aaa;
+  font-size: 12px;
+}
+
+
+/* BOTTOM BUTTONS */
+.study-pgn-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+
+  margin-top: 14px;
+}
+
+
+.study-pgn-cancel-btn,
+.study-pgn-confirm-btn {
+  padding: 9px 16px;
+
+  border-radius: 7px;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+.study-pgn-cancel-btn {
+  border: 1px solid #444;
+
+  background: #242424;
+  color: #ddd;
+}
+
+.study-pgn-cancel-btn:hover {
+  background: #303030;
+}
+
+
+.study-pgn-confirm-btn {
+  border: 1px solid #ffd700;
+
+  background: #ffd700;
+  color: #111;
+}
+
+.study-pgn-confirm-btn:hover {
+  filter: brightness(1.08);
+}
+
   </style>
 </head>
 
@@ -43505,15 +43707,205 @@ fenBtn.onclick = (e) => {
   renderStudyNotationTree();
 };
 
-// 📥 PASTE PGN
-const pasteBtn = document.createElement("button");
-pasteBtn.textContent = "PGN";
-pasteBtn.className = "copy-pgn-btn pgn-btn";
+// =====================================================
+// 📚 STUDY MULTI-PGN SPLITTER
+// One PGN game = one Study chapter
+// =====================================================
+function splitStudyPgnGames(raw) {
 
-pasteBtn.onclick = (e) => {
-  e.stopPropagation();
+  if (!raw || !raw.trim()) return [];
 
-  const raw = prompt("Paste full PGN:");
+  const clean = raw
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+
+  /*
+    Start a new game when a new [Event "..."] header appears.
+
+    This is safer than splitting on blank lines because normal PGN
+    contains blank lines between headers and moves.
+  */
+  const starts = [];
+
+  const eventRegex = /^\s*\[Event\s+"[^"]*"\]/gm;
+
+  let match;
+
+  while ((match = eventRegex.exec(clean)) !== null) {
+    starts.push(match.index);
+  }
+
+  // No Event tag = treat everything as one PGN
+  if (starts.length <= 1) {
+    return [clean];
+  }
+
+  const games = [];
+
+  for (let i = 0; i < starts.length; i++) {
+
+    const start = starts[i];
+    const end =
+      i + 1 < starts.length
+        ? starts[i + 1]
+        : clean.length;
+
+    const game = clean.slice(start, end).trim();
+
+    if (game) {
+      games.push(game);
+    }
+  }
+
+  return games;
+}
+// =====================================================
+// 📚 IMPORT MULTIPLE PGN GAMES AS STUDY CHAPTERS
+// =====================================================
+function importStudyMultiplePgn(raw) {
+
+  const games = splitStudyPgnGames(raw);
+
+  if (!games.length) {
+    alert("No valid PGN found.");
+    return;
+  }
+
+  // -----------------------------------------
+  // ONE GAME
+  // Let existing chapter importer handle it
+  // -----------------------------------------
+  if (games.length === 1) {
+    return false;
+  }
+
+
+  // -----------------------------------------
+  // MULTIPLE GAMES
+  // -----------------------------------------
+
+  if (!studyState.chapters) {
+    studyState.chapters = [];
+  }
+
+  if (!studyState.chapterTrees) {
+    studyState.chapterTrees = {};
+  }
+
+
+  games.forEach((pgn, gameIndex) => {
+
+    // ========================================
+    // 🏷️ GET CHAPTER TITLE
+    // Priority:
+    // ChapterName → Event → White vs Black
+    // ========================================
+
+    const chapterMatch =
+      pgn.match(/\[ChapterName\s+"([^"]+)"\]/);
+
+    const eventMatch =
+      pgn.match(/\[Event\s+"([^"]+)"\]/);
+
+    const whiteMatch =
+      pgn.match(/\[White\s+"([^"]+)"\]/);
+
+    const blackMatch =
+      pgn.match(/\[Black\s+"([^"]+)"\]/);
+
+
+    let title = "";
+
+
+    // 1️⃣ Olympus/Lichess chapter name
+    if (chapterMatch?.[1]) {
+
+      title = chapterMatch[1].trim();
+
+    }
+
+    // 2️⃣ Normal PGN Event
+    else if (
+      eventMatch?.[1] &&
+      eventMatch[1] !== "?"
+    ) {
+
+      title = eventMatch[1].trim();
+
+    }
+
+    // 3️⃣ White vs Black
+    else if (
+      whiteMatch?.[1] &&
+      blackMatch?.[1]
+    ) {
+
+      title =
+        `${whiteMatch[1].trim()} vs ${blackMatch[1].trim()}`;
+
+    }
+
+    // 4️⃣ Fallback
+    else {
+
+      title = `Chapter ${studyState.chapters.length + 1}`;
+
+    }
+
+
+    // ========================================
+    // 📘 CREATE CHAPTER
+    // ========================================
+
+    const newIndex = studyState.chapters.length;
+
+    studyState.chapters.push({
+      title,
+      pgn: pgn.trim()
+    });
+
+
+    // ========================================
+    // 🌳 BUILD THIS CHAPTER TREE NOW
+    // ========================================
+
+    const fen = extractFenFromPgn(pgn);
+
+    buildStudyTreeFromPgn(pgn, fen);
+
+    studyState.chapterTrees[newIndex] =
+      studyMoveTreeRoot;
+
+
+    console.log(
+      `📚 Imported chapter ${gameIndex + 1}:`,
+      title
+    );
+
+  });
+
+
+  // ========================================
+  // 🔄 REFRESH CHAPTER LIST
+  // ========================================
+
+  renderStudyChapters();
+
+
+  console.log(
+    `✅ ${games.length} PGN games imported as chapters`
+  );
+
+
+  // TRUE = multi-game import was handled here
+  return true;
+}
+// ========================================
+// 📥 STUDY PGN IMPORT — PASTE / FILE DROP
+// ========================================
+function importStudyPgn(raw) {
+
   if (!raw || !raw.trim()) return;
 
   const cleanPgn = raw.trim();
@@ -43545,17 +43937,351 @@ pasteBtn.onclick = (e) => {
   studyBoard.position(studyChess.fen(), false);
 
   // 🧠 ENGINE HOOK
-if (studyEngineEnabled) {
-  analyzeStudyPosition();
-}
+  if (studyEngineEnabled) {
+    analyzeStudyPosition();
+  }
 
   // 🔥 Save raw PGN to chapter
   studyState.chapters[idx].pgn = cleanPgn;
 
   renderStudyNotationTree();
 
-  console.log("📥 PGN pasted into chapter:", ch.title);
+  console.log("📥 PGN imported into chapter:", ch.title);
+}
+
+// =====================================================
+// 📥 STUDY PGN IMPORT MODAL CONTROLLER — ISOLATED
+// =====================================================
+
+let studyPgnImportCallback = null;
+let studyPgnDroppedFileName = "";
+
+function openStudyPgnImportModal(onImport) {
+
+  const modal = document.getElementById("studyPgnImportModal");
+  const textarea = document.getElementById("studyPgnImportText");
+  const fileName = document.getElementById("studyPgnFileName");
+
+  if (!modal || !textarea || !fileName) {
+    console.error("❌ Study PGN Import Modal HTML not found.");
+    return;
+  }
+
+  // Store THIS chapter's import function
+  studyPgnImportCallback = onImport;
+
+  // Fresh modal every time
+  textarea.value = "";
+  fileName.textContent = "";
+  studyPgnDroppedFileName = "";
+
+  modal.classList.add("open");
+
+  setTimeout(() => textarea.focus(), 0);
+}
+
+
+function closeStudyPgnImportModal() {
+
+  const modal = document.getElementById("studyPgnImportModal");
+  const textarea = document.getElementById("studyPgnImportText");
+  const fileName = document.getElementById("studyPgnFileName");
+  const dropZone = document.getElementById("studyPgnDropZone");
+
+  if (modal) {
+    modal.classList.remove("open");
+  }
+
+  if (textarea) {
+    textarea.value = "";
+  }
+
+  if (fileName) {
+    fileName.textContent = "";
+  }
+
+  if (dropZone) {
+    dropZone.classList.remove("dragging");
+  }
+
+  studyPgnImportCallback = null;
+  studyPgnDroppedFileName = "";
+}
+
+
+// =====================================================
+// 📂 INITIALIZE MODAL ONCE
+// =====================================================
+
+function initStudyPgnImportModal() {
+
+  const modal = document.getElementById("studyPgnImportModal");
+  const dropZone = document.getElementById("studyPgnDropZone");
+  const textarea = document.getElementById("studyPgnImportText");
+  const fileName = document.getElementById("studyPgnFileName");
+
+  const closeBtn = document.getElementById("studyPgnImportClose");
+  const cancelBtn = document.getElementById("studyPgnImportCancel");
+  const importBtn = document.getElementById("studyPgnImportConfirm");
+
+  if (
+    !modal ||
+    !dropZone ||
+    !textarea ||
+    !fileName ||
+    !closeBtn ||
+    !cancelBtn ||
+    !importBtn
+  ) {
+    console.error("❌ Study PGN modal elements missing.");
+    return;
+  }
+
+
+  // -------------------------
+  // ❌ CLOSE
+  // -------------------------
+
+  closeBtn.addEventListener("click", () => {
+    closeStudyPgnImportModal();
+  });
+
+  cancelBtn.addEventListener("click", () => {
+    closeStudyPgnImportModal();
+  });
+
+
+  // -------------------------
+  // 🌑 CLICK OUTSIDE TO CLOSE
+  // -------------------------
+
+  modal.addEventListener("click", (e) => {
+
+    if (e.target === modal) {
+      closeStudyPgnImportModal();
+    }
+
+  });
+
+
+  // -------------------------
+  // 📂 DRAG OVER
+  // -------------------------
+
+  dropZone.addEventListener("dragover", (e) => {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+
+    dropZone.classList.add("dragging");
+
+  });
+
+
+  dropZone.addEventListener("dragleave", (e) => {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!dropZone.contains(e.relatedTarget)) {
+      dropZone.classList.remove("dragging");
+    }
+
+  });
+
+
+  // -------------------------
+  // 📥 FILE DROP
+  // -------------------------
+
+  dropZone.addEventListener("drop", async (e) => {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    dropZone.classList.remove("dragging");
+
+    const file = e.dataTransfer?.files?.[0];
+
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+
+    if (
+      !name.endsWith(".pgn") &&
+      !name.endsWith(".txt")
+    ) {
+      alert("Please drop a .pgn or .txt file.");
+      return;
+    }
+
+    try {
+
+      const raw = await file.text();
+
+      if (!raw.trim()) {
+        alert("The file is empty.");
+        return;
+      }
+
+      // 🔥 Put dropped file contents into SAME textarea
+      textarea.value = raw;
+
+      studyPgnDroppedFileName = file.name;
+
+      fileName.textContent =
+        `📄 Loaded: ${file.name}`;
+
+      console.log("📂 Study PGN file loaded:", file.name);
+
+    } catch (err) {
+
+      console.error("❌ Failed to read Study PGN file:", err);
+
+      alert("Could not read this file.");
+
+    }
+
+  });
+
+
+  // -------------------------
+  // 📥 IMPORT BUTTON
+  // -------------------------
+
+  importBtn.addEventListener("click", () => {
+
+    const raw = textarea.value.trim();
+
+    if (!raw) {
+      alert("Paste a PGN or drop a PGN/TXT file first.");
+      return;
+    }
+
+    if (typeof studyPgnImportCallback !== "function") {
+      console.error("❌ No Study PGN import target.");
+      return;
+    }
+
+    // Save callback before closing
+    const callback = studyPgnImportCallback;
+
+    closeStudyPgnImportModal();
+
+    // 🔥 Send to chapter's EXISTING importer
+    callback(raw);
+
+  });
+
+
+  // -------------------------
+  // ⌨️ ESCAPE TO CLOSE
+  // -------------------------
+
+  document.addEventListener("keydown", (e) => {
+
+    if (
+      e.key === "Escape" &&
+      modal.classList.contains("open")
+    ) {
+      closeStudyPgnImportModal();
+    }
+
+  });
+
+}
+
+
+// Run once after HTML exists
+if (document.readyState === "loading") {
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initStudyPgnImportModal,
+    { once: true }
+  );
+
+} else {
+
+  initStudyPgnImportModal();
+
+}
+
+// 📥 PASTE PGN
+const pasteBtn = document.createElement("button");
+pasteBtn.textContent = "PGN";
+pasteBtn.className = "copy-pgn-btn pgn-btn";
+
+pasteBtn.onclick = (e) => {
+  e.stopPropagation();
+
+  openStudyPgnImportModal((raw) => {
+
+    // 📚 First check whether this contains multiple games
+    const multiHandled = importStudyMultiplePgn(raw);
+
+    // ♟️ Only one game → use EXISTING chapter pipeline
+    if (!multiHandled) {
+      importStudyPgn(raw);
+    }
+
+  });
 };
+
+// ========================================
+// 📂 DRAG & DROP PGN / TXT
+// ========================================
+
+actionRow.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = "copy";
+  }
+});
+
+actionRow.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const file = e.dataTransfer?.files?.[0];
+
+  if (!file) return;
+
+  const fileName = file.name.toLowerCase();
+
+  if (
+    !fileName.endsWith(".pgn") &&
+    !fileName.endsWith(".txt")
+  ) {
+    alert("Please drop a PGN or TXT file.");
+    return;
+  }
+
+  try {
+
+    const raw = await file.text();
+
+    if (!raw.trim()) {
+      alert("The file is empty.");
+      return;
+    }
+
+    // SAME FUNCTION USED BY PASTE
+    importStudyPgn(raw);
+
+  } catch (err) {
+
+    console.error("PGN file read error:", err);
+    alert("Could not read this file.");
+
+  }
+});
 
 // Append buttons
 actionRow.appendChild(copyBtn);
@@ -100971,6 +101697,74 @@ backdrop-filter:blur(3px);
       padding-right:4px;
     "
   ></div>
+
+</div>
+
+<!-- =========================================
+     📥 STUDY PGN IMPORT MODAL — ISOLATED
+========================================= -->
+<div id="studyPgnImportModal" class="study-pgn-import-overlay">
+
+  <div class="study-pgn-import-box">
+
+    <div class="study-pgn-import-header">
+      <span>📥 Import PGN</span>
+
+      <button
+        type="button"
+        id="studyPgnImportClose"
+        class="study-pgn-import-close"
+      >
+        ×
+      </button>
+    </div>
+
+    <div
+      id="studyPgnDropZone"
+      class="study-pgn-drop-zone"
+    >
+      <div class="study-pgn-drop-title">
+        Drop PGN / TXT file here
+      </div>
+
+      <div class="study-pgn-drop-or">
+        or paste PGN below
+      </div>
+
+      <textarea
+        id="studyPgnImportText"
+        class="study-pgn-import-text"
+        placeholder="Paste full PGN here..."
+        spellcheck="false"
+      ></textarea>
+    </div>
+
+    <div
+      id="studyPgnFileName"
+      class="study-pgn-file-name"
+    ></div>
+
+    <div class="study-pgn-import-actions">
+
+      <button
+        type="button"
+        id="studyPgnImportCancel"
+        class="study-pgn-cancel-btn"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        id="studyPgnImportConfirm"
+        class="study-pgn-confirm-btn"
+      >
+        Import PGN
+      </button>
+
+    </div>
+
+  </div>
 
 </div>
 
