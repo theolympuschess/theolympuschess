@@ -85424,6 +85424,20 @@ supabase.channel("lp-moves-" + roomCode).send({
   }
 });
 
+// 🎉 TELL ADMIN: STUDENT SOLVED NORMAL PUZZLE
+if (!isAdmin && !isRaceMode) {
+
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "student_puzzle_completed",
+payload: {
+  user_id: currentUserId,
+  username: currentUsername || "Student"
+}
+  });
+
+}
+
       setTimeout(() => {
   console.log(
     (isTimeUp ? "Time Up" : "Solved"),
@@ -85471,6 +85485,20 @@ if (nextIndex > raceEndIndex) {
   });
 
   showToast("🏆 Race Finished!");
+
+  // 🏁 TELL ADMIN: STUDENT FINISHED ENTIRE RACE
+if (!isAdmin) {
+
+  supabase.channel("lp-moves-" + roomCode).send({
+    type: "broadcast",
+    event: "student_race_completed",
+ payload: {
+  user_id: currentUserId,
+  username: currentUsername || "Student"
+}
+  });
+
+}
 
   loadStudents();
 
@@ -86372,6 +86400,19 @@ function listenRoom() {
         setInitialOrientation();
         studentMoves = {}; 
 
+        // ==========================================
+// 📢 STUDENT — NEW ASK PUZZLE RECEIVED
+// ==========================================
+
+if (!isAdmin && !isRaceMode) {
+
+  showJoinBanner(
+    "⚠️ Coach sent a new puzzle!",
+    false
+  );
+
+}
+
         // ================= TIMER =================
         clearInterval(timerInterval);
         isTimeUp = false;
@@ -86488,6 +86529,47 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+   // ==========================================
+// 🎉 STUDENT COMPLETED NORMAL PUZZLE
+// ADMIN ONLY
+// ==========================================
+
+if (payload.event === "student_puzzle_completed") {
+
+  if (!isAdmin) return;
+
+  const username =
+    payload.payload.username || "Student";
+
+  showJoinBanner(
+    `✅️ ${username} solved the puzzle!`,
+    false
+  );
+
+  return;
+}
+
+
+// ==========================================
+// 🏁 STUDENT COMPLETED ENTIRE RACE
+// ADMIN ONLY
+// ==========================================
+
+if (payload.event === "student_race_completed") {
+
+  if (!isAdmin) return;
+
+  const username =
+    payload.payload.username || "Student";
+
+  showJoinBanner(
+    `✅️ ${username} completed the Puzzle Race!`,
+    false
+  );
+
+  return;
+}
 
     // ================= QUIZ EVENTS =================
 
@@ -88485,6 +88567,16 @@ totalRacePuzzles =
   payload.payload.total ?? 0;
 
         console.log("RACE MODE:", isRaceMode);
+
+          // 🏁 STUDENT — COACH STARTED RACE
+  if (!isAdmin && isRaceMode) {
+
+    showJoinBanner(
+      "⚠️ Coach started a Puzzle Race!",
+      false
+    );
+
+  }
 
         return;
       }
