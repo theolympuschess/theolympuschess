@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chess Clash Cards — Final Edition</title>
+<style>
+#cccGameRoot{--bg:#070b16;--panel:#0f1729;--panel2:#151f35;--gold:#f1c76a;--text:#f7f4ea;--muted:#aeb8cf;--red:#ff6b7a;--green:#6ee7a8;--blue:#77b8ff;min-height:100vh;background:radial-gradient(circle at 50% 35%,#182746 0,#0a1020 42%,#050811 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;box-sizing:border-box;padding:18px;overflow:hidden}
+#cccGameRoot *{box-sizing:border-box}
+#cccGameRoot button,#cccGameRoot select{font:inherit}
+.ccc-shell{max-width:1280px;margin:auto;min-height:calc(100vh - 36px);display:flex;flex-direction:column;gap:12px}
+.ccc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0d1526cc;border:1px solid #ffffff16;border-radius:18px;padding:12px 16px;backdrop-filter:blur(12px)}
+.ccc-brand{font-weight:900;letter-spacing:.08em;color:var(--gold)}.ccc-sub{font-size:12px;color:var(--muted)}
+.ccc-top-center{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}.ccc-chip{background:#ffffff0d;border:1px solid #ffffff18;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800}
+.ccc-btn{border:1px solid #ffffff22;background:#ffffff0c;color:var(--text);border-radius:12px;padding:9px 12px;cursor:pointer}.ccc-btn:hover{background:#ffffff16}.ccc-btn-primary{background:linear-gradient(135deg,#e2b84e,#ffe59a);color:#17120a;border:0;font-weight:900}
+.ccc-player{background:#0c1425b8;border:1px solid #ffffff12;border-radius:18px;padding:12px}.ccc-player-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.ccc-name{font-weight:900}/* =========================================
+   CHESS CLASH — PREMIUM PLAYER STAT COUNTERS
+   ========================================= */
+
+.ccc-stats{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* Each Deck / Hand / Captured counter */
+.ccc-stats > span{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  min-width:105px;
+  min-height:42px;
+  padding:9px 14px;
+
+  border-radius:12px;
+  border:1px solid #ffffff24;
+
+  font-size:14px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:.02em;
+
+  color:#fff;
+
+  background:
+    linear-gradient(180deg,#ffffff10,#ffffff04),
+    #0b1426;
+
+  box-shadow:
+    inset 0 1px 0 #ffffff18,
+    0 5px 14px #0005;
+
+  text-shadow:0 2px 4px #000a;
+
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+/* DECK */
+.ccc-stats > span:nth-child(1){
+  color:#9ed0ff;
+  border-color:#5caeff55;
+
+  background:
+    linear-gradient(135deg,#12345a99,#0a1629 72%);
+
+  box-shadow:
+    inset 0 1px 0 #ffffff18,
+    0 0 16px #4aa8ff18,
+    0 5px 14px #0005;
+}
+
+/* HAND */
+.ccc-stats > span:nth-child(2){
+  color:#8ff0b7;
+  border-color:#55db9155;
+
+  background:
+    linear-gradient(135deg,#123d3099,#091b18 72%);
+
+  box-shadow:
+    inset 0 1px 0 #ffffff18,
+    0 0 16px #55e49a18,
+    0 5px 14px #0005;
+}
+
+/* CAPTURED */
+.ccc-stats > span:nth-child(3){
+  color:#ffe080;
+  border-color:#e8bc4f66;
+
+  background:
+    linear-gradient(135deg,#49381299,#1c1608 72%);
+
+  box-shadow:
+    inset 0 1px 0 #ffffff18,
+    0 0 18px #f2c14b20,
+    0 5px 14px #0005;
+}
+
+/* Small game-like icons */
+.ccc-stats > span:nth-child(1)::before{
+  content:"▣";
+  margin-right:7px;
+  font-size:17px;
+  color:#72bbff;
+}
+
+.ccc-stats > span:nth-child(2)::before{
+  content:"♠";
+  margin-right:7px;
+  font-size:17px;
+  color:#70e7a4;
+}
+
+.ccc-stats > span:nth-child(3)::before{
+  content:"★";
+  margin-right:7px;
+  font-size:17px;
+  color:#ffd45f;
+}
+
+/* Gentle premium interaction */
+.ccc-stats > span:hover{
+  transform:translateY(-2px);
+  border-color:#ffffff55;
+}
+.ccc-ai-hand{display:flex;justify-content:center;height:78px;overflow:hidden}.ccc-back{width:54px;height:74px;border-radius:9px;border:2px solid #d9b75d;background:repeating-linear-gradient(45deg,#17284a 0 8px,#213866 8px 16px);box-shadow:0 8px 20px #0008;margin-left:-15px;position:relative}.ccc-back:first-child{margin-left:0}.ccc-back:after{content:"♞";position:absolute;inset:0;display:grid;place-items:center;color:#f2cf75;font-size:27px}
+.ccc-arena{flex:1;min-height:310px;display:grid;grid-template-columns:1fr 170px 1fr;align-items:center;gap:20px;padding:12px 3vw;position:relative}
+.ccc-slot{min-height:245px;display:grid;place-items:center}.ccc-center{text-align:center}.ccc-vs{font-size:30px;font-weight:1000;color:var(--gold);text-shadow:0 0 24px #f1c76a55}.ccc-message{font-size:16px;font-weight:900;margin-top:8px}.ccc-detail{font-size:12px;color:var(--muted);margin-top:5px;min-height:34px}.ccc-pot{display:inline-block;margin-top:10px;border:1px solid #ffffff20;background:#ffffff0d;border-radius:999px;padding:6px 10px;font-size:12px}.ccc-required{margin-top:8px;font-size:12px;font-weight:900}
+.ccc-card{width:145px;height:210px;border-radius:16px;position:relative;padding:12px;display:flex;flex-direction:column;justify-content:space-between;user-select:none;overflow:hidden;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease;border:2px solid #ffffff30;box-shadow:0 16px 30px #0008}
+.ccc-card:before{content:"";position:absolute;inset:-80% -50%;background:linear-gradient(110deg,transparent 42%,#ffffff24 50%,transparent 58%);transform:translateX(-60%);pointer-events:none}.ccc-card.ccc-fusion:before{animation:cccShine 4s linear infinite}
+.ccc-white{background:linear-gradient(145deg,#f5efe0,#b8c3d2 60%,#7c8da5);color:#121827}.ccc-black{background:linear-gradient(145deg,#283047,#111625 60%,#070a12);color:#f6f2e8}
+.ccc-common{border-color:#b8bec8}.ccc-uncommon{border-color:#6ee7a8}.ccc-rare{border-color:#77b8ff}.ccc-epic{border-color:#c59cff}.ccc-legendary{border-color:#ffd56a;box-shadow:0 0 25px #ffd56a35,0 16px 30px #0008}
+.ccc-card-name{font-size:12px;font-weight:1000;max-width:95px;text-transform:uppercase;line-height:1.05}.ccc-power{position:absolute;right:9px;top:9px;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#0a1020;color:#ffe49a;border:2px solid #ffe49a;font-size:18px;font-weight:1000;box-shadow:0 0 15px #f6c95555}.ccc-symbol{font-family:Georgia,"Times New Roman",serif;text-align:center;font-size:72px;line-height:1;filter:drop-shadow(0 5px 5px #0005)}.ccc-fusion-symbol{display:flex;justify-content:center;align-items:center}.ccc-fusion-symbol span+span{font-size:.55em;margin-left:-12px;transform:translateY(17px)}.ccc-meta{display:flex;justify-content:space-between;align-items:end;gap:6px}.ccc-color{font-size:10px;font-weight:1000;letter-spacing:.1em}.ccc-rarity{font-size:9px;text-transform:uppercase;font-weight:900}
+.ccc-hand-wrap{overflow-x:auto;overflow-y:hidden;padding:12px 4px 2px}.ccc-hand{display:flex;justify-content:center;gap:8px;min-width:max-content}.ccc-hand .ccc-card{cursor:pointer;width:125px;height:181px}.ccc-hand .ccc-card:hover:not(.ccc-disabled){transform:translateY(-9px) scale(1.02);box-shadow:0 20px 32px #000b}.ccc-disabled{filter:grayscale(.75) brightness(.55);cursor:not-allowed!important}.ccc-card-preview{position:absolute;left:8px;bottom:34px;font-size:9px;font-weight:1000;padding:3px 6px;border-radius:999px;background:#0b1020;color:white}.ccc-win{color:#76f0ae}.ccc-loss{color:#ff8793}.ccc-tie{color:#ffd56a}
+.ccc-empty{width:145px;height:210px;border:2px dashed #ffffff1c;border-radius:16px;display:grid;place-items:center;color:#ffffff35;font-weight:900}.ccc-turn-glow{box-shadow:0 0 0 1px #f4cb6b66,0 0 28px #f4cb6b22 inset}
+.ccc-overlay{position:absolute;inset:0;background:#030610dd;display:grid;place-items:center;z-index:50;padding:20px}.ccc-modal{width:min(620px,95%);max-height:90vh;overflow:auto;background:linear-gradient(145deg,#121d33,#090f1d);border:1px solid #ffffff20;border-radius:24px;padding:24px;box-shadow:0 30px 80px #000b}.ccc-title{text-align:center;font-size:clamp(28px,5vw,52px);font-weight:1000;color:var(--gold);margin:0}.ccc-tag{text-align:center;color:var(--muted);margin:6px 0 24px}.ccc-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ccc-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}.ccc-field select{width:100%;padding:11px;border-radius:12px;background:#0a1020;color:white;border:1px solid #ffffff20}.ccc-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:18px}.ccc-how h3{color:var(--gold)}.ccc-how li{margin:8px 0;color:#dce3f3}.ccc-result-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:16px 0}.ccc-result-stat{background:#ffffff0b;border:1px solid #ffffff12;border-radius:12px;padding:12px}.ccc-result-stat b{display:block;font-size:22px;color:var(--gold)}.ccc-war{animation:cccWar .45s ease 2}.ccc-hidden{display:none!important}.ccc-toast{position:absolute;left:50%;top:95px;transform:translateX(-50%);z-index:40;background:#101a2f;border:1px solid #ffffff20;border-radius:999px;padding:8px 14px;font-weight:900;box-shadow:0 10px 30px #0009}
+@keyframes cccShine{to{transform:translateX(180%)}}@keyframes cccWar{50%{transform:scale(1.04);filter:brightness(1.4)}}@keyframes cccDeal{from{opacity:0;transform:translateY(30px) scale(.85)}to{opacity:1;transform:none}}
+.ccc-played{animation:cccDeal .3s ease}
+@media(max-width:760px){ .ccc-player-head{
+  align-items:flex-start;
+}
+
+.ccc-stats{
+  gap:6px;
+  justify-content:flex-end;
+}
+
+.ccc-stats > span{
+  min-width:82px;
+  min-height:36px;
+  padding:7px 9px;
+  font-size:12px;
+  border-radius:10px;
+}
+
+.ccc-stats > span::before{
+  margin-right:5px !important;
+  font-size:14px !important;
+}#cccGameRoot{padding:8px}.ccc-top{padding:9px}.ccc-brand{font-size:13px}.ccc-sub{display:none}.ccc-arena{grid-template-columns:1fr 78px 1fr;gap:5px;min-height:260px;padding:5px}.ccc-card{width:112px;height:164px;padding:9px}.ccc-symbol{font-size:55px}.ccc-power{width:31px;height:31px;font-size:14px}.ccc-card-name{font-size:9px;max-width:72px}.ccc-hand{justify-content:flex-start}.ccc-hand .ccc-card{width:105px;height:153px}.ccc-player{padding:8px}.ccc-ai-hand{height:54px}.ccc-back{width:40px;height:54px}.ccc-controls{grid-template-columns:1fr}.ccc-vs{font-size:21px}.ccc-message{font-size:13px}}
+@media(prefers-reduced-motion:reduce){#cccGameRoot *{animation:none!important;transition:none!important}}
+
+/* PREMIUM VISUAL SKIN — visual only */
+#cccGameRoot{--gold:#ffd35d;padding:16px 18px;background:radial-gradient(circle at 50% 48%,#3b1761 0,transparent 20%),radial-gradient(circle at 25% 50%,#073b6d 0,transparent 32%),radial-gradient(circle at 78% 50%,#67162b 0,transparent 32%),linear-gradient(#02050c,#07101d 50%,#02050b);font-family:Georgia,"Times New Roman",serif;position:relative}
+#cccGameRoot:before{content:"";position:absolute;inset:8px;border:1px solid #9f681d;box-shadow:inset 0 0 0 2px #0b1628;pointer-events:none}
+.ccc-shell{max-width:1420px;gap:9px;position:relative;z-index:1}
+.ccc-top{min-height:70px;border-radius:5px;padding:9px 18px;background:linear-gradient(#07101e,#02060e);border:1px solid #9d671c;box-shadow:inset 0 0 0 2px #0c2035,0 4px 16px #000}
+.ccc-brand{font-size:25px;letter-spacing:-.02em;color:#ffd45e;text-shadow:0 2px #633600,0 0 12px #ffbd32}
+.ccc-sub{color:#f6c75b;font-family:Inter,system-ui,sans-serif;font-weight:800}
+.ccc-chip{border-radius:4px;padding:8px 17px;color:#ffe58d;border:1px solid #bd7b24;background:linear-gradient(#28134a,#110a24);box-shadow:inset 0 0 12px #6d2f9d55;text-transform:uppercase}
+.ccc-btn{border-radius:5px;border:1px solid #c58a29;background:linear-gradient(#2d2441,#151425);color:#fff1bd;text-transform:uppercase;font-weight:900}
+.ccc-btn-primary{background:linear-gradient(#36a932,#0a641c);color:#fff;border:1px solid #d4b548}
+.ccc-player{border-radius:8px;padding:10px 14px;background:linear-gradient(#071321e8,#030914e8);border:1px solid #a46d1d;box-shadow:inset 0 0 0 2px #0c2134,0 8px 20px #0009}
+#cccPlayerPanel{border-color:#1ca7dd;box-shadow:inset 0 0 28px #0077b322}
+#cccAiPanel{border-color:#d33c32;box-shadow:inset 0 0 28px #bd101f22}
+.ccc-name{font-size:20px;text-transform:uppercase}
+#cccPlayerPanel .ccc-name{color:#c8f3ff}#cccAiPanel .ccc-name{color:#ffd1cb}
+.ccc-stats>span{min-width:116px;min-height:50px;border-radius:5px;font-family:Inter,system-ui,sans-serif;font-size:15px;text-transform:uppercase;box-shadow:inset 0 0 18px #0008,0 3px 8px #0008}
+.ccc-stats>span:nth-child(1){color:#8fe3ff;border-color:#1bb4e6;background:linear-gradient(#08293c,#03101c)}
+.ccc-stats>span:nth-child(2){color:#caff8f;border-color:#70b836;background:linear-gradient(#183019,#07140b)}
+.ccc-stats>span:nth-child(3){color:#ffe17b;border-color:#d59b1e;background:linear-gradient(#382b08,#171004)}
+#cccAiPanel .ccc-stats>span:nth-child(1){color:#ffaaa1;border-color:#d9463d;background:linear-gradient(#3a0d12,#180509)}
+#cccAiPanel .ccc-stats>span:nth-child(2){color:#ffc178;border-color:#d86729;background:linear-gradient(#3b1908,#180905)}
+.ccc-ai-hand{height:64px}.ccc-back{height:60px;width:43px;border-radius:5px;border-color:#c99a37}
+.ccc-arena{
+  min-height:300px;
+  grid-template-columns:minmax(220px,1fr) 190px minmax(220px,1fr);
+  gap:25px;
+
+  /* ↓ reduces empty space above and below card holders */
+  padding:6px 6vw;
+
+  background:
+    radial-gradient(circle at 50% 50%,#51228b44,transparent 22%),
+    linear-gradient(90deg,#073b6520,transparent 38%,transparent 62%,#6d112820);
+
+  border-top:1px solid #73531c;
+  border-bottom:1px solid #73531c;
+}
+.ccc-slot{min-height:255px}.ccc-vs{font-size:72px;font-style:italic;line-height:.9;color:#ffd14f;text-shadow:3px 3px #733400,0 0 15px #ff9d00;transform:skew(-7deg)}
+.ccc-message{display:inline-block;margin-top:12px;padding:8px 24px;font-size:19px;text-transform:uppercase;color:#ffe27a;border:1px solid #b57b20;background:linear-gradient(#13233b,#07101d)}
+.ccc-detail{font-family:Inter,system-ui,sans-serif;color:#e8e6df;font-size:13px}.ccc-pot{padding:9px 20px;border-radius:50%;font-size:20px;font-weight:1000;color:#ffd65a;border:2px solid #b67b20;background:#09101c}.ccc-required{font-size:15px;color:#fff0b3}
+.ccc-card{width:170px;height:245px;border-radius:9px;padding:13px;border-width:2px;box-shadow:inset 0 0 0 2px #000b,inset 0 0 28px #ffffff08,0 10px 24px #000c}
+.ccc-card:after{content:"";position:absolute;inset:5px;border:1px solid #d7a63866;border-radius:5px;pointer-events:none}
+.ccc-common{border-color:#d7b55d}.ccc-uncommon{border-color:#50df57;box-shadow:0 0 14px #3cff4d44,0 10px 24px #000c}.ccc-rare{border-color:#24b8ff;box-shadow:0 0 16px #24b8ff55,0 10px 24px #000c}.ccc-epic{border-color:#e64cff;box-shadow:0 0 18px #e64cff66,0 10px 24px #000c}.ccc-legendary{border-color:#ffd451;box-shadow:0 0 22px #ffd45177,0 10px 24px #000c}
+.ccc-card-name{font-size:14px;max-width:115px}.ccc-power{width:47px;height:47px;font-size:24px}.ccc-symbol{font-size:92px}.ccc-rarity{color:#ffd86c}
+.ccc-empty{width:170px;height:245px;border-color:#d19a2e55}.ccc-hand-wrap{border-top:1px solid #8c641f55}.ccc-hand{gap:10px}.ccc-hand .ccc-card{width:128px;height:186px}.ccc-hand .ccc-symbol{font-size:64px}.ccc-hand .ccc-power{width:36px;height:36px;font-size:18px}
+.ccc-hand .ccc-card:hover:not(.ccc-disabled){transform:translateY(-13px) scale(1.045);filter:brightness(1.12);box-shadow:0 0 20px #ffd34a55,0 18px 30px #000}
+.ccc-turn-glow{box-shadow:inset 0 0 30px #f5bd2830,0 0 12px #f5bd2830!important}
+.ccc-overlay{position:fixed;background:radial-gradient(circle,#172849ee,#02050bf5 70%);backdrop-filter:blur(6px)}.ccc-modal{border-radius:8px;border:2px solid #b27b22;background:linear-gradient(145deg,#101d31,#040913);box-shadow:inset 0 0 0 3px #09172a,0 0 35px #f1b82b33,0 30px 80px #000}.ccc-title{color:#ffd459;text-shadow:0 2px #6b3800,0 0 14px #ffbe2c}
+@media(max-width:760px){#cccGameRoot{padding:6px}.ccc-top{min-height:auto;padding:8px;flex-wrap:wrap}.ccc-brand{font-size:17px}.ccc-top-center{order:3;width:100%}.ccc-chip{padding:6px 8px;font-size:10px}.ccc-player{padding:7px}.ccc-player-head{display:block}.ccc-name{font-size:16px;display:block;margin-bottom:7px}.ccc-stats{justify-content:space-between;gap:5px;flex-wrap:nowrap}.ccc-stats>span{min-width:0;flex:1;min-height:42px;padding:6px 4px;font-size:10px}.ccc-ai-hand{height:46px}.ccc-back{height:44px;width:32px}.ccc-arena{grid-template-columns:1fr 68px 1fr;gap:3px;min-height:245px;padding:8px 2px}.ccc-slot{min-height:180px}.ccc-card,.ccc-empty{width:112px;height:166px}.ccc-card-name{font-size:9px;max-width:70px}.ccc-symbol{font-size:54px}.ccc-power{width:31px;height:31px;font-size:15px}.ccc-vs{font-size:42px}.ccc-message{font-size:10px;padding:5px 7px}.ccc-detail{font-size:9px}.ccc-pot{font-size:12px;padding:6px 9px}.ccc-required{font-size:9px}.ccc-hand .ccc-card{width:105px;height:153px}}
+
+
+/* =========================================================
+   OLYMPUS CLASH META / CELEBRATION LAYER
+   Additive gameplay presentation + progression UI
+   ========================================================= */
+.ccc-meta-bar{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:8px}
+.ccc-meta-box{min-height:54px;padding:8px 12px;border:1px solid #a46d1d;background:linear-gradient(#101b2e,#060b14);box-shadow:inset 0 0 18px #0008;border-radius:6px;font-family:Inter,system-ui,sans-serif}
+.ccc-meta-label{font-size:9px;color:#d7b65d;font-weight:1000;letter-spacing:.12em;text-transform:uppercase}
+.ccc-meta-value{margin-top:3px;font-size:14px;font-weight:1000;color:#fff}
+.ccc-xp-track{height:7px;border-radius:99px;background:#02050a;border:1px solid #ffffff18;margin-top:6px;overflow:hidden}
+.ccc-xp-fill{height:100%;width:0;background:linear-gradient(90deg,#2bd36d,#f6d15f);box-shadow:0 0 10px #67ff8a88;transition:width .4s ease}
+.ccc-challenge-box{border-color:#6f4dc0}.ccc-reward-box{border-color:#2e9e67}
+.ccc-celebration{position:absolute;inset:0;z-index:34;display:grid;place-items:center;pointer-events:none;background:#02030a33;animation:cccCelebrationFade 1.15s ease forwards}
+.ccc-celebration-card{text-align:center;padding:18px 28px;border:2px solid #f4c44f;background:radial-gradient(circle,#372263,#090b17 72%);box-shadow:0 0 45px #ffbd3866,0 18px 50px #000;border-radius:8px;animation:cccCelebrationPop .45s cubic-bezier(.2,1.5,.3,1)}
+.ccc-celebration-title{font-size:clamp(25px,5vw,58px);font-weight:1000;color:#ffd75e;text-shadow:0 3px #6d3500,0 0 20px #ffbd32}
+.ccc-celebration-sub{margin-top:4px;font:900 13px Inter,system-ui,sans-serif;color:#f5f0dc;letter-spacing:.08em}
+.ccc-legendary-flash{position:absolute;inset:0;z-index:36;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle,#c7852a55,#05030ee8 68%);animation:cccLegendFade 1.05s ease forwards}
+.ccc-legendary-flash>div{font-size:clamp(32px,7vw,78px);font-weight:1000;color:#ffe27a;text-shadow:0 0 18px #ffbb2e,0 0 48px #ff8a00;animation:cccLegendPop .7s ease}
+.ccc-ai-bubble{position:absolute;right:16px;top:14px;z-index:20;max-width:210px;padding:9px 13px;border-radius:15px 15px 3px 15px;background:#2b0c17;border:1px solid #d4474c;color:#ffd7d3;font:900 12px Inter,system-ui,sans-serif;box-shadow:0 8px 20px #0008}
+.ccc-pot-hot{animation:cccPotPulse .55s ease 2!important}
+.ccc-result-section-title{grid-column:1/-1;color:#ffd45e;font-weight:1000;font-size:13px;text-transform:uppercase;margin-top:5px}
+.ccc-achievement-list{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.ccc-achievement-badge{padding:7px 9px;border:1px solid #b88127;background:#201706;border-radius:5px;color:#ffe08a;font-size:11px;font-weight:900}
+.ccc-cosmetic-note{grid-column:1/-1;padding:10px;border:1px solid #ffffff16;background:#ffffff08;font-size:11px;color:#dce3f3}
+.ccc-arena[data-theme="bronze"]{box-shadow:inset 0 0 60px #b46d2422}
+.ccc-arena[data-theme="silver"]{box-shadow:inset 0 0 70px #c8dcff2b}
+.ccc-arena[data-theme="gold"]{box-shadow:inset 0 0 80px #ffd34a35}
+.ccc-arena[data-theme="fire"]{background:radial-gradient(circle at 50% 50%,#8a2b173d,transparent 25%),linear-gradient(90deg,#4d170d55,transparent 40%,transparent 60%,#6a180f55)}
+.ccc-arena[data-theme="ice"]{background:radial-gradient(circle at 50% 50%,#1c7ea044,transparent 25%),linear-gradient(90deg,#073c6c55,transparent 40%,transparent 60%,#155e8055)}
+.ccc-arena[data-theme="royal"]{background:radial-gradient(circle at 50% 50%,#6d2b9a55,transparent 26%),linear-gradient(90deg,#18275d55,transparent 40%,transparent 60%,#5e194d55)}
+@keyframes cccCelebrationPop{from{opacity:0;transform:scale(.5) rotate(-4deg)}to{opacity:1;transform:scale(1)}}
+@keyframes cccCelebrationFade{0%,70%{opacity:1}100%{opacity:0}}
+@keyframes cccLegendPop{0%{opacity:0;transform:scale(.25) rotate(-8deg)}55%{opacity:1;transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes cccLegendFade{0%,72%{opacity:1}100%{opacity:0}}
+@keyframes cccPotPulse{50%{transform:scale(1.13);box-shadow:0 0 28px #ffbf32}}
+@media(max-width:760px){.ccc-meta-bar{grid-template-columns:1fr}.ccc-meta-box{min-height:42px}.ccc-meta-value{font-size:11px}.ccc-ai-bubble{right:5px;top:5px;font-size:9px;max-width:130px}.ccc-celebration-card{padding:12px 16px}}
+/* =========================================
+   CHESS CLASH — LAPTOP / DESKTOP ARENA GAP
+   ========================================= */
+
+@media (min-width: 761px){
+
+  .ccc-arena{
+    min-height:270px;
+    padding-top:6px;
+    padding-bottom:6px;
+  }
+
+  .ccc-slot{
+    min-height:255px;
+  }
+
+}
+
+
+/* =========================================================
+   OLYMPUS CLASH — LIGHTWEIGHT BATTLE FX PACK
+   Presentation only: transform/opacity/box-shadow. No canvas.
+   ========================================================= */
+.ccc-arena{isolation:isolate;overflow:hidden}
+.ccc-arena:before,.ccc-arena:after{content:"";position:absolute;inset:0;pointer-events:none;z-index:-1}
+.ccc-arena:before{
+ background:
+ radial-gradient(circle at 16% 55%,#27a9ff20 0 2px,transparent 3px),
+ radial-gradient(circle at 28% 35%,#27a9ff18 0 1px,transparent 2px),
+ radial-gradient(circle at 78% 40%,#ff465518 0 2px,transparent 3px),
+ radial-gradient(circle at 88% 62%,#ff465520 0 1px,transparent 2px);
+ background-size:130px 110px,170px 150px,145px 125px,190px 160px;
+ opacity:.8;animation:cccAtmosphere 10s linear infinite
+}
+.ccc-arena:after{background:radial-gradient(ellipse at center,transparent 42%,#00000066 100%)}
+.ccc-center{position:relative;z-index:2}
+.ccc-vs{animation:cccVsBreath 2.8s ease-in-out infinite}
+.ccc-card.ccc-entry-player{animation:cccEntryPlayer .28s cubic-bezier(.2,.8,.2,1)}
+.ccc-card.ccc-entry-ai{animation:cccEntryAi .28s cubic-bezier(.2,.8,.2,1)}
+.ccc-card.ccc-fx-winner{animation:cccWinnerPulse .55s ease}
+.ccc-card.ccc-fx-loser{animation:cccLoserShake .42s ease;filter:brightness(.7)}
+.ccc-card.ccc-fx-war{animation:cccCardWar .48s ease 2}
+.ccc-legendary{position:relative}
+.ccc-legendary .ccc-rarity:before{content:"♛ ";color:#ffe071}
+.ccc-legendary:before{animation:cccLegendaryRay 3.8s linear infinite!important}
+.ccc-epic{animation:cccEpicBreath 2.8s ease-in-out infinite}
+.ccc-capture-pop{animation:cccCounterPop .45s ease}
+.ccc-color-white{box-shadow:inset 0 0 60px #d9efff10}
+.ccc-color-black{box-shadow:inset 0 0 60px #8d6cff12}
+.ccc-hudline{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin:5px 0 1px;font:900 10px Inter,system-ui,sans-serif}
+.ccc-hudpill{padding:4px 8px;border:1px solid #ffffff20;border-radius:999px;background:#050a14cc;color:#dce8ff}
+.ccc-hudpill strong{color:#ffd55e}
+.ccc-history-btn{position:absolute;left:8px;bottom:8px;z-index:8;padding:6px 9px;font-size:10px}
+.ccc-history-panel{position:absolute;left:8px;bottom:42px;z-index:30;width:min(320px,88%);max-height:245px;overflow:auto;padding:10px;border:1px solid #b47c26;background:#050b16f2;box-shadow:0 12px 30px #000b;border-radius:6px;font:700 11px Inter,system-ui,sans-serif}
+.ccc-history-row{padding:8px;border-bottom:1px solid #ffffff12;line-height:1.45}.ccc-history-row:last-child{border-bottom:0}.ccc-history-win{color:#7ff0ae}.ccc-history-loss{color:#ff9aa3}.ccc-history-war{color:#ffd86a}
+.ccc-inspect-overlay{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:#02050bd9;padding:18px}
+.ccc-inspect-box{width:min(420px,94vw);padding:18px;text-align:center;border:2px solid #b47c26;background:linear-gradient(#111d31,#050a12);box-shadow:0 25px 70px #000;border-radius:9px}
+.ccc-inspect-card{display:flex;justify-content:center;margin:12px 0}.ccc-inspect-card .ccc-card{transform:scale(1.08)}
+.ccc-inspect-copy{font:700 12px/1.55 Inter,system-ui,sans-serif;color:#dce3f3}
+.ccc-ai-avatar{display:inline-grid;place-items:center;width:34px;height:34px;margin-right:6px;border-radius:50%;border:1px solid #dc554e;background:radial-gradient(circle at 40% 35%,#74303a,#210810);box-shadow:0 0 14px #e83b4233;vertical-align:middle;transition:transform .2s ease}
+.ccc-ai-avatar.ccc-ai-happy{transform:scale(1.12) rotate(4deg)}.ccc-ai-avatar.ccc-ai-hit{animation:cccAvatarHit .35s ease}.ccc-ai-avatar.ccc-ai-war{animation:cccAvatarWar .5s ease 2}
+.ccc-war-screen{position:absolute;inset:0;z-index:25;display:grid;place-items:center;pointer-events:none;background:#02030aa8;animation:cccWarScreen .8s ease forwards}
+.ccc-war-screen b{font-size:clamp(34px,7vw,84px);color:#ffd65b;text-shadow:0 0 25px #ff8b00,3px 3px #6b2600;transform:skew(-7deg)}
+.ccc-fly-card{position:absolute;z-index:45;width:42px;height:58px;border:1px solid #ffd45d;border-radius:5px;background:linear-gradient(#253b64,#080d17);box-shadow:0 0 16px #ffd45d55;pointer-events:none;animation:cccFlyCapture .55s ease-in forwards}
+@keyframes cccAtmosphere{to{background-position:130px -110px,-170px -150px,-145px 125px,190px -160px}}
+@keyframes cccVsBreath{50%{filter:brightness(1.2);text-shadow:3px 3px #733400,0 0 24px #ffb300}}
+@keyframes cccEntryPlayer{from{opacity:0;transform:translateY(45px) scale(.88)}to{opacity:1;transform:none}}
+@keyframes cccEntryAi{from{opacity:0;transform:translateY(-45px) scale(.88)}to{opacity:1;transform:none}}
+@keyframes cccWinnerPulse{50%{transform:scale(1.07);filter:brightness(1.35);box-shadow:0 0 32px #ffd45d}}
+@keyframes cccLoserShake{20%,60%{transform:translateX(-7px) rotate(-2deg)}40%,80%{transform:translateX(7px) rotate(2deg)}}
+@keyframes cccCardWar{50%{transform:scale(1.05);filter:brightness(1.45)}}
+@keyframes cccLegendaryRay{to{transform:translateX(180%) rotate(8deg)}}
+@keyframes cccEpicBreath{50%{box-shadow:0 0 24px #e64cff55,0 10px 24px #000c}}
+@keyframes cccCounterPop{50%{transform:scale(1.12);filter:brightness(1.4)}}
+@keyframes cccAvatarHit{50%{transform:translateX(5px) rotate(8deg);filter:brightness(1.5)}}
+@keyframes cccAvatarWar{50%{transform:scale(1.16);box-shadow:0 0 22px #ffb82e}}
+@keyframes cccWarScreen{0%{opacity:0}20%,70%{opacity:1}100%{opacity:0}}
+@keyframes cccFlyCapture{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--fx-x),var(--fx-y)) scale(.25)}}
+@media(max-width:760px){.ccc-history-panel{max-height:190px}.ccc-history-btn{bottom:4px}.ccc-hudline{font-size:8px}.ccc-ai-avatar{width:27px;height:27px}}
+@media(prefers-reduced-motion:reduce){.ccc-arena:before,.ccc-vs,.ccc-epic,.ccc-legendary:before{animation:none!important}}
+
+</style>
+</head>
+<body style="margin:0">
+<div id="cccGameRoot">
+  <div class="ccc-shell">
+    <header class="ccc-top">
+      <div><div class="ccc-brand">♟ OLYMPUS CLASH CARDS</div><div class="ccc-sub">Final Edition • Master the Pieces. Capture the Deck.</div></div>
+      <div class="ccc-top-center">
+        <span class="ccc-chip" id="cccRound">ROUND 00</span>
+        <span class="ccc-chip" id="cccLead">—</span>
+        <span class="ccc-chip" id="cccRequirement">FREE PLAY</span>
+      </div>
+      <div>
+        <button class="ccc-btn" id="cccSoundBtn">🔊</button>
+        <button class="ccc-btn" id="cccNewBtn">New</button>
+      </div>
+    </header>
+
+    <section class="ccc-meta-bar" id="cccMetaBar">
+      <div class="ccc-meta-box">
+        <div class="ccc-meta-label">Player Progress</div>
+        <div class="ccc-meta-value" id="cccLevelText">LEVEL 1 • 0 XP</div>
+        <div class="ccc-xp-track"><div class="ccc-xp-fill" id="cccXpFill"></div></div>
+      </div>
+      <div class="ccc-meta-box ccc-challenge-box">
+        <div class="ccc-meta-label">🎯 Match Challenge</div>
+        <div class="ccc-meta-value" id="cccChallengeText">Preparing challenge…</div>
+      </div>
+      <div class="ccc-meta-box ccc-reward-box">
+        <div class="ccc-meta-label">🎁 Daily Reward</div>
+        <div class="ccc-meta-value" id="cccDailyText">Checking…</div>
+      </div>
+    </section>
+
+    <section class="ccc-player" id="cccAiPanel">
+      <div class="ccc-player-head">
+        <div><span class="ccc-name"><span class="ccc-ai-avatar" id="cccAiAvatar">♚</span> OLYMPUS AI</span> <span class="ccc-chip" id="cccDifficultyLabel">NORMAL</span></div>
+        <div class="ccc-stats"><span id="cccAiDeck">Deck 0</span><span id="cccAiHandCount">Hand 0</span><span id="cccAiCaptured">Captured 0</span></div>
+      </div>
+      <div class="ccc-ai-hand" id="cccAiHand"></div>
+    </section>
+
+    <main class="ccc-arena" id="cccArena">
+      <div class="ccc-slot" id="cccAiSlot"></div>
+      <div class="ccc-center">
+        <div class="ccc-vs" id="cccVs">VS</div>
+        <div class="ccc-message" id="cccMessage">Prepare for battle</div>
+        <div class="ccc-detail" id="cccDetail"></div>
+        <div class="ccc-pot" id="cccPot">POT ×0</div>
+        <div class="ccc-required" id="cccRequiredCenter"></div>
+        <div class="ccc-hudline" id="cccBattleHud"><span class="ccc-hudpill">🔥 STREAK <strong id="cccHudStreak">×0</strong></span><span class="ccc-hudpill">⚔ WAR <strong id="cccHudWar">×0</strong></span></div>
+      </div>
+      <div class="ccc-slot" id="cccPlayerSlot"></div>
+      <div class="ccc-toast ccc-hidden" id="cccToast"></div>
+      <div class="ccc-ai-bubble ccc-hidden" id="cccAiBubble"></div>
+      <button class="ccc-btn ccc-history-btn" id="cccHistoryBtn">📜 HISTORY</button>
+      <div class="ccc-history-panel ccc-hidden" id="cccHistoryPanel"></div>
+      <div id="cccFxHost"></div>
+    </main>
+
+    <section class="ccc-player" id="cccPlayerPanel">
+      <div class="ccc-player-head">
+        <div class="ccc-name">♔ YOU</div>
+        <div class="ccc-stats"><span id="cccPlayerDeck">Deck 0</span><span id="cccPlayerHandCount">Hand 0</span><span id="cccPlayerCaptured">Captured 0</span></div>
+      </div>
+      <div class="ccc-hand-wrap"><div class="ccc-hand" id="cccPlayerHand"></div></div>
+    </section>
+  </div>
+
+  <div class="ccc-overlay" id="cccStartOverlay">
+    <div class="ccc-modal">
+      <h1 class="ccc-title">♟ OLYMPUS CLASH CARDS ARENA</h1>
+      <p class="ccc-tag">Master the Pieces. Capture the Deck.</p>
+      <div class="ccc-controls">
+        <div class="ccc-field"><label for="cccDifficulty">Difficulty</label><select id="cccDifficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></div>
+        <div class="ccc-field"><label for="cccDeckSize">Cards per player</label><select id="cccDeckSize"><option value="40">40</option><option value="60" selected>60</option><option value="80">80</option></select></div>
+      </div>
+      <div class="ccc-actions"><button class="ccc-btn ccc-btn-primary" id="cccStartBtn">⚔ START BATTLE</button><button class="ccc-btn" id="cccHowBtn">How to Play</button></div>
+    </div>
+  </div>
+
+  <div class="ccc-overlay ccc-hidden" id="cccHowOverlay">
+    <div class="ccc-modal ccc-how">
+      <h2 class="ccc-title" style="font-size:30px">HOW TO PLAY</h2>
+      <ol>
+        <li>Each battle begins when the leader plays one chess card.</li>
+        <li>The first card sets the required color: WHITE or BLACK.</li>
+        <li>The responder must follow that color if they have it.</li>
+        <li>When both cards match the lead color, higher power wins. Pawn 1, Knight/Bishop 3, Rook 5, Queen 9.</li>
+        <li>If you cannot follow color, you may discard another color, but it cannot defeat the lead card.</li>
+        <li>Equal power triggers WAR. More cards enter the pot until somebody wins.</li>
+        <li>The winner captures the whole pot and leads the next battle.</li>
+        <li>When no playable cards remain, whoever captured more cards wins the match.</li>
+      </ol>
+      <p><b>Example:</b> Black Pawn (1) leads. Black Rook (5) wins. But White Queen (9) cannot beat it when Black is required.</p>
+      <div class="ccc-actions"><button class="ccc-btn ccc-btn-primary" id="cccCloseHow">Got it</button></div>
+    </div>
+  </div>
+
+  <div class="ccc-overlay ccc-hidden" id="cccResultOverlay">
+    <div class="ccc-modal">
+      <h2 class="ccc-title" id="cccResultTitle">MATCH COMPLETE</h2>
+      <p class="ccc-tag" id="cccResultSubtitle"></p>
+      <div class="ccc-result-grid" id="cccResultGrid"></div>
+      <div class="ccc-actions"><button class="ccc-btn ccc-btn-primary" id="cccAgainBtn">Play Again</button><button class="ccc-btn" id="cccResultNewBtn">New Setup</button></div>
+    </div>
+  </div>
+
+  <div class="ccc-inspect-overlay ccc-hidden" id="cccInspectOverlay">
+    <div class="ccc-inspect-box">
+      <h2 class="ccc-title" style="font-size:27px" id="cccInspectTitle">CARD</h2>
+      <div class="ccc-inspect-card" id="cccInspectCard"></div>
+      <div class="ccc-inspect-copy" id="cccInspectCopy"></div>
+      <div class="ccc-actions"><button class="ccc-btn ccc-btn-primary" id="cccInspectClose">Close</button></div>
+    </div>
+  </div>
+
+  <div class="ccc-overlay ccc-hidden" id="cccConfirmOverlay">
+    <div class="ccc-modal">
+      <h2 style="margin-top:0">Start a new game?</h2><p class="ccc-tag" style="text-align:left">The current match will be abandoned.</p>
+      <div class="ccc-actions"><button class="ccc-btn ccc-btn-primary" id="cccConfirmNew">Yes, New Game</button><button class="ccc-btn" id="cccCancelNew">Continue Match</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ==============================
+// CARD DEFINITIONS
+// ==============================
+const cccDefs = [
+ {key:'pawn',name:'Pawn',power:1,rarity:'common',symbols:['♙'],fusion:false,w:32},
+ {key:'knight',name:'Knight',power:3,rarity:'uncommon',symbols:['♘'],fusion:false,w:11},
+ {key:'bishop',name:'Bishop',power:3,rarity:'uncommon',symbols:['♗'],fusion:false,w:11},
+ {key:'rook',name:'Rook',power:5,rarity:'rare',symbols:['♖'],fusion:false,w:8},
+ {key:'queen',name:'Queen',power:9,rarity:'epic',symbols:['♕'],fusion:false,w:4},
+ {key:'vanguard',name:'Vanguard Rider',power:4,rarity:'uncommon',symbols:['♙','♘'],fusion:true,w:8},
+ {key:'arcane',name:'Arcane Cavalier',power:6,rarity:'rare',symbols:['♘','♗'],fusion:true,w:6},
+ {key:'fortressGuard',name:'Fortress Guard',power:6,rarity:'rare',symbols:['♙','♖'],fusion:true,w:6},
+ {key:'siegeRider',name:'Siege Rider',power:8,rarity:'epic',symbols:['♘','♖'],fusion:true,w:4},
+ {key:'templeFortress',name:'Temple Fortress',power:8,rarity:'epic',symbols:['♗','♖'],fusion:true,w:4},
+ {key:'royalVanguard',name:'Royal Vanguard',power:10,rarity:'epic',symbols:['♙','♕'],fusion:true,w:3},
+ {key:'queenChampion',name:"Queen's Champion",power:12,rarity:'legendary',symbols:['♘','♕'],fusion:true,w:1.5},
+ {key:'royalOracle',name:'Royal Oracle',power:12,rarity:'legendary',symbols:['♗','♕'],fusion:true,w:1.5},
+ {key:'imperialFortress',name:'Imperial Fortress',power:14,rarity:'legendary',symbols:['♖','♕'],fusion:true,w:1}
+];
+const cccEls = {};
+let cccTimers = new Set();
+let cccAudio = null;
+let cccGameToken = 0;
+let cccCardSeq = 0;
+
+const cccState = {
+ phase:'start',round:0,leader:null,requiredColor:null,difficulty:'normal',deckSize:60,
+ playerDeck:[],playerHand:[],playerCaptured:[],aiDeck:[],aiHand:[],aiCaptured:[],
+ pot:[],playerCard:null,aiCard:null,war:false,gameOver:false,lock:false,totalCards:0,
+ stats:null,sound:true,revealed:[],streak:0,bestStreak:0,warDepth:0,largestPot:0,longestWar:0,queensCaptured:0,lastCapturedName:'—',challenge:null,challengeDone:false,matchAchievements:[],history:[]
+};
+
+function ccc$(id){ return document.getElementById(id); }
+function cccLater(fn,ms){
+ const token=cccGameToken;
+ const id=setTimeout(()=>{cccTimers.delete(id);if(token===cccGameToken)fn();},ms);
+ cccTimers.add(id); return id;
+}
+function cccClearTimers(){cccTimers.forEach(clearTimeout);cccTimers.clear();}
+function cccSafeGet(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch{return d}}
+function cccSafeSet(k,v){try{localStorage.setItem(k,String(v))}catch{}}
+function cccWeightedDef(){
+ let total=cccDefs.reduce((s,d)=>s+d.w,0),r=Math.random()*total;
+ for(const d of cccDefs){r-=d.w;if(r<=0)return d} return cccDefs[0];
+}
+function cccMakeCard(color){
+ const d=cccWeightedDef();
+ return {id:'ccc-card-'+(++cccCardSeq),key:d.key,name:d.name,power:d.power,rarity:d.rarity,symbols:d.symbols,fusion:d.fusion,color};
+}
+function cccShuffle(a){
+ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]} return a;
+}
+
+// ==============================
+// DECK SYSTEM
+// ==============================
+function cccGeneratePool(perPlayer){
+ const total=perPlayer*2,pool=[];
+ // Exact 50/50 color balance, then full shuffle.
+ for(let i=0;i<total/2;i++)pool.push(cccMakeCard('white'));
+ for(let i=0;i<total/2;i++)pool.push(cccMakeCard('black'));
+ return cccShuffle(pool);
+}
+function cccDrawToSeven(who){
+ const deck=cccState[who+'Deck'],hand=cccState[who+'Hand'];
+ while(hand.length<7 && deck.length)hand.push(deck.pop());
+}
+function cccRemoveFromHand(who,id){
+ const hand=cccState[who+'Hand'],i=hand.findIndex(c=>c.id===id);
+ return i>=0?hand.splice(i,1)[0]:null;
+}
+function cccHasColor(hand,color){return hand.some(c=>c.color===color)}
+function cccLegalCards(hand,color){
+ if(!color)return hand.slice();
+ const matches=hand.filter(c=>c.color===color);
+ return matches.length?matches:hand.slice();
+}
+function cccCanActPlayer(){
+ return !cccState.lock&&!cccState.gameOver&&(cccState.phase==='playerLead'||cccState.phase==='playerRespond'||cccState.phase==='warPlayer');
+}
+
+// ==============================
+// SOUND
+// ==============================
+function cccInitAudio(){
+ if(cccAudio)return;
+ try{cccAudio=new (window.AudioContext||window.webkitAudioContext)()}catch{}
+}
+function cccTone(freq,dur=.08,type='sine',gain=.12,delay=0){
+ if(!cccState.sound)return;cccInitAudio();if(!cccAudio)return;
+ try{
+  const t=cccAudio.currentTime+delay,o=cccAudio.createOscillator(),g=cccAudio.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(gain,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g).connect(cccAudio.destination);o.start(t);o.stop(t+dur+.02);
+ }catch{}
+}
+function cccSound(kind){
+ if(kind==='play')cccTone(260,.06,'triangle');
+ if(kind==='win'){cccTone(420,.09,'sine');cccTone(620,.12,'sine',.04,.08)}
+ if(kind==='lose'){cccTone(300,.1,'sawtooth');cccTone(190,.13,'sine',.035,.08)}
+ if(kind==='war'){cccTone(130,.18,'square',.035);cccTone(180,.2,'square',.025,.12)}
+ if(kind==='end'){cccTone(440,.12);cccTone(660,.12,'sine',.04,.12);cccTone(880,.2,'sine',.04,.24)}
+}
+
+// ==============================
+// AI SYSTEM
+// ==============================
+function cccAiRespond(opponentCard){
+ const legal=cccLegalCards(cccState.aiHand,cccState.requiredColor);
+ if(!legal.length)return null;
+ if(cccState.difficulty==='easy'&&Math.random()<.48)return legal[Math.floor(Math.random()*legal.length)];
+ const valid=legal.filter(c=>c.color===cccState.requiredColor);
+ const winners=valid.filter(c=>c.power>opponentCard.power).sort((a,b)=>a.power-b.power);
+ const ties=valid.filter(c=>c.power===opponentCard.power).sort((a,b)=>a.power-b.power);
+ if(winners.length){
+  if(cccState.difficulty==='hard')return winners[0];
+  return Math.random()<.8?winners[0]:winners[Math.floor(Math.random()*winners.length)];
+ }
+ if(ties.length&&cccState.difficulty==='hard'&&cccState.pot.length>=4)return ties[0];
+ return legal.slice().sort((a,b)=>a.power-b.power)[0];
+}
+function cccAiLead(){
+ if(!cccState.aiHand.length)return null;
+ let hand=cccState.aiHand.slice();
+ if(cccState.difficulty==='easy')return hand[Math.floor(Math.random()*hand.length)];
+ const counts={white:hand.filter(c=>c.color==='white').length,black:hand.filter(c=>c.color==='black').length};
+ const favored=counts.white>=counts.black?'white':'black';
+ if(cccState.difficulty==='hard'&&Math.random()<.7)hand=hand.filter(c=>c.color===favored);
+ hand.sort((a,b)=>a.power-b.power);
+ if(cccState.difficulty==='hard'){
+  const q=Math.random();
+  return q<.6?hand[Math.floor(hand.length*.35)]||hand[0]:q<.88?hand[0]:hand[Math.floor(hand.length*.72)]||hand.at(-1);
+ }
+ return Math.random()<.65?hand[Math.floor(Math.random()*Math.max(1,Math.ceil(hand.length*.65)))]:hand[Math.floor(Math.random()*hand.length)];
+}
+
+
+// ==============================
+// FUN / PROGRESSION LAYER
+// Does not change card legality, power, WAR, capture, or winner rules.
+// ==============================
+const cccAchievementDefs={
+ firstVictory:'First Victory',
+ fiveWars:'War Master — Win 5 Wars',
+ queenHunter:'Queen Hunter — Capture a Queen',
+ legendaryHunter:'Legend Hunter — Capture a Legendary',
+ streakFive:'On Fire — 5 Battle Streak',
+ potTen:'Jackpot Hunter — Win a 10+ Card Pot'
+};
+function cccMetaGet(){
+ let xp=Number(cccSafeGet('cccMetaXP','0'))||0;
+ let achievements=[];
+ try{achievements=JSON.parse(cccSafeGet('cccAchievements','[]'))||[]}catch{}
+ return {xp,achievements};
+}
+function cccLevelForXP(xp){return Math.floor(xp/100)+1}
+function cccUnlockedTheme(level){
+ if(level>=50)return 'royal';
+ if(level>=25)return 'ice';
+ if(level>=15)return 'fire';
+ if(level>=10)return 'gold';
+ if(level>=5)return 'silver';
+ if(level>=3)return 'bronze';
+ return 'base';
+}
+function cccRenderMeta(){
+ const meta=cccMetaGet(),level=cccLevelForXP(meta.xp),within=meta.xp%100;
+ const levelEl=ccc$('cccLevelText'),fill=ccc$('cccXpFill'),challengeEl=ccc$('cccChallengeText'),daily=ccc$('cccDailyText');
+ if(levelEl)levelEl.textContent='LEVEL '+level+' • '+meta.xp+' XP • '+cccUnlockedTheme(level).toUpperCase()+' ARENA';
+ if(fill)fill.style.width=within+'%';
+ if(challengeEl&&cccState.challenge)challengeEl.textContent=(cccState.challengeDone?'✓ ':'')+cccState.challenge.label+' — '+Math.min(cccChallengeProgress(),cccState.challenge.target)+'/'+cccState.challenge.target;
+ if(daily)daily.textContent=cccSafeGet('cccDailyClaimedToday','false')==='true'?'Claimed today':'First completed match today: +25 XP';
+ if(cccEls.arena)cccEls.arena.dataset.theme=cccUnlockedTheme(level);
+}
+function cccAddXP(amount,reason){
+ const meta=cccMetaGet(),before=cccLevelForXP(meta.xp);meta.xp+=amount;cccSafeSet('cccMetaXP',meta.xp);
+ const after=cccLevelForXP(meta.xp);
+ cccToast('⭐ +'+amount+' XP'+(reason?' • '+reason:''));
+ if(after>before)cccCelebrate('LEVEL '+after+'!','New cosmetic tier: '+cccUnlockedTheme(after).toUpperCase());
+ cccRenderMeta();
+}
+function cccTodayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function cccCheckDailyReward(){
+ const today=cccTodayKey(),last=cccSafeGet('cccDailyDate','');
+ if(last!==today){cccSafeSet('cccDailyClaimedToday','false');return false}
+ cccSafeSet('cccDailyClaimedToday','true');return true;
+}
+function cccGrantDailyReward(){
+ const today=cccTodayKey(),last=cccSafeGet('cccDailyDate','');
+ if(last===today)return;
+ cccSafeSet('cccDailyDate',today);cccSafeSet('cccDailyClaimedToday','true');cccAddXP(25,'Daily Reward');cccCelebrate('DAILY REWARD','+25 XP');
+}
+function cccPickChallenge(){
+ const pool=[
+  {key:'wars',label:'Win 2 Wars',target:2},
+  {key:'fusion',label:'Capture 3 Fusion Cards',target:3},
+  {key:'streak',label:'Reach a 3 Win Streak',target:3},
+  {key:'pot',label:'Win an 8+ Card Pot',target:1},
+  {key:'queen',label:'Capture a Queen',target:1}
+ ];
+ return pool[Math.floor(Math.random()*pool.length)];
+}
+function cccChallengeProgress(){
+ if(!cccState.challenge)return 0;
+ if(cccState.challenge.key==='wars')return cccState.stats.playerWars;
+ if(cccState.challenge.key==='fusion')return cccState.stats.playerFusionCaptured;
+ if(cccState.challenge.key==='streak')return cccState.bestStreak;
+ if(cccState.challenge.key==='pot')return cccState.largestPot>=8?1:0;
+ if(cccState.challenge.key==='queen')return cccState.queensCaptured>0?1:0;
+ return 0;
+}
+function cccCheckChallenge(){
+ if(!cccState.challenge||cccState.challengeDone)return;
+ if(cccChallengeProgress()>=cccState.challenge.target){
+  cccState.challengeDone=true;cccAddXP(30,'Challenge Complete');cccCelebrate('CHALLENGE COMPLETE','+30 XP');cccAiReact('That challenge was impressive!');
+ }
+ cccRenderMeta();
+}
+function cccUnlockAchievement(key){
+ const meta=cccMetaGet();if(meta.achievements.includes(key))return;
+ meta.achievements.push(key);cccSafeSet('cccAchievements',JSON.stringify(meta.achievements));
+ cccState.matchAchievements.push(key);cccAddXP(15,'Achievement');cccCelebrate('🏆 ACHIEVEMENT',cccAchievementDefs[key]||key);
+}
+function cccCheckAchievements(winner,cards){
+ if(winner==='player'&&cccState.stats.playerBattles===1)cccUnlockAchievement('firstVictory');
+ if(cccState.stats.playerWars>=5)cccUnlockAchievement('fiveWars');
+ if(cards&&cards.some(c=>c.key==='queen'))cccUnlockAchievement('queenHunter');
+ if(cards&&cards.some(c=>c.rarity==='legendary'))cccUnlockAchievement('legendaryHunter');
+ if(cccState.bestStreak>=5)cccUnlockAchievement('streakFive');
+ if(winner==='player'&&cards&&cards.length>=10)cccUnlockAchievement('potTen');
+}
+function cccCelebrate(title,sub){
+ const host=ccc$('cccFxHost');if(!host)return;
+ const el=document.createElement('div');el.className='ccc-celebration';
+ el.innerHTML='<div class="ccc-celebration-card"><div class="ccc-celebration-title">'+title+'</div><div class="ccc-celebration-sub">'+(sub||'')+'</div></div>';
+ host.appendChild(el);setTimeout(()=>el.remove(),1150);
+}
+function cccLegendaryReveal(card,who){
+ if(!card||card.rarity!=='legendary')return;
+ const host=ccc$('cccFxHost');if(!host)return;
+ const el=document.createElement('div');el.className='ccc-legendary-flash';
+ el.innerHTML='<div>👑 LEGENDARY<br><span style="font-size:.32em">'+who.toUpperCase()+' • '+card.name+' • POWER '+card.power+'</span></div>';
+ host.appendChild(el);setTimeout(()=>el.remove(),1050);
+}
+function cccAiReact(text){
+ const el=ccc$('cccAiBubble');if(!el)return;el.textContent='🤖 '+text;el.classList.remove('ccc-hidden');
+ setTimeout(()=>el.classList.add('ccc-hidden'),1400);
+}
+function cccPotMilestone(){
+ const n=cccState.pot.length;cccState.largestPot=Math.max(cccState.largestPot,n);
+ let text='';if(n>=12)text='💰 JACKPOT BATTLE!';else if(n>=8)text='💰 HUGE POT!';else if(n>=4)text='💰 BIG POT!';
+ if(text){cccCelebrate(text,'POT ×'+n);if(cccEls.pot){cccEls.pot.classList.add('ccc-pot-hot');setTimeout(()=>cccEls.pot.classList.remove('ccc-pot-hot'),1000)}}
+}
+function cccWarLabel(){
+ if(cccState.warDepth>=3)return '⚔ TRIPLE WAR!!!';
+ if(cccState.warDepth===2)return '⚔ DOUBLE WAR!!';
+ return '⚔ WAR!';
+}
+function cccUpdateStreak(winner){
+ if(winner==='player'){cccState.streak++;cccState.bestStreak=Math.max(cccState.bestStreak,cccState.streak);
+  if(cccState.streak===3)cccCelebrate('🔥 3 WIN STREAK!','Keep the pressure on!');
+  if(cccState.streak===5)cccCelebrate('🔥 ON FIRE!','5 consecutive battle wins!');
+  if(cccState.streak>5&&cccState.streak%3===0)cccCelebrate('🔥 '+cccState.streak+' WIN STREAK!','Unstoppable!');
+ }else cccState.streak=0;
+}
+
+
+// ==============================
+// LIGHTWEIGHT PRESENTATION FX
+// ==============================
+function cccFxCardClass(winner,war=false){
+ const p=cccEls.playerSlot?.querySelector('.ccc-card'),a=cccEls.aiSlot?.querySelector('.ccc-card');
+ if(war){p?.classList.add('ccc-fx-war');a?.classList.add('ccc-fx-war');return}
+ p?.classList.add(winner==='player'?'ccc-fx-winner':'ccc-fx-loser');
+ a?.classList.add(winner==='ai'?'ccc-fx-winner':'ccc-fx-loser');
+}
+function cccFxWar(){
+ const host=ccc$('cccFxHost');if(!host)return;
+ const el=document.createElement('div');el.className='ccc-war-screen';el.innerHTML='<b>'+cccWarLabel()+'</b>';host.appendChild(el);
+ setTimeout(()=>el.remove(),820);cccFxCardClass(null,true);
+ const av=ccc$('cccAiAvatar');av?.classList.add('ccc-ai-war');setTimeout(()=>av?.classList.remove('ccc-ai-war'),1000);
+}
+function cccFxCapture(winner,count){
+ const host=ccc$('cccFxHost');if(!host)return;
+ const el=document.createElement('div');el.className='ccc-fly-card';
+ el.style.left=winner==='player'?'72%':'24%';el.style.top='48%';
+ el.style.setProperty('--fx-x',winner==='player'?'70px':'-70px');el.style.setProperty('--fx-y',winner==='player'?'150px':'-150px');
+ host.appendChild(el);setTimeout(()=>el.remove(),600);
+ const target=winner==='player'?cccEls.playerCaptured:cccEls.aiCaptured;
+ target?.classList.add('ccc-capture-pop');setTimeout(()=>target?.classList.remove('ccc-capture-pop'),500);
+}
+function cccHistoryAdd(winner,p,a,count,warDepth){
+ if(!p||!a)return;
+ cccState.history.unshift({round:cccState.round,winner,p:{name:p.name,power:p.power,color:p.color},a:{name:a.name,power:a.power,color:a.color},count,warDepth});
+ if(cccState.history.length>30)cccState.history.length=30;cccRenderHistory();
+}
+function cccHistoryWar(p,a){
+ if(!p||!a)return;
+ cccState.history.unshift({round:cccState.round,winner:'war',p:{name:p.name,power:p.power,color:p.color},a:{name:a.name,power:a.power,color:a.color},count:cccState.pot.length,warDepth:cccState.warDepth});
+ if(cccState.history.length>30)cccState.history.length=30;cccRenderHistory();
+}
+function cccRenderHistory(){
+ const el=ccc$('cccHistoryPanel');if(!el)return;
+ el.innerHTML=cccState.history.length?cccState.history.map(h=>{
+  const cls=h.winner==='player'?'ccc-history-win':h.winner==='ai'?'ccc-history-loss':'ccc-history-war';
+  const result=h.winner==='player'?'YOU WON +'+h.count:h.winner==='ai'?'AI WON +'+h.count:(h.warDepth>1?'WAR '+h.warDepth:'WAR!');
+  return '<div class="ccc-history-row"><b>ROUND '+h.round+'</b><br>YOU: '+h.p.color+' '+h.p.name+' • '+h.p.power+'<br>AI: '+h.a.color+' '+h.a.name+' • '+h.a.power+'<br><b class="'+cls+'">'+result+'</b></div>';
+ }).join(''):'<div class="ccc-history-row">No battles recorded yet.</div>';
+}
+function cccInspect(card){
+ if(!card)return;
+ ccc$('cccInspectTitle').textContent=card.name.toUpperCase();
+ ccc$('cccInspectCard').innerHTML=cccCardHTML(card);
+ ccc$('cccInspectCopy').innerHTML='<b>Power '+card.power+'</b> • '+card.color.toUpperCase()+' • '+card.rarity.toUpperCase()+'<br>'+(card.fusion?'Fusion card — combines multiple chess-piece identities.':'Classic chess-piece card.')+'<br><br>Inspection is visual only and does not change gameplay.';
+ ccc$('cccInspectOverlay').classList.remove('ccc-hidden');
+}
+function cccFxAiMood(winner){
+ const av=ccc$('cccAiAvatar');if(!av)return;
+ const cls=winner==='ai'?'ccc-ai-happy':'ccc-ai-hit';av.classList.add(cls);setTimeout(()=>av.classList.remove(cls),650);
+}
+
+// ==============================
+// GAME FLOW
+// ==============================
+function cccStartGame(){
+ cccGameToken++;cccClearTimers();cccCardSeq=0;
+ cccState.difficulty=cccEls.difficulty.value;
+ cccState.deckSize=Number(cccEls.deckSize.value);
+ cccState.sound=cccSafeGet('cccSound','true')!=='false';
+ cccSafeSet('cccDifficulty',cccState.difficulty);cccSafeSet('cccDeckSize',cccState.deckSize);
+ const pool=cccGeneratePool(cccState.deckSize);
+ cccState.playerDeck=pool.slice(0,cccState.deckSize);
+ cccState.aiDeck=pool.slice(cccState.deckSize);
+ cccState.playerHand=[];cccState.aiHand=[];cccState.playerCaptured=[];cccState.aiCaptured=[];
+ cccState.pot=[];cccState.playerCard=null;cccState.aiCard=null;cccState.round=0;cccState.requiredColor=null;cccState.war=false;cccState.gameOver=false;cccState.lock=false;cccState.totalCards=pool.length;cccState.revealed=[];
+ cccState.stats={playerBattles:0,aiBattles:0,playerWars:0,aiWars:0,wars:0,highest:0,playerFusionCaptured:0,aiFusionCaptured:0};
+ cccState.streak=0;cccState.bestStreak=0;cccState.warDepth=0;cccState.largestPot=0;cccState.longestWar=0;cccState.queensCaptured=0;cccState.lastCapturedName='—';cccState.history=[];cccState.challenge=cccPickChallenge();cccState.challengeDone=false;cccState.matchAchievements=[];cccCheckDailyReward();
+ cccDrawToSeven('player');cccDrawToSeven('ai');
+ cccState.leader=Math.random()<.5?'player':'ai';
+ cccEls.start.classList.add('ccc-hidden');cccEls.result.classList.add('ccc-hidden');cccEls.confirm.classList.add('ccc-hidden');
+ cccSound('play');cccBeginRound();
+}
+function cccBeginRound(){
+ if(cccCheckEnd())return;
+ cccState.round++;cccState.requiredColor=null;cccState.playerCard=null;cccState.aiCard=null;cccState.war=false;cccState.warDepth=0;cccState.lock=false;
+ cccState.phase=cccState.leader==='player'?'playerLead':'aiLead';
+ cccRender();
+ if(cccState.leader==='ai'){cccState.lock=true;cccMessage('AI is choosing a lead…','');cccLater(cccPerformAiLead,650)}
+ else cccMessage('YOUR LEAD','Play any card to set the color.');
+}
+function cccPerformAiLead(){
+ if(cccState.gameOver)return;
+ const choice=cccAiLead();if(!choice){cccEndGame();return}
+ const card=cccRemoveFromHand('ai',choice.id);cccState.aiCard=card;cccState.pot.push(card);cccState.requiredColor=card.color;cccTrackPlayed(card);
+ cccState.phase='playerRespond';cccState.lock=false;cccSound('play');cccLegendaryReveal(card,'AI');cccPotMilestone();cccRender();cccMessage('AI LEADS '+card.color.toUpperCase(),'Follow '+card.color.toUpperCase()+' if you can.');
+}
+function cccPlayerPlay(id){
+ if(!cccCanActPlayer())return;
+ const hand=cccState.playerHand,card=hand.find(c=>c.id===id);if(!card)return;
+ if((cccState.phase==='playerRespond'||cccState.phase==='warPlayer')&&cccState.requiredColor&&cccHasColor(hand,cccState.requiredColor)&&card.color!==cccState.requiredColor){
+  cccToast('You must follow '+cccState.requiredColor.toUpperCase());return;
+ }
+ cccState.lock=true;const played=cccRemoveFromHand('player',id);cccState.playerCard=played;cccState.pot.push(played);cccTrackPlayed(played);cccSound('play');cccLegendaryReveal(played,'You');cccPotMilestone();
+ if(cccState.phase==='playerLead'){
+  cccState.requiredColor=played.color;cccState.phase='aiRespond';cccRender();cccMessage('YOU LEAD '+played.color.toUpperCase(),'AI must follow '+played.color.toUpperCase()+' if possible.');
+  cccLater(()=>{const ai=cccAiRespond(played);if(!ai){cccAward('player','AI has no card to answer.');return}cccState.aiCard=cccRemoveFromHand('ai',ai.id);cccState.pot.push(cccState.aiCard);cccTrackPlayed(cccState.aiCard);cccSound('play');cccLegendaryReveal(cccState.aiCard,'AI');cccPotMilestone();cccRender();cccLater(cccResolveBattle,500)},650);
+ } else if(cccState.phase==='playerRespond'){
+  cccRender();cccLater(cccResolveBattle,450);
+ } else if(cccState.phase==='warPlayer'){
+  cccRender();cccLater(cccWarAiAnswer,500);
+ }
+}
+function cccTrackPlayed(card){cccState.revealed.push({color:card.color,power:card.power,key:card.key});cccState.stats.highest=Math.max(cccState.stats.highest,card.power)}
+function cccResolveBattle(){
+
+  if(!cccState.playerCard || !cccState.aiCard){
+    console.error(
+      '[Chess Clash Cards] Resolve attempted without both cards.',
+      {
+        phase: cccState.phase,
+        playerCard: cccState.playerCard,
+        aiCard: cccState.aiCard,
+        pot: cccState.pot
+      }
+    );
+    return;
+  }
+
+  cccState.lock = true;
+  cccState.phase = 'resolve';
+
+  const lead = cccState.requiredColor;
+  const p = cccState.playerCard;
+  const a = cccState.aiCard;
+
+  // A battle must always have a valid required color.
+  if(lead !== 'white' && lead !== 'black'){
+    console.error(
+      '[Chess Clash Cards] Invalid required color during resolution.',
+      {
+        requiredColor: lead,
+        playerCard: p,
+        aiCard: a
+      }
+    );
+
+    cccState.lock = false;
+    return;
+  }
+
+  const playerMatches = p.color === lead;
+  const aiMatches = a.color === lead;
+
+  let winner = null;
+
+  // Player followed required color; AI could not.
+  if(playerMatches && !aiMatches){
+    winner = 'player';
+  }
+
+  // AI followed required color; Player could not.
+  else if(aiMatches && !playerMatches){
+    winner = 'ai';
+  }
+
+  // Both cards are valid required-color cards.
+  else if(playerMatches && aiMatches){
+
+    if(p.power > a.power){
+      winner = 'player';
+    }
+    else if(a.power > p.power){
+      winner = 'ai';
+    }
+    else{
+      // Equal valid powers = WAR.
+      return cccStartWar();
+    }
+  }
+
+  // Both cards being off-color is impossible in a valid battle.
+  else{
+    console.error(
+      '[Chess Clash Cards] Impossible battle state: neither card matches required color.',
+      {
+        requiredColor: lead,
+        playerCard: p,
+        aiCard: a,
+        phase: cccState.phase,
+        potSize: cccState.pot.length
+      }
+    );
+
+    cccState.lock = false;
+    return;
+  }
+
+  cccAward(
+    winner,
+    cccExplainResult(winner, p, a, lead)
+  );
+}
+function cccExplainResult(w,p,a,lead){
+ if(p.color!==a.color)return (w==='player'?'Your':'AI')+' lead-color card wins automatically.';
+ return (w==='player'?'Your':'AI')+' Power '+(w==='player'?p.power:a.power)+' defeats Power '+(w==='player'?a.power:p.power)+'.';
+}
+function cccStartWar(){
+ cccState.stats.wars++;cccState.war=true;cccState.warDepth++;cccState.longestWar=Math.max(cccState.longestWar,cccState.warDepth);cccState.phase='war';cccSound('war');cccEls.arena.classList.add('ccc-war');
+ cccHistoryWar(cccState.playerCard,cccState.aiCard);cccFxWar();cccMessage(cccWarLabel(),'Equal Power '+cccState.playerCard.power+'. The pot grows.');cccCelebrate(cccWarLabel(),'POT ×'+cccState.pot.length);cccAiReact(cccState.warDepth>1?'Again?! Another WAR!':'WAR! Bring it on!');cccPotMilestone();
+ cccRender();
+ cccLater(()=>{cccEls.arena.classList.remove('ccc-war');cccPrepareWar()},800);
+}
+function cccPrepareWar(){
+ cccState.playerCard=null;cccState.aiCard=null;
+ cccEnsureHand('player');cccEnsureHand('ai');
+ const pAvail=cccState.playerHand.length>0,aAvail=cccState.aiHand.length>0;
+ if(!pAvail&&!aAvail)return cccSplitPotAndEnd();
+ if(!pAvail)return cccAward('ai','You ran out of cards during WAR.');
+ if(!aAvail)return cccAward('player','AI ran out of cards during WAR.');
+ // Original leader contributes first and original required color remains.
+ if(cccState.leader==='player'){
+  cccState.phase='warPlayer';cccState.lock=false;cccRender();cccMessage('⚔ WAR — YOUR CARD','Follow '+cccState.requiredColor.toUpperCase()+' if possible.');
+ }else{
+  cccState.lock=true;cccMessage('⚔ WAR — AI PLAYS','The original color remains '+cccState.requiredColor.toUpperCase()+'.');
+  cccLater(cccWarAiLead,600);
+ }
+}
+function cccEnsureHand(who){if(!cccState[who+'Hand'].length&&cccState[who+'Deck'].length)cccDrawToSeven(who)}
+function cccWarAiLead(){
+ const legal=cccLegalCards(cccState.aiHand,cccState.requiredColor),choice=legal.length?(cccState.difficulty==='easy'?legal[Math.floor(Math.random()*legal.length)]:legal.slice().sort((a,b)=>a.power-b.power)[Math.floor(Math.random()*Math.min(3,legal.length))]):null;
+ if(!choice)return cccAward('player','AI cannot continue WAR.');
+ cccState.aiCard=cccRemoveFromHand('ai',choice.id);cccState.pot.push(cccState.aiCard);cccTrackPlayed(cccState.aiCard);cccLegendaryReveal(cccState.aiCard,'AI');cccPotMilestone();cccState.phase='warPlayer';cccState.lock=false;cccSound('play');cccRender();cccMessage('⚔ WAR — RESPOND','Follow '+cccState.requiredColor.toUpperCase()+' if possible.');
+}
+function cccWarAiAnswer(){
+ const ai=cccAiRespond(cccState.playerCard);if(!ai)return cccAward('player','AI cannot continue WAR.');
+ cccState.aiCard=cccRemoveFromHand('ai',ai.id);cccState.pot.push(cccState.aiCard);cccTrackPlayed(cccState.aiCard);cccSound('play');cccLegendaryReveal(cccState.aiCard,'AI');cccPotMilestone();cccRender();cccLater(cccResolveBattle,450);
+}
+function cccAward(winner,detail){
+ cccState.lock=true;cccState.phase='capture';
+ const historyP=cccState.playerCard,historyA=cccState.aiCard;
+ const cards=cccState.pot.splice(0);
+ cccHistoryAdd(winner,historyP,historyA,cards.length,cccState.warDepth);cccFxCardClass(winner);cccFxCapture(winner,cards.length);cccFxAiMood(winner);
+ cccState[winner+'Captured'].push(...cards);
+ if(winner==='player'){cccState.stats.playerBattles++;cccState.stats.playerFusionCaptured+=cards.filter(c=>c.fusion).length;if(cccState.war)cccState.stats.playerWars++}
+ else{cccState.stats.aiBattles++;cccState.stats.aiFusionCaptured+=cards.filter(c=>c.fusion).length;if(cccState.war)cccState.stats.aiWars++}
+ cccState.leader=winner;cccSound(winner==='player'?'win':'lose');
+ if(winner==='player'){
+  cccState.queensCaptured+=cards.filter(c=>c.key==='queen').length;
+  cccState.lastCapturedName=cards.slice().sort((a,b)=>b.power-a.power)[0]?.name||'—';
+  cccAiReact(cards.length>=8?'That pot hurt!':Math.random()<.5?'Nice move!':'Good battle!');
+ }else cccAiReact(cards.length>=8?'That whole pot is mine!':Math.random()<.5?'Got you!':'My battle!');
+ cccUpdateStreak(winner);cccCheckAchievements(winner,cards);cccCheckChallenge();
+ cccMessage(winner==='player'?'YOU WIN THE BATTLE!':'AI WINS THE BATTLE',detail+' Captured '+cards.length+' card'+(cards.length===1?'':'s')+'.');
+ cccRender();cccValidate();
+ cccLater(()=>{cccState.playerCard=null;cccState.aiCard=null;cccDrawToSeven('player');cccDrawToSeven('ai');cccBeginRound()},1050);
+}
+function cccSplitPotAndEnd(){
+
+  const cards = cccState.pot.splice(0);
+
+  // A normal WAR pot contains equal contributions from both players,
+  // so its size should be even.
+  if(cards.length % 2 !== 0){
+    console.error(
+      '[Chess Clash Cards] Unexpected odd WAR pot:',
+      cards.length,
+      cards
+    );
+  }
+
+  const half = Math.floor(cards.length / 2);
+
+  // Neither player won the unresolved WAR.
+  // Return an equal number of pot cards to each captured total.
+  cccState.playerCaptured.push(
+    ...cards.slice(0, half)
+  );
+
+  cccState.aiCaptured.push(
+    ...cards.slice(half, half * 2)
+  );
+
+  // Defensive fallback only. This should never occur in a valid WAR.
+  // Keep unexpected remainder accounted for instead of duplicating it.
+  const remainder = cards.slice(half * 2);
+
+  if(remainder.length){
+    console.error(
+      '[Chess Clash Cards] WAR ended with unmatched card(s):',
+      remainder
+    );
+
+    // Do not award unmatched cards as captures.
+    // Put them back into the player's deck only to preserve ownership.
+    cccState.playerDeck.push(...remainder);
+  }
+
+  cccValidate();
+  cccEndGame();
+}
+function cccCheckEnd(){
+
+  // Make sure an empty hand refills if cards still exist in the deck.
+  cccEnsureHand('player');
+  cccEnsureHand('ai');
+
+  const playerPlayable =
+    cccState.playerDeck.length +
+    cccState.playerHand.length;
+
+  const aiPlayable =
+    cccState.aiDeck.length +
+    cccState.aiHand.length;
+
+  // Both players still have cards.
+  // The match can continue normally.
+  if(playerPlayable > 0 && aiPlayable > 0){
+    return false;
+  }
+
+  // Both players have completely exhausted their playable cards.
+  if(playerPlayable === 0 && aiPlayable === 0){
+
+    // Normally the pot should already be empty here.
+    // If an unresolved pot somehow remains, split it evenly.
+    if(cccState.pot.length){
+
+      const cards = cccState.pot.splice(0);
+
+      // WAR/battle pots should normally contain an even number.
+      if(cards.length % 2 !== 0){
+        console.error(
+          '[Chess Clash Cards] Unexpected odd unresolved pot at game end:',
+          cards.length
+        );
+      }
+
+      const half = Math.floor(cards.length / 2);
+
+      cccState.playerCaptured.push(
+        ...cards.slice(0, half)
+      );
+
+      cccState.aiCaptured.push(
+        ...cards.slice(half)
+      );
+    }
+
+    cccEndGame();
+    return true;
+  }
+
+  /*
+   * One player has exhausted all playable cards.
+   *
+   * IMPORTANT:
+   * Remaining cards belonging to the opponent are NOT captures.
+   * Therefore we do NOT move them into captured piles.
+   *
+   * The match simply ends and the existing captured-card totals
+   * determine the winner.
+   */
+
+  if(playerPlayable === 0 || aiPlayable === 0){
+
+    if(cccState.pot.length){
+      console.error(
+        '[Chess Clash Cards] Match exhaustion reached with unresolved pot:',
+        cccState.pot
+      );
+    }
+
+    cccEndGame();
+    return true;
+  }
+
+  return false;
+}
+function cccEndGame(){
+ if(cccState.gameOver)return;cccState.gameOver=true;cccState.lock=true;cccState.phase='gameOver';cccSound('end');cccValidate();
+ const p=cccState.playerCaptured.length,a=cccState.aiCaptured.length;
+ cccEls.resultTitle.textContent=p>a?'YOU WIN!':a>p?'AI WINS':'DRAW!';
+ cccEls.resultSubtitle.textContent='Final capture score: You '+p+' — AI '+a;
+ cccEls.resultGrid.innerHTML=
+  '<div class="ccc-result-stat"><span>Your captures</span><b>'+p+'</b></div>'+
+  '<div class="ccc-result-stat"><span>AI captures</span><b>'+a+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Battles won</span><b>'+cccState.stats.playerBattles+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Wars won</span><b>'+cccState.stats.playerWars+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Highest power played</span><b>'+cccState.stats.highest+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Fusion cards captured</span><b>'+cccState.stats.playerFusionCaptured+'</b></div>';
+
+ cccGrantDailyReward();
+ const matchXP=20+(p>a?20:0)+Math.min(20,cccState.stats.playerBattles*2);
+ cccAddXP(matchXP,p>a?'Match Victory':'Match Complete');
+ const meta=cccMetaGet(),level=cccLevelForXP(meta.xp);
+ const achievements=cccState.matchAchievements.map(k=>'<span class="ccc-achievement-badge">'+(cccAchievementDefs[k]||k)+'</span>').join('')||'<span class="ccc-achievement-badge">No new achievements this match</span>';
+ cccEls.resultGrid.innerHTML+=
+  '<div class="ccc-result-section-title">📊 Match Highlights</div>'+
+  '<div class="ccc-result-stat"><span>Largest pot</span><b>'+cccState.largestPot+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Longest WAR</span><b>×'+cccState.longestWar+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Best streak</span><b>'+cccState.bestStreak+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Queens captured</span><b>'+cccState.queensCaptured+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Match MVP</span><b style="font-size:15px">'+cccState.lastCapturedName+'</b></div>'+
+  '<div class="ccc-result-stat"><span>Current level</span><b>'+level+'</b></div>'+
+  '<div class="ccc-result-section-title">🏆 New Achievements</div><div class="ccc-achievement-list">'+achievements+'</div>'+
+  '<div class="ccc-cosmetic-note">🎨 Cosmetic progression only: Bronze Lv3 • Silver Lv5 • Gold Lv10 • Fire Lv15 • Ice Lv25 • Royal Lv50. No gameplay power is added.</div>';
+ cccEls.result.classList.remove('ccc-hidden');cccRender();cccRenderMeta();
+
+}
+
+// ==============================
+// RENDERING
+// ==============================
+function cccCardHTML(card,opts={}){
+ if(!card)return '<div class="ccc-empty">EMPTY</div>';
+ const illegal=opts.illegal?' ccc-disabled':'',fusion=card.fusion?' ccc-fusion':'';
+ let preview='';
+ if(opts.preview&&cccState.aiCard){
+  let txt='LOSS',cls='ccc-loss';
+  if(card.color===cccState.requiredColor){
+   if(card.power>cccState.aiCard.power){txt='WIN';cls='ccc-win'}else if(card.power===cccState.aiCard.power){txt='WAR';cls='ccc-tie'}
+  }
+  preview='<span class="ccc-card-preview '+cls+'">'+txt+'</span>';
+ }
+ const symbols=card.symbols.map(s=>'<span>'+s+'</span>').join('');
+ return '<div class="ccc-card ccc-'+card.color+' ccc-'+card.rarity+fusion+illegal+' ccc-played" data-ccc-card="'+card.id+'">'+
+  '<div class="ccc-card-name">'+card.name+'</div><div class="ccc-power">'+card.power+'</div>'+
+  '<div class="ccc-symbol '+(card.fusion?'ccc-fusion-symbol':'')+'">'+symbols+'</div>'+
+  preview+'<div class="ccc-meta"><span class="ccc-color">'+card.color.toUpperCase()+'</span><span class="ccc-rarity">'+card.rarity+'</span></div></div>';
+}
+function cccRender(){
+ cccEls.round.textContent='ROUND '+String(cccState.round).padStart(2,'0');
+ cccEls.lead.textContent=cccState.leader?(cccState.leader==='player'?'YOUR LEAD':'AI LEAD'):'—';
+ cccEls.requirement.textContent=cccState.requiredColor?'FOLLOW '+cccState.requiredColor.toUpperCase():'FREE PLAY';
+ cccEls.requiredCenter.textContent=cccState.requiredColor?'REQUIRED: '+cccState.requiredColor.toUpperCase():'';
+ cccEls.pot.textContent='POT ×'+cccState.pot.length;
+ const hs=ccc$('cccHudStreak'),hw=ccc$('cccHudWar');if(hs)hs.textContent='×'+cccState.streak;if(hw)hw.textContent='×'+cccState.warDepth;
+ cccEls.arena.classList.toggle('ccc-color-white',cccState.requiredColor==='white');cccEls.arena.classList.toggle('ccc-color-black',cccState.requiredColor==='black');
+ cccEls.difficultyLabel.textContent=cccState.difficulty.toUpperCase();
+ cccEls.playerDeck.textContent='Deck '+cccState.playerDeck.length;cccEls.playerHandCount.textContent='Hand '+cccState.playerHand.length;cccEls.playerCaptured.textContent='Captured '+cccState.playerCaptured.length;
+ cccEls.aiDeck.textContent='Deck '+cccState.aiDeck.length;cccEls.aiHandCount.textContent='Hand '+cccState.aiHand.length;cccEls.aiCaptured.textContent='Captured '+cccState.aiCaptured.length;
+ cccEls.soundBtn.textContent=cccState.sound?'🔊':'🔇';
+ cccEls.aiSlot.innerHTML=cccState.aiCard?cccCardHTML(cccState.aiCard):'<div class="ccc-empty">AI CARD</div>';if(cccState.aiCard)cccEls.aiSlot.querySelector('.ccc-card')?.classList.add('ccc-entry-ai');
+ cccEls.playerSlot.innerHTML=cccState.playerCard?cccCardHTML(cccState.playerCard):'<div class="ccc-empty">YOUR CARD</div>';if(cccState.playerCard)cccEls.playerSlot.querySelector('.ccc-card')?.classList.add('ccc-entry-player');
+ cccEls.aiHand.innerHTML=cccState.aiHand.map(()=>'<div class="ccc-back"></div>').join('');
+ const playerAct=cccCanActPlayer(),must=cccState.requiredColor&&cccHasColor(cccState.playerHand,cccState.requiredColor);
+ cccEls.playerHand.innerHTML=cccState.playerHand.map(c=>{
+  const illegal=playerAct&&must&&c.color!==cccState.requiredColor;
+  const preview=playerAct&&(cccState.phase==='playerRespond'||cccState.phase==='warPlayer');
+  return cccCardHTML(c,{illegal:illegal||!playerAct,preview});
+ }).join('');
+ cccEls.playerPanel.classList.toggle('ccc-turn-glow',playerAct);
+ cccEls.aiPanel.classList.toggle('ccc-turn-glow',!playerAct&&!cccState.gameOver);
+ cccRenderMeta();
+}
+function cccMessage(main,detail){cccEls.message.textContent=main;cccEls.detail.textContent=detail}
+function cccToast(text){
+ cccEls.toast.textContent=text;cccEls.toast.classList.remove('ccc-hidden');cccLater(()=>cccEls.toast.classList.add('ccc-hidden'),1100);
+}
+function cccValidate(){
+ const zones=[cccState.playerDeck,cccState.playerHand,cccState.playerCaptured,cccState.aiDeck,cccState.aiHand,cccState.aiCaptured,cccState.pot];
+ const all=zones.flat(),ids=new Set(all.map(c=>c.id));
+ if(all.length!==cccState.totalCards||ids.size!==all.length)console.error('[Chess Clash Cards] Card accounting error',{expected:cccState.totalCards,actual:all.length,unique:ids.size});
+}
+
+// ==============================
+// EVENTS / INITIALIZATION
+// ==============================
+function cccCache(){
+ Object.assign(cccEls,{
+  root:ccc$('cccGameRoot'),round:ccc$('cccRound'),lead:ccc$('cccLead'),requirement:ccc$('cccRequirement'),requiredCenter:ccc$('cccRequiredCenter'),pot:ccc$('cccPot'),message:ccc$('cccMessage'),detail:ccc$('cccDetail'),
+  playerDeck:ccc$('cccPlayerDeck'),playerHandCount:ccc$('cccPlayerHandCount'),playerCaptured:ccc$('cccPlayerCaptured'),aiDeck:ccc$('cccAiDeck'),aiHandCount:ccc$('cccAiHandCount'),aiCaptured:ccc$('cccAiCaptured'),
+  playerHand:ccc$('cccPlayerHand'),aiHand:ccc$('cccAiHand'),playerSlot:ccc$('cccPlayerSlot'),aiSlot:ccc$('cccAiSlot'),playerPanel:ccc$('cccPlayerPanel'),aiPanel:ccc$('cccAiPanel'),arena:ccc$('cccArena'),
+  start:ccc$('cccStartOverlay'),how:ccc$('cccHowOverlay'),result:ccc$('cccResultOverlay'),confirm:ccc$('cccConfirmOverlay'),difficulty:ccc$('cccDifficulty'),deckSize:ccc$('cccDeckSize'),difficultyLabel:ccc$('cccDifficultyLabel'),
+  soundBtn:ccc$('cccSoundBtn'),toast:ccc$('cccToast'),resultTitle:ccc$('cccResultTitle'),resultSubtitle:ccc$('cccResultSubtitle'),resultGrid:ccc$('cccResultGrid')
+ });
+}
+function cccInit(){
+ cccCache();
+ const diff=cccSafeGet('cccDifficulty','normal'),size=cccSafeGet('cccDeckSize','60');
+ if(['easy','normal','hard'].includes(diff))cccEls.difficulty.value=diff;if(['40','60','80'].includes(size))cccEls.deckSize.value=size;
+ cccState.sound=cccSafeGet('cccSound','true')!=='false';
+ ccc$('cccStartBtn').addEventListener('click',cccStartGame);
+ ccc$('cccHowBtn').addEventListener('click',()=>cccEls.how.classList.remove('ccc-hidden'));
+ ccc$('cccCloseHow').addEventListener('click',()=>cccEls.how.classList.add('ccc-hidden'));
+ cccEls.soundBtn.addEventListener('click',()=>{cccState.sound=!cccState.sound;cccSafeSet('cccSound',cccState.sound);cccInitAudio();cccRender()});
+ cccEls.playerHand.addEventListener('click',e=>{const card=e.target.closest('[data-ccc-card]');if(card)cccPlayerPlay(card.dataset.cccCard)});
+ ccc$('cccHistoryBtn').addEventListener('click',()=>{cccRenderHistory();ccc$('cccHistoryPanel').classList.toggle('ccc-hidden')});
+ ccc$('cccInspectClose').addEventListener('click',()=>ccc$('cccInspectOverlay').classList.add('ccc-hidden'));
+ ccc$('cccInspectOverlay').addEventListener('click',e=>{if(e.target===ccc$('cccInspectOverlay'))ccc$('cccInspectOverlay').classList.add('ccc-hidden')});
+ cccEls.playerHand.addEventListener('contextmenu',e=>{const node=e.target.closest('[data-ccc-card]');if(!node)return;e.preventDefault();cccInspect(cccState.playerHand.find(c=>c.id===node.dataset.cccCard))});
+ cccEls.playerSlot.addEventListener('contextmenu',e=>{if(cccState.playerCard){e.preventDefault();cccInspect(cccState.playerCard)}});
+ cccEls.aiSlot.addEventListener('contextmenu',e=>{if(cccState.aiCard){e.preventDefault();cccInspect(cccState.aiCard)}});
+
+ ccc$('cccNewBtn').addEventListener('click',()=>{if(!cccState.gameOver&&cccState.phase!=='start')cccEls.confirm.classList.remove('ccc-hidden');else cccOpenSetup()});
+ ccc$('cccCancelNew').addEventListener('click',()=>cccEls.confirm.classList.add('ccc-hidden'));
+ ccc$('cccConfirmNew').addEventListener('click',cccOpenSetup);
+ ccc$('cccAgainBtn').addEventListener('click',cccStartGame);
+ ccc$('cccResultNewBtn').addEventListener('click',cccOpenSetup);
+ cccRender();
+}
+function cccOpenSetup(){
+ cccGameToken++;cccClearTimers();cccState.phase='start';cccState.gameOver=true;cccState.lock=true;
+ cccEls.confirm.classList.add('ccc-hidden');cccEls.result.classList.add('ccc-hidden');cccEls.start.classList.remove('ccc-hidden');
+}
+cccInit();
+})();
+</script>
+</body>
+</html>
