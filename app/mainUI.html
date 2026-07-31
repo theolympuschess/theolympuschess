@@ -93555,41 +93555,61 @@ updateBoardCoordinates();
     )
   );
 
-  // ================= OPTIONAL ADMIN CLEANUP =================
-  if (
-    oldRoomCode &&
-    wasAdmin
-  ) {
+// ==================================================
+// 👑 ADMIN — HARD CLEAN ALL SURVIVING CLASSROOMS
+// ==================================================
 
-    try {
-    // 🔥 INVALIDATE ROOM CODE
-await supabase
-  .from(
-    "live_puzzle_rooms"
-  )
-  .delete()
-  .eq(
-    "code",
-    oldRoomCode
-  );
+if (currentProfile?.role === "admin") {
 
+  try {
+
+    // 🔥 DELETE ALL LIVE CLASSROOMS
+    // Invites are automatically deleted by ON DELETE CASCADE
+    const { error: roomDeleteError } =
       await supabase
-        .from(
-          "live_puzzle_state"
-        )
+        .from("live_puzzle_rooms")
         .delete()
-        .eq(
-          "room_code",
-          oldRoomCode
+        .not("code", "is", null);
+
+    if (roomDeleteError) {
+      console.error(
+        "Failed to clear classrooms:",
+        roomDeleteError
+      );
+    }
+
+
+    // 🔥 KEEP EXISTING CURRENT ROOM STATE CLEANUP
+    if (oldRoomCode && wasAdmin) {
+
+      const { error: stateDeleteError } =
+        await supabase
+          .from("live_puzzle_state")
+          .delete()
+          .eq(
+            "room_code",
+            oldRoomCode
+          );
+
+      if (stateDeleteError) {
+        console.error(
+          "Failed to clear classroom state:",
+          stateDeleteError
         );
-
-    } catch(err) {
-
-      console.log(err);
+      }
 
     }
 
+  } catch (err) {
+
+    console.error(
+      "Classroom cleanup failed:",
+      err
+    );
+
   }
+
+}
 
 showJoinBanner(
   "🚨 You have exited the classroom"
