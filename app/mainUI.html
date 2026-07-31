@@ -28817,6 +28817,44 @@ body.student-view #lpStudentsContainer {
 }
 
 
+/* =========================================================
+   ASSIGNMENT BULK MODAL — ISOLATED WINDOW SIZE
+   ========================================================= */
+
+#assignmentBulkModal .modal-content.large {
+  width: min(1100px, 94vw);
+  max-width: 800px;
+
+  height: auto;
+  max-height: 88vh;
+
+  margin: auto;
+  padding: 24px;
+
+  overflow: hidden;
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   ASSIGNMENT PREVIEW WRAPPER — ISOLATED
+   ========================================================= */
+
+#assignmentBulkModal .bulk-preview-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
+  margin: 0;
+  padding: 0;
+
+  overflow: hidden;
+
+  box-sizing: border-box;
+}
+
+
   </style>
 </head>
 
@@ -69210,7 +69248,56 @@ function splitBulkPGN(pgn) {
 }
 
 
+/* =========================================================
+   🧩 ASSIGNMENT PREVIEW — EXTRACT PGN MAIN LINE ONLY
+   Removes (...) variations and PGN comments/NAGs.
+   ========================================================= */
 
+function getAssignmentMainLine(moveText) {
+  if (!moveText) return [];
+
+  let text = String(moveText);
+
+  // Remove {...} PGN comments
+  text = text.replace(/\{[^}]*\}/g, " ");
+
+  // Remove ; comments
+  text = text.replace(/;[^\r\n]*/g, " ");
+
+  // Remove ALL (...) variations, including nested variations
+  let depth = 0;
+  let mainLine = "";
+
+  for (const char of text) {
+    if (char === "(") {
+      depth++;
+      continue;
+    }
+
+    if (char === ")") {
+      if (depth > 0) depth--;
+      continue;
+    }
+
+    if (depth === 0) {
+      mainLine += char;
+    }
+  }
+
+  return mainLine
+    // Remove move numbers: 1. / 1... / 23.
+    .replace(/\d+\.(?:\.\.)?/g, " ")
+
+    // Remove NAGs: $1, $2, etc.
+    .replace(/\$\d+/g, " ")
+
+    // Remove result markers
+    .replace(/\b(?:1-0|0-1|1\/2-1\/2|\*)\b/g, " ")
+
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
 
 function renderAssignmentBulkBoards(bulkAnswers) {
   const list = document.getElementById("assignmentBulkList");
@@ -69257,7 +69344,7 @@ function renderAssignmentBulkBoards(bulkAnswers) {
       if (!el) return;
 
       games[idx] = new Chess(a.fen);
-      moves[idx] = a.correct_move ? a.correct_move.split(/\s+/) : [];
+  moves[idx] = getAssignmentMainLine(a.correct_move);
       steps[idx] = 0;
 
       boards[idx] = Chessboard(el, {
