@@ -88042,6 +88042,8 @@ setTimeout(() => {
 }, 120);
 }
 
+
+
 function renderAnalysisPGN() {
 
   const pgnBox =
@@ -88119,10 +88121,15 @@ if (!isAnalysisMode) {
     `;
   }
 
-  pgnBox.innerHTML = html;
+pgnBox.innerHTML = html;
 
-  // 🔥 CLICKABLE NORMAL PGN
-  pgnBox
+// 🔥 KEEP CURRENT YELLOW MOVE VISIBLE
+requestAnimationFrame(() => {
+  lpKeepCurrentNotationVisible();
+});
+
+// 🔥 CLICKABLE NORMAL PGN
+pgnBox
     .querySelectorAll(
       ".lp-analysis-move"
     )
@@ -88180,11 +88187,14 @@ if (
     `;
   }
 
-  pgnBox.innerHTML = html;
+pgnBox.innerHTML = html;
 
-  pgnBox.scrollTop =
-    pgnBox.scrollHeight;
-    pgnBox.querySelectorAll(".lp-analysis-move")
+// 🔥 KEEP CURRENT YELLOW MOVE VISIBLE
+requestAnimationFrame(() => {
+  lpKeepCurrentNotationVisible();
+});
+
+pgnBox.querySelectorAll(".lp-analysis-move")
 .forEach(el => {
 
   el.onclick = () => {
@@ -88197,6 +88207,54 @@ if (
   };
 
 });
+}
+
+function lpKeepCurrentNotationVisible() {
+
+  const pgnBox =
+    document.getElementById("lpPgnBox");
+
+  if (!pgnBox) return;
+
+  // Your existing yellow-highlighted move
+  const activeMove =
+    pgnBox.querySelector(
+      ".lp-analysis-move.active"
+    );
+
+  if (!activeMove) {
+    // Start position
+    if (
+      (!isAnalysisMode && previewIndex === 0) ||
+      (isAnalysisMode && analysisIndex === 0)
+    ) {
+      pgnBox.scrollTop = 0;
+    }
+
+    return;
+  }
+
+  const boxRect =
+    pgnBox.getBoundingClientRect();
+
+  const moveRect =
+    activeMove.getBoundingClientRect();
+
+  // Highlight went ABOVE visible area
+  if (moveRect.top < boxRect.top) {
+
+    pgnBox.scrollTop -=
+      (boxRect.top - moveRect.top) + 8;
+
+  }
+
+  // Highlight went BELOW visible area
+  else if (moveRect.bottom > boxRect.bottom) {
+
+    pgnBox.scrollTop +=
+      (moveRect.bottom - boxRect.bottom) + 8;
+
+  }
 }
 function jumpToAnalysisMove(index) {
 
