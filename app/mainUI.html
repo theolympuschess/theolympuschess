@@ -28855,6 +28855,144 @@ body.student-view #lpStudentsContainer {
 }
 
 
+/* =========================================================
+   👨🏻‍🎓 STUDENTS / 📚 BATCHES TOGGLE
+   ========================================================= */
+
+.lpInviteStudentsHeader{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:12px;
+
+  margin-bottom:10px;
+
+}
+
+
+.lpInviteModeTabs{
+
+  display:flex;
+
+  align-items:center;
+
+  gap:8px;
+
+}
+
+
+.lpInviteTab{
+
+  appearance:none;
+
+  border:none;
+
+  cursor:pointer;
+
+  padding:7px 14px;
+
+  border-radius:999px;
+
+  background:#2b3150;
+
+  color:#c8d0e8;
+
+  font-size:13px;
+
+  font-weight:700;
+
+  transition:
+    background .18s ease,
+    color .18s ease,
+    transform .18s ease,
+    box-shadow .18s ease;
+
+}
+
+
+.lpInviteTab:hover{
+
+  background:#363d62;
+
+  color:#fff;
+
+  transform:translateY(-1px);
+
+}
+
+
+.lpInviteTab.active{
+
+  background:
+    linear-gradient(
+      135deg,
+      #c89b3c,
+      #f5d66d
+    );
+
+  color:#222;
+
+  box-shadow:
+    0 4px 12px rgba(245,214,109,.28);
+
+}
+
+
+.lpInviteTab:active{
+
+  transform:scale(.97);
+
+}
+
+
+/* ==========================================
+   🗑 CLEAR ALL
+   ========================================== */
+
+#lpClearSelectedStudents{
+
+  border:none;
+
+  background:transparent;
+
+  padding:0;
+
+  margin:6px 8px 6px 2px;
+
+  cursor:pointer;
+
+  font-family:
+    "Segoe UI Emoji",
+    "Apple Color Emoji",
+    "Noto Color Emoji",
+    sans-serif;
+
+  font-size:20px;
+
+  line-height:1;
+
+  color:#d4af37;
+
+  flex:0 0 auto;
+
+  transition:
+    transform .18s ease,
+    color .18s ease;
+
+}
+
+#lpClearSelectedStudents:hover{
+
+  color:#ff5b5b;
+
+  transform:scale(1.12);
+
+}
+
   </style>
 </head>
 
@@ -83015,6 +83153,17 @@ let lpExitedRoom = false;
 // 🎓 CLASSROOM INVITE SYSTEM
 // =====================================
 
+// =====================================
+// 👨🏻‍🎓 STUDENT / 📚 BATCH MODE
+// =====================================
+
+let lpInviteMode = "students";
+
+let lpBatchStudentMap = {};
+
+// Selected usernames from batches
+let lpSelectedInviteUsernames = new Set();
+
 let lpSelectedInviteStudents = [];
 let lpAssignedRoomCode = null;
 
@@ -83954,8 +84103,10 @@ document.getElementById(
 
 
   // GET SELECTED STUDENTS
-  lpSelectedInviteStudents =
-    lpGetSelectedInviteStudents();
+await lpLoadInviteStudents();
+
+lpSelectedInviteStudents =
+  lpGetSelectedInviteStudents();
 
 
   // MUST SELECT AT LEAST ONE STUDENT
@@ -90042,6 +90193,8 @@ const { data, error } =
    // 👇 ADD IT HERE
   lpRefreshSelectedStudentsTray();
 
+  await lpLoadInviteBatches();
+
   const search =
   document.getElementById(
     "lpInviteStudentSearch"
@@ -90054,6 +90207,153 @@ if (search) {
 
 }
 
+// =====================================
+// LOAD AVAILABLE BATCHS
+// =====================================
+
+async function lpLoadInviteBatches() {
+
+  const { data, error } =
+    await supabase
+      .from("student_batches")
+      .select("username,batch_name")
+      .order("batch_name");
+
+  if (error) {
+
+    console.error(error);
+
+    return;
+
+  }
+
+  lpBatchStudentMap = {};
+
+  (data || []).forEach(row => {
+
+    if (!lpBatchStudentMap[row.batch_name]) {
+
+      lpBatchStudentMap[row.batch_name] = [];
+
+    }
+
+    lpBatchStudentMap[row.batch_name]
+      .push(row.username);
+
+  });
+
+}
+
+// =====================================
+// RENDER STUDENTS / BATCHES
+// =====================================
+
+function lpRenderInviteList() {
+
+  const select =
+    document.getElementById(
+      "lpInviteStudents"
+    );
+
+  if (!select) return;
+
+  // ===========================
+  // STUDENTS
+  // ===========================
+
+  if (lpInviteMode === "students") {
+
+    lpLoadInviteStudents();
+
+    return;
+
+  }
+
+  // ===========================
+  // BATCHES
+  // ===========================
+
+  select.innerHTML = "";
+
+  Object.keys(lpBatchStudentMap)
+    .sort()
+    .forEach(batch => {
+
+      const option =
+        document.createElement("option");
+
+      option.value = batch;
+
+      option.textContent =
+        "📚 " + batch;
+
+      select.appendChild(option);
+
+    });
+
+}
+
+// =====================================
+// TAB SWITCH
+// =====================================
+
+document
+.getElementById("lpStudentsTab")
+?.addEventListener("click", async () => {
+
+  lpInviteMode = "students";
+
+  document
+    .getElementById("lpStudentsTab")
+    .classList.add("active");
+
+  document
+    .getElementById("lpBatchesTab")
+    .classList.remove("active");
+
+  await lpLoadInviteStudents();
+
+  const select =
+    document.getElementById(
+      "lpInviteStudents"
+    );
+
+  Array.from(select.options)
+    .forEach(option => {
+
+      if (
+        lpSelectedInviteUsernames.has(
+          option.textContent
+        )
+      ) {
+
+        option.selected = true;
+
+      }
+
+    });
+
+  lpRefreshSelectedStudentsTray();
+
+});
+
+document
+.getElementById("lpBatchesTab")
+?.addEventListener("click", () => {
+
+  lpInviteMode = "batches";
+
+  document
+    .getElementById("lpBatchesTab")
+    .classList.add("active");
+
+  document
+    .getElementById("lpStudentsTab")
+    .classList.remove("active");
+
+  lpRenderInviteList();
+
+});
 
 // ADMIN — READ CURRENT SELECTION
 function lpGetSelectedInviteStudents() {
@@ -90065,9 +90365,13 @@ function lpGetSelectedInviteStudents() {
 
   if (!select) return [];
 
-
   return Array
-    .from(select.selectedOptions)
+    .from(select.options)
+    .filter(option =>
+      lpSelectedInviteUsernames.has(
+        option.textContent
+      )
+    )
     .map(option => option.value);
 
 }
@@ -90091,11 +90395,27 @@ function lpRefreshSelectedStudentsTray() {
   if (!select || !tray) return;
 
 
-  const selected =
+let selected = [];
+
+if (lpInviteMode === "batches") {
+
+  selected =
+    Array.from(lpSelectedInviteUsernames)
+      .map(username => ({
+        textContent: username
+      }));
+
+} else {
+
+  selected =
     Array.from(select.selectedOptions);
+
+}
 
 
   tray.innerHTML = "";
+
+
 
   tray.classList.toggle(
     "has-students",
@@ -90130,16 +90450,26 @@ function lpRefreshSelectedStudentsTray() {
     remove.textContent = "×";
 
 
-    remove.onclick = e => {
+remove.onclick = e => {
 
-      e.preventDefault();
-      e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
 
-      option.selected = false;
+  // Remove from the master selection
+  lpSelectedInviteUsernames.delete(
+    option.textContent
+  );
 
-      lpRefreshSelectedStudentsTray();
+  // If we're on Students tab, also unselect the option
+  if (lpInviteMode === "students") {
 
-    };
+    option.selected = false;
+
+  }
+
+  lpRefreshSelectedStudentsTray();
+
+};
 
 
     chip.appendChild(name);
@@ -90148,6 +90478,38 @@ function lpRefreshSelectedStudentsTray() {
     tray.appendChild(chip);
 
   });
+
+  // 🧹 Clear All button (place LAST)
+if (selected.length > 0) {
+
+  const clearBtn =
+    document.createElement("button");
+
+  clearBtn.type = "button";
+
+  clearBtn.id = "lpClearSelectedStudents";
+
+  clearBtn.textContent = "🗑️";
+
+  clearBtn.title = "Clear all students";
+
+  clearBtn.onclick = () => {
+
+    Array.from(select.options)
+      .forEach(opt => {
+
+        opt.selected = false;
+
+      });
+      lpSelectedInviteUsernames.clear();
+
+    lpRefreshSelectedStudentsTray();
+
+  };
+
+  tray.appendChild(clearBtn);
+
+}
 
 }
 
@@ -90168,17 +90530,87 @@ if (lpInviteStudentsSelect) {
 
       const option = e.target;
 
-      option.selected = !option.selected;
 
-      lpRefreshSelectedStudentsTray();
+// =====================================
+// 📚 BATCH MODE
+// =====================================
 
-      // Keep focus on selector.
-      this.focus();
+if (lpInviteMode === "batches") {
+
+  const batchName = option.value;
+
+  const usernames =
+    lpBatchStudentMap[batchName] || [];
+
+  usernames.forEach(username => {
+
+  lpSelectedInviteUsernames.add(username);
+
+});
+
+// Refresh tray immediately
+lpRefreshSelectedStudentsTray();
+
+option.selected = true;
+
+showToast(
+  `📚 ${batchName} added`
+);
+
+return;
+
+}
+
+
+// =====================================
+// 👨‍🎓 NORMAL STUDENT MODE
+// =====================================
+
+option.selected = !option.selected;
+
+if (option.selected) {
+
+  lpSelectedInviteUsernames.add(
+    option.textContent
+  );
+
+} else {
+
+  lpSelectedInviteUsernames.delete(
+    option.textContent
+  );
+
+}
+
+lpRefreshSelectedStudentsTray();
+
+this.focus();
     }
   );
 
 }
 
+document
+.getElementById("lpClearSelectedStudents")
+?.addEventListener("click", () => {
+
+  const select =
+    document.getElementById(
+      "lpInviteStudents"
+    );
+
+  if (!select) return;
+
+  Array.from(select.options)
+    .forEach(option => {
+
+      option.selected = false;
+
+    });
+
+  lpRefreshSelectedStudentsTray();
+
+});
 // =====================================
 // 🔎 CLASSROOM STUDENT SEARCH
 // UI ONLY — DOES NOT CHANGE SELECTION
@@ -93760,7 +94192,7 @@ if (currentProfile?.role === "admin") {
 }
 
 showJoinBanner(
-  "🚨 You have exited the classroom"
+  "⚠️ The classroom has ended."
 );
 }
 
@@ -104765,19 +105197,37 @@ window.addEventListener("DOMContentLoaded", () => {
 
 <div class="lpInviteStudentsHeader">
 
-  <div class="lpInviteStudentsLabel">
-    👨🏻‍🎓 Select Students
+  <div class="lpInviteModeTabs">
+
+    <button
+      id="lpStudentsTab"
+      class="lpInviteTab active"
+      type="button"
+    >
+      👨🏻‍🎓 Students
+    </button>
+
+    <button
+      id="lpBatchesTab"
+      class="lpInviteTab"
+      type="button"
+    >
+      📚 Batches
+    </button>
+
   </div>
 
   <div class="lpInviteSearchBox">
-  <span>🔍</span>
+
+    <span>🔍</span>
 
     <input
       type="text"
       id="lpInviteStudentSearch"
-      placeholder="Search student..."
+      placeholder="Search..."
       autocomplete="off"
     >
+
   </div>
 
 </div>
@@ -104790,7 +105240,17 @@ window.addEventListener("DOMContentLoaded", () => {
 <div
   id="lpSelectedStudentsTray"
   class="lp-selected-students-tray"
-></div>
+>
+
+  <button
+    id="lpClearSelectedStudents"
+    type="button"
+    title="Clear all selected students"
+  >
+    🗑️
+  </button>
+
+</div>
 
 <div class="lpInviteStudentsHint">
   Click students to select • × to remove
