@@ -34446,6 +34446,9 @@ Submit solution</button>
     color:white;
   "
 >
+<select id="assignBatchSelect">
+  <option value="">📚 Select Batch...</option>
+</select>
   <div id="assignStudentsBox"
        style="
          border:1px solid #444;
@@ -34472,7 +34475,7 @@ Submit solution</button>
   class="btn-small"
   onclick="selectBatchStudents()"
 >
-  📚 Select Batch
+  👨🏻‍🎓 Select students
 </button>
 
   <button type="button" class="btn-small" onclick="selectAllStudents()">Select all</button>
@@ -40875,10 +40878,31 @@ if (move.flags.includes('k') || move.flags.includes('q')) {
 };
 
 window.clearAllStudents = function () {
+
   const checkboxes = document.querySelectorAll(
     "#assignStudentsBox input[type='checkbox']"
   );
+
   checkboxes.forEach(cb => cb.checked = false);
+
+  const batchSelect =
+    document.getElementById(
+      "assignBatchSelect"
+    );
+
+  if (batchSelect) {
+
+    Array.from(batchSelect.options)
+      .forEach(option => {
+
+        option.selected = false;
+
+      });
+
+    batchSelect.selectedIndex = 0;
+
+  }
+
 };
 
 window.selectBatchStudents = function () {
@@ -43959,7 +43983,43 @@ function resetStudyState() {
 }
 
 
+async function loadAssignmentBatches() {
 
+  const select =
+    document.getElementById(
+      "assignBatchSelect"
+    );
+
+  if (!select) return;
+
+  select.innerHTML =
+    '<option value="">📚 Select Batch...</option>';
+
+  const { data } =
+    await supabase
+      .from("student_batches")
+      .select("batch_name");
+
+  const batches =
+    [...new Set(
+      (data || [])
+      .map(x => x.batch_name)
+      .filter(Boolean)
+    )].sort();
+
+  batches.forEach(batch => {
+
+    const option =
+      document.createElement("option");
+
+    option.value = batch;
+   option.textContent = "📚 " + batch;   // Books (recommended)
+
+    select.appendChild(option);
+
+  });
+
+}
 
 async function loadStudentsForAssignment() {
   const select = document.getElementById("assignStudentsSelect");
@@ -44108,12 +44168,59 @@ searchInput?.addEventListener(
   box.appendChild(row);
 });
 
+await loadAssignmentBatches();
 
   } catch (err) {
     console.error("loadStudentsForAssignment error:", err);
     box.innerHTML = "<div style='color:red'>Failed to load students</div>";
   }
 }
+
+document
+.getElementById("assignBatchSelect")
+?.addEventListener("change", e => {
+
+  const select = e.target;
+
+  const batch =
+    select.value;
+
+  if (!batch) return;
+
+  document
+    .querySelectorAll(
+      "#assignStudentsBox label"
+    )
+    .forEach(row => {
+
+      const batchName =
+        row.querySelector(
+          ".assign-batch-name"
+        )?.innerText.trim();
+
+      const checkbox =
+        row.querySelector(
+          "input[type='checkbox']"
+        );
+
+      if (batchName === batch) {
+
+        checkbox.checked = true;
+
+      }
+
+    });
+
+  // Keep the selected batch highlighted
+  Array.from(select.options)
+    .forEach(option => {
+
+      option.selected =
+        option.value === batch;
+
+    });
+
+});
 
 
 function getSelectedStudentIds() {
