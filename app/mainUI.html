@@ -27006,6 +27006,22 @@ body.student-view #lpStudentsContainer {
   transform: translateY(-1px);
 }
 
+/* 🧠 ASK MEMORY — muted indigo */
+#lpAskMemoryBtn {
+  background: #4b4b78 !important;
+  color: #f6f5ff !important;
+  border: 1px solid #66669a !important;
+}
+
+#lpAskMemoryBtn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
+#lpAskMemoryBtn{
+  margin-top:8px;
+}
+
 /* ==========================================
    👁 ASK VISION — MEMORY BLINK
 ========================================== */
@@ -29246,7 +29262,7 @@ border-radius:20px;
 </div>
 
 <button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
-<button class="nav-btn" data-tab="pairing">🆚 Pairing</button>
+<button class="nav-btn" data-tab="pairing">🆚 Swiss pairing</button>
 <button class="nav-btn" data-tab="scoreboard">🏆 Scoreboard</button>
 
 <button class="nav-btn" data-tab="livematch" id="navLiveMatch">
@@ -29267,11 +29283,11 @@ border-radius:20px;
   🧩 Puzzle Streak
 </button>
 
-<button class="nav-btn" data-tab="quiz">⚽️ Quiz</button>
+<button class="nav-btn" data-tab="quiz">⚽️ Chess Quiz</button>
 <button class="nav-btn" data-tab="computer">
   🤖 Play Olympus AI
 </button>
-<button class="nav-btn" data-tab="board">🔬 Free Play</button>
+<button class="nav-btn" data-tab="board">🔬 Freeplay Board</button>
 <button class="nav-btn" data-tab="xp-casino">⭐ XP Jackpot</button>
 <!-- ==========================================
      🎮 STANDALONE OLYMPUS CARD GAMES
@@ -29303,7 +29319,7 @@ border-radius:20px;
 
 <button class="nav-btn" data-tab="memory">💡 IQ Hunt</button>
 <button class="nav-btn" data-tab="boardfreeze">❓ Guess the pieces</button>
-<button class="nav-btn" data-tab="color">🧪 Lab Hunt</button>
+<button class="nav-btn" data-tab="color">🌈 Lab Hunt</button>
 <button class="nav-btn" data-tab="knightfog">
   🍎 Fog Quest
 </button>
@@ -29335,7 +29351,7 @@ border-radius:20px;
 
 
  
-    <button class="nav-btn" data-tab="editor">🧩 Editor</button>
+    <button class="nav-btn" data-tab="editor">🧩 Board editor</button>
 
     <button class="nav-btn" data-tab="attempts" id="attemptsTab" style="display: none;">📊 Check assignments</button>
     <button class="nav-btn" data-tab="students" id="adminTab" style="display: none;">👨‍🎓 Admin console</button>
@@ -31861,6 +31877,14 @@ class="lp-admin-btn"
 
 🧩 Ask Quiz
 
+</button>
+
+<button
+  id="lpAskMemoryBtn"
+  type="button"
+  data-role="admin-only"
+>
+  💎 Ask Memory
 </button>
 
 
@@ -78988,6 +79012,43 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+// ======================================
+// 🧠 MEMORY GAME STATE
+// ======================================
+
+const memoryGameState = {
+
+  
+  active: false,
+
+  flipped: false,
+
+  hidden: false,
+
+  revealed: false,
+
+  locked: false,
+
+  position: null,
+
+  pieces: [],
+
+  question: null,
+
+  correctAnswer: null,
+
+  answerType: null, // "square" | "count"
+
+  answers: {},
+
+  multiAnswer:false,
+
+selectedSquares:[],
+
+correctAnswers:[]
+
+};
+
 // ==========================================
 // 👁 ASK VISION — ISOLATED STATE
 // ==========================================
@@ -79262,6 +79323,71 @@ async function askVisionGame() {
 
 }
 
+
+
+document
+.getElementById("lpMemoryHideBtn")
+?.addEventListener(
+"click",
+hideMemoryGame
+);
+
+// ======================================
+// 🧠 RESET BUTTON
+// ======================================
+
+document
+.getElementById(
+  "lpMemoryResetBtn"
+)
+?.addEventListener(
+  "click",
+  resetMemoryGame
+);
+
+// ======================================
+// 🧠 MEMORY SUBMIT
+// ======================================
+
+document
+.getElementById(
+  "lpMemorySubmitBtn"
+)
+?.addEventListener(
+  "click",
+  submitMemoryAnswer
+);
+
+// ======================================
+// 🧠 HIDE MEMORY GAME
+// ======================================
+
+async function hideMemoryGame() {
+
+  memoryGameState.hidden = true;
+
+  document.getElementById(
+  "lpMemoryAdminStatus"
+).textContent =
+  "🙈 Pieces are now hidden";
+
+  // ✅ Update ONLY the admin panel
+  renderMemoryAdminBoard();
+
+  renderMemoryAdminAnswers();
+
+  await movesChannel.send({
+
+    type: "broadcast",
+
+    event: "memory_game_hide",
+
+    payload: {}
+
+  });
+
+}
+
 // ==========================================
 // 👁 ASK VISION — ADMIN BUTTON
 // ==========================================
@@ -79412,6 +79538,312 @@ function renderVisionAdminBoard() {
 
 
       board.appendChild(cell);
+
+    }
+
+  }
+
+}
+
+// ==========================================
+// 🧠 ASK MEMORY — ADMIN MINI BOARD
+// ==========================================
+
+function renderMemoryAdminBoard() {
+
+  const board =
+    document.getElementById(
+      "lpMemoryAdminBoard"
+    );
+
+  if (
+    !board ||
+    !memoryGameState.position
+  ) return;
+
+  board.innerHTML = "";
+
+  const piecesBySquare = {};
+
+  const tempGame =
+    new Chess(
+      memoryGameState.position
+    );
+
+  const boardState =
+    tempGame.board();
+
+  const files =
+    "abcdefgh";
+
+  for (
+    let r = 0;
+    r < 8;
+    r++
+  ) {
+
+    for (
+      let c = 0;
+      c < 8;
+      c++
+    ) {
+
+      const piece =
+        boardState[r][c];
+
+      if (!piece)
+        continue;
+
+      const square =
+        files[c] + (8 - r);
+
+      piecesBySquare[
+        square
+      ] = {
+
+        square,
+
+        color:
+          piece.color,
+
+        type:
+          piece.type
+
+      };
+
+    }
+
+  }
+
+  // ==============================
+  // FLIPPED SUPPORT
+  // ==============================
+
+  const rankLoop =
+    memoryGameState.flipped
+      ? [1,2,3,4,5,6,7,8]
+      : [8,7,6,5,4,3,2,1];
+
+  const fileLoop =
+    memoryGameState.flipped
+      ? [7,6,5,4,3,2,1,0]
+      : [0,1,2,3,4,5,6,7];
+
+  for (
+    const rank
+    of rankLoop
+  ) {
+
+    for (
+      const f
+      of fileLoop
+    ) {
+
+      const square =
+        files[f] + rank;
+
+      const cell =
+        document.createElement(
+          "div"
+        );
+
+      cell.dataset.square =
+        square;
+
+      const isLight =
+        (f + rank) % 2 === 0;
+
+      Object.assign(
+        cell.style,
+        {
+
+          position:
+            "relative",
+
+          display:
+            "flex",
+
+          alignItems:
+            "center",
+
+          justifyContent:
+            "center",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          boxSizing:
+            "border-box",
+
+          userSelect:
+            "none"
+
+        }
+      );
+
+      // ==============================
+      // STUDENT ANSWERS
+      // ==============================
+
+      Object.values(
+  memoryGameState.answers
+).forEach(a => {
+
+  const selected =
+
+    Array.isArray(a.square)
+
+      ? a.square.includes(square)
+
+      : a.square === square;
+
+  if (!selected)
+    return;
+
+  // =========================
+  // BEFORE REVEAL
+  // =========================
+
+  if (
+    !memoryGameState.revealed
+  ) {
+
+    cell.style.outline =
+      "5px solid #FFD700";
+
+    cell.style.outlineOffset =
+      "-5px";
+
+    cell.style.boxShadow =
+      `
+      inset 0 0 18px rgba(255,215,0,.95),
+      0 0 12px rgba(255,215,0,.9)
+      `;
+
+  }
+
+  // =========================
+  // AFTER REVEAL
+  // =========================
+
+  else {
+
+    const correct =
+
+      Array.isArray(a.square)
+
+        ?
+
+        a.square.includes(square) &&
+        memoryGameState.correctAnswers.includes(square)
+
+        :
+
+        a.square ===
+        memoryGameState.correctAnswer;
+
+    cell.style.outline =
+
+      correct
+
+        ? "4px solid #22c55e"
+
+        : "4px solid #ef4444";
+
+    cell.style.outlineOffset =
+      "-4px";
+
+    cell.style.boxShadow =
+
+      correct
+
+        ?
+
+        "inset 0 0 18px rgba(34,197,94,.9)"
+
+        :
+
+        "inset 0 0 18px rgba(239,68,68,.9)";
+
+  }
+
+  cell.title =
+    a.username;
+
+});
+
+      // ==============================
+      // CORRECT ANSWER
+      // ==============================
+
+      if (
+
+        memoryGameState.revealed &&
+
+        square ===
+        memoryGameState.correctAnswer
+
+      ) {
+
+        cell.style.outline =
+          "4px solid #22c55e";
+
+        cell.style.outlineOffset =
+          "-4px";
+
+      }
+
+      const piece =
+        piecesBySquare[
+          square
+        ];
+
+      if (piece) {
+
+        const img =
+          document.createElement(
+            "img"
+          );
+
+        img.src =
+          getVisionPieceImage(
+            piece.color,
+            piece.type
+          );
+
+        Object.assign(
+          img.style,
+          {
+
+            width:
+              "88%",
+
+            height:
+              "88%",
+
+            objectFit:
+              "contain",
+
+            pointerEvents:
+              "none",
+
+            userSelect:
+              "none"
+
+          }
+        );
+
+        cell.appendChild(
+          img
+        );
+
+      }
+
+      board.appendChild(
+        cell
+      );
 
     }
 
@@ -79572,6 +80004,820 @@ function revealVisionAdminBoard() {
       "3";
 
   }
+
+}
+
+// ======================================
+// 🧠 REVEAL MEMORY
+// ======================================
+
+async function revealMemoryGame() {
+
+  memoryGameState.revealed = true;
+
+  document.getElementById(
+  "lpMemoryAdminStatus"
+).textContent =
+  "✅ Answer revealed";
+
+  memoryGameState.hidden = false;
+
+  // ✅ Update ONLY the admin panel
+  renderMemoryAdminBoard();
+
+  renderMemoryAdminAnswers();
+
+  await movesChannel.send({
+
+    type: "broadcast",
+
+    event: "memory_game_reveal",
+
+payload: {
+
+  correctAnswer:
+    memoryGameState.correctAnswer,
+
+  correctAnswers:
+    memoryGameState.correctAnswers
+
+}
+
+  });
+
+}
+
+
+
+// ======================================
+// 🧠 MEMORY ANSWER
+// ======================================
+
+async function handleMemoryGameAnswer(
+  square,
+  cell
+){
+
+// ======================================
+// MULTI ANSWER MODE
+// ======================================
+
+if(
+memoryGameState.multiAnswer
+){
+
+const i=
+memoryGameState.selectedSquares
+.indexOf(square);
+
+if(i===-1){
+
+memoryGameState.selectedSquares
+.push(square);
+
+}
+else{
+
+memoryGameState.selectedSquares
+.splice(i,1);
+
+}
+
+// 🔥 Redraw board from selectedSquares
+showMemoryGameModal();
+
+return;
+
+}
+
+// ======================================
+// SINGLE ANSWER MODE
+// ======================================
+
+if(
+memoryGameState.locked
+){
+return;
+}
+
+memoryGameState.locked=true;
+
+memoryGameState.answers[
+currentUserId
+]=square;
+
+// Highlight selected square
+cell.style.outline =
+"5px solid #FFD700";
+
+cell.style.outlineOffset =
+"-5px";
+
+cell.style.boxShadow =
+`
+inset 0 0 20px rgba(255,215,0,.95),
+0 0 18px rgba(255,215,0,.9)
+`;
+
+cell.style.zIndex = "5";
+
+const feedback=
+document.getElementById(
+"lpMemoryGameFeedback"
+);
+
+if(feedback){
+
+feedback.innerHTML=`
+<div style="
+font-weight:800;
+color:#FFD54F;
+">
+✅ Answer Locked
+</div>
+
+<div style="
+margin-top:6px;
+opacity:.75;
+">
+Waiting for Coach...
+</div>
+`;
+
+}
+
+await movesChannel.send({
+
+type:"broadcast",
+
+event:"memory_game_answer",
+
+payload:{
+
+userId:
+currentUserId,
+
+username:
+currentUsername||
+"Student",
+
+square
+
+}
+
+});
+
+}
+
+// ======================================
+// 🧠 SUBMIT MEMORY ANSWER
+// ======================================
+
+async function submitMemoryAnswer(){
+
+  if(
+    !memoryGameState.multiAnswer
+  ) return;
+
+  if(
+    memoryGameState.locked
+  ) return;
+
+  memoryGameState.locked = true;
+
+  // Remove duplicate selections
+  const selectedSquares = [
+    ...new Set(
+      memoryGameState.selectedSquares
+    )
+  ];
+
+  const feedback =
+    document.getElementById(
+      "lpMemoryGameFeedback"
+    );
+
+  if(feedback){
+
+    feedback.innerHTML = `
+<div style="
+font-weight:800;
+color:#FFD54F;
+">
+✅ Answer Locked
+</div>
+
+<div style="
+margin-top:6px;
+opacity:.75;
+">
+Waiting for Coach...
+</div>
+`;
+
+  }
+
+  // Save locally
+  memoryGameState.answers[
+    currentUserId
+  ] = selectedSquares;
+
+  // Send to coach
+  await movesChannel.send({
+
+    type:"broadcast",
+
+    event:"memory_game_answer",
+
+    payload:{
+
+      userId:
+        currentUserId,
+
+      username:
+        currentUsername ||
+        "Student",
+
+      squares:
+        [...selectedSquares],
+
+      multi:true
+
+    }
+
+  });
+
+}
+
+// ==========================================
+// 🧠 ASK MEMORY — STUDENT MODAL
+// ==========================================
+
+function showMemoryGameModal() {
+
+  const modal =
+    document.getElementById(
+      "lpMemoryGameModal"
+    );
+
+  const board =
+    document.getElementById(
+      "lpMemoryGameBoard"
+    );
+
+  const question =
+    document.getElementById(
+      "lpMemoryGameQuestion"
+    );
+
+  const feedback =
+    document.getElementById(
+      "lpMemoryGameFeedback"
+    );
+
+  if (!modal || !board) return;
+
+
+if (question) {
+
+  question.innerHTML =
+
+
+
+    (memoryGameState.flipped
+      ? "Flipped!<br>"
+      : "")
+
+    +
+
+    (memoryGameState.hidden
+      ? memoryGameState.question
+      : "Memorize the position!...");
+
+}
+
+const submit =
+  document.getElementById(
+    "lpMemorySubmitBtn"
+  );
+
+if (submit) {
+
+  submit.style.display =
+
+    memoryGameState.hidden &&
+    memoryGameState.multiAnswer
+
+      ? "block"
+
+      : "none";
+
+}
+
+
+if (feedback) {
+
+  if (
+    memoryGameState.hidden
+  ) {
+
+    feedback.textContent =
+      "🎯 Position hidden! Select the correct squares to answer.";
+
+  }
+
+  else {
+
+    feedback.textContent =
+      "⚠️ Memorize carefully! Coach will hide the position soon...";
+
+  }
+
+}
+
+
+  board.innerHTML = "";
+
+
+  const files =
+    "abcdefgh";
+
+
+  // Piece lookup
+const piecesBySquare = {};
+
+const tempGame =
+  new Chess(
+    memoryGameState.position
+  );
+
+const boardState =
+  tempGame.board();
+
+
+
+for (
+  let r = 0;
+  r < 8;
+  r++
+) {
+
+  for (
+    let c = 0;
+    c < 8;
+    c++
+  ) {
+
+    const piece =
+      boardState[r][c];
+
+    if (!piece)
+      continue;
+
+    const square =
+      files[c] + (8 - r);
+
+    piecesBySquare[
+      square
+    ] = {
+
+      square,
+
+      color:
+        piece.color,
+
+      type:
+        piece.type
+
+    };
+
+  }
+
+}
+
+
+  // ======================================
+  // DRAW BOARD
+  // ======================================
+
+const rankLoop =
+  memoryGameState.flipped
+    ? [1,2,3,4,5,6,7,8]
+    : [8,7,6,5,4,3,2,1];
+
+const fileLoop =
+  memoryGameState.flipped
+    ? [7,6,5,4,3,2,1,0]
+    : [0,1,2,3,4,5,6,7];
+
+for (const rank of rankLoop) {
+
+  for (const f of fileLoop) {
+
+      const square =
+        files[f] + rank;
+
+
+      const cell =
+        document.createElement(
+          "div"
+        );
+
+
+      cell.dataset.square =
+        square;
+
+        // ==============================
+// SELECTED SQUARES (MULTI)
+// ==============================
+
+if(
+
+memoryGameState.multiAnswer &&
+
+memoryGameState.selectedSquares.includes(
+  square
+)
+
+){
+
+cell.style.outline =
+"5px solid #FFD700";
+
+cell.style.outlineOffset =
+"-5px";
+
+cell.style.boxShadow =
+`
+inset 0 0 20px rgba(255,215,0,.95),
+0 0 18px rgba(255,215,0,.9)
+`;
+
+}
+
+// ================= REVEAL =================
+
+if(
+memoryGameState.revealed
+){
+
+const isCorrect =
+
+memoryGameState.multiAnswer
+
+?
+
+memoryGameState.correctAnswers.includes(
+square
+)
+
+:
+
+square===memoryGameState.correctAnswer;
+
+if(isCorrect){
+
+cell.style.outline=
+"5px solid #22c55e";
+
+cell.style.outlineOffset=
+"-5px";
+
+cell.style.boxShadow=
+"inset 0 0 18px rgba(34,197,94,.9)";
+
+}
+
+}
+
+
+      // ======================================
+      // MEMORY ANSWER CLICK
+      // Only after Coach hides board
+      // ======================================
+
+      cell.onclick = () => {
+
+        if (
+          memoryGameState.hidden &&
+          !memoryGameState.locked
+        ) {
+
+          handleMemoryGameAnswer(
+            square,
+            cell
+          );
+
+        }
+
+      };
+
+
+      const isLight =
+        (f + rank) % 2 === 0;
+
+
+      Object.assign(
+        cell.style,
+        {
+
+          position: "relative",
+
+          display: "flex",
+
+          alignItems: "center",
+
+          justifyContent: "center",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          boxSizing:
+            "border-box",
+
+          userSelect:
+            "none",
+
+          cursor:
+            memoryGameState.hidden
+              ? "pointer"
+              : "default"
+
+        }
+      );
+
+      // ==============================
+// FILE LETTERS (BOTTOM)
+// ==============================
+
+const isBottomRank =
+  memoryGameState.flipped
+    ? rank === 8
+    : rank === 1;
+
+if (isBottomRank) {
+
+  const fileLabel =
+    document.createElement("div");
+
+  fileLabel.textContent =
+    files[f];
+
+  Object.assign(
+    fileLabel.style,
+    {
+
+      position:"absolute",
+
+      right:"3px",
+
+      bottom:"2px",
+
+      fontSize:"11px",
+
+      fontWeight:"700",
+
+      pointerEvents:"none",
+
+      color:
+        isLight
+          ? "#7b4b2a"
+          : "#f7e7c6"
+
+    }
+  );
+
+  cell.appendChild(
+    fileLabel
+  );
+
+}
+
+
+// ==============================
+// RANK NUMBERS (LEFT)
+// ==============================
+
+const isLeftFile =
+  memoryGameState.flipped
+    ? f === 7
+    : f === 0;
+
+if (isLeftFile) {
+
+  const rankLabel =
+    document.createElement("div");
+
+  rankLabel.textContent =
+    rank;
+
+  Object.assign(
+    rankLabel.style,
+    {
+
+      position:"absolute",
+
+      left:"3px",
+
+      top:"2px",
+
+      fontSize:"11px",
+
+      fontWeight:"700",
+
+      pointerEvents:"none",
+
+      color:
+        isLight
+          ? "#7b4b2a"
+          : "#f7e7c6"
+
+    }
+  );
+
+  cell.appendChild(
+    rankLabel
+  );
+
+}
+
+
+      const piece =
+        piecesBySquare[
+          square
+        ];
+
+
+      if (
+        piece &&
+        !memoryGameState.hidden
+      ) {
+
+        const img =
+          document.createElement(
+            "img"
+          );
+
+        img.src =
+          getVisionPieceImage(
+            piece.color,
+            piece.type
+          );
+
+        Object.assign(
+          img.style,
+          {
+
+            width: "86%",
+
+            height: "86%",
+
+            objectFit: "contain",
+
+            pointerEvents: "none",
+
+            userSelect: "none"
+
+          }
+        );
+
+        cell.appendChild(img);
+
+      }
+
+
+      board.appendChild(
+        cell
+      );
+
+    }
+
+  }
+
+  if(
+memoryGameState.revealed
+){
+
+const fb=
+document.getElementById(
+"lpMemoryGameFeedback"
+);
+
+const mine =
+memoryGameState.answers[
+currentUserId
+] ||
+
+(
+memoryGameState.multiAnswer
+
+? []
+
+: ""
+);
+
+let correct = false;
+
+if (
+  memoryGameState.multiAnswer
+) {
+
+  const selected =
+    Array.isArray(mine)
+      ? mine
+      : [];
+
+  correct =
+
+    selected.length ===
+    memoryGameState.correctAnswers.length &&
+
+    selected.every(square =>
+
+      memoryGameState.correctAnswers.includes(
+        square
+      )
+
+    );
+
+}
+
+else {
+
+  correct =
+
+    mine ===
+    memoryGameState.correctAnswer;
+
+}
+
+if(fb){
+
+fb.innerHTML=
+
+correct
+
+?`
+
+<div style="
+color:#4CAF50;
+font-size:18px;
+font-weight:800;
+">
+
+✅ Correct!
+
+</div>
+
+`
+
+:`
+
+<div style="
+color:#ff5252;
+font-size:18px;
+font-weight:800;
+">
+
+❌ Wrong
+
+</div>
+
+<div style="
+margin-top:6px;
+">
+
+Correct:
+
+<b>
+
+${
+memoryGameState.multiAnswer
+
+?
+
+memoryGameState.correctAnswers.join(", ")
+
+:
+
+memoryGameState.correctAnswer
+}
+
+</b>
+
+</div>
+
+`;
+
+}
+
+}
+
+
+  modal.style.display =
+    "flex";
 
 }
   // ==========================================
@@ -80660,6 +81906,804 @@ board
     `;
 
   }
+
+}
+
+
+
+
+// ======================================
+// 🧠 MEMORY ADMIN ANSWERS
+// ======================================
+
+// ======================================
+// 🧠 MEMORY ADMIN ANSWERS
+// ======================================
+
+function renderMemoryAdminAnswers(){
+
+const box =
+document.getElementById(
+"lpMemoryAdminAnswers"
+);
+
+if(!box)return;
+
+box.innerHTML="";
+
+Object.values(
+memoryGameState.answers
+).forEach(data=>{
+
+const isMulti =
+Array.isArray(
+data.square
+);
+
+const correct =
+
+memoryGameState.revealed &&
+
+(
+
+isMulti
+
+?
+
+data.square.length===memoryGameState.correctAnswers.length &&
+
+data.square.every(s=>
+
+memoryGameState.correctAnswers.includes(s)
+
+)
+
+:
+
+data.square===memoryGameState.correctAnswer
+
+);
+
+box.innerHTML+=`
+
+<div style="
+padding:8px;
+margin-bottom:6px;
+
+background:${
+memoryGameState.revealed
+
+?
+
+correct
+
+?
+
+'rgba(34,197,94,.22)'
+
+:
+
+'rgba(239,68,68,.22)'
+
+:
+
+'rgba(255,255,255,.06)'
+};
+
+border:${
+memoryGameState.revealed
+
+?
+
+correct
+
+?
+
+'2px solid #22c55e'
+
+:
+
+'2px solid #ef4444'
+
+:
+
+'none'
+};
+
+border-radius:8px;
+
+font-weight:700;
+
+color:white;
+">
+
+${
+memoryGameState.revealed
+
+?
+
+correct
+
+?
+
+'✅'
+
+:
+
+'❌'
+
+:
+
+'🙋🏻‍♂️'
+}
+
+&nbsp;
+
+${data.username}
+
+<span style="
+float:right;
+max-width:160px;
+text-align:right;
+">
+
+${
+isMulti
+
+?
+
+data.square.join(", ")
+
+:
+
+data.square
+}
+
+</span>
+
+</div>
+
+`;
+
+});
+
+}
+
+// ======================================
+// 🧠 MEMORY ANSWER
+// ======================================
+
+function handleMemoryAnswer(
+  square,
+  cell
+){
+
+if(
+!memoryGameState.active||
+memoryGameState.locked
+){
+return;
+}
+
+memoryGameState.locked=true;
+
+memoryGameState.selectedSquare=
+square;
+
+cell.style.outline=
+"6px solid #FFD600";
+
+cell.style.outlineOffset=
+"-6px";
+
+cell.style.boxShadow=
+"inset 0 0 28px rgba(255,214,0,.9)";
+
+const feedback=
+document.getElementById(
+"lpMemoryGameFeedback"
+);
+
+if(feedback){
+
+feedback.innerHTML=`
+<div style="
+color:#ffd54f;
+font-weight:800;
+">
+🔒 Answer submitted...
+</div>
+
+<div style="
+margin-top:5px;
+">
+Waiting for Coach to reveal...
+</div>
+`;
+
+}
+
+movesChannel.send({
+
+type:"broadcast",
+
+event:"memory_game_answer",
+
+payload:{
+
+userId:
+currentUserId,
+
+username:
+currentUsername||"Guest",
+
+square
+
+}
+
+});
+
+}
+
+// ======================================
+// 🧠 GENERATE MEMORY QUESTION
+// ======================================
+
+function generateMemoryQuestion() {
+
+  const game =
+    new Chess(
+      memoryGameState.position
+    );
+
+  const board =
+    game.board();
+
+  const questions = [];
+
+  const pieceGroups = {};
+
+  board.forEach((row, r) => {
+
+    row.forEach((piece, c) => {
+
+      if (!piece) return;
+
+      const square =
+        "abcdefgh"[c] +
+        (8 - r);
+
+      const key =
+        piece.color +
+        piece.type;
+
+      if (!pieceGroups[key]) {
+
+        pieceGroups[key] = [];
+
+      }
+
+      pieceGroups[key].push(
+        square
+      );
+
+    });
+
+  });
+
+  // =========================
+  // SINGLE PIECE QUESTIONS
+  // =========================
+
+  if (pieceGroups["wk"]) {
+
+    questions.push({
+
+      multi:false,
+
+      question:
+        "Where was the White King?",
+
+      answers:
+        pieceGroups["wk"]
+
+    });
+
+  }
+
+  if (pieceGroups["bk"]) {
+
+    questions.push({
+
+      multi:false,
+
+      question:
+        "Where was the Black King?",
+
+      answers:
+        pieceGroups["bk"]
+
+    });
+
+  }
+
+  if (pieceGroups["wq"]) {
+
+    questions.push({
+
+      multi:false,
+
+      question:
+        "Where was the White Queen?",
+
+      answers:
+        pieceGroups["wq"]
+
+    });
+
+  }
+
+  if (pieceGroups["bq"]) {
+
+    questions.push({
+
+      multi:false,
+
+      question:
+        "Where was the Black Queen?",
+
+      answers:
+        pieceGroups["bq"]
+
+    });
+
+  }
+
+  // =========================
+  // MULTI PIECE QUESTIONS
+  // =========================
+
+  if (pieceGroups["wr"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the White Rooks?",
+
+      answers:
+        pieceGroups["wr"]
+
+    });
+
+  }
+
+  if (pieceGroups["br"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the Black Rooks?",
+
+      answers:
+        pieceGroups["br"]
+
+    });
+
+  }
+
+  if (pieceGroups["wb"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the White Bishops?",
+
+      answers:
+        pieceGroups["wb"]
+
+    });
+
+  }
+
+  if (pieceGroups["bb"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the Black Bishops?",
+
+      answers:
+        pieceGroups["bb"]
+
+    });
+
+  }
+
+  if (pieceGroups["wn"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the White Knights?",
+
+      answers:
+        pieceGroups["wn"]
+
+    });
+
+  }
+
+  if (pieceGroups["bn"]?.length===2){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the Black Knights?",
+
+      answers:
+        pieceGroups["bn"]
+
+    });
+
+  }
+
+  if (pieceGroups["wp"]?.length){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the White Pawns?",
+
+      answers:
+        pieceGroups["wp"]
+
+    });
+
+  }
+
+  if (pieceGroups["bp"]?.length){
+
+    questions.push({
+
+      multi:true,
+
+      question:
+        "Where were the Black Pawns?",
+
+      answers:
+        pieceGroups["bp"]
+
+    });
+
+  }
+
+const singleQuestions =
+  questions.filter(q => !q.multi);
+
+const multiQuestions =
+  questions.filter(q => q.multi);
+
+// 80% chance = Multi piece
+// 20% chance = King / Queen
+
+const pool =
+
+  Math.random() < 0.80
+
+    ? multiQuestions
+
+    : singleQuestions;
+
+const chosen =
+  pool[
+    Math.floor(
+      Math.random() *
+      pool.length
+    )
+  ];
+
+  memoryGameState.question =
+    chosen.question;
+
+  memoryGameState.multiAnswer =
+    chosen.multi;
+
+  memoryGameState.correctAnswers =
+    [...chosen.answers];
+
+  memoryGameState.correctAnswer =
+    chosen.answers[0];
+
+  memoryGameState.selectedSquares =
+    [];
+
+    memoryGameState.answers = {};
+
+memoryGameState.locked = false;
+
+}
+
+// ======================================
+// 🧠 ASK MEMORY
+// ======================================
+
+async function askMemoryGame() {
+
+  if (!roomCode)
+    return;
+
+  initMemoryGame();
+
+  memoryGameState.answers = {};
+
+memoryGameState.selectedSquares = [];
+
+memoryGameState.correctAnswers = [];
+
+memoryGameState.locked = false;
+
+  document.getElementById(
+  "lpMemoryAdminStatus"
+).textContent =
+  "👀 Visible to students...";
+
+  generateMemoryPosition();
+
+  generateMemoryQuestion();
+
+document.getElementById(
+  "lpMemoryAdminQuestion"
+).innerHTML =
+
+  (memoryGameState.flipped
+
+    ? "⚫ <span style='color:#4fc3f7'>Flipped Board</span><br>"
+
+    : "⚪ <span style='color:#7CFC98'>Normal Board</span><br>")
+
+  +
+
+  memoryGameState.question;
+
+if (isAdmin) {
+
+  showMemoryAdminPanel();
+
+} else {
+
+  showMemoryGameModal();
+
+}
+
+await movesChannel.send({
+
+  type:"broadcast",
+
+  event:"memory_game_start",
+
+  payload:{
+
+    fen:
+      memoryGameState.position,
+
+    flipped:
+      memoryGameState.flipped,
+
+    question:
+      memoryGameState.question,
+
+    answerType:
+      memoryGameState.answerType,
+
+    multiAnswer:
+      memoryGameState.multiAnswer
+
+}
+
+});
+
+  console.log(
+    memoryGameState
+  );
+
+  showJoinBanner(
+    "💎 Memory Challenge Started!",
+    false
+  );
+
+}
+
+// ==========================================
+// 🧠 SHOW MEMORY ADMIN PANEL
+// ==========================================
+
+function showMemoryAdminPanel() {
+
+  const panel =
+    document.getElementById(
+      "lpMemoryAdminPanel"
+    );
+
+  if (!panel)
+    return;
+
+  panel.style.display =
+    "block";
+
+    document.getElementById(
+  "lpMemoryAdminAnswers"
+).innerHTML = "";
+renderMemoryAdminBoard();
+renderMemoryAdminAnswers();
+}
+
+
+
+// ==========================================
+// 🧠 RESET MEMORY
+// ==========================================
+
+// ======================================
+// 🧠 RESET MEMORY
+// ======================================
+
+async function resetMemoryGame() {
+
+  memoryGameState.answers = {};
+
+memoryGameState.selectedSquares = [];
+
+memoryGameState.correctAnswers = [];
+
+  memoryGameState.active = false;
+
+  memoryGameState.hidden = false;
+
+  memoryGameState.revealed = false;
+
+  memoryGameState.locked = false;
+
+  memoryGameState.answers = {};
+
+  memoryGameState.question = "";
+
+  memoryGameState.correctAnswer = null;
+
+  memoryGameState.position = null;
+
+  document.getElementById(
+  "lpMemoryAdminQuestion"
+).textContent = "";
+
+  document.getElementById(
+  "lpMemoryAdminStatus"
+).textContent =
+  "Visible to students...";
+
+  // Clear UI
+  document.getElementById(
+    "lpMemoryGameBoard"
+  ).innerHTML = "";
+
+  document.getElementById(
+    "lpMemoryAdminBoard"
+  ).innerHTML = "";
+
+  document.getElementById(
+    "lpMemoryAdminAnswers"
+  ).innerHTML = "";
+
+  document.getElementById(
+    "lpMemoryGameFeedback"
+  ).innerHTML = "";
+
+  document.getElementById(
+    "lpMemoryGameQuestion"
+  ).textContent = "";
+
+  document.getElementById(
+    "lpMemoryGameModal"
+  ).style.display = "none";
+
+  document.getElementById(
+    "lpMemoryAdminPanel"
+  ).style.display = "none";
+
+  // 🔥 Tell every student to reset
+  await movesChannel.send({
+
+    type: "broadcast",
+
+    event: "memory_game_reset",
+
+    payload: {}
+
+  });
+
+}
+
+// ======================================
+// 🧠 GENERATE MEMORY POSITION
+// ======================================
+
+function generateMemoryPosition() {
+
+  const game = new Chess();
+
+  // Start from normal chess position
+  game.reset();
+
+  // Random legal moves
+  const moveCount =
+    35 +
+    Math.floor(
+      Math.random() * 25
+    );
+
+  for (
+    let i = 0;
+    i < moveCount;
+    i++
+  ) {
+
+    const moves =
+      game.moves();
+
+    if (!moves.length)
+      break;
+
+    const move =
+      moves[
+        Math.floor(
+          Math.random() *
+          moves.length
+        )
+      ];
+
+    game.move(move);
+
+  }
+
+  memoryGameState.position =
+    game.fen();
+
+ 
+
+}
+
+// ======================================
+// 🧠 INIT MEMORY GAME
+// ======================================
+
+function initMemoryGame() {
+
+  memoryGameState.active = true;
+
+  memoryGameState.hidden = false;
+
+  memoryGameState.revealed = false;
+
+  memoryGameState.locked = false;
+
+  memoryGameState.answers = {};
+
+  // 50% flipped
+  memoryGameState.flipped =
+    Math.random() < 0.5;
 
 }
 
@@ -83488,6 +85532,16 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+
+  document.getElementById("lpAskMemoryBtn").onclick =
+  askMemoryGame;
+
+  document
+.getElementById("lpMemoryRevealBtn")
+?.addEventListener(
+"click",
+revealMemoryGame
+);
     // =====================================
 // 📥 IMPORT PGN MODAL
 // =====================================
@@ -88108,6 +90162,29 @@ function resetSquareGame() {
 
 }
 
+// ======================================
+// 🧠 HIDE MEMORY PIECES
+// ======================================
+
+function hideMemoryPieces(){
+
+const board=
+document.getElementById(
+"lpMemoryGameBoard"
+);
+
+if(!board)return;
+
+board
+.querySelectorAll("img")
+.forEach(img=>{
+
+img.style.display="none";
+
+});
+
+}
+
   // ================= PROMOTION SYSTEM =================
 
 function lpShowPromotion(from, to) {
@@ -91809,6 +93886,99 @@ if (payload.event === "student_puzzle_completed") {
   return;
 }
 
+// ================= MEMORY START =================
+
+if (payload.event === "memory_game_start") {
+
+  if (isAdmin) return;
+
+  memoryGameState.active = true;
+
+memoryGameState.position =
+  payload.payload.fen;
+
+memoryGameState.question =
+  payload.payload.question;
+
+memoryGameState.answerType =
+  payload.payload.answerType;
+
+  memoryGameState.multiAnswer =
+  payload.payload.multiAnswer;
+
+  memoryGameState.flipped =
+    payload.payload.flipped;
+
+  memoryGameState.hidden = false;
+
+  memoryGameState.revealed = false;
+
+  memoryGameState.locked = false;
+
+  memoryGameState.answers = {};
+
+  memoryGameState.selectedSquares = [];
+
+memoryGameState.correctAnswers = [];
+
+  showMemoryGameModal();
+
+  showJoinBanner(
+    "💎 Coach started a Memory Challenge!"
+  );
+
+  return;
+}
+
+// ================= MEMORY REVEAL =================
+
+if (payload.event === "memory_game_reveal") {
+
+  if (isAdmin) return;
+
+  memoryGameState.revealed = true;
+
+  memoryGameState.hidden = false;
+
+ memoryGameState.correctAnswer =
+  payload.payload.correctAnswer;
+
+memoryGameState.correctAnswers =
+  payload.payload.correctAnswers || [];
+
+  showMemoryGameModal();
+
+  return;
+}
+
+// ================= MEMORY RESET =================
+
+if (payload.event === "memory_game_reset") {
+
+  memoryGameState.active = false;
+
+  memoryGameState.hidden = false;
+
+  memoryGameState.revealed = false;
+
+  memoryGameState.locked = false;
+
+  memoryGameState.answers = {};
+
+  memoryGameState.question = "";
+
+  memoryGameState.correctAnswer = null;
+
+  memoryGameState.position = null;
+
+  document.getElementById(
+    "lpMemoryGameModal"
+  ).style.display = "none";
+
+  return;
+
+}
+
 
 // ==========================================
 // 🏁 STUDENT COMPLETED ENTIRE RACE
@@ -92587,6 +94757,113 @@ addDailyXP(
 payload.payload.amount
 );
 
+
+return;
+
+}
+
+// ================= MEMORY REVEAL =================
+
+if(payload.event==="memory_game_reveal"){
+
+if(isAdmin)return;
+
+memoryGameState.correctAnswer =
+payload.payload.correctAnswer;
+
+memoryGameState.revealed = true;
+
+memoryGameState.hidden = false;
+
+showMemoryGameModal();
+
+return;
+}
+
+// ================= MEMORY ANSWER =================
+
+if(
+payload.event==="memory_game_answer"
+){
+
+if(!isAdmin)return;
+
+const{
+
+userId,
+username,
+square,
+squares,
+multi
+
+}=payload.payload;
+
+memoryGameState.answers[
+userId
+]={
+
+username,
+
+square:
+multi
+? squares
+: square
+
+};
+
+renderMemoryAdminAnswers();
+
+renderMemoryAdminBoard();
+
+showJoinBanner(
+
+multi
+
+?
+
+`🙋 ${username} selected ${squares.join(", ")}`
+
+:
+
+`🙋 ${username} selected ${square.toLowerCase()}`,
+
+false
+
+);
+
+return;
+
+}
+
+// ================= MEMORY HIDE =================
+
+if(
+payload.event==="memory_game_hide"
+){
+
+if(isAdmin)return;
+
+memoryGameState.hidden=true;
+
+showMemoryGameModal();
+
+return;
+
+}
+
+
+
+// ================= MEMORY HIDE =================
+
+if (
+payload.event==="memory_game_hide"
+){
+
+if(isAdmin)return;
+
+memoryGameState.hidden=true;
+
+hideMemoryPieces();
 
 return;
 
@@ -107151,6 +109428,278 @@ backdrop-filter:blur(3px);
 
   <div
     id="lpVisionAdminAnswers"
+    style="
+      margin-top:14px;
+      max-height:235px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding-right:4px;
+    "
+  ></div>
+
+</div>
+
+
+<!-- ==========================================
+     🧠 ASK MEMORY — STUDENT MODAL
+=========================================== -->
+
+<div
+  id="lpMemoryGameModal"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:99999;
+
+    align-items:center;
+    justify-content:center;
+
+    background:rgba(0,0,0,.48);
+    backdrop-filter:blur(4px);
+  "
+>
+  <div
+    style="
+      width:min(92vw,560px);
+      background:#1d1f31;
+      border:2px solid #8b9dc3;
+      border-radius:18px;
+      padding:20px;
+      box-shadow:0 18px 55px rgba(0,0,0,.55);
+      color:white;
+      text-align:center;
+    "
+  >
+
+    <div
+      style="
+        font-size:22px;
+        font-weight:800;
+        margin-bottom:6px;
+      "
+    >
+      💎 Memory Challenge
+    </div>
+
+
+    <div
+      id="lpMemoryGameQuestion"
+      style="
+        font-size:17px;
+        font-weight:700;
+        margin-bottom:14px;
+      "
+    >
+      Memorize the position...
+    </div>
+
+
+    <div
+      id="lpMemoryGameBoard"
+      style="
+        width:min(82vw,440px);
+        aspect-ratio:1 / 1;
+
+        display:grid;
+        grid-template-columns:repeat(8,1fr);
+        grid-template-rows:repeat(8,1fr);
+
+        margin:0 auto;
+
+        border:3px solid #444;
+        border-radius:8px;
+        overflow:hidden;
+      "
+    ></div>
+
+
+    <div
+      id="lpMemoryGameFeedback"
+      style="
+        min-height:45px;
+        margin-top:14px;
+        font-weight:700;
+      "
+    ></div>
+
+    <button
+id="lpMemorySubmitBtn"
+style="
+display:none;
+margin-top:12px;
+width:100%;
+padding:10px;
+border:none;
+border-radius:8px;
+background:#22c55e;
+color:white;
+font-weight:800;
+cursor:pointer;
+">
+
+✅ Submit Answer
+
+</button>
+
+  </div>
+</div>
+
+
+<!-- ==========================================
+     🧠 ASK MEMORY — ADMIN PANEL
+=========================================== -->
+
+<div
+  id="lpMemoryAdminPanel"
+  style="
+    display:none;
+    position:fixed;
+    top:150px;
+    right:80px;
+    width:280px;
+    z-index:99998;
+
+    background:#1d1f31;
+    border:2px solid #8b9dc3;
+    border-radius:16px;
+    padding:18px;
+
+    box-shadow:0 15px 45px rgba(0,0,0,.45);
+    color:white;
+  "
+>
+
+  <div
+    style="
+      font-size:19px;
+      font-weight:800;
+      margin-bottom:12px;
+    "
+  >
+    💎 Memory Challenge
+  </div>
+
+
+  <div
+    id="lpMemoryAdminStatus"
+    style="
+      margin-bottom:12px;
+      font-weight:700;
+    "
+  >
+    Processing...
+  </div>
+
+  <div
+  id="lpMemoryAdminQuestion"
+  style="
+    margin-bottom:12px;
+    font-weight:800;
+    font-size:15px;
+    color:#ffd54f;
+    text-align:center;
+    line-height:1.4;
+  "
+>
+</div>
+
+  <!-- 🧠 MEMORY ADMIN MINI BOARD -->
+
+<div
+  id="lpMemoryAdminBoard"
+  style="
+    width:230px;
+    height:230px;
+
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    grid-template-rows:repeat(8,1fr);
+
+    margin:0 auto 14px auto;
+
+    border:2px solid #8b9dc3;
+    border-radius:7px;
+
+    overflow:hidden;
+    box-sizing:border-box;
+  "
+></div>
+
+
+<button
+  id="lpMemoryHideBtn"
+  type="button"
+  style="
+    width:100%;
+    padding:10px 12px;
+    margin-bottom:8px;
+
+    background:#f59e0b;
+    color:white;
+
+    border:1px solid rgba(255,255,255,.85);
+    border-radius:8px;
+
+    font-size:14px;
+    font-weight:800;
+
+    cursor:pointer;
+  "
+>
+  👀 Hide Position
+</button>
+
+
+<button
+  id="lpMemoryRevealBtn"
+  type="button"
+  style="
+    width:100%;
+    padding:10px 12px;
+    margin-bottom:8px;
+
+    background:#4caf50;
+    color:white;
+
+    border:1px solid rgba(255,255,255,.85);
+    border-radius:8px;
+
+    font-size:14px;
+    font-weight:800;
+
+    cursor:pointer;
+  "
+>
+  🔓 Reveal Answer
+</button>
+
+
+<button
+  id="lpMemoryResetBtn"
+  type="button"
+  style="
+    width:100%;
+    padding:10px 12px;
+
+    background:#3b82f6;
+    color:white;
+
+    border:1px solid rgba(255,255,255,.85);
+    border-radius:8px;
+
+    font-size:14px;
+    font-weight:800;
+
+    cursor:pointer;
+  "
+>
+  ⚠️ Reset / Exit
+</button>
+
+
+  <div
+    id="lpMemoryAdminAnswers"
     style="
       margin-top:14px;
       max-height:235px;
