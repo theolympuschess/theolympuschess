@@ -71197,6 +71197,49 @@ async function loadStudentsForReaction() {
 
   select.innerHTML = "";
 
+  const defaultStudent =
+  document.createElement("option");
+
+defaultStudent.value = "";
+
+defaultStudent.textContent =
+  "⚠️ No Student Selected";
+
+defaultStudent.selected = true;
+
+select.appendChild(defaultStudent);
+
+  const batchSelect =
+  document.getElementById(
+    "reactionBatchSelect"
+  );
+
+batchSelect.innerHTML =
+  '<option value="">⚠️ No Batch Selected</option>';
+
+const { data: batches } =
+  await supabase
+    .from("student_batches")
+    .select("batch_name");
+
+[...new Set(
+  (batches || [])
+    .map(x => x.batch_name)
+)]
+.sort()
+.forEach(batch => {
+
+  const option =
+    document.createElement("option");
+
+  option.value = batch;
+  option.textContent =
+    "📚 " + batch;
+
+  batchSelect.appendChild(option);
+
+});
+
   data.forEach(student => {
 
     const opt =
@@ -71240,6 +71283,11 @@ window.sendEmoji = async function(emoji) {
 
   const sendToAll = document.getElementById("sendToAllStudents").checked;
 
+  const batch =
+  document.getElementById(
+    "reactionBatchSelect"
+  )?.value;
+
   if (sendToAll) {
 
     // 🔥 Get all students
@@ -71262,22 +71310,80 @@ window.sendEmoji = async function(emoji) {
   false
 );
 
-  } else {
+} else if (
+  document.getElementById("reactionBatchSelect")?.value
+) {
 
-    const studentId = document.getElementById("reactionStudentSelect").value;
-    lastReactionStudentId =
-  studentId;
+  const batch =
+    document.getElementById(
+      "reactionBatchSelect"
+    ).value;
 
-    await supabase.from("visual_reactions").insert({
+  const { data: batchStudents } =
+    await supabase
+      .from("student_batches")
+      .select("username")
+      .eq(
+        "batch_name",
+        batch
+      );
+
+  if (!batchStudents?.length) return;
+
+  const usernames =
+    batchStudents.map(
+      s => s.username
+    );
+
+  const { data: profiles } =
+    await supabase
+      .from("profiles")
+      .select("id, username")
+      .in(
+        "username",
+        usernames
+      );
+
+  if (!profiles?.length) return;
+
+  const inserts =
+    profiles.map(student => ({
+      student_id: student.id,
+      emoji: emoji
+    }));
+
+  await supabase
+    .from("visual_reactions")
+    .insert(inserts);
+
+  showJoinBanner(
+    "😃 Emoji sent",
+    false
+  );
+
+} else {
+
+  const studentId =
+    document.getElementById(
+      "reactionStudentSelect"
+    ).value;
+
+  lastReactionStudentId =
+    studentId;
+
+  await supabase
+    .from("visual_reactions")
+    .insert({
       student_id: studentId,
       emoji: emoji
     });
-   showJoinBanner(
-  "😃 Emoji sent",
-  false
-);
 
-  }
+  showJoinBanner(
+    "😃 Emoji sent",
+    false
+  );
+
+}
   
 };
 
@@ -71285,46 +71391,128 @@ window.sendGif = async function(url) {
 
   if (!currentUser) return;
 
-  const sendToAll = document.getElementById("sendToAllStudents").checked;
+  const sendToAll =
+    document.getElementById(
+      "sendToAllStudents"
+    ).checked;
+
+  const batch =
+    document.getElementById(
+      "reactionBatchSelect"
+    )?.value;
+
+  // =========================
+  // 🌍 SEND TO ALL
+  // =========================
 
   if (sendToAll) {
 
-    const { data: students } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("role", "student")
-.eq("active", true);
+    const { data: students } =
+      await supabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "student")
+        .eq("active", true);
 
     if (!students) return;
 
-    const inserts = students.map(s => ({
-      student_id: s.id,
-      gif_url: url
-    }));
+    const inserts =
+      students.map(s => ({
+        student_id: s.id,
+        gif_url: url
+      }));
 
-    await supabase.from("visual_reactions").insert(inserts);
+    await supabase
+      .from("visual_reactions")
+      .insert(inserts);
+
     showJoinBanner(
-  "😃 Emoji sent",
-  false
-);
-
-  } else {
-
-    const studentId = document.getElementById("reactionStudentSelect").value;
-    lastReactionStudentId =
-  studentId;
-
-    await supabase.from("visual_reactions").insert({
-      student_id: studentId,
-      gif_url: url
-    });
-   showJoinBanner(
-  "😃 Emoji sent",
-  false
-);
+      "😃 GIF sent",
+      false
+    );
 
   }
- 
+
+  // =========================
+  // 📚 SEND TO BATCH
+  // =========================
+
+  else if (batch) {
+
+    const { data: batchStudents } =
+      await supabase
+        .from("student_batches")
+        .select("username")
+        .eq(
+          "batch_name",
+          batch
+        );
+
+    if (!batchStudents?.length)
+      return;
+
+    const usernames =
+      batchStudents.map(
+        s => s.username
+      );
+
+    const { data: profiles } =
+      await supabase
+        .from("profiles")
+        .select("id, username")
+        .in(
+          "username",
+          usernames
+        );
+
+    if (!profiles?.length)
+      return;
+
+    const inserts =
+      profiles.map(student => ({
+        student_id: student.id,
+        gif_url: url
+      }));
+
+    await supabase
+      .from("visual_reactions")
+      .insert(inserts);
+
+    showJoinBanner(
+      "😃 GIF sent",
+      false
+    );
+
+  }
+
+  // =========================
+  // 👤 SEND TO ONE STUDENT
+  // =========================
+
+  else {
+
+    const studentId =
+      document.getElementById(
+        "reactionStudentSelect"
+      ).value;
+
+    lastReactionStudentId =
+      studentId;
+
+    await supabase
+      .from("visual_reactions")
+      .insert({
+        student_id: studentId,
+        gif_url: url
+      });
+
+    showJoinBanner(
+      "😃 GIF sent",
+      false
+    );
+
+  }
+
 };
 
 
@@ -79045,6 +79233,8 @@ const memoryGameState = {
 
 selectedSquares:[],
 
+questionCycle:0,
+
 correctAnswers:[]
 
 };
@@ -82394,27 +82584,66 @@ function generateMemoryQuestion() {
 const singleQuestions =
   questions.filter(q => !q.multi);
 
-const multiQuestions =
-  questions.filter(q => q.multi);
+const pawnQuestions =
+  questions.filter(q =>
+    q.question.includes("Pawn")
+  );
 
-// 80% chance = Multi piece
-// 20% chance = King / Queen
+const otherQuestions =
+  questions.filter(q =>
 
-const pool =
+    q.multi &&
 
-  Math.random() < 0.80
+    !q.question.includes("Pawn")
 
-    ? multiQuestions
+  );
 
-    : singleQuestions;
+let pool;
 
-const chosen =
-  pool[
-    Math.floor(
-      Math.random() *
-      pool.length
-    )
-  ];
+// =============================
+// PAWN
+// =============================
+
+if(
+memoryGameState.questionCycle % 3===0
+){
+
+pool=pawnQuestions;
+
+}
+
+// =============================
+// KING / QUEEN
+// =============================
+
+else if(
+memoryGameState.questionCycle % 3===1
+){
+
+pool=singleQuestions;
+
+}
+
+// =============================
+// ROOK / BISHOP / KNIGHT
+// =============================
+
+else{
+
+pool=otherQuestions;
+
+}
+
+memoryGameState.questionCycle++;
+
+const chosen=
+
+pool[
+Math.floor(
+Math.random()*
+pool.length
+)
+];
 
   memoryGameState.question =
     chosen.question;
@@ -104703,7 +104932,7 @@ document.addEventListener("DOMContentLoaded", startApp);
 
 <div id="reactionPanel" style="
   position: fixed;
-  top: 230px;
+  top: 170px;
   right: 10px;
   width: 300px;
   background: #1e1e2f;
@@ -104715,7 +104944,9 @@ document.addEventListener("DOMContentLoaded", startApp);
 ">
 
   <h3 style="color: gold; margin-bottom: 10px;">Send Celebration 🎉</h3>
-
+<select id="reactionBatchSelect">
+  <option value="">📚 Select Batch</option>
+</select>
   <select id="reactionStudentSelect" style="width:100%; margin-bottom:10px;"></select>
   <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:white;font-size:14px;">
   <input type="checkbox" id="sendToAllStudents">
