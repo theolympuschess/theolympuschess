@@ -29137,7 +29137,59 @@ border-radius:20px;
 }
 
 
+/* Spot the Change – fade animations */
+#lpSpotChangeBoardA.fade-out {
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#lpSpotChangeBoardB.fade-in {
+  display: grid;
+  opacity: 1;
+  transition: opacity 0.4s;
+}
 
+/* Highlight classes for admin mini boards */
+.lp-sc-highlight-moved {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-moved-to {
+  outline: 3px solid #fbbf24 !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-removed {
+  outline: 3px solid #ef4444 !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-added {
+  outline: 3px solid #22c55e !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-typechange {
+  outline: 3px solid #a855f7 !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-colorchange {
+  outline: 3px solid #f97316 !important;
+  outline-offset: -3px;
+}
+.lp-sc-highlight-swap {
+  outline: 3px solid #ec4899 !important;
+  outline-offset: -3px;
+}
+
+
+/* 👀 ASK SPOT THE CHANGE — muted indigo */
+
+#lpAskSpotChangeBtn {
+  background: #7a6942 !important;
+  color: #f4f7ff !important;
+  border: 1px solid #a18b59 !important;
+}
+
+#lpAskSpotChangeBtn:hover {
+  background: #8a7850 !important;
+}
 
   </style>
 </head>
@@ -31900,6 +31952,8 @@ class="lp-admin-btn"
 </button>
 
 <button id="lpAskThreatBtn" type="button" data-role="admin-only" class="lp-admin-btn">🚨 Ask Threat</button>
+
+<button id="lpAskSpotChangeBtn" type="button" data-role="admin-only" class="lp-admin-btn">🎭 Ask Change</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -83277,19 +83331,1355 @@ function generateThreatChallenge() {
     const legalMoves =
       game.moves().length;
 
-    if (legalMoves < 20)
+    if (legalMoves < 15)
       continue;
 
     if (!bestChallenge)
       bestChallenge = challenge;
 
-    if (legalMoves > 10)
+   
       return challenge;
 
   }
 
   return bestChallenge;
 
+}
+
+// ==========================================
+// 👀 SPOT THE CHANGE – ISOLATED STATE
+// ==========================================
+
+let spotChangeGameState = {
+  active: false,
+  challengeId: null,
+  positionA: null,          // FEN string
+  positionB: null,          // FEN string
+  questionMode: null,       // 0..3 (cycles)
+  questionModeCycle: 0,
+  changeCycle: 0,           // 0..23 (cycles)
+  changeType: null,         // descriptive string
+  changeCount: 0,           // 0,1,2
+  changedColor: null,       // 'white','black','both','none'
+  changedCategory: null,    // 'pawn','minor','major','none'
+  oldSquare: null,
+  newSquare: null,
+  oldPiece: null,           // {color, type}
+  newPiece: null,
+  answers: {},
+  revealed: false,
+  locked: false,
+  redrawSent: false,
+  questionText: '',
+  options: [],
+  correctIndex: 0
+};
+
+// ==========================================
+// 👀 GENERATE POSITION A (rich middlegame)
+// ==========================================
+
+function generateSpotChangePositionA() {
+  const game = new Chess();
+  game.reset();
+
+  const halfMoves = 40 + Math.floor(Math.random() * 18); // 40–70
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const testGame = new Chess();
+    testGame.reset();
+    let movesMade = 0;
+    let stale = 0;
+
+    while (movesMade < halfMoves && stale < 20) {
+      const moves = testGame.moves({ verbose: true });
+      if (!moves.length) break;
+      // Avoid positions that are check, checkmate, stalemate, or draw
+      if (testGame.in_check()) break;
+      if (testGame.in_checkmate()) break;
+      if (testGame.in_stalemate()) break;
+      if (testGame.in_draw()) break;
+
+      // Prefer captures and pawn moves to keep dynamic
+      const weighted = moves.filter(m => m.flags.includes('c') || m.piece === 'p');
+      const move = weighted.length && Math.random() < 0.4
+        ? weighted[Math.floor(Math.random() * weighted.length)]
+        : moves[Math.floor(Math.random() * moves.length)];
+
+      testGame.move(move);
+      movesMade++;
+    }
+
+    // Count pieces
+    const board = testGame.board();
+    let whiteCount = 0, blackCount = 0;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]) {
+          if (board[r][c].color === 'w') whiteCount++;
+          else blackCount++;
+        }
+      }
+    }
+    if (whiteCount < 8 || blackCount < 8) continue;
+
+    const legalMoves = testGame.moves({ verbose: true });
+    if (legalMoves.length < 12) continue;
+
+    // Reject positions where kings are in check (already covered)
+    return testGame.fen();
+  }
+
+  // Fallback: start position (should not happen)
+  return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+}
+
+// ==========================================
+// 👀 CHANGE GENERATOR – CYCLE ALL 24 TYPES
+// ==========================================
+
+function generateSpotChangeB(positionAFen, changeCycle) {
+  // Clone A
+  const gameA = new Chess(positionAFen);
+  const gameB = new Chess(positionAFen); // will be modified
+
+  // Helper: get board array
+  function getBoard(game) {
+    return game.board();
+  }
+
+  // Helper: get piece at square (returns {color, type} or null)
+  function getPieceAt(game, square) {
+    const fileIdx = 'abcdefgh'.indexOf(square[0]);
+    const rankIdx = 8 - parseInt(square[1]);
+    const board = getBoard(game);
+    return board[rankIdx]?.[fileIdx] || null;
+  }
+
+  // Helper: find all pieces of given color and optional type
+  function findPieces(game, color, type = null) {
+    const board = getBoard(game);
+    const result = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = board[r][c];
+        if (piece && piece.color === color && (!type || piece.type === type)) {
+          const file = 'abcdefgh'[c];
+          const rank = 8 - r;
+          result.push({ square: file + rank, color: piece.color, type: piece.type });
+        }
+      }
+    }
+    return result;
+  }
+
+  // Helper: find empty squares
+  function findEmptySquares(game) {
+    const board = getBoard(game);
+    const result = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (!board[r][c]) {
+          const file = 'abcdefgh'[c];
+          const rank = 8 - r;
+          result.push(file + rank);
+        }
+      }
+    }
+    return result;
+  }
+
+  // Helper: set piece on a square (modifies board directly and then rebuilds FEN)
+  function setPieceAt(game, square, piece) {
+    const fileIdx = 'abcdefgh'.indexOf(square[0]);
+    const rankIdx = 8 - parseInt(square[1]);
+    const board = getBoard(game);
+    board[rankIdx][fileIdx] = piece || null;
+    // Rebuild FEN from board
+    let fen = '';
+    for (let r = 0; r < 8; r++) {
+      let empty = 0;
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (p) {
+          if (empty > 0) { fen += empty; empty = 0; }
+          fen += p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase();
+        } else {
+          empty++;
+        }
+      }
+      if (empty > 0) fen += empty;
+      if (r < 7) fen += '/';
+    }
+    // Add turn, castling, en passant, halfmove, fullmove from original
+    const parts = gameA.fen().split(' ');
+    fen += ' ' + parts.slice(1).join(' ');
+    gameB.load(fen);
+  }
+
+  // Helper: move a piece (from -> to) assuming it's legal
+  function movePiece(game, from, to) {
+    const piece = getPieceAt(game, from);
+    if (!piece) return false;
+    setPieceAt(game, from, null);
+    setPieceAt(game, to, piece);
+    return true;
+  }
+
+  // Helper: remove a piece
+  function removePiece(game, square) {
+    setPieceAt(game, square, null);
+  }
+
+  // Helper: add a piece
+  function addPiece(game, square, piece) {
+    if (getPieceAt(game, square)) return false;
+    setPieceAt(game, square, piece);
+    return true;
+  }
+
+  // Helper: get random element
+  function randomPick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  // Now apply change based on cycle (0..23)
+  let changeInfo = {
+    changeType: 'Nothing Changed',
+    changeCount: 0,
+    changedColor: 'none',
+    changedCategory: 'none',
+    oldSquare: null,
+    newSquare: null,
+    oldPiece: null,
+    newPiece: null
+  };
+
+  const cycle = changeCycle % 24;
+
+  // Collect all pieces (for random selection)
+  const allWhite = findPieces(gameB, 'w');
+  const allBlack = findPieces(gameB, 'b');
+  const allPieces = [...allWhite, ...allBlack];
+
+  // Helper to pick a piece of given color and type (if type null, any)
+  function pickPiece(color, type = null) {
+    const candidates = findPieces(gameB, color, type);
+    if (candidates.length === 0) return null;
+    return randomPick(candidates);
+  }
+
+  // Helper to find a random empty square
+  function pickEmpty() {
+    const empties = findEmptySquares(gameB);
+    if (empties.length === 0) return null;
+    return randomPick(empties);
+  }
+
+  // Helper to pick a piece and an empty square
+  function pickPieceAndEmpty(color, type = null) {
+    const piece = pickPiece(color, type);
+    if (!piece) return null;
+    const empty = pickEmpty();
+    if (!empty) return null;
+    return { piece, empty };
+  }
+
+  // Helper to pick two pieces of different colors (for swap)
+  function pickTwoPiecesDifferentColor() {
+    const w = findPieces(gameB, 'w');
+    const b = findPieces(gameB, 'b');
+    if (w.length === 0 || b.length === 0) return null;
+    const p1 = randomPick(w);
+    const p2 = randomPick(b);
+    return { p1, p2 };
+  }
+
+  // Execute change based on cycle
+  let success = false;
+  let attempts = 0;
+  while (!success && attempts < 20) {
+    attempts++;
+    success = true; // assume success, set false if fails
+
+    switch (cycle) {
+      case 0: // Nothing Changed
+        changeInfo.changeType = 'Nothing Changed';
+        changeInfo.changeCount = 0;
+        changeInfo.changedColor = 'none';
+        changeInfo.changedCategory = 'none';
+        success = true;
+        break;
+
+      case 1: { // White Pawn Move
+        const piece = pickPiece('w', 'p');
+        if (!piece) { success = false; break; }
+        // Find a legal pawn move (forward one square, empty)
+        const file = piece.square[0];
+        const rank = parseInt(piece.square[1]);
+        const forward = rank + 1;
+        if (forward > 8) { success = false; break; }
+        const target = file + forward;
+        if (getPieceAt(gameB, target)) { success = false; break; }
+        const oldPiece = { color: 'w', type: 'p' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White Pawn Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 2: { // Black Pawn Move
+        const piece = pickPiece('b', 'p');
+        if (!piece) { success = false; break; }
+        const file = piece.square[0];
+        const rank = parseInt(piece.square[1]);
+        const forward = rank - 1;
+        if (forward < 1) { success = false; break; }
+        const target = file + forward;
+        if (getPieceAt(gameB, target)) { success = false; break; }
+        const oldPiece = { color: 'b', type: 'p' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black Pawn Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 3: { // White Knight Move
+        const piece = pickPiece('w', 'n');
+        if (!piece) { success = false; break; }
+        // Try to move to a random empty square that is a knight's move away
+        const knightMoves = [
+          [1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]
+        ];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of knightMoves) {
+          const f = fromFile + dx;
+          const r = fromRank + dy;
+          if (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (!getPieceAt(gameB, sq)) targets.push(sq);
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'w', type: 'n' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White Knight Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'minor';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 4: { // Black Knight Move
+        const piece = pickPiece('b', 'n');
+        if (!piece) { success = false; break; }
+        const knightMoves = [
+          [1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]
+        ];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of knightMoves) {
+          const f = fromFile + dx;
+          const r = fromRank + dy;
+          if (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (!getPieceAt(gameB, sq)) targets.push(sq);
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'b', type: 'n' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black Knight Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'minor';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 5: { // White Bishop Move
+        const piece = pickPiece('w', 'b');
+        if (!piece) { success = false; break; }
+        // Try to slide to an empty square diagonally
+        const directions = [[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'w', type: 'b' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White Bishop Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'minor';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 6: { // Black Bishop Move
+        const piece = pickPiece('b', 'b');
+        if (!piece) { success = false; break; }
+        const directions = [[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'b', type: 'b' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black Bishop Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'minor';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 7: { // White Rook Move
+        const piece = pickPiece('w', 'r');
+        if (!piece) { success = false; break; }
+        const directions = [[1,0],[-1,0],[0,1],[0,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'w', type: 'r' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White Rook Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'major';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 8: { // Black Rook Move
+        const piece = pickPiece('b', 'r');
+        if (!piece) { success = false; break; }
+        const directions = [[1,0],[-1,0],[0,1],[0,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'b', type: 'r' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black Rook Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'major';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 9: { // White Queen Move
+        const piece = pickPiece('w', 'q');
+        if (!piece) { success = false; break; }
+        const directions = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'w', type: 'q' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White Queen Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'major';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 10: { // Black Queen Move
+        const piece = pickPiece('b', 'q');
+        if (!piece) { success = false; break; }
+        const directions = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of directions) {
+          let f = fromFile + dx, r = fromRank + dy;
+          while (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (getPieceAt(gameB, sq)) break;
+            targets.push(sq);
+            f += dx; r += dy;
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'b', type: 'q' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black Queen Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'major';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 11: { // White King Move
+        const piece = pickPiece('w', 'k');
+        if (!piece) { success = false; break; }
+        const kingMoves = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of kingMoves) {
+          const f = fromFile + dx, r = fromRank + dy;
+          if (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (!getPieceAt(gameB, sq)) targets.push(sq);
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'w', type: 'k' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'White King Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'none'; // King is not pawn/minor/major
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 12: { // Black King Move
+        const piece = pickPiece('b', 'k');
+        if (!piece) { success = false; break; }
+        const kingMoves = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+        const fromFile = 'abcdefgh'.indexOf(piece.square[0]);
+        const fromRank = parseInt(piece.square[1]);
+        const targets = [];
+        for (const [dx, dy] of kingMoves) {
+          const f = fromFile + dx, r = fromRank + dy;
+          if (f >= 0 && f < 8 && r >= 1 && r <= 8) {
+            const sq = 'abcdefgh'[f] + r;
+            if (!getPieceAt(gameB, sq)) targets.push(sq);
+          }
+        }
+        if (targets.length === 0) { success = false; break; }
+        const target = randomPick(targets);
+        const oldPiece = { color: 'b', type: 'k' };
+        movePiece(gameB, piece.square, target);
+        changeInfo.changeType = 'Black King Moved';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'none';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = target;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = oldPiece;
+        break;
+      }
+
+      case 13: { // White Pawn Removed
+        const piece = pickPiece('w', 'p');
+        if (!piece) { success = false; break; }
+        removePiece(gameB, piece.square);
+        changeInfo.changeType = 'White Pawn Removed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = null;
+        changeInfo.oldPiece = { color: 'w', type: 'p' };
+        changeInfo.newPiece = null;
+        break;
+      }
+
+      case 14: { // Black Pawn Removed
+        const piece = pickPiece('b', 'p');
+        if (!piece) { success = false; break; }
+        removePiece(gameB, piece.square);
+        changeInfo.changeType = 'Black Pawn Removed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = null;
+        changeInfo.oldPiece = { color: 'b', type: 'p' };
+        changeInfo.newPiece = null;
+        break;
+      }
+
+      case 15: { // White Piece Removed (non-pawn)
+        const piece = pickPiece('w', null);
+        if (!piece || piece.type === 'p') { success = false; break; }
+        removePiece(gameB, piece.square);
+        changeInfo.changeType = 'White Piece Removed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        const cat = (piece.type === 'n' || piece.type === 'b') ? 'minor' : 'major';
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = null;
+        changeInfo.oldPiece = { color: 'w', type: piece.type };
+        changeInfo.newPiece = null;
+        break;
+      }
+
+      case 16: { // Black Piece Removed (non-pawn)
+        const piece = pickPiece('b', null);
+        if (!piece || piece.type === 'p') { success = false; break; }
+        removePiece(gameB, piece.square);
+        changeInfo.changeType = 'Black Piece Removed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        const cat = (piece.type === 'n' || piece.type === 'b') ? 'minor' : 'major';
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = null;
+        changeInfo.oldPiece = { color: 'b', type: piece.type };
+        changeInfo.newPiece = null;
+        break;
+      }
+
+      case 17: { // White Pawn Added
+        const empty = pickEmpty();
+        if (!empty) { success = false; break; }
+        addPiece(gameB, empty, { color: 'w', type: 'p' });
+        changeInfo.changeType = 'White Pawn Added';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = null;
+        changeInfo.newSquare = empty;
+        changeInfo.oldPiece = null;
+        changeInfo.newPiece = { color: 'w', type: 'p' };
+        break;
+      }
+
+      case 18: { // Black Pawn Added
+        const empty = pickEmpty();
+        if (!empty) { success = false; break; }
+        addPiece(gameB, empty, { color: 'b', type: 'p' });
+        changeInfo.changeType = 'Black Pawn Added';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        changeInfo.changedCategory = 'pawn';
+        changeInfo.oldSquare = null;
+        changeInfo.newSquare = empty;
+        changeInfo.oldPiece = null;
+        changeInfo.newPiece = { color: 'b', type: 'p' };
+        break;
+      }
+
+      case 19: { // White Piece Added (non-pawn)
+        const empty = pickEmpty();
+        if (!empty) { success = false; break; }
+        const types = ['n','b','r','q'];
+        const type = randomPick(types);
+        addPiece(gameB, empty, { color: 'w', type });
+        changeInfo.changeType = 'White Piece Added';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'white';
+        const cat = (type === 'n' || type === 'b') ? 'minor' : 'major';
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = null;
+        changeInfo.newSquare = empty;
+        changeInfo.oldPiece = null;
+        changeInfo.newPiece = { color: 'w', type };
+        break;
+      }
+
+      case 20: { // Black Piece Added (non-pawn)
+        const empty = pickEmpty();
+        if (!empty) { success = false; break; }
+        const types = ['n','b','r','q'];
+        const type = randomPick(types);
+        addPiece(gameB, empty, { color: 'b', type });
+        changeInfo.changeType = 'Black Piece Added';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'black';
+        const cat = (type === 'n' || type === 'b') ? 'minor' : 'major';
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = null;
+        changeInfo.newSquare = empty;
+        changeInfo.oldPiece = null;
+        changeInfo.newPiece = { color: 'b', type };
+        break;
+      }
+
+      case 21: { // Piece Type Changed (pick random piece, change its type)
+        const piece = randomPick(allPieces);
+        if (!piece) { success = false; break; }
+        const types = ['p','n','b','r','q'];
+        let newType = randomPick(types.filter(t => t !== piece.type));
+        // Ensure not changing a pawn to king or vice versa (avoid illegal)
+        if (piece.type === 'k') { success = false; break; }
+        if (newType === 'k') newType = 'q'; // never change to king
+        const oldPiece = { color: piece.color, type: piece.type };
+        const newPiece = { color: piece.color, type: newType };
+        setPieceAt(gameB, piece.square, newPiece);
+        changeInfo.changeType = 'Piece Type Changed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = piece.color === 'w' ? 'white' : 'black';
+        const cat = (newType === 'n' || newType === 'b') ? 'minor' : (newType === 'p' ? 'pawn' : 'major');
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = piece.square;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = newPiece;
+        break;
+      }
+
+      case 22: { // Piece Color Changed (swap color of a piece)
+        const piece = randomPick(allPieces);
+        if (!piece) { success = false; break; }
+        const newColor = piece.color === 'w' ? 'b' : 'w';
+        const oldPiece = { color: piece.color, type: piece.type };
+        const newPiece = { color: newColor, type: piece.type };
+        setPieceAt(gameB, piece.square, newPiece);
+        changeInfo.changeType = 'Piece Color Changed';
+        changeInfo.changeCount = 1;
+        changeInfo.changedColor = 'both'; // both colors involved
+        const cat = (piece.type === 'n' || piece.type === 'b') ? 'minor' : (piece.type === 'p' ? 'pawn' : 'major');
+        changeInfo.changedCategory = cat;
+        changeInfo.oldSquare = piece.square;
+        changeInfo.newSquare = piece.square;
+        changeInfo.oldPiece = oldPiece;
+        changeInfo.newPiece = newPiece;
+        break;
+      }
+
+      case 23: { // Swap Two Pieces (different colors)
+        const pair = pickTwoPiecesDifferentColor();
+        if (!pair) { success = false; break; }
+        const { p1, p2 } = pair;
+        // Swap their squares
+        const sq1 = p1.square;
+        const sq2 = p2.square;
+        const piece1 = getPieceAt(gameB, sq1);
+        const piece2 = getPieceAt(gameB, sq2);
+        if (!piece1 || !piece2) { success = false; break; }
+        setPieceAt(gameB, sq1, piece2);
+        setPieceAt(gameB, sq2, piece1);
+        changeInfo.changeType = 'Swap Two Pieces';
+        changeInfo.changeCount = 2; // two squares changed
+        changeInfo.changedColor = 'both';
+        changeInfo.changedCategory = 'both'; // could be any
+        changeInfo.oldSquare = sq1;
+        changeInfo.newSquare = sq2;
+        changeInfo.oldPiece = piece1;
+        changeInfo.newPiece = piece2;
+        break;
+      }
+
+      default:
+        success = false;
+        break;
+    }
+
+    // If success, break loop; else try again with new random choices
+  }
+
+  if (!success) {
+    // Fallback: nothing changed
+    changeInfo.changeType = 'Nothing Changed';
+    changeInfo.changeCount = 0;
+    changeInfo.changedColor = 'none';
+    changeInfo.changedCategory = 'none';
+    changeInfo.oldSquare = null;
+    changeInfo.newSquare = null;
+    changeInfo.oldPiece = null;
+    changeInfo.newPiece = null;
+    // Ensure B is unchanged
+    gameB.load(positionAFen);
+  }
+
+  return {
+    fen: gameB.fen(),
+    changeInfo
+  };
+}
+
+// ==========================================
+// 👀 QUESTION GENERATOR – CYCLE 4 MODES
+// ==========================================
+
+function generateSpotChangeQuestion(questionCycle, changeInfo) {
+  const mode = questionCycle % 4;
+  let questionText, options, correctIndex;
+
+  if (mode === 0) {
+    // Mode 1: Did the position change?
+    questionText = 'Did the position change?';
+    const changed = changeInfo.changeCount > 0;
+    options = ['✅ Yes', '❌ No'];
+    correctIndex = changed ? 0 : 1;
+  } else if (mode === 1) {
+    // Mode 2: How many changes?
+    questionText = 'How many changes occurred?';
+    let count = changeInfo.changeCount;
+    if (count > 2) count = 2; // cap at 2 for options
+    options = ['0', '1', '2'];
+    correctIndex = count;
+  } else if (mode === 2) {
+    // Mode 3: Which color changed?
+    questionText = 'Which color changed?';
+    const colors = ['⚪ White', '⚫ Black', '⚪⚫ Both', '🚫 None'];
+    let idx;
+    if (changeInfo.changedColor === 'white') idx = 0;
+    else if (changeInfo.changedColor === 'black') idx = 1;
+    else if (changeInfo.changedColor === 'both') idx = 2;
+    else idx = 3;
+    options = colors;
+    correctIndex = idx;
+  } else { // mode === 3
+    // Mode 4: What changed?
+    questionText = 'What changed?';
+    const categories = ['♟ Pawn', '♞ Minor Piece', '♜ Major Piece', '🚫 Nothing'];
+    let idx;
+    if (changeInfo.changedCategory === 'pawn') idx = 0;
+    else if (changeInfo.changedCategory === 'minor') idx = 1;
+    else if (changeInfo.changedCategory === 'major') idx = 2;
+    else idx = 3;
+    options = categories;
+    correctIndex = idx;
+  }
+
+  return { questionText, options, correctIndex, mode };
+}
+
+// ==========================================
+// 👀 RENDER BOARD (reusable)
+// ==========================================
+
+function renderSpotChangeBoard(container, fen, highlightSquares = null) {
+  // highlightSquares: array of {square, className} or null
+  container.innerHTML = '';
+  const game = new Chess(fen);
+  const board = game.board();
+  const files = 'abcdefgh';
+  const showCoordinates =
+  container.id === 'lpSpotChangeBoardA' ||
+  container.id === 'lpSpotChangeBoardB';
+
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+      const square = files[f] + rank;
+      const cell = document.createElement('div');
+      cell.dataset.square = square;
+      const isLight = (f + rank) % 2 === 0;
+      Object.assign(cell.style, {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isLight ? '#f0d9b5' : '#b58863',
+        boxSizing: 'border-box',
+        userSelect: 'none'
+      });
+
+      // Coordinates (student boards only)
+if (showCoordinates && rank === 1) {
+  const fileLabel = document.createElement('span');
+  fileLabel.textContent = files[f];
+
+  Object.assign(fileLabel.style, {
+    position: 'absolute',
+    right: '3px',
+    bottom: '2px',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: isLight ? '#b58863' : '#f0d9b5',
+    pointerEvents: 'none'
+  });
+
+  cell.appendChild(fileLabel);
+}
+
+if (showCoordinates && f === 0) {
+  const rankLabel = document.createElement('span');
+  rankLabel.textContent = rank;
+
+  Object.assign(rankLabel.style, {
+    position: 'absolute',
+    top: '2px',
+    left: '3px',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: isLight ? '#b58863' : '#f0d9b5',
+    pointerEvents: 'none'
+  });
+
+  cell.appendChild(rankLabel);
+}
+
+      // Piece
+      const piece = board[8 - rank][f];
+      if (piece) {
+        const img = document.createElement('img');
+        img.src = getVisionPieceImage(piece.color, piece.type);
+        Object.assign(img.style, {
+          width: '88%',
+          height: '88%',
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        });
+        cell.appendChild(img);
+      }
+
+      // Highlight (if any)
+      if (highlightSquares) {
+        const hl = highlightSquares.find(h => h.square === square);
+        if (hl) {
+          cell.className = hl.className;
+        }
+      }
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+// ==========================================
+// 👀 RENDER ADMIN PANEL
+// ==========================================
+
+function renderSpotChangeAdminPanel() {
+  const questionEl = document.getElementById('lpSpotChangeAdminQuestion');
+  const boardA = document.getElementById('lpSpotChangeAdminBoardA');
+  const boardB = document.getElementById('lpSpotChangeAdminBoardB');
+  const answersEl = document.getElementById('lpSpotChangeAdminAnswers');
+  const statusEl = document.getElementById('lpSpotChangeAdminStatus');
+
+  if (!questionEl || !boardA || !boardB || !answersEl) return;
+
+  // Question
+  questionEl.textContent = spotChangeGameState.questionText || 'No question';
+
+  // Render boards
+  if (spotChangeGameState.positionA) {
+    renderSpotChangeBoard(boardA, spotChangeGameState.positionA);
+  }
+  if (spotChangeGameState.positionB) {
+    const highlightSquares = [];
+    // If revealed, add highlight classes
+    if (spotChangeGameState.revealed) {
+      const ci = spotChangeGameState.changeInfo || {};
+      // We'll compute highlights based on changeInfo
+      if (ci.oldSquare && ci.newSquare && ci.oldSquare !== ci.newSquare) {
+        highlightSquares.push({ square: ci.oldSquare, className: 'lp-sc-highlight-moved' });
+        highlightSquares.push({ square: ci.newSquare, className: 'lp-sc-highlight-moved-to' });
+      } else if (ci.oldSquare && !ci.newSquare) {
+        highlightSquares.push({ square: ci.oldSquare, className: 'lp-sc-highlight-removed' });
+      } else if (!ci.oldSquare && ci.newSquare) {
+        highlightSquares.push({ square: ci.newSquare, className: 'lp-sc-highlight-added' });
+      } else if (ci.oldSquare && ci.newSquare && ci.oldSquare === ci.newSquare) {
+        // Type or color change
+        if (ci.oldPiece && ci.newPiece && ci.oldPiece.type !== ci.newPiece.type) {
+          highlightSquares.push({ square: ci.oldSquare, className: 'lp-sc-highlight-typechange' });
+        } else if (ci.oldPiece && ci.newPiece && ci.oldPiece.color !== ci.newPiece.color) {
+          highlightSquares.push({ square: ci.oldSquare, className: 'lp-sc-highlight-colorchange' });
+        }
+      }
+      // Swap: we handle oldSquare/newSquare as the two swapped squares
+      if (ci.changeType === 'Swap Two Pieces' && ci.oldSquare && ci.newSquare) {
+        highlightSquares.push({ square: ci.oldSquare, className: 'lp-sc-highlight-swap' });
+        highlightSquares.push({ square: ci.newSquare, className: 'lp-sc-highlight-swap' });
+      }
+    }
+    renderSpotChangeBoard(boardB, spotChangeGameState.positionB, highlightSquares);
+  }
+
+  // Answers list
+  answersEl.innerHTML = '';
+  const entries = Object.entries(spotChangeGameState.answers);
+  if (entries.length === 0) {
+    answersEl.innerHTML = '<div style="opacity:.6; text-align:center; padding:10px;">Waiting for answers...</div>';
+  } else {
+    entries.forEach(([userId, data]) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.alignItems = 'center';
+      row.style.padding = '8px 10px';
+      row.style.marginBottom = '6px';
+      row.style.borderRadius = '8px';
+      row.style.fontWeight = '700';
+      const isCorrect = spotChangeGameState.revealed && data.answerIndex === spotChangeGameState.correctIndex;
+      if (spotChangeGameState.revealed) {
+        row.style.background = isCorrect ? 'rgba(34,197,94,.18)' : 'rgba(239,68,68,.18)';
+        row.style.borderLeft = isCorrect ? '5px solid #22c55e' : '5px solid #ef4444';
+      } else {
+        row.style.background = 'rgba(255,255,255,.07)';
+        row.style.borderLeft = '4px solid #777';
+      }
+      row.innerHTML = `
+        <span>${isCorrect ? '✅' : (spotChangeGameState.revealed ? '❌' : '')} ${data.username || userId}</span>
+        <span>${data.answerText || data.answerIndex}</span>
+      `;
+      answersEl.appendChild(row);
+    });
+  }
+
+  // Status
+  if (spotChangeGameState.revealed) {
+    statusEl.textContent = '✅ Revealed';
+  } else if (spotChangeGameState.redrawSent) {
+    statusEl.textContent = '⏳ Waiting for answers...';
+  } else {
+    statusEl.textContent = '🎭 Students are observing Position A...';
+  }
+}
+
+function showSpotChangeAdminPanel() {
+  document.getElementById('lpSpotChangeAdminPanel').style.display = 'block';
+  renderSpotChangeAdminPanel();
+}
+
+function hideSpotChangeAdminPanel() {
+  document.getElementById('lpSpotChangeAdminPanel').style.display = 'none';
+}
+
+function showSpotChangeStudentModal() {
+  document.getElementById('lpSpotChangeModal').style.display = 'flex';
+  // Render board A
+  const boardA = document.getElementById('lpSpotChangeBoardA');
+  if (spotChangeGameState.positionA) {
+    renderSpotChangeBoard(boardA, spotChangeGameState.positionA);
+  }
+  // Show question
+document.getElementById('lpSpotChangeQuestion').textContent =
+'Observe the position carefully...';
+  // Generate options buttons
+  const optionsContainer = document.getElementById('lpSpotChangeOptions');
+  optionsContainer.innerHTML = '';
+optionsContainer.style.display = 'none';
+  const options = spotChangeGameState.options || [];
+  options.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = opt;
+    btn.dataset.index = idx;
+    btn.style.padding = '10px 16px';
+    btn.style.background = '#3a405b';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '8px';
+    btn.style.color = 'white';
+    btn.style.fontSize = '16px';
+    btn.style.cursor = 'pointer';
+    btn.onclick = () => handleSpotChangeStudentAnswer(idx);
+    optionsContainer.appendChild(btn);
+  });
+  // Clear feedback
+document.getElementById('lpSpotChangeFeedback').textContent = '';
+
+
+// Restore Board A
+boardA.style.display = 'grid';
+boardA.style.opacity = '1';
+boardA.classList.remove('fade-out');
+boardA.classList.remove('fade-in');
+
+// Hide Board B
+const boardB = document.getElementById('lpSpotChangeBoardB');
+boardB.style.display = 'none';
+boardB.style.opacity = '0';
+boardB.classList.remove('fade-in');
+boardB.classList.remove('fade-out');
+boardA.style.display = 'grid';
+boardA.style.opacity = '1';
+}
+
+function hideSpotChangeStudentModal() {
+  document.getElementById('lpSpotChangeModal').style.display = 'none';
+}
+
+async function handleSpotChangeStudentAnswer(answerIndex) {
+  if (spotChangeGameState.locked || !spotChangeGameState.active) return;
+  spotChangeGameState.locked = true;
+  // Store answer
+  const answerText = spotChangeGameState.options[answerIndex] || '';
+  spotChangeGameState.answers[currentUserId] = {
+    username: currentUsername || 'Guest',
+    answerIndex,
+    answerText
+  };
+
+  // Disable all buttons
+  document.querySelectorAll('#lpSpotChangeOptions button').forEach(btn => btn.disabled = true);
+  document.getElementById('lpSpotChangeFeedback').innerHTML = '<div style="color:#ffd54f;font-weight:800;">✅ Answer submitted, waiting for reveal...</div>';
+
+  // Send to admin
+  if (movesChannel) {
+    await movesChannel.send({
+      type: 'broadcast',
+      event: 'spot_change_answer',
+      payload: {
+        challengeId: spotChangeGameState.challengeId,
+        userId: currentUserId,
+        username: currentUsername || 'Guest',
+        answerIndex,
+        answerText
+      }
+    });
+  }
+}
+
+// ==========================================
+// 👀 START SPOT THE CHANGE (ADMIN)
+// ==========================================
+
+async function startSpotChangeGame() {
+  if (!roomCode) {
+    showJoinBanner('Create a classroom first.', false);
+    return;
+  }
+  if (!movesChannel) return;
+
+  // Generate position A
+  const positionA = generateSpotChangePositionA();
+
+  // Generate position B based on current change cycle
+  const changeCycle = spotChangeGameState.changeCycle || 0;
+  const { fen: positionB, changeInfo } = generateSpotChangeB(positionA, changeCycle);
+  spotChangeGameState.changeCycle = (changeCycle + 1) % 24;
+
+  // Generate question based on question cycle
+  const questionCycle = spotChangeGameState.questionModeCycle || 0;
+  const question = generateSpotChangeQuestion(questionCycle, changeInfo);
+  spotChangeGameState.questionModeCycle = (questionCycle + 1) % 4;
+
+  // Store state
+  const challengeId = 'spot_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+  spotChangeGameState.active = true;
+  spotChangeGameState.challengeId = challengeId;
+  spotChangeGameState.positionA = positionA;
+  spotChangeGameState.positionB = positionB;
+  spotChangeGameState.changeInfo = changeInfo; // store for reveal
+  spotChangeGameState.questionText = question.questionText;
+  spotChangeGameState.options = question.options;
+  spotChangeGameState.correctIndex = question.correctIndex;
+  spotChangeGameState.answers = {};
+  spotChangeGameState.revealed = false;
+  spotChangeGameState.locked = false;
+  spotChangeGameState.redrawSent = false;
+
+  // Broadcast only Position A and question to students
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'spot_change_start',
+    payload: {
+      challengeId,
+      positionA,
+      questionText: question.questionText,
+      options: question.options
+    }
+  });
+
+  // Show admin panel with both boards
+  showSpotChangeAdminPanel();
+
+  showJoinBanner('🎭 Spot the Change started!', false);
+}
+
+// ==========================================
+// 👀 REDRAW (ADMIN) – reveals Position B
+// ==========================================
+
+async function redrawSpotChange() {
+  if (!spotChangeGameState.active || spotChangeGameState.redrawSent) return;
+  spotChangeGameState.redrawSent = true;
+
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'spot_change_redraw',
+    payload: {
+      challengeId: spotChangeGameState.challengeId,
+      positionB: spotChangeGameState.positionB,
+      questionText: spotChangeGameState.questionText,
+      options: spotChangeGameState.options
+    }
+  });
+
+  // Update admin status
+  document.getElementById('lpSpotChangeAdminStatus').textContent = '⏳ Waiting for student answers...';
+  document.getElementById('lpSpotChangeRevealBtn').disabled = false;
+}
+
+// ==========================================
+// 👀 REVEAL (ADMIN)
+// ==========================================
+
+async function revealSpotChange() {
+  if (!spotChangeGameState.active || spotChangeGameState.revealed) return;
+  spotChangeGameState.revealed = true;
+  spotChangeGameState.locked = true;
+
+  // Broadcast reveal with correct answer and explanation
+await movesChannel.send({
+  type: 'broadcast',
+  event: 'spot_change_reveal',
+  payload: {
+    challengeId: spotChangeGameState.challengeId,
+    correctIndex: spotChangeGameState.correctIndex,
+    explanation: generateSpotChangeExplanation(spotChangeGameState),
+    changeInfo: spotChangeGameState.changeInfo
+  }
+});
+
+  // Update admin panel with highlights
+  renderSpotChangeAdminPanel();
+  document.getElementById('lpSpotChangeAdminStatus').textContent = '✅ Revealed';
+}
+
+// ==========================================
+// 👀 RESET (ADMIN)
+// ==========================================
+
+async function resetSpotChange() {
+  if (!spotChangeGameState.active) return;
+
+  // Broadcast reset to students
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'spot_change_reset',
+    payload: { challengeId: spotChangeGameState.challengeId }
+  });
+
+  // Clear local state
+  spotChangeGameState.active = false;
+  spotChangeGameState.challengeId = null;
+  spotChangeGameState.positionA = null;
+  spotChangeGameState.positionB = null;
+  spotChangeGameState.answers = {};
+  spotChangeGameState.revealed = false;
+  spotChangeGameState.locked = false;
+  spotChangeGameState.redrawSent = false;
+
+  // Hide panels
+  hideSpotChangeAdminPanel();
+  hideSpotChangeStudentModal();
+
+  showJoinBanner('❌ Spot the Change reset', false);
+}
+
+function generateSpotChangeExplanation(state) {
+  const ci = state.changeInfo;
+  if (!ci || ci.changeType === 'Nothing Changed') {
+    return 'No changes occurred. The position remained identical.';
+  }
+  let explanation = '';
+  if (ci.oldSquare && ci.newSquare && ci.oldSquare !== ci.newSquare) {
+    const oldPieceStr = ci.oldPiece ? (ci.oldPiece.color === 'w' ? 'White' : 'Black') + ' ' + ci.oldPiece.type.toUpperCase() : '';
+    const newPieceStr = ci.newPiece ? (ci.newPiece.color === 'w' ? 'White' : 'Black') + ' ' + ci.newPiece.type.toUpperCase() : '';
+    explanation = `${oldPieceStr} moved from ${ci.oldSquare} to ${ci.newSquare}.`;
+  } else if (ci.oldSquare && !ci.newSquare) {
+    const pieceStr = ci.oldPiece ? (ci.oldPiece.color === 'w' ? 'White' : 'Black') + ' ' + ci.oldPiece.type.toUpperCase() : '';
+    explanation = `${pieceStr} was removed from ${ci.oldSquare}.`;
+  } else if (!ci.oldSquare && ci.newSquare) {
+    const pieceStr = ci.newPiece ? (ci.newPiece.color === 'w' ? 'White' : 'Black') + ' ' + ci.newPiece.type.toUpperCase() : '';
+    explanation = `${pieceStr} was added on ${ci.newSquare}.`;
+  } else if (ci.oldSquare && ci.newSquare && ci.oldSquare === ci.newSquare) {
+    if (ci.oldPiece && ci.newPiece && ci.oldPiece.type !== ci.newPiece.type) {
+      explanation = `The piece on ${ci.oldSquare} changed from ${ci.oldPiece.type.toUpperCase()} to ${ci.newPiece.type.toUpperCase()}.`;
+    } else if (ci.oldPiece && ci.newPiece && ci.oldPiece.color !== ci.newPiece.color) {
+      explanation = `The piece on ${ci.oldSquare} changed color from ${ci.oldPiece.color === 'w' ? 'White' : 'Black'} to ${ci.newPiece.color === 'w' ? 'White' : 'Black'}.`;
+    }
+  } else if (ci.changeType === 'Swap Two Pieces' && ci.oldSquare && ci.newSquare) {
+    explanation = `Two pieces were swapped: ${ci.oldSquare} ↔ ${ci.newSquare}.`;
+  }
+  if (!explanation) explanation = 'A change occurred (details not available).';
+  return explanation;
 }
 
 // ==========================================
@@ -86549,6 +87939,12 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+
+  document.getElementById('lpAskSpotChangeBtn').onclick = startSpotChangeGame;
+
+document.getElementById('lpSpotChangeRedrawBtn').onclick = redrawSpotChange;
+document.getElementById('lpSpotChangeRevealBtn').onclick = revealSpotChange;
+document.getElementById('lpSpotChangeResetBtn').onclick = resetSpotChange;
 
 
 
@@ -94905,6 +96301,223 @@ if (payload.event === "student_puzzle_completed") {
     false
   );
 
+  return;
+}
+
+// ========== SPOT THE CHANGE EVENTS ==========
+
+// spot_change_start (student)
+if (payload.event === 'spot_change_start') {
+  if (isAdmin) return;
+  const { challengeId, positionA, questionText, options } = payload.payload;
+  spotChangeGameState.active = true;
+  spotChangeGameState.challengeId = challengeId;
+  spotChangeGameState.positionA = positionA;
+  spotChangeGameState.questionText = questionText;
+  spotChangeGameState.options = options;
+  spotChangeGameState.redrawSent = false;
+  spotChangeGameState.revealed = false;
+  spotChangeGameState.locked = false;
+  spotChangeGameState.answers = {};
+  showSpotChangeStudentModal();
+  showJoinBanner('🎭 Spot the change challenge!');
+  return;
+}
+
+// spot_change_redraw (student)
+if (payload.event === 'spot_change_redraw') {
+
+  if (isAdmin) return;
+
+  console.log("Received Position B:", payload.payload);
+
+  const { positionB, questionText, options } = payload.payload;
+
+  spotChangeGameState.positionB = positionB;
+  spotChangeGameState.questionText = questionText;
+  spotChangeGameState.options = options;
+
+  const boardA = document.getElementById('lpSpotChangeBoardA');
+  const boardB = document.getElementById('lpSpotChangeBoardB');
+
+  // Fade out Board A
+  boardA.style.transition = "opacity .4s";
+  boardA.style.opacity = "0";
+
+  setTimeout(() => {
+
+    // Hide Board A
+    boardA.style.display = "none";
+
+    // Keep screen blank for 1.5 seconds
+    setTimeout(() => {
+
+      // Show Board B
+      boardB.style.display = "grid";
+      boardB.style.opacity = "0";
+
+      renderSpotChangeBoard(boardB, positionB);
+
+      requestAnimationFrame(() => {
+        boardB.style.transition = "opacity .4s";
+        boardB.style.opacity = "1";
+      });
+
+      document.getElementById("lpSpotChangeQuestion").textContent = questionText;
+
+      const optionsContainer =
+document.getElementById('lpSpotChangeOptions');
+
+optionsContainer.style.display = 'flex';
+
+      document
+        .querySelectorAll("#lpSpotChangeOptions button")
+        .forEach(btn => btn.disabled = false);
+
+    }, 1500);   // <-- Hidden for 1.5 seconds
+
+  }, 400);      // <-- Fade-out time
+
+  return;
+}
+
+// spot_change_answer (admin)
+if (payload.event === 'spot_change_answer') {
+  if (!isAdmin) return;
+  const { challengeId, userId, username, answerIndex, answerText } = payload.payload;
+  if (challengeId !== spotChangeGameState.challengeId) return;
+  spotChangeGameState.answers[userId] = { username, answerIndex, answerText };
+  renderSpotChangeAdminPanel();
+  return;
+}
+
+// spot_change_reveal (student)
+if (payload.event === 'spot_change_reveal') {
+  if (isAdmin) return;
+  const {
+  correctIndex,
+  explanation,
+  changeInfo
+} = payload.payload;
+  // Show correct/incorrect feedback
+  const feedback = document.getElementById('lpSpotChangeFeedback');
+  const userAnswer = spotChangeGameState.answers[currentUserId];
+  const isCorrect = userAnswer && userAnswer.answerIndex === correctIndex;
+  feedback.innerHTML = `
+  
+    <div style="color:${isCorrect ? '#22c55e' : '#ef4444'}; font-weight:800; font-size:18px;">
+      ${isCorrect ? '✅ Correct!' : '❌ Wrong'}
+    </div>
+    <div style="margin-top:8px; background:rgba(255,255,255,.05); padding:10px; border-radius:8px; text-align:left;">
+      ${explanation}
+    </div>
+  `;
+  // Highlight changes on board B (optional)
+  const highlights = [];
+
+if (changeInfo) {
+
+  if (
+    changeInfo.oldSquare &&
+    changeInfo.newSquare &&
+    changeInfo.oldSquare !== changeInfo.newSquare
+  ) {
+    highlights.push({
+      square: changeInfo.oldSquare,
+      className: "lp-sc-highlight-moved"
+    });
+
+    highlights.push({
+      square: changeInfo.newSquare,
+      className: "lp-sc-highlight-moved-to"
+    });
+  }
+
+  else if (
+    changeInfo.oldSquare &&
+    !changeInfo.newSquare
+  ) {
+    highlights.push({
+      square: changeInfo.oldSquare,
+      className: "lp-sc-highlight-removed"
+    });
+  }
+
+  else if (
+    !changeInfo.oldSquare &&
+    changeInfo.newSquare
+  ) {
+    highlights.push({
+      square: changeInfo.newSquare,
+      className: "lp-sc-highlight-added"
+    });
+  }
+
+  else if (
+    changeInfo.oldSquare &&
+    changeInfo.newSquare &&
+    changeInfo.oldSquare === changeInfo.newSquare
+  ) {
+
+    if (
+      changeInfo.oldPiece &&
+      changeInfo.newPiece &&
+      changeInfo.oldPiece.type !== changeInfo.newPiece.type
+    ) {
+
+      highlights.push({
+        square: changeInfo.oldSquare,
+        className: "lp-sc-highlight-typechange"
+      });
+
+    }
+
+    else if (
+      changeInfo.oldPiece &&
+      changeInfo.newPiece &&
+      changeInfo.oldPiece.color !== changeInfo.newPiece.color
+    ) {
+
+      highlights.push({
+        square: changeInfo.oldSquare,
+        className: "lp-sc-highlight-colorchange"
+      });
+
+    }
+
+  }
+
+  if (
+    changeInfo.changeType === "Swap Two Pieces"
+  ) {
+
+    highlights.push({
+      square: changeInfo.oldSquare,
+      className: "lp-sc-highlight-swap"
+    });
+
+    highlights.push({
+      square: changeInfo.newSquare,
+      className: "lp-sc-highlight-swap"
+    });
+
+  }
+
+  renderSpotChangeBoard(
+    document.getElementById("lpSpotChangeBoardB"),
+    spotChangeGameState.positionB,
+    highlights
+  );
+
+}
+  
+}
+
+// spot_change_reset (student)
+if (payload.event === 'spot_change_reset') {
+  if (isAdmin) return;
+  spotChangeGameState.active = false;
+  hideSpotChangeStudentModal();
   return;
 }
 
@@ -110946,6 +112559,54 @@ cursor:pointer;
     <div id="lpThreatGameBoard" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden;"></div>
     <div id="lpThreatGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
   </div>
+</div>
+
+
+<!-- ==========================================
+     👀 SPOT THE CHANGE – STUDENT MODAL
+=========================================== -->
+<div id="lpSpotChangeModal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.48); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+  <div style="width:min(92vw,560px); background:#1d1f31; border:2px solid #8b9dc3; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">🎭 Spot the Change</div>
+    <div id="lpSpotChangeQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Memorize Position A...</div>
+    <!-- Board A -->
+    <div id="lpSpotChangeBoardA" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden; transition: opacity 0.4s;"></div>
+    <!-- Board B (hidden initially) -->
+    <div id="lpSpotChangeBoardB" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:10px auto 0; border:3px solid #444; border-radius:8px; overflow:hidden; display:none; opacity:0; transition: opacity 0.4s;"></div>
+    <!-- Answer buttons -->
+    <div id="lpSpotChangeOptions" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:15px 0;"></div>
+    <div id="lpSpotChangeFeedback" style="min-height:45px; font-weight:700;"></div>
+   
+  </div>
+</div>
+
+
+<!-- ==========================================
+     👀 SPOT THE CHANGE – ADMIN PANEL
+=========================================== -->
+<div id="lpSpotChangeAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:300px; z-index:99998; background:#1d1f31; border:2px solid #8b9dc3; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white; max-height:80vh; overflow-y:auto;">
+  <div style="font-size:19px; font-weight:800; margin-bottom:12px;">🎭 Spot the Change</div>
+  <!-- Question -->
+  <div id="lpSpotChangeAdminQuestion" style="font-weight:700; margin-bottom:12px; text-align:center; background:rgba(255,255,255,.05); padding:8px; border-radius:8px;"></div>
+  <!-- Two mini boards -->
+  <div style="display:flex; gap:10px; justify-content:center; margin-bottom:12px;">
+    <div style="text-align:center; font-size:12px; opacity:.7;">A</div>
+    <div style="text-align:center; font-size:12px; opacity:.7;">B</div>
+  </div>
+  <div style="display:flex; gap:10px; justify-content:center;">
+    <div id="lpSpotChangeAdminBoardA" style="width:120px; height:120px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); border:2px solid #8b9dc3; border-radius:5px; overflow:hidden;"></div>
+    <div id="lpSpotChangeAdminBoardB" style="width:120px; height:120px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); border:2px solid #8b9dc3; border-radius:5px; overflow:hidden;"></div>
+  </div>
+  <!-- Status -->
+  <div id="lpSpotChangeAdminStatus" style="margin:12px 0; font-weight:700; text-align:center;">Waiting for students...</div>
+  <!-- Buttons -->
+  <div style="display:flex; flex-direction:column; gap:6px;">
+    <button id="lpSpotChangeRedrawBtn" style="width:100%; padding:10px; background:#f59e0b; border:1px solid rgba(255,255,255,.85); border-radius:8px; color:white; font-weight:800; cursor:pointer;">🔄 Redraw</button>
+    <button id="lpSpotChangeRevealBtn" style="width:100%; padding:10px; background:#4caf50; border:1px solid rgba(255,255,255,.85); border-radius:8px; color:white; font-weight:800; cursor:pointer;">✅ Reveal</button>
+    <button id="lpSpotChangeResetBtn" style="width:100%; padding:10px; background:#3b82f6; border:1px solid rgba(255,255,255,.85); border-radius:8px; color:white; font-weight:800; cursor:pointer;">❌ Reset</button>
+  </div>
+  <!-- Student Answers -->
+  <div id="lpSpotChangeAdminAnswers" style="margin-top:14px; max-height:200px; overflow-y:auto; overflow-x:hidden; padding-right:4px;"></div>
 </div>
 
 <script>
