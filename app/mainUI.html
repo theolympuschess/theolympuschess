@@ -27022,6 +27022,18 @@ body.student-view #lpStudentsContainer {
   margin-top:8px;
 }
 
+/* ⚔️ ASK THREAT — muted deep crimson */
+#lpAskThreatBtn {
+  background: #7b2f2f !important;
+  color: #fff5f5 !important;
+  border: 1px solid #a34a4a !important;
+}
+
+#lpAskThreatBtn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
 /* ==========================================
    👁 ASK VISION — MEMORY BLINK
 ========================================== */
@@ -31887,7 +31899,7 @@ class="lp-admin-btn"
   💎 Ask Memory
 </button>
 
-
+<button id="lpAskThreatBtn" type="button" data-role="admin-only" class="lp-admin-btn">🚨 Ask Threat</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -82994,6 +83006,293 @@ let squareGameState = {
 };
 
 // ==========================================
+// ⚔️ ASK THREAT — ISOLATED STATE
+// ==========================================
+
+let threatGameState = {
+
+  active: false,
+  challengeId: null,
+
+  // Type of question: "threat" or "hanging"
+  questionType: null,
+
+  // Piece type we are asking about: "p","n","b","r","q"
+  pieceType: null,
+
+  // Which side's pieces the students must find
+color: null, // "w" | "b"
+
+  // FEN of the position
+  fen: null,
+
+  // All pieces (as objects) for rendering & attack detection
+  pieces: [],
+
+  // The correct square (the piece that satisfies the condition)
+  correctSquare: null,
+
+  // Student answers: { userId: { username, square } }
+  answers: {},
+
+  // Student's own selected square (for UI)
+  selectedSquare: null,
+
+  // Admin controls
+ 
+  revealed: false,
+  locked: false,
+
+  // Cycling
+  questionCycle: 0,           // 0 = Threat, 1 = Hanging
+  threatPieceCycle: 0,        // index into THREAT_PIECE_ORDER
+  hangingPieceCycle: 0,       // index into HANGING_PIECE_ORDER
+};
+
+// Piece types to cycle through (no kings)
+const THREAT_PIECE_ORDER = ['p','n','b','r','q'];
+const HANGING_PIECE_ORDER = ['p','n','b','r','q'];
+
+// ==========================================
+// ⚔️ THREAT / HANGING DETECTION HELPERS
+// ==========================================
+
+// Convert a FEN string to an array of piece objects { type, color, square }
+function fenToPieces(fen) {
+  const pieces = [];
+  const rows = fen.split(' ')[0].split('/');
+  const files = 'abcdefgh';
+  for (let r = 0; r < 8; r++) {
+    let fileIndex = 0;
+    for (const char of rows[r]) {
+      if (char >= '1' && char <= '8') {
+        fileIndex += parseInt(char, 10);
+      } else {
+        const color = char === char.toUpperCase() ? 'w' : 'b';
+        const type = char.toLowerCase();
+        const square = files[fileIndex] + (8 - r);
+        pieces.push({ type, color, square });
+        fileIndex++;
+      }
+    }
+  }
+  return pieces;
+}
+
+// Check if a given square is attacked by any piece of a given color
+function isSquareAttackedByColor(square, attackerColor, pieces) {
+  // Reuse the safeIsSquareAttacked function (already in your code)
+  // It requires enemyPieces array and allPieces.
+  const enemies = pieces.filter(p => p.color === attackerColor);
+  return safeIsSquareAttacked(square, enemies, pieces);
+}
+
+// Check if a square is defended by friendly pieces (any friendly piece attacks it)
+function isSquareDefended(square, defenderColor, pieces) {
+  const defenders = pieces.filter(p => p.color === defenderColor);
+  return safeIsSquareAttacked(square, defenders, pieces);
+}
+
+// Find all threatened pieces of a given color (attacked by enemy)
+function findThreatenedPieces(fen, color) {
+  const pieces = fenToPieces(fen);
+  const enemyColor = color === 'w' ? 'b' : 'w';
+  const threatened = [];
+  for (const piece of pieces) {
+    if (piece.color !== color) continue;
+    if (isSquareAttackedByColor(piece.square, enemyColor, pieces)) {
+      threatened.push(piece.square);
+    }
+  }
+  return threatened;
+}
+
+// Find all hanging pieces of a given color (attacked and NOT defended)
+function findHangingPieces(fen, color) {
+  const pieces = fenToPieces(fen);
+  const enemyColor = color === 'w' ? 'b' : 'w';
+  const hanging = [];
+  for (const piece of pieces) {
+    if (piece.color !== color) continue;
+    if (isSquareAttackedByColor(piece.square, enemyColor, pieces)) {
+      // Check if defended by any friendly piece
+      if (!isSquareDefended(piece.square, color, pieces)) {
+        hanging.push(piece.square);
+      }
+    }
+  }
+  return hanging;
+}
+
+// ==========================================
+// ⚔️ GENERATE A VALID THREAT CHALLENGE
+// ==========================================
+
+function generateThreatChallenge() {
+
+  const MAX_ATTEMPTS = 200;
+  let bestChallenge = null;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+
+    const game = new Chess();
+
+    // Rich middlegame
+    const moveCount = 40 + Math.floor(Math.random() * 31);
+
+    for (let i = 0; i < moveCount; i++) {
+
+      const moves = game.moves();
+
+      if (!moves.length) break;
+
+      const move =
+        moves[Math.floor(Math.random() * moves.length)];
+
+      game.move(move);
+
+      // Too many captures = skip
+      if (
+        game.history({ verbose: true })
+          .filter(m => m.captured).length > 15
+      ) {
+        break;
+      }
+
+    }
+
+    // Reject checks
+    if (game.in_check()) continue;
+
+    // Reject finished games
+    if (
+      game.in_checkmate() ||
+      game.in_stalemate() ||
+      game.in_draw()
+    ) {
+      continue;
+    }
+
+    const fen = game.fen();
+
+    const pieces = fenToPieces(fen);
+
+    // Rich middlegames only
+    const whiteCount =
+      pieces.filter(p => p.color === "w").length;
+
+    const blackCount =
+      pieces.filter(p => p.color === "b").length;
+
+    if (whiteCount < 8) continue;
+    if (blackCount < 8) continue;
+
+    // Random side
+    const color =
+      Math.random() < 0.5 ? "w" : "b";
+
+    const isThreat =
+      threatGameState.questionCycle === 0;
+
+    let pieceType;
+    let candidates = [];
+
+    if (isThreat) {
+
+      pieceType =
+        THREAT_PIECE_ORDER[
+          threatGameState.threatPieceCycle %
+          THREAT_PIECE_ORDER.length
+        ];
+
+      const threatened =
+        findThreatenedPieces(fen, color);
+
+      candidates =
+        threatened.filter(square => {
+
+          const piece =
+            pieces.find(p => p.square === square);
+
+          return piece &&
+                 piece.type === pieceType;
+
+        });
+
+    } else {
+
+      pieceType =
+        HANGING_PIECE_ORDER[
+          threatGameState.hangingPieceCycle %
+          HANGING_PIECE_ORDER.length
+        ];
+
+      const hanging =
+        findHangingPieces(fen, color);
+
+      candidates =
+        hanging.filter(square => {
+
+          const piece =
+            pieces.find(p => p.square === square);
+
+          return piece &&
+                 piece.type === pieceType;
+
+        });
+
+    }
+
+    if (candidates.length !== 1)
+      continue;
+
+    const challenge = {
+
+      fen,
+
+      color,
+
+      questionType:
+        isThreat
+        ? "threat"
+        : "hanging",
+
+      pieceType,
+
+      correctSquare:
+        candidates[0],
+
+      pieces,
+
+      challengeId:
+        "threat_" +
+        Date.now().toString(36) +
+        "_" +
+        Math.random()
+          .toString(36)
+          .slice(2,8)
+
+    };
+
+    const legalMoves =
+      game.moves().length;
+
+    if (legalMoves < 20)
+      continue;
+
+    if (!bestChallenge)
+      bestChallenge = challenge;
+
+    if (legalMoves > 10)
+      return challenge;
+
+  }
+
+  return bestChallenge;
+
+}
+
+// ==========================================
 // 🛡️ ASK SAFE — ISOLATED STATE
 // ==========================================
 
@@ -84814,6 +85113,495 @@ if (
 }
 
 // ==========================================
+// ⚔️ ASK THREAT — ADMIN START
+// ==========================================
+
+async function askThreatGame() {
+  if (!isAdmin) return;
+  if (!movesChannel) {
+    showToast('❌ Classroom is not ready');
+    return;
+  }
+
+  // Generate a challenge
+  const challenge = generateThreatChallenge();
+  if (!challenge) {
+    showToast('❌ Could not generate a valid Threat challenge');
+    return;
+  }
+
+  // Store authoritative state
+  threatGameState.active = true;
+  threatGameState.challengeId = challenge.challengeId;
+  threatGameState.fen = challenge.fen;
+  threatGameState.pieces = challenge.pieces;
+  threatGameState.questionType = challenge.questionType;
+  threatGameState.pieceType = challenge.pieceType;
+  threatGameState.correctSquare = challenge.correctSquare;
+  threatGameState.color =
+challenge.color;
+  threatGameState.answers = {};
+  threatGameState.selectedSquare = null;
+  
+  threatGameState.revealed = false;
+  threatGameState.locked = false;
+
+  // Advance cycles for next time
+  if (threatGameState.questionCycle === 0) {
+    // Threat cycle: advance threatPieceCycle
+    threatGameState.threatPieceCycle =
+      (threatGameState.threatPieceCycle + 1) % THREAT_PIECE_ORDER.length;
+  } else {
+    // Hanging cycle: advance hangingPieceCycle
+    threatGameState.hangingPieceCycle =
+      (threatGameState.hangingPieceCycle + 1) % HANGING_PIECE_ORDER.length;
+  }
+  // Alternate question type
+  threatGameState.questionCycle = (threatGameState.questionCycle + 1) % 2;
+
+  // Broadcast to students (do NOT send correctSquare)
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'threat_game_start',
+    payload: {
+      challengeId: challenge.challengeId,
+      fen: challenge.fen,
+      pieces: challenge.pieces,
+      questionType: challenge.questionType,
+      pieceType: challenge.pieceType,
+      color: challenge.color,
+    }
+  });
+
+  // Show admin panel
+  showThreatAdminPanel();
+
+  showJoinBanner('🚨 Threat Challenge started!', false);
+}
+
+// ==========================================
+// ⚔️ ADMIN — RENDER MINI BOARD
+// ==========================================
+
+function renderThreatAdminBoard() {
+  const board = document.getElementById('lpThreatAdminBoard');
+  if (!board) return;
+
+  board.innerHTML = '';
+  const files = 'abcdefgh';
+  const piecesBySquare = {};
+  threatGameState.pieces.forEach(p => {
+    piecesBySquare[p.square] = p;
+  });
+
+  // Render from white perspective (rank 8 to 1, file a to h)
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+      const square = files[f] + rank;
+      const cell = document.createElement('div');
+      cell.dataset.square = square;
+      const isLight = (f + rank) % 2 === 0;
+      Object.assign(cell.style, {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isLight ? '#f0d9b5' : '#b58863',
+        boxSizing: 'border-box',
+        userSelect: 'none',
+      });
+
+      const piece = piecesBySquare[square];
+      if (piece) {
+        const img = document.createElement('img');
+        img.src = getVisionPieceImage(piece.color, piece.type);
+        Object.assign(img.style, {
+          width: '88%',
+          height: '88%',
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        });
+        cell.appendChild(img);
+      }
+
+      // =====================================
+// Correct Answer / Student Answers
+// =====================================
+
+const answer = Object.values(
+    threatGameState.answers
+).find(a => a.square === square);
+
+// After reveal always highlight the correct square
+if (
+    threatGameState.revealed &&
+    square === threatGameState.correctSquare
+) {
+
+    cell.style.outline = "5px solid #22C55E";
+    cell.style.outlineOffset = "-5px";
+    cell.style.boxShadow =
+        "inset 0 0 18px #22C55E";
+
+}
+
+// Student selected this square
+else if (answer) {
+
+    let color = "#FFD600";
+
+    if (threatGameState.revealed) {
+        color = "#EF4444";
+    }
+
+    cell.style.outline = `5px solid ${color}`;
+    cell.style.outlineOffset = "-5px";
+    cell.style.boxShadow =
+        `inset 0 0 18px ${color}`;
+
+}
+
+      board.appendChild(cell);
+    }
+  }
+}
+
+// ==========================================
+// ⚔️ ADMIN — RENDER ANSWERS LIST
+// ==========================================
+
+function renderThreatAdminAnswers() {
+  const list = document.getElementById('lpThreatAdminAnswers');
+  if (!list) return;
+
+  list.innerHTML = '';
+  const entries = Object.entries(threatGameState.answers);
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="opacity:.6; text-align:center; padding:10px;">Waiting for answers...</div>`;
+    return;
+  }
+
+  entries.forEach(([userId, data]) => {
+    const row = document.createElement('div');
+    const isCorrect = data.square === threatGameState.correctSquare;
+    Object.assign(row.style, {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '8px 10px',
+      marginBottom: '6px',
+      borderRadius: '8px',
+      fontWeight: '700',
+      background: !threatGameState.revealed
+        ? 'rgba(255,255,255,.07)'
+        : isCorrect
+          ? 'rgba(34,197,94,.18)'
+          : 'rgba(239,68,68,.18)',
+      borderLeft: !threatGameState.revealed
+        ? '4px solid #777'
+        : isCorrect
+          ? '5px solid #22c55e'
+          : '5px solid #ef4444',
+    });
+    row.innerHTML = `
+      <span>${threatGameState.revealed ? (isCorrect ? '✅ ' : '❌ ') : ''}${data.username || userId}</span>
+      <span>${data.square?.toLowerCase() || '?'}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ==========================================
+// ⚔️ ADMIN — SHOW PANEL
+// ==========================================
+
+function showThreatAdminPanel() {
+  const panel = document.getElementById('lpThreatAdminPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+
+  const status = document.getElementById('lpThreatAdminStatus');
+  if (status) {
+    const typeName = threatGameState.questionType === 'threat' ? 'Threatened' : 'Hanging';
+    const pieceName = { p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen' }[threatGameState.pieceType] || 'Piece';
+    const side =
+  threatGameState.color === "w"
+    ? "⚪ White Pieces"
+    : "⚫ Black Pieces";
+
+status.innerHTML = `
+  <div style="
+      font-size:18px;
+      font-weight:800;
+      margin-bottom:6px;
+  ">
+      ${side}
+  </div>
+
+  <div style="
+      font-size:16px;
+      font-weight:700;
+      color:#ffd966;
+  ">
+      ⚔️ Find the ${typeName} ${pieceName}
+  </div>
+
+  <div style="
+      margin-top:8px;
+      opacity:.75;
+      font-size:13px;
+  ">
+      Waiting for students...
+  </div>
+`;
+  }
+
+  renderThreatAdminBoard();
+  renderThreatAdminAnswers();
+}
+
+// ==========================================
+// ⚔️ STUDENT MODAL — SHOW GAME
+// ==========================================
+
+function showThreatGameModal() {
+  const modal = document.getElementById('lpThreatGameModal');
+  const board = document.getElementById('lpThreatGameBoard');
+  const question = document.getElementById('lpThreatGameQuestion');
+  const feedback = document.getElementById('lpThreatGameFeedback');
+
+  if (!modal || !board) return;
+
+  const typeName = threatGameState.questionType === 'threat' ? 'threatened' : 'hanging';
+  const pieceName = { p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen' }[threatGameState.pieceType] || 'Piece';
+  if (question) {
+    const side =
+
+threatGameState.color==="w"
+
+?
+
+"White"
+
+:
+
+"Black";
+
+question.innerHTML =
+
+`
+<div style="
+font-size:22px;
+font-weight:800;
+margin-bottom:8px;
+">
+
+${side} to Find
+
+</div>
+
+<div>
+
+Find the
+
+${typeName}
+
+${pieceName}
+
+</div>
+
+`;
+  }
+
+if (feedback) {
+
+    feedback.textContent =
+    "🎯 Click the threatened / hanging piece.";
+
+}
+
+  board.innerHTML = '';
+  const files = 'abcdefgh';
+  const piecesBySquare = {};
+  threatGameState.pieces.forEach(p => {
+    piecesBySquare[p.square] = p;
+  });
+
+  // White perspective
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+      const square = files[f] + rank;
+      const cell = document.createElement('div');
+      cell.dataset.square = square;
+      const isLight = (f + rank) % 2 === 0;
+      Object.assign(cell.style, {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isLight ? '#f0d9b5' : '#b58863',
+        boxSizing: 'border-box',
+        userSelect: 'none',
+        cursor:
+!threatGameState.locked &&
+!threatGameState.revealed
+?
+'pointer'
+:
+'default',
+      });
+
+      // Show piece if not hidden
+      const piece = piecesBySquare[square];
+     if (piece) {
+        const img = document.createElement('img');
+        img.src = getVisionPieceImage(piece.color, piece.type);
+        Object.assign(img.style, {
+          width: '86%',
+          height: '86%',
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none',
+        });
+        cell.appendChild(img);
+      }
+
+      // Click handler (only when hidden and not locked)
+      cell.onclick = () => {
+        if (
+    !threatGameState.locked &&
+    !threatGameState.revealed
+) {
+          handleThreatGameAnswer(square, cell);
+        }
+      };
+
+      board.appendChild(cell);
+    }
+  }
+
+  modal.style.display = 'flex';
+}
+
+// ==========================================
+// ⚔️ STUDENT — ANSWER HANDLER
+// ==========================================
+
+function handleThreatGameAnswer(square, cell) {
+  if (!threatGameState.active || threatGameState.locked || threatGameState.revealed) return;
+
+  threatGameState.locked = true;
+  threatGameState.selectedSquare = square;
+
+  // Highlight selection (yellow)
+  cell.style.outline = '6px solid #FFD600';
+  cell.style.outlineOffset = '-6px';
+  cell.style.boxShadow = 'inset 0 0 28px rgba(255,214,0,.9)';
+
+  const feedback = document.getElementById('lpThreatGameFeedback');
+  if (feedback) {
+    feedback.innerHTML = `
+      <div style="color:#ffd54f;font-weight:800;">🔒 Answer submitted: ${square.toLowerCase()}</div>
+      <div style="margin-top:4px;">Waiting for Coach to reveal...</div>
+    `;
+  }
+
+  // Send to admin
+  if (currentUserId && movesChannel) {
+    movesChannel.send({
+      type: 'broadcast',
+      event: 'threat_game_answer',
+      payload: {
+        challengeId: threatGameState.challengeId,
+        userId: currentUserId,
+        username: currentUsername || 'Guest',
+        square,
+      }
+    });
+  }
+}
+
+// ==========================================
+// ⚔️ ADMIN — REVEAL ANSWER
+// ==========================================
+
+document.getElementById('lpThreatRevealBtn')?.addEventListener('click', async () => {
+  if (!threatGameState.active || threatGameState.revealed || !threatGameState.correctSquare) return;
+
+  threatGameState.revealed = true;
+  threatGameState.locked = true;
+
+  // Update admin UI
+  renderThreatAdminBoard();
+  renderThreatAdminAnswers();
+
+  // Broadcast correct square
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'threat_game_reveal',
+    payload: {
+      challengeId: threatGameState.challengeId,
+      correctSquare: threatGameState.correctSquare,
+    }
+  });
+
+  const status = document.getElementById('lpThreatAdminStatus');
+  if (status) {
+    status.innerHTML = `
+      🔓 Answer Revealed<br>
+      <span style="color:#22c55e;font-weight:800;">Correct: ${threatGameState.correctSquare.toLowerCase()}</span>
+    `;
+  }
+});
+
+// ==========================================
+// ⚔️ ADMIN — RESET / EXIT
+// ==========================================
+
+document.getElementById('lpThreatResetBtn')?.addEventListener('click', async () => {
+  if (!threatGameState.active) return;
+
+  // Tell students to close
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'threat_game_reset',
+    payload: { challengeId: threatGameState.challengeId }
+  });
+
+  resetThreatGame();
+});
+
+function resetThreatGame() {
+  threatGameState.active = false;
+  threatGameState.challengeId = null;
+  threatGameState.fen = null;
+  threatGameState.pieces = [];
+  threatGameState.questionType = null;
+  threatGameState.pieceType = null;
+  threatGameState.correctSquare = null;
+  threatGameState.answers = {};
+  threatGameState.selectedSquare = null;
+  
+  threatGameState.revealed = false;
+  threatGameState.locked = false;
+
+  // Close student modal
+  const modal = document.getElementById('lpThreatGameModal');
+  if (modal) modal.style.display = 'none';
+  // Close admin panel
+  const panel = document.getElementById('lpThreatAdminPanel');
+  if (panel) panel.style.display = 'none';
+  // Clear board
+  const board = document.getElementById('lpThreatGameBoard');
+  if (board) board.innerHTML = '';
+  const adminBoard = document.getElementById('lpThreatAdminBoard');
+  if (adminBoard) adminBoard.innerHTML = '';
+  const answers = document.getElementById('lpThreatAdminAnswers');
+  if (answers) answers.innerHTML = '';
+}
+
+// ==========================================
 // 🛡️ ASK SAFE — ADMIN START
 // ==========================================
 
@@ -85761,6 +86549,10 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+
+
+
+    document.getElementById('lpAskThreatBtn')?.addEventListener('click', askThreatGame);
 
   document.getElementById("lpAskMemoryBtn").onclick =
   askMemoryGame;
@@ -86751,6 +87543,7 @@ lpFilterMainBtn?.addEventListener(
 
   }
 );
+
 
 // ===============================
 // PREVENT CLOSE
@@ -94112,6 +94905,122 @@ if (payload.event === "student_puzzle_completed") {
     false
   );
 
+  return;
+}
+
+// ==========================================
+// ⚔️ THREAT GAME EVENTS
+// ==========================================
+
+if (payload.event === 'threat_game_start') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  if (!data.challengeId || !data.fen || !Array.isArray(data.pieces)) return;
+
+  threatGameState.active = true;
+  threatGameState.challengeId = data.challengeId;
+  threatGameState.fen = data.fen;
+  threatGameState.pieces = data.pieces;
+  threatGameState.questionType = data.questionType;
+  threatGameState.pieceType = data.pieceType;
+  threatGameState.color =
+data.color;
+  threatGameState.correctSquare = null; // unknown to student
+  threatGameState.answers = {};
+  threatGameState.selectedSquare = null;
+  
+  threatGameState.revealed = false;
+  threatGameState.locked = false;
+
+  showThreatGameModal();
+  showJoinBanner('🚨 Find the Threatened / Hanging Piece!');
+  return;
+}
+
+
+
+if (payload.event === 'threat_game_answer') {
+  if (!isAdmin) return;
+  const data = payload.payload;
+  if (!data.challengeId || !data.userId || !data.square) return;
+  if (data.challengeId !== threatGameState.challengeId) return;
+  if (threatGameState.answers[data.userId]) return; // one answer per student
+
+  threatGameState.answers[data.userId] = {
+    username: data.username || 'Student',
+    square: data.square,
+  };
+
+  renderThreatAdminAnswers();
+  // Optionally highlight the selected square on admin board
+  renderThreatAdminBoard(); // will re-render with student highlights
+
+  showJoinBanner(`🙋 ${data.username || 'Student'} answered ${data.square.toLowerCase()}`, false);
+  return;
+}
+
+if (payload.event === 'threat_game_reveal') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== threatGameState.challengeId) return;
+  threatGameState.correctSquare = data.correctSquare;
+  threatGameState.revealed = true;
+  threatGameState.locked = true;
+
+  // Show result on student board
+  const board = document.getElementById('lpThreatGameBoard');
+  const feedback = document.getElementById('lpThreatGameFeedback');
+  if (board) {
+    // Show all pieces again
+    board.querySelectorAll('img').forEach(img => img.style.display = 'block');
+    // Highlight correct square
+    const correctCell = board.querySelector(`[data-square="${data.correctSquare}"]`);
+    if (correctCell) {
+      correctCell.style.outline = '6px solid #22C55E';
+      correctCell.style.outlineOffset = '-6px';
+      correctCell.style.boxShadow = 'inset 0 0 32px rgba(34,197,94,.95)';
+    }
+    // Highlight wrong if student answered
+    const selected = threatGameState.selectedSquare;
+    if (selected && selected !== data.correctSquare) {
+      const wrongCell = board.querySelector(`[data-square="${selected}"]`);
+      if (wrongCell) {
+        wrongCell.style.outline = '6px solid #EF4444';
+        wrongCell.style.outlineOffset = '-6px';
+        wrongCell.style.boxShadow = 'inset 0 0 28px rgba(239,68,68,.9)';
+      }
+    }
+    // Lock all clicks
+    board.querySelectorAll('[data-square]').forEach(c => c.style.cursor = 'default');
+  }
+
+  if (feedback) {
+    const correct = threatGameState.selectedSquare === data.correctSquare;
+    if (correct) {
+      feedback.innerHTML = `
+        <div style="color:#22c55e;font-size:18px;font-weight:800;">🎉 Correct!</div>
+        <div>✅ The piece was on ${data.correctSquare.toLowerCase()}</div>
+      `;
+    } else if (threatGameState.selectedSquare) {
+      feedback.innerHTML = `
+        <div style="color:#ef4444;font-weight:800;">❌ Your answer: ${threatGameState.selectedSquare.toLowerCase()}</div>
+        <div style="margin-top:5px;font-weight:700;">✅ Correct: ${data.correctSquare.toLowerCase()}</div>
+      `;
+    } else {
+      feedback.innerHTML = `
+        <div style="color:#fbbf24;font-weight:800;">⏳ No Answer</div>
+        <div style="margin-top:5px;font-weight:700;">✅ Correct: ${data.correctSquare.toLowerCase()}</div>
+      `;
+    }
+  }
+  return;
+}
+
+if (payload.event === 'threat_game_reset') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId && data.challengeId !== threatGameState.challengeId) return;
+  resetThreatGame();
   return;
 }
 
@@ -110010,7 +110919,34 @@ cursor:pointer;
 
 </div>
 
+<!-- ========================================== -->
+<!-- ⚔️ ASK THREAT — ADMIN PANEL                -->
+<!-- ========================================== -->
+<div id="lpThreatAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:280px; z-index:99998; background:#1d1f31; border:2px solid #ffaa33; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white;">
+  <div style="font-size:19px; font-weight:800; margin-bottom:12px;">🚨 Threat Challenge</div>
+  <div id="lpThreatAdminStatus" style="margin-bottom:12px; font-weight:700;">Generating...</div>
 
+  <!-- Mini board -->
+  <div id="lpThreatAdminBoard" style="width:230px; height:230px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto 14px auto; border:2px solid #ffaa33; border-radius:7px; overflow:hidden;"></div>
+
+ 
+  <button id="lpThreatRevealBtn" type="button" style="width:100%; padding:10px; margin-bottom:8px; background:#4caf50; color:white; border:1px solid rgba(255,255,255,.85); border-radius:8px; font-weight:800; cursor:pointer;">🔓 Reveal Answer</button>
+  <button id="lpThreatResetBtn" type="button" style="width:100%; padding:10px; background:#3b82f6; color:white; border:1px solid rgba(255,255,255,.85); border-radius:8px; font-weight:800; cursor:pointer;">⚠️ Reset / Exit</button>
+
+  <div id="lpThreatAdminAnswers" style="margin-top:14px; max-height:235px; overflow-y:auto;"></div>
+</div>
+
+<!-- ========================================== -->
+<!-- ⚔️ ASK THREAT — STUDENT MODAL               -->
+<!-- ========================================== -->
+<div id="lpThreatGameModal" style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; background:rgba(0,0,0,.48); backdrop-filter:blur(4px);">
+  <div style="width:min(92vw,560px); background:#1d1f31; border:2px solid #ffaa33; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">🚨 Threat Challenge</div>
+    <div id="lpThreatGameQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Find the piece!</div>
+    <div id="lpThreatGameBoard" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden;"></div>
+    <div id="lpThreatGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
+  </div>
+</div>
 
 <script>
 /* =========================================================
