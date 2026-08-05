@@ -54189,6 +54189,9 @@ loadStudents();
           .eq('id', studentId);
 
         if (profileError) throw profileError;
+        if (!activate) {
+  await removeStudentFromAssignments(studentId);
+}
         // 🔥 ADD THIS
 loadStudentsForAssignment2();
 
@@ -54218,6 +54221,47 @@ loadStudentsForAssignment2();
     }
   );
 };
+
+async function removeStudentFromAssignments(studentId) {
+
+  const { data: assignments, error } = await supabase
+    .from("assignments")
+    .select("id, assigned_to, is_public");
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  for (const assign of assignments) {
+
+    if (assign.is_public) continue;
+
+    if (!Array.isArray(assign.assigned_to)) continue;
+
+    if (!assign.assigned_to.includes(studentId)) continue;
+
+    const updated = assign.assigned_to.filter(id => id !== studentId);
+
+    if (updated.length === 0) {
+
+      await supabase
+        .from("assignments")
+        .delete()
+        .eq("id", assign.id);
+
+    } else {
+
+      await supabase
+        .from("assignments")
+        .update({
+          assigned_to: updated
+        })
+        .eq("id", assign.id);
+
+    }
+  }
+}
 
 
 const submissionGifs = [
@@ -77521,6 +77565,15 @@ if(closeBtn){
   closeBtn.onclick = () => {
     modal.style.display = "none";
   };
+}
+
+// ✅ Click outside to close
+if(modal){
+  modal.addEventListener("click", (e) => {
+    if(e.target === modal){
+      modal.style.display = "none";
+    }
+  });
 }
 
 
