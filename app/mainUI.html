@@ -29191,6 +29191,54 @@ border-radius:20px;
   background: #8a7850 !important;
 }
 
+
+
+.lp-sc-highlight-selected{
+    outline:4px solid #ffd54f !important;
+    outline-offset:-4px;
+}
+
+.lp-sc-highlight-correct{
+    outline:4px solid #22c55e !important;
+    outline-offset:-4px;
+}
+
+.lp-sc-highlight-wrong{
+    outline:4px solid #ef4444 !important;
+    outline-offset:-4px;
+}
+
+
+/* ⚜️ ASK BASICS — muted wine */
+#lpAskBasicsBtn {
+  background: #3b4966 !important;
+  color: #f4f7ff !important;
+  border: 1px solid #586b8d !important;
+}
+
+#lpAskBasicsBtn:hover {
+  background: #465676 !important;
+}
+
+#lpLoadingDots::after{
+  content:"";
+  animation: lpDots 1.2s steps(4,end) infinite;
+}
+
+@keyframes lpDots{
+
+  0%   { content:""; }
+
+  25%  { content:"."; }
+
+  50%  { content:".."; }
+
+  75%  { content:"..."; }
+
+  100% { content:""; }
+
+}
+
   </style>
 </head>
 
@@ -31954,6 +32002,8 @@ class="lp-admin-btn"
 <button id="lpAskThreatBtn" type="button" data-role="admin-only" class="lp-admin-btn">🚨 Ask Threat</button>
 
 <button id="lpAskSpotChangeBtn" type="button" data-role="admin-only" class="lp-admin-btn">🎭 Ask Change</button>
+
+<button id="lpAskBasicsBtn" type="button" data-role="admin-only" class="lp-admin-btn">⚜️ Ask Basics</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -79319,6 +79369,702 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+
+// ==========================================
+// 🧩 ASK BASICS – ISOLATED STATE
+// ==========================================
+
+let askBasicsGameState = {
+  active: false,
+  challengeId: null,
+  mode: null,               // 'check' or 'capture'
+  questionCycle: 0,         // 0: check, 1: capture, then repeat
+  position: null,           // FEN string
+  correctMove: null,        // { from, to, promotion?, san }
+  answers: {},              // userId -> { username, from, to, san, move }
+  revealed: false,
+  locked: false,
+  question: '',
+  sideToMove: 'w'           // 'w' or 'b'
+};
+
+// ==========================================
+// 🧩 GENERATE RICH MIDDLEGAME (reuses Spot The Change generator)
+// ==========================================
+
+function generateAskBasicsPosition() {
+
+  while (true) {
+
+    const fen = generateSpotChangePositionA();
+
+    const game = new Chess(fen);
+
+    // Reject positions where a promotion is possible
+    const hasPromotion =
+      game.moves({ verbose: true })
+          .some(move => move.promotion);
+
+    if (hasPromotion)
+      continue;
+
+    const sideToMove =
+      game.turn() === 'w'
+        ? 'w'
+        : 'b';
+
+    return {
+      fen,
+      sideToMove
+    };
+
+  }
+
+}
+
+// ==========================================
+// 🧩 GENERATE CHECK CHALLENGE
+// ==========================================
+
+function generateCheckChallenge() {
+  let attempts = 0;
+  const maxAttempts = 500;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const { fen, sideToMove } = generateAskBasicsPosition();
+    const game = new Chess(fen);
+
+    const moves = game.moves({ verbose: true });
+    // Find moves that give check
+    const checkingMoves = moves.filter(m => {
+      const test = new Chess(fen);
+      test.move(m);
+      return test.in_check();
+    });
+
+    // Exactly one checking move
+    if (checkingMoves.length === 1) {
+      const correctMove = checkingMoves[0];
+      return {
+        position: fen,
+        sideToMove: sideToMove,
+        correctMove: correctMove,
+        mode: 'check',
+        question: sideToMove === 'w' ? 'White to move – Give Check!' : 'Black to move – Give Check!'
+      };
+    }
+  }
+
+  // Emergency fallback (should never happen)
+  const fallbackFen = 'r1bqkbnr/ppp2ppp/2np4/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5';
+  const game = new Chess(fallbackFen);
+  const moves = game.moves({ verbose: true });
+  const checkingMoves = moves.filter(m => {
+    const test = new Chess(fallbackFen);
+    test.move(m);
+    return test.in_check();
+  });
+  if (checkingMoves.length === 1) {
+    return {
+      position: fallbackFen,
+      sideToMove: 'w',
+      correctMove: checkingMoves[0],
+      mode: 'check',
+      question: 'White to move – Give Check!'
+    };
+  } else {
+    // Ultimate fallback – hardcoded known check
+    return {
+      position: 'r1bqkbnr/ppp2ppp/2np4/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5',
+      sideToMove: 'w',
+      correctMove: { from: 'f3', to: 'g5', san: 'Ng5+' },
+      mode: 'check',
+      question: 'White to move – Give Check!'
+    };
+  }
+}
+
+// ==========================================
+// 🧩 GENERATE BEST CAPTURE CHALLENGE
+// ==========================================
+
+function generateBestCaptureChallenge() {
+  let attempts = 0;
+  const maxAttempts = 500;
+
+  // Piece values
+  const value = { p:1, n:3, b:3, r:5, q:9, k:0 };
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const { fen, sideToMove } = generateAskBasicsPosition();
+    const game = new Chess(fen);
+
+    const moves = game.moves({ verbose: true });
+    // Only captures
+    const captures = moves.filter(m => m.flags.includes('c'));
+    if (captures.length < 2) continue;
+
+    // Compute gain for each capture (value of captured piece)
+    const captureValues = captures.map(m => {
+      // Determine captured piece: get piece at destination in original position
+      const targetPiece = game.get(m.to);
+      const gain = targetPiece ? value[targetPiece.type] : 0;
+      return { move: m, gain };
+    });
+
+    // Find maximum gain
+    let maxGain = -1;
+    let maxMoves = [];
+    for (const cv of captureValues) {
+      if (cv.gain > maxGain) {
+        maxGain = cv.gain;
+        maxMoves = [cv.move];
+      } else if (cv.gain === maxGain) {
+        maxMoves.push(cv.move);
+      }
+    }
+
+    // Exactly one best capture
+    if (maxMoves.length === 1) {
+      const correctMove = maxMoves[0];
+      // Avoid trivial captures (gain < 2)
+      if (maxGain < 2) continue;
+      // Ensure there is at least one alternative capture with lower gain
+      const alternativeCaptures = captureValues.filter(cv => cv.gain < maxGain);
+      if (alternativeCaptures.length === 0) continue;
+      return {
+        position: fen,
+        sideToMove: sideToMove,
+        correctMove: correctMove,
+        mode: 'capture',
+        question: sideToMove === 'w' ? 'White to move – Find the best capture!' : 'Black to move – Find the best capture!'
+      };
+    }
+  }
+
+  // Fallback (should not happen)
+  const fallbackFen = 'r1bqkbnr/ppp2ppp/2np4/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5';
+  const game = new Chess(fallbackFen);
+  const moves = game.moves({ verbose: true });
+  const captures = moves.filter(m => m.flags.includes('c'));
+  // In this position, Bxf7+ is a capture, but we'll pick a better fallback.
+  // Hardcoded known best capture
+  return {
+    position: 'rnbqkbnr/ppp2ppp/3p4/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 4',
+    sideToMove: 'w',
+    correctMove: { from: 'f3', to: 'e5', san: 'Nxe5' }, // Nxe5 captures pawn
+    mode: 'capture',
+    question: 'White to move – Find the best capture!'
+  };
+}
+
+// ==========================================
+// 🧩 GENERATE CHALLENGE BASED ON CYCLE
+// ==========================================
+
+function generateAskBasicsChallenge(cycle) {
+  if (cycle % 2 === 0) {
+    return generateCheckChallenge();
+  } else {
+    return generateBestCaptureChallenge();
+  }
+}
+
+// ==========================================
+// 🧩 STUDENT MODAL – SHOW
+// ==========================================
+
+function showAskBasicsStudentModal(position, question) {
+  const modal = document.getElementById('lpAskBasicsModal');
+  const boardContainer = document.getElementById('lpAskBasicsBoard');
+  const questionEl = document.getElementById('lpAskBasicsQuestion');
+  const feedback = document.getElementById('lpAskBasicsFeedback');
+
+  modal.style.display = 'flex';
+  questionEl.textContent = question;
+  feedback.textContent = 'Click a piece, then click destination, or drag.';
+
+  // Render board with click/drag support.
+  // We'll implement a two-step click: first select piece, then destination.
+  // Also support drag using the existing Chessboard drag system? 
+  // But we are using a custom board render, not Chessboard. So we need to implement drag ourselves.
+  // However, for consistency, we can use the same board render as Spot Change which supports clicks only.
+  // But the requirement says both click and drag must work.
+  // Since we are reusing renderSpotChangeBoard which only supports clicks, we need to add drag support.
+  // We'll implement a simple drag via mouse events.
+
+  // We'll store state for click/drag.
+  let selectedFrom = null;
+  let dragStartSquare = null;
+  let dragEndSquare = null;
+
+  // Helper to clear highlights
+  function clearHighlights() {
+    boardContainer.querySelectorAll('[data-square]').forEach(cell => {
+      cell.style.outline = '';
+      cell.style.outlineOffset = '';
+      cell.style.boxShadow = '';
+    });
+  }
+
+  // Helper to highlight a square
+function highlightSquare(square, color = '#ffd700') {
+
+  const cell = boardContainer.querySelector(`[data-square="${square}"]`);
+
+  if (!cell) return;
+
+  cell.style.outline = `3px solid ${color}`;
+  cell.style.outlineOffset = '-3px';
+  cell.style.boxShadow = `0 0 10px ${color}`;
+}
+
+  // Click handler for squares
+  function handleSquareClick(square) {
+    if (askBasicsGameState.locked || askBasicsGameState.revealed) return;
+    const game = new Chess(askBasicsGameState.position);
+    const piece = game.get(square);
+
+    // If no selected piece, and we clicked on a piece of the side to move
+    if (!selectedFrom && piece && piece.color === askBasicsGameState.sideToMove) {
+      selectedFrom = square;
+      clearHighlights();
+      highlightSquare(square);
+      feedback.textContent = `Selected ${piece.type.toUpperCase()} on ${square}. Now click destination.`;
+      return;
+    }
+
+    // If we have a selected piece and click on a square
+    if (selectedFrom) {
+      const from = selectedFrom;
+      const to = square;
+      const moveData = { from, to };
+      const legalMoves = game.moves({ verbose: true });
+      const matchedMove = legalMoves.find(m => m.from === from && m.to === to);
+      if (!matchedMove) {
+        // If clicking on own piece, reselect
+        const newPiece = game.get(square);
+        if (newPiece && newPiece.color === askBasicsGameState.sideToMove) {
+          selectedFrom = square;
+          clearHighlights();
+          highlightSquare(square);
+          feedback.textContent = `Selected ${newPiece.type.toUpperCase()} on ${square}. Now click destination.`;
+          return;
+        }
+        feedback.textContent = 'Illegal move. Try again.';
+        clearHighlights();
+        selectedFrom = null;
+        return;
+      }
+
+      // Legal move – submit
+    highlightSquare(from, "#4caf50");
+highlightSquare(to, "#ffd700");
+
+submitAskBasicsAnswer(matchedMove);
+
+selectedFrom = null;
+    }
+  }
+
+  // Drag support using mouse events
+  let dragData = null;
+
+  function onDragStart(e) {
+    if (askBasicsGameState.locked || askBasicsGameState.revealed) return;
+    const cell = e.target.closest('[data-square]');
+    if (!cell) return;
+    const square = cell.dataset.square;
+    const game = new Chess(askBasicsGameState.position);
+    const piece = game.get(square);
+    if (!piece || piece.color !== askBasicsGameState.sideToMove) return;
+    dragData = { from: square, startX: e.clientX, startY: e.clientY };
+   clearHighlights();
+highlightSquare(square, "#4caf50");
+
+cell.style.cursor = "grabbing";
+    // Prevent default to avoid text selection
+    e.preventDefault();
+  }
+
+  function onDragMove(e) {
+    if (!dragData) return;
+    e.preventDefault();
+    // Optionally, show ghost piece? For simplicity, we'll just update feedback.
+    // We'll determine the destination on drop.
+  }
+
+  function onDragEnd(e) {
+    if (!dragData) return;
+    e.preventDefault();
+    const cell = e.target.closest('[data-square]');
+    if (!cell) {
+      dragData = null;
+      return;
+    }
+    const to = cell.dataset.square;
+    const from = dragData.from;
+    dragData = null;
+    // Submit move
+    const game = new Chess(askBasicsGameState.position);
+    const legalMoves = game.moves({ verbose: true });
+    const matchedMove = legalMoves.find(m => m.from === from && m.to === to);
+if (matchedMove) {
+
+    highlightSquare(from, "#4caf50");
+    highlightSquare(to, "#ffd700");
+
+    submitAskBasicsAnswer(matchedMove);
+
+}
+else {
+
+    boardContainer.querySelectorAll('[data-square]').forEach(cell=>{
+        cell.style.cursor = "grab";
+    });
+
+    feedback.textContent = 'Illegal drag move. Try clicking.';
+}
+  }
+
+  // Remove old listeners
+  boardContainer.removeEventListener('mousedown', onDragStart);
+  boardContainer.removeEventListener('mousemove', onDragMove);
+  boardContainer.removeEventListener('mouseup', onDragEnd);
+
+  // Add drag listeners
+  boardContainer.addEventListener('mousedown', onDragStart);
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+
+  // Render board with click handler
+  // We'll use renderSpotChangeBoard but override click handler.
+  // We'll pass a custom click handler.
+  // Since renderSpotChangeBoard doesn't accept a custom click handler, we'll implement our own rendering.
+  // But we already have renderSpotChangeBoard that we can reuse for board, and then we can attach our own click events.
+  // However, for simplicity and to avoid duplication, we'll use renderSpotChangeBoard to render the board, then after it's rendered, we'll attach our click listeners.
+
+  // Render the board using the existing helper
+  renderSpotChangeBoard(boardContainer, position, null);
+  boardContainer.querySelectorAll('[data-square]').forEach(cell => {
+    cell.style.cursor = 'grab';
+});
+
+  // Now attach click listeners to each cell
+  boardContainer.querySelectorAll('[data-square]').forEach(cell => {
+    // Remove any existing listeners by cloning?
+    cell.onclick = null; // remove previous
+    cell.addEventListener('click', function(e) {
+      handleSquareClick(this.dataset.square);
+    });
+  });
+
+  // Also ensure drag works - we'll rely on the drag listeners above.
+}
+
+// ==========================================
+// 🧩 HIDE STUDENT MODAL
+// ==========================================
+
+function hideAskBasicsStudentModal() {
+  document.getElementById('lpAskBasicsModal').style.display = 'none';
+}
+
+// ==========================================
+// 🧩 STUDENT ANSWER SUBMISSION
+// ==========================================
+
+async function submitAskBasicsAnswer(move) {
+  if (askBasicsGameState.locked || askBasicsGameState.revealed) return;
+  if (!currentUserId || !movesChannel) return;
+
+  askBasicsGameState.locked = true;
+  const answer = {
+    username: currentUsername || 'Guest',
+    from: move.from,
+    to: move.to,
+    san: move.san,
+    move: move
+  };
+  askBasicsGameState.answers[currentUserId] = answer;
+
+  // Disable board interactions
+  const board = document.getElementById('lpAskBasicsBoard');
+  board.querySelectorAll('[data-square]').forEach(cell => {
+    cell.style.cursor = 'default';
+    cell.onclick = null;
+  });
+
+  const feedback = document.getElementById('lpAskBasicsFeedback');
+  feedback.innerHTML = '<div style="color:#ffd54f;font-weight:800;">✅ Answer submitted. Waiting for teacher...</div>';
+
+  // Send to admin
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'ask_basics_answer',
+    payload: {
+      challengeId: askBasicsGameState.challengeId,
+      userId: currentUserId,
+      username: currentUsername || 'Guest',
+      from: move.from,
+      to: move.to,
+      san: move.san
+    }
+  });
+}
+
+// ==========================================
+// 🧩 ADMIN PANEL – SHOW/RENDER
+// ==========================================
+
+function showAskBasicsAdminPanel() {
+  const panel = document.getElementById('lpAskBasicsAdminPanel');
+  panel.style.display = 'block';
+  renderAskBasicsAdminPanel();
+}
+
+function hideAskBasicsAdminPanel() {
+  document.getElementById('lpAskBasicsAdminPanel').style.display = 'none';
+}
+
+function renderAskBasicsAdminPanel() {
+  const questionEl = document.getElementById('lpAskBasicsAdminQuestion');
+  const boardContainer = document.getElementById('lpAskBasicsAdminBoard');
+  const statusEl = document.getElementById('lpAskBasicsAdminStatus');
+  const answersEl = document.getElementById('lpAskBasicsAdminAnswers');
+
+  if (!questionEl) return;
+
+  // Question
+  questionEl.textContent = askBasicsGameState.question || '';
+
+  // Render board (no clicks)
+// Render board with highlights
+if (askBasicsGameState.position) {
+
+  const highlights = [];
+
+  const answers =
+    Object.values(askBasicsGameState.answers);
+
+  if (answers.length > 0) {
+
+    const latest =
+      answers[answers.length - 1];
+
+    if (!askBasicsGameState.revealed) {
+
+      // 🟡 Student move before reveal
+      highlights.push({
+        square: latest.from,
+        className: "lp-sc-highlight-selected"
+      });
+
+      highlights.push({
+        square: latest.to,
+        className: "lp-sc-highlight-selected"
+      });
+
+    } else {
+
+      const correct =
+        latest.from === askBasicsGameState.correctMove.from &&
+        latest.to === askBasicsGameState.correctMove.to;
+
+      if (correct) {
+
+        // 🟢 Correct move
+        highlights.push({
+          square: latest.from,
+          className: "lp-sc-highlight-correct"
+        });
+
+        highlights.push({
+          square: latest.to,
+          className: "lp-sc-highlight-correct"
+        });
+
+      } else {
+
+        // 🔴 Student move
+        highlights.push({
+          square: latest.from,
+          className: "lp-sc-highlight-wrong"
+        });
+
+        highlights.push({
+          square: latest.to,
+          className: "lp-sc-highlight-wrong"
+        });
+
+        // 🟢 Correct move
+        highlights.push({
+          square: askBasicsGameState.correctMove.from,
+          className: "lp-sc-highlight-correct"
+        });
+
+        highlights.push({
+          square: askBasicsGameState.correctMove.to,
+          className: "lp-sc-highlight-correct"
+        });
+
+      }
+
+    }
+
+  }
+
+  renderSpotChangeBoard(
+    boardContainer,
+    askBasicsGameState.position,
+    highlights
+  );
+
+}
+
+  // Answers
+  answersEl.innerHTML = '';
+  const entries = Object.entries(askBasicsGameState.answers);
+  if (entries.length === 0) {
+    answersEl.innerHTML = '<div style="opacity:.6; text-align:center; padding:10px;">Waiting for answers...</div>';
+  } else {
+    entries.forEach(([userId, data]) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.alignItems = 'center';
+      row.style.padding = '8px 10px';
+      row.style.marginBottom = '6px';
+      row.style.borderRadius = '8px';
+      row.style.fontWeight = '700';
+
+      const isCorrect = askBasicsGameState.revealed && data.from === askBasicsGameState.correctMove.from && data.to === askBasicsGameState.correctMove.to;
+      if (askBasicsGameState.revealed) {
+        row.style.background = isCorrect ? 'rgba(34,197,94,.18)' : 'rgba(239,68,68,.18)';
+        row.style.borderLeft = isCorrect ? '5px solid #22c55e' : '5px solid #ef4444';
+        row.innerHTML = `<span>${isCorrect ? '✅' : '❌'} ${data.username}</span><span>${data.san}</span>`;
+      } else {
+        row.style.background = 'rgba(255,255,255,.07)';
+        row.style.borderLeft = '4px solid #777';
+        row.innerHTML = `<span>${data.username}</span><span>${data.san}</span>`;
+      }
+      answersEl.appendChild(row);
+    });
+  }
+
+  // Status
+  if (askBasicsGameState.revealed) {
+    statusEl.textContent = '✅ Revealed';
+  } else if (Object.keys(askBasicsGameState.answers).length > 0) {
+    statusEl.textContent = '⏳ Answers received...';
+  } else {
+    statusEl.textContent = '⏳ Waiting for answers...';
+  }
+}
+
+// ==========================================
+// 🧩 REVEAL (ADMIN)
+// ==========================================
+
+async function revealAskBasics() {
+  if (!askBasicsGameState.active || askBasicsGameState.revealed) return;
+  askBasicsGameState.revealed = true;
+  askBasicsGameState.locked = true;
+
+  // Broadcast reveal with correct move
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'ask_basics_reveal',
+    payload: {
+      challengeId: askBasicsGameState.challengeId,
+      correctMove: askBasicsGameState.correctMove
+    }
+  });
+
+  // Update admin panel
+  renderAskBasicsAdminPanel();
+  document.getElementById('lpAskBasicsAdminStatus').textContent = '✅ Revealed';
+}
+
+// ==========================================
+// 🧩 RESET (ADMIN)
+// ==========================================
+
+async function resetAskBasics() {
+  if (!askBasicsGameState.active) return;
+
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'ask_basics_reset',
+    payload: { challengeId: askBasicsGameState.challengeId }
+  });
+
+  // Reset state
+  askBasicsGameState.active = false;
+  askBasicsGameState.challengeId = null;
+  askBasicsGameState.position = null;
+  askBasicsGameState.correctMove = null;
+  askBasicsGameState.answers = {};
+  askBasicsGameState.revealed = false;
+  askBasicsGameState.locked = false;
+  askBasicsGameState.question = '';
+  askBasicsGameState.mode = null;
+  askBasicsGameState.sideToMove = 'w';
+
+  hideAskBasicsAdminPanel();
+  hideAskBasicsStudentModal();
+  showJoinBanner('❌ Ask Basics reset', false);
+}
+
+// ==========================================
+// 🧩 START ASK BASICS (ADMIN)
+// ==========================================
+
+async function startAskBasics() {
+  if (!roomCode) {
+    showJoinBanner('Create a classroom first.', false);
+    return;
+  }
+  if (!movesChannel) return;
+
+  const cycle = askBasicsGameState.questionCycle || 0;
+  const challenge = generateAskBasicsChallenge(cycle);
+  askBasicsGameState.questionCycle = (cycle + 1) % 2;
+
+  // Store state
+  const challengeId = 'basics_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+  askBasicsGameState.active = true;
+  askBasicsGameState.challengeId = challengeId;
+  askBasicsGameState.mode = challenge.mode;
+  askBasicsGameState.position = challenge.position;
+  askBasicsGameState.correctMove = challenge.correctMove;
+  askBasicsGameState.question = challenge.question;
+  askBasicsGameState.sideToMove = challenge.sideToMove;
+  askBasicsGameState.answers = {};
+  askBasicsGameState.revealed = false;
+  askBasicsGameState.locked = false;
+
+  // Broadcast to students
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'ask_basics_start',
+    payload: {
+      challengeId,
+      position: challenge.position,
+      question: challenge.question,
+      sideToMove: challenge.sideToMove,
+      mode: challenge.mode
+    }
+  });
+
+  // Show admin panel
+  showAskBasicsAdminPanel();
+
+  showJoinBanner('⚜️ Ask Basics started!', false);
+}
+
 // ======================================
 // 🧠 MEMORY GAME STATE
 // ======================================
@@ -83458,7 +84204,7 @@ function generateSpotChangePositionA() {
 
       // Prefer captures and pawn moves to keep dynamic
       const weighted = moves.filter(m => m.flags.includes('c') || m.piece === 'p');
-      const move = weighted.length && Math.random() < 0.4
+      const move = weighted.length && Math.random() < 0.55
         ? weighted[Math.floor(Math.random() * weighted.length)]
         : moves[Math.floor(Math.random() * moves.length)];
 
@@ -84529,6 +85275,7 @@ boardB.style.display = 'none';
 boardB.style.opacity = '0';
 boardB.classList.remove('fade-in');
 boardB.classList.remove('fade-out');
+document.getElementById("lpSpotChangeLoading").style.display = "none";
 boardA.style.display = 'grid';
 boardA.style.opacity = '1';
 }
@@ -87992,6 +88739,11 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+
+  document.getElementById('lpAskBasicsBtn').onclick = startAskBasics;
+document.getElementById('lpAskBasicsRevealBtn').onclick = revealAskBasics;
+document.getElementById('lpAskBasicsResetBtn').onclick = resetAskBasics;
+
 
   document.getElementById('lpAskSpotChangeBtn').onclick = startSpotChangeGame;
 
@@ -96357,6 +97109,94 @@ if (payload.event === "student_puzzle_completed") {
   return;
 }
 
+// ========== ASK BASICS EVENTS ==========
+
+// ask_basics_start (student)
+if (payload.event === 'ask_basics_start') {
+  if (isAdmin) return;
+  const { challengeId, position, question, sideToMove, mode } = payload.payload;
+  askBasicsGameState.active = true;
+  askBasicsGameState.challengeId = challengeId;
+  askBasicsGameState.position = position;
+  askBasicsGameState.question = question;
+  askBasicsGameState.sideToMove = sideToMove;
+  askBasicsGameState.mode = mode;
+  askBasicsGameState.answers = {};
+  askBasicsGameState.revealed = false;
+  askBasicsGameState.locked = false;
+  showAskBasicsStudentModal(position, question);
+  showJoinBanner('⚜️ Coach started Elementary challenge!',false);
+  return;
+}
+
+// ask_basics_answer (admin)
+if (payload.event === 'ask_basics_answer') {
+  if (!isAdmin) return;
+  const { challengeId, userId, username, from, to, san } = payload.payload;
+  if (challengeId !== askBasicsGameState.challengeId) return;
+  askBasicsGameState.answers[userId] = { username, from, to, san };
+  renderAskBasicsAdminPanel();
+  return;
+}
+
+// ask_basics_reveal (student)
+if (payload.event === 'ask_basics_reveal') {
+  if (isAdmin) return;
+  const { correctMove } = payload.payload;
+  askBasicsGameState.correctMove = correctMove;
+  askBasicsGameState.revealed = true;
+  askBasicsGameState.locked = true;
+
+  // Show result on student board
+  const board = document.getElementById('lpAskBasicsBoard');
+  const feedback = document.getElementById('lpAskBasicsFeedback');
+  const userAnswer = askBasicsGameState.answers[currentUserId];
+  const isCorrect = userAnswer && userAnswer.from === correctMove.from && userAnswer.to === correctMove.to;
+
+  // Highlight correct move (green) and user's move (if wrong, red)
+  const cells = board.querySelectorAll('[data-square]');
+  cells.forEach(cell => {
+    const sq = cell.dataset.square;
+    if (sq === correctMove.from || sq === correctMove.to) {
+      cell.style.outline = '3px solid #22c55e';
+      cell.style.outlineOffset = '-3px';
+      cell.style.boxShadow = 'inset 0 0 12px rgba(34,197,94,.5)';
+    }
+    if (userAnswer && (sq === userAnswer.from || sq === userAnswer.to) && !(sq === correctMove.from || sq === correctMove.to)) {
+      cell.style.outline = '3px solid #ef4444';
+      cell.style.outlineOffset = '-3px';
+      cell.style.boxShadow = 'inset 0 0 12px rgba(239,68,68,.5)';
+    }
+  });
+
+  // Show feedback with explanation
+  let explanation = '';
+  if (askBasicsGameState.mode === 'check') {
+    explanation = `Correct move: ${correctMove.san} gives check.`;
+  } else {
+    // capture mode
+    const game = new Chess(askBasicsGameState.position);
+    const capturedPiece = game.get(correctMove.to);
+    const gain = capturedPiece ? ({p:1,n:3,b:3,r:5,q:9})[capturedPiece.type] : 0;
+    explanation = `Correct move: ${correctMove.san} captures ${capturedPiece ? capturedPiece.type.toUpperCase() : 'piece'} (+${gain})`;
+  }
+  feedback.innerHTML = `
+    <div style="color:${isCorrect ? '#22c55e' : '#ef4444'}; font-weight:800; font-size:18px;">
+      ${isCorrect ? '✅ Correct!' : '❌ Wrong'}
+    </div>
+    <div style="margin-top:6px;">${explanation}</div>
+  `;
+
+}
+
+// ask_basics_reset (student)
+if (payload.event === 'ask_basics_reset') {
+  if (isAdmin) return;
+  askBasicsGameState.active = false;
+  hideAskBasicsStudentModal();
+  return;
+}
+
 // ========== SPOT THE CHANGE EVENTS ==========
 
 // spot_change_start (student)
@@ -96373,7 +97213,7 @@ if (payload.event === 'spot_change_start') {
   spotChangeGameState.locked = false;
   spotChangeGameState.answers = {};
   showSpotChangeStudentModal();
-  showJoinBanner('🎭 Spot the change challenge!');
+  showJoinBanner('🎭 Coach started Spot the Change challenge!',false);
   return;
 }
 
@@ -96401,9 +97241,14 @@ if (payload.event === 'spot_change_redraw') {
 
     // Hide Board A
     boardA.style.display = "none";
+    const loading =
+document.getElementById("lpSpotChangeLoading");
+
+loading.style.display = "flex";
 
     // Keep screen blank for 1.5 seconds
     setTimeout(() => {
+      loading.style.display = "none";
 
       // Show Board B
       boardB.style.display = "grid";
@@ -96427,7 +97272,7 @@ optionsContainer.style.display = 'flex';
         .querySelectorAll("#lpSpotChangeOptions button")
         .forEach(btn => btn.disabled = false);
 
-    }, 1500);   // <-- Hidden for 1.5 seconds
+    }, 2000);   // <-- Hidden for 2 seconds
 
   }, 400);      // <-- Fade-out time
 
@@ -96599,7 +97444,7 @@ data.color;
   threatGameState.locked = false;
 
   showThreatGameModal();
-  showJoinBanner('🚨 Find the Threatened / Hanging Piece!');
+  showJoinBanner('🚨 Coach started Threat challenge!',false);
   return;
 }
 
@@ -96728,7 +97573,7 @@ memoryGameState.correctAnswers = [];
   showMemoryGameModal();
 
   showJoinBanner(
-    "💎 Coach started a Memory Challenge!"
+    "💎 Coach started Memory Challenge!",false
   );
 
   return;
@@ -96820,7 +97665,7 @@ if (payload.event === "quiz_question") {
   quizState.selectedAnswer = null;
 
       showJoinBanner(
-        "🧩 Quiz Time! Choose the best move"
+        "🧩 Coach started Quiz! challenge ",false
     );
   // show the modal
   showStudentQuizModal(question);
@@ -97036,7 +97881,7 @@ if (
 
 
   showJoinBanner(
-    "✨ Vision challenge!"
+    "✨ Coach started Vision challenge!",false
   );
 
 
@@ -97207,11 +98052,10 @@ if (payload.event === "square_game_start") {
   showSquareGameModal(target);
 
 
-  showJoinBanner(
-    flipped
-      ? `🔄 Flipped! Find ${target.toLowerCase()}!`
-      : `🎯 Find ${target.toLowerCase()}!`
-  );
+showJoinBanner(
+  "🎯 Coach started Coordinate Challenge!",
+  false
+);
 
   return;
 }
@@ -97376,7 +98220,7 @@ if (
 
 
   showJoinBanner(
-    "🛡️ Find the Safe Square!"
+    "🛡️ Coach started Safe Square challenge!",false
   );
 
 }
@@ -112626,6 +113470,23 @@ cursor:pointer;
     <div id="lpSpotChangeBoardA" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden; transition: opacity 0.4s;"></div>
     <!-- Board B (hidden initially) -->
     <div id="lpSpotChangeBoardB" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:10px auto 0; border:3px solid #444; border-radius:8px; overflow:hidden; display:none; opacity:0; transition: opacity 0.4s;"></div>
+<div id="lpSpotChangeLoading"
+style="
+display:none;
+width:min(82vw,440px);
+aspect-ratio:1/1;
+margin:10px auto 0;
+border:3px solid #444;
+border-radius:8px;
+background:#22263a;
+color:#ffd54f;
+font-size:26px;
+font-weight:800;
+align-items:center;
+justify-content:center;
+">
+⏳ Changing<span id="lpLoadingDots"></span>
+</div>
     <!-- Answer buttons -->
     <div id="lpSpotChangeOptions" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:15px 0;"></div>
     <div id="lpSpotChangeFeedback" style="min-height:45px; font-weight:700;"></div>
@@ -112660,6 +113521,42 @@ cursor:pointer;
   </div>
   <!-- Student Answers -->
   <div id="lpSpotChangeAdminAnswers" style="margin-top:14px; max-height:200px; overflow-y:auto; overflow-x:hidden; padding-right:4px;"></div>
+</div>
+
+<!-- ==========================================
+     🧩 ASK BASICS – STUDENT MODAL
+=========================================== -->
+<div id="lpAskBasicsModal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.48); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+  <div style="width:min(92vw,560px); background:#1d1f31; border:2px solid #8b9dc3; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">⚜️ Elementary Challenge</div>
+    <div id="lpAskBasicsQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Find the best move...</div>
+    <!-- Board -->
+    <div id="lpAskBasicsBoard" style="width:min(82vw,440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden; user-select:none;"></div>
+    <!-- Feedback -->
+    <div id="lpAskBasicsFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
+    <!-- Close button (shown after reveal) -->
+   
+  </div>
+</div>
+
+<!-- ==========================================
+     🧩 ASK BASICS – ADMIN PANEL
+=========================================== -->
+<div id="lpAskBasicsAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:300px; z-index:99998; background:#1d1f31; border:2px solid #8b9dc3; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white; max-height:80vh; overflow-y:auto;">
+  <div style="font-size:19px; font-weight:800; margin-bottom:12px;">⚜️ Elementary Challenge</div>
+  <!-- Question -->
+  <div id="lpAskBasicsAdminQuestion" style="font-weight:700; margin-bottom:12px; text-align:center; background:rgba(255,255,255,.05); padding:8px; border-radius:8px;"></div>
+  <!-- Mini board -->
+  <div id="lpAskBasicsAdminBoard" style="width:230px; height:230px; margin:0 auto 12px auto; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); border:2px solid #8b9dc3; border-radius:7px; overflow:hidden; box-sizing:border-box; user-select:none; pointer-events:none;"></div>
+  <!-- Status -->
+  <div id="lpAskBasicsAdminStatus" style="margin:12px 0; font-weight:700; text-align:center;">Waiting for students...</div>
+  <!-- Buttons -->
+  <div style="display:flex; flex-direction:column; gap:6px;">
+    <button id="lpAskBasicsRevealBtn" style="width:100%; padding:10px; background:#4caf50; border:1px solid rgba(255,255,255,.85); border-radius:8px; color:white; font-weight:800; cursor:pointer;">✅ Reveal</button>
+    <button id="lpAskBasicsResetBtn" style="width:100%; padding:10px; background:#3b82f6; border:1px solid rgba(255,255,255,.85); border-radius:8px; color:white; font-weight:800; cursor:pointer;">❌ Reset</button>
+  </div>
+  <!-- Student Answers -->
+  <div id="lpAskBasicsAdminAnswers" style="margin-top:14px; max-height:200px; overflow-y:auto; overflow-x:hidden; padding-right:4px;"></div>
 </div>
 
 <script>
