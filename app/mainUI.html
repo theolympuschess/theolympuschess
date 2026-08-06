@@ -28165,6 +28165,162 @@ body.student-view #lpStudentsContainer {
   transform: translateY(-1px);
 }
 
+/* =========================================================
+   🔄 REJOIN CLASS — PREMIUM RUBY
+========================================================= */
+
+#lpAdminRejoinBtn {
+
+  position: relative;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      135deg,
+      #5b0a18 0%,
+      #8b1126 45%,
+      #b91c3c 100%
+    ) !important;
+
+  color: #fff5f5 !important;
+
+  border:
+    1px solid rgba(255,120,140,.35) !important;
+
+  border-radius: 8px !important;
+
+  font-weight: 700 !important;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 3px 8px rgba(0,0,0,.22),
+    0 0 10px rgba(220,38,38,.25) !important;
+
+  transition:
+    transform .18s ease,
+    box-shadow .20s ease,
+    border-color .20s ease,
+    background .20s ease !important;
+
+  animation:
+    lpRubyGlow 2.2s ease-in-out infinite;
+}
+
+/* ==============================
+   ✨ Glossy Shine
+============================== */
+
+#lpAdminRejoinBtn::before{
+
+  content:"";
+
+  position:absolute;
+
+  top:-55%;
+  left:-140%;
+
+  width:45%;
+  height:220%;
+
+  pointer-events:none;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,.12),
+      rgba(255,255,255,.85),
+      rgba(255,255,255,.12),
+      transparent
+    );
+
+  transform:rotate(24deg);
+
+  animation:
+    lpRubyShine 2.8s linear infinite;
+}
+
+/* ==============================
+   Hover
+============================== */
+
+#lpAdminRejoinBtn:hover{
+
+  background:
+    linear-gradient(
+      135deg,
+      #7f1d1d,
+      #b91c1c,
+      #ef4444
+    ) !important;
+
+  border-color:
+    rgba(255,170,185,.75) !important;
+
+  transform:
+    translateY(-2px)
+    scale(1.03);
+
+  box-shadow:
+    0 6px 14px rgba(0,0,0,.24),
+    0 0 24px rgba(239,68,68,.55) !important;
+
+}
+
+/* ==============================
+   Click
+============================== */
+
+#lpAdminRejoinBtn:active{
+
+  transform:scale(.97);
+
+}
+
+/* ==============================
+   ❤️ Breathing Glow
+============================== */
+
+@keyframes lpRubyGlow{
+
+0%,100%{
+
+box-shadow:
+0 3px 8px rgba(0,0,0,.22),
+0 0 10px rgba(220,38,38,.22);
+
+}
+
+50%{
+
+box-shadow:
+0 3px 8px rgba(0,0,0,.22),
+0 0 26px rgba(239,68,68,.65);
+
+}
+
+}
+
+/* ==============================
+   ✨ Shine Sweep
+============================== */
+
+@keyframes lpRubyShine{
+
+0%{
+
+left:-140%;
+
+}
+
+100%{
+
+left:180%;
+
+}
+
+}
 
 /* =========================================================
    ⚙️ ENGINE — DARK GOLD / AMBER
@@ -29327,6 +29483,9 @@ border-radius:20px;
   transform: scale(.97);
 
 }
+
+
+
 
   </style>
 </head>
@@ -31812,6 +31971,14 @@ data-role="admin-only">
       <!-- ROOM CONTROLS -->
       <div class="lp-controls">
         <button id="lpCreateRoomBtn" data-role="admin-only">➕ Create Class</button>
+<button
+id="lpAdminRejoinBtn"
+data-role="admin-only"
+style="display:none;">
+
+🔄 Rejoin
+
+</button>
         <button
   id="lpStockfishToggleBtn"
   data-role="admin-only"
@@ -70412,6 +70579,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   listenForChallengeBattleRoom()
   listenForSVSBattleUpdates();
 
+
 });
 
 
@@ -96569,6 +96737,8 @@ async function lpListenForClassroomInvite() {
 }
 
 
+
+
   // ================= CREATE ROOM =================
 async function createRoom() {
 
@@ -96591,10 +96761,15 @@ showJoinBanner(
 
   updateClassroomTitle();
 
+const {
+  data: { user }
+} = await supabase.auth.getUser();
+
 await supabase
   .from("live_puzzle_rooms")
   .insert({
-    code: roomCode
+    code: roomCode,
+    admin_id: user?.id
   });
 
 
@@ -96849,6 +97024,143 @@ supabase.channel(
 });
  
   loadStudents();
+}
+
+
+
+async function checkForAdminRejoin(){
+
+    if(currentUserRole !== "admin") return;
+
+    if(roomCode) return;
+
+    const btn =
+    document.getElementById(
+        "lpAdminRejoinBtn"
+    );
+
+    if(!btn) return;
+
+    btn.style.display = "none";
+const {
+  data: { user }
+} = await supabase.auth.getUser();
+
+if (!user) return;
+
+const { data } = await supabase
+  .from("live_puzzle_rooms")
+  .select("code")
+  .eq(
+    "admin_id",
+    user.id
+  )
+  .maybeSingle();
+
+    if(data){
+
+        btn.style.display = "";
+
+        // ✅ Attach click event
+        btn.onclick = rejoinAdminRoom;
+
+    }
+
+}
+
+
+
+async function rejoinAdminRoom(){
+
+const {
+  data: { user }
+} = await supabase.auth.getUser();
+
+if (!user) return;
+
+const { data } = await supabase
+  .from("live_puzzle_rooms")
+  .select("code")
+  .eq(
+    "admin_id",
+    user.id
+  )
+  .maybeSingle();
+
+if(!data){
+
+showToast(
+"❌ Classroom no longer exists."
+);
+
+return;
+
+}
+
+roomCode=data.code;
+
+isAdmin=true;
+
+
+
+updateRoomUI();
+
+showJoinBanner(
+"🔄 Classroom Rejoined"
+);
+
+// 🧹 Safety cleanup
+try{
+
+if(movesChannel){
+
+await supabase.removeChannel(
+movesChannel
+);
+
+movesChannel=null;
+
+}
+
+}catch(err){
+
+console.log(err);
+
+}
+
+listenRoom();
+
+loadStudents();
+
+setTimeout(()=>{
+
+if(!movesChannel) return;
+
+movesChannel.send({
+
+type:"broadcast",
+
+event:"sync-request",
+
+payload:{}
+
+});
+
+// 🔄 Open Classroom exactly like a manual click
+  const liveBtn = document.querySelector(
+    '.nav-btn[data-tab="livePuzzle"]'
+  );
+
+  if (liveBtn) {
+    liveBtn.click();
+  }
+
+},500);
+
+document.getElementById(
+"lpAdminRejoinBtn"
+).style.display="none";
+
 }
 
   // ================= UPDATE UI =================
@@ -100535,6 +100847,16 @@ if (currentProfile?.role === "admin") {
 
 }
 
+// 🔄 Hide Admin Rejoin button
+const rejoinBtn =
+document.getElementById(
+  "lpAdminRejoinBtn"
+);
+
+if (rejoinBtn) {
+  rejoinBtn.style.display = "none";
+}
+
 showJoinBanner(
   "⚠️ The classroom has ended."
 );
@@ -100544,15 +100866,20 @@ return {
   init,
   getRoomCode: () => roomCode,
   checkClassroomInvite: lpCheckClassroomInvite,
-  listenForClassroomInvite: lpListenForClassroomInvite
+  listenForClassroomInvite: lpListenForClassroomInvite,
+   checkForAdminRejoin,
+  rejoinAdminRoom
 };
 
 })();
 
 // INIT
-setTimeout(() => {
+setTimeout(async () => {
 
-  LivePuzzle.init();
+  await LivePuzzle.init();
+
+  // 🔄 Check if admin can rejoin a classroom
+  await LivePuzzle.checkForAdminRejoin();
 
   setTimeout(() => {
 
