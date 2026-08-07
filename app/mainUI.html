@@ -29596,6 +29596,64 @@ border-radius:20px;
   background: #54709a !important;
 }
 
+/* Ask Legal */
+#lpLegalAdminBoard > div,
+#lpLegalGameBoard > div {
+  font-size: clamp(20px, 4vw, 40px);
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+#lpLegalGameBoard > div {
+  cursor: pointer;
+}
+
+#lpLegalAdminAnswers {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#lpLegalAdminAnswers > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.06);
+}
+
+#lpLegalAdminAnswers .correct {
+  background: rgba(34,197,94,.18);
+  border-left: 4px solid #22c55e;
+}
+
+#lpLegalAdminAnswers .wrong {
+  background: rgba(239,68,68,.18);
+  border-left: 4px solid #ef4444;
+}
+
+#lpLegalAdminAnswers .waiting {
+  background: rgba(255,255,255,.06);
+  border-left: 4px solid #777;
+}
+
+/* Board highlight for legal destination squares (reveal) */
+.lp-legal-destination-square {
+  outline: 4px solid #22c55e !important;
+  outline-offset: -4px !important;
+  box-shadow: inset 0 0 20px rgba(34,197,94,.6) !important;
+}
+
+#lpAskLegalBtn {
+  background: #8b3c54 !important;
+  color: #fff5f7 !important;
+  border: 1px solid #b55d79 !important;
+}
+
+#lpAskLegalBtn:hover {
+  background: #a04864 !important;
+}
+
   </style>
 </head>
 
@@ -32384,6 +32442,8 @@ class="lp-admin-btn"
 
 <!-- Admin button -->
 <button id="lpAskChecksBtn" data-role="admin-only" class="lp-admin-btn">⚔️ Ask Checks</button>
+<!-- Admin button -->
+<button id="lpAskLegalBtn" data-role="admin-only" class="lp-admin-btn">⚖️ Ask Legal</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -79750,6 +79810,417 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+  // ==========================================
+// ⚖️ ASK LEGAL – STATE
+// ==========================================
+
+const legalGameState = {
+  active: false,
+  challengeId: null,
+  fen: null,                 // FEN string of the position
+  correctCount: 0,           // number of legal moves
+  legalDestinations: [],     // unique destination squares (for highlighting)
+  answers: {},               // userId -> { username, guess }
+  revealed: false,
+  locked: false,
+  adminPanelOpen: false,
+  studentModalOpen: false,
+};
+
+// ==========================================
+// ⚖️ POSITION GENERATOR
+// ==========================================
+
+function generateLegalPosition() {
+  const MAX_ATTEMPTS = 200;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const game = new Chess();
+    // Start from a random legal position by making many random moves from start
+    game.reset();
+    const moveCount = 30 + Math.floor(Math.random() * 25); // 30-55 moves
+    for (let i = 0; i < moveCount; i++) {
+      const moves = game.moves();
+      if (!moves.length) break;
+      const move = moves[Math.floor(Math.random() * moves.length)];
+      game.move(move);
+    }
+    // If game is ended, continue
+    if (game.game_over()) continue;
+
+    // Count legal moves
+    const moves = game.moves({ verbose: true });
+    const legalCount = moves.length;
+    // We want between 15 and 45 legal moves
+    if (legalCount >= 15 && legalCount <= 45) {
+      // Collect unique destination squares for highlighting (only after reveal)
+      const destinations = new Set();
+      for (const move of moves) {
+        destinations.add(move.to);
+      }
+      return {
+        fen: game.fen(),
+        correctCount: legalCount,
+        legalDestinations: Array.from(destinations)
+      };
+    }
+  }
+  // Fallback: create a simple position with many moves
+  const fallbackFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  const game = new Chess(fallbackFen);
+  const moves = game.moves({ verbose: true });
+  const destinations = new Set();
+  for (const move of moves) {
+    destinations.add(move.to);
+  }
+  return {
+    fen: fallbackFen,
+    correctCount: moves.length,
+    legalDestinations: Array.from(destinations)
+  };
+}
+
+// ==========================================
+// ⚖️ RENDER BOARD (reuses renderChecksBoard style)
+// ==========================================
+
+function renderLegalBoard(container, fen, highlightSquares = null) {
+  container.innerHTML = '';
+  const game = new Chess(fen);
+  const board = game.board();
+  const files = 'abcdefgh';
+
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+      const square = files[f] + rank;
+      const cell = document.createElement('div');
+      cell.dataset.square = square;
+      const isLight = (f + rank) % 2 === 0;
+      Object.assign(cell.style, {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isLight ? '#f0d9b5' : '#b58863',
+        boxSizing: 'border-box',
+        userSelect: 'none'
+      });
+
+      // Piece
+      const piece = board[8 - rank][f];
+      if (piece) {
+        const img = document.createElement('img');
+        img.src = getVisionPieceImage(piece.color, piece.type);
+        Object.assign(img.style, {
+          width: '88%',
+          height: '88%',
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        });
+        cell.appendChild(img);
+      }
+
+      // Highlight (if any)
+      if (highlightSquares && highlightSquares.includes(square)) {
+        cell.classList.add('lp-legal-destination-square');
+      }
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+// ==========================================
+// ⚖️ ADMIN PANEL FUNCTIONS
+// ==========================================
+
+function showLegalAdminPanel() {
+  const panel = document.getElementById('lpLegalAdminPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  legalGameState.adminPanelOpen = true;
+  updateLegalAdminPanel();
+}
+
+function hideLegalAdminPanel() {
+  const panel = document.getElementById('lpLegalAdminPanel');
+  if (panel) panel.style.display = 'none';
+  legalGameState.adminPanelOpen = false;
+}
+
+function updateLegalAdminPanel() {
+  const statusEl = document.getElementById('lpLegalAdminStatus');
+  const boardEl = document.getElementById('lpLegalAdminBoard');
+  const correctCountEl = document.getElementById('lpLegalAdminCorrectCount');
+  const avgGuessEl = document.getElementById('lpLegalAdminAvgGuess');
+  const correctStudentsEl = document.getElementById('lpLegalAdminCorrectStudents');
+  const wrongStudentsEl = document.getElementById('lpLegalAdminWrongStudents');
+  const answersEl = document.getElementById('lpLegalAdminAnswers');
+  if (!boardEl) return;
+
+  // Status
+  if (statusEl) {
+    let text = `⚖️ ${legalGameState.correctCount} legal moves`;
+    if (legalGameState.revealed) text = '🔓 Revealed';
+    else if (Object.keys(legalGameState.answers).length > 0) text += ' • Answers received';
+    statusEl.textContent = text;
+  }
+
+  // Correct count
+  if (correctCountEl) correctCountEl.textContent = `✅ ${legalGameState.correctCount}`;
+
+  // Board
+  const highlights = legalGameState.revealed ? legalGameState.legalDestinations || [] : null;
+  renderLegalBoard(boardEl, legalGameState.fen, highlights);
+
+  // Compute stats
+  const entries = Object.entries(legalGameState.answers);
+  const total = entries.length;
+  let correctCount = 0, wrongCount = 0, sum = 0;
+  entries.forEach(([userId, data]) => {
+    const guess = data.guess;
+    sum += guess;
+    if (guess === legalGameState.correctCount) correctCount++;
+    else wrongCount++;
+  });
+  const avg = total > 0 ? (sum / total).toFixed(1) : '-';
+
+  if (avgGuessEl) avgGuessEl.textContent = `📊 Avg: ${avg}`;
+  if (correctStudentsEl) correctStudentsEl.textContent = `✅ ${correctCount}`;
+  if (wrongStudentsEl) wrongStudentsEl.textContent = `❌ ${wrongCount}`;
+
+  // Answers list
+  if (answersEl) {
+    answersEl.innerHTML = '';
+    if (total === 0) {
+      answersEl.innerHTML = '<div style="opacity:.6;text-align:center;padding:10px;">Waiting for answers...</div>';
+    } else {
+      entries.forEach(([userId, data]) => {
+        const row = document.createElement('div');
+        const isCorrect = data.guess === legalGameState.correctCount;
+        const statusClass = legalGameState.revealed ? (isCorrect ? 'correct' : 'wrong') : 'waiting';
+        row.className = statusClass;
+        row.innerHTML = `
+          <span>${data.username || 'Student'}</span>
+          <span>${data.guess} ${legalGameState.revealed ? (isCorrect ? '✅' : '❌') : ''}</span>
+        `;
+        answersEl.appendChild(row);
+      });
+    }
+  }
+}
+
+// ==========================================
+// ⚖️ STUDENT MODAL FUNCTIONS
+// ==========================================
+
+function showLegalStudentModal(data) {
+  const modal = document.getElementById('lpLegalGameModal');
+  const boardEl = document.getElementById('lpLegalGameBoard');
+  const questionEl = document.getElementById('lpLegalGameQuestion');
+  const feedbackEl = document.getElementById('lpLegalGameFeedback');
+  const inputEl = document.getElementById('lpLegalGuessInput');
+  const submitBtn = document.getElementById('lpLegalSubmitBtn');
+
+  if (!modal || !boardEl) return;
+
+  // Store state
+  legalGameState.active = true;
+  legalGameState.challengeId = data.challengeId;
+  legalGameState.fen = data.fen;
+  legalGameState.correctCount = data.correctCount;
+  legalGameState.revealed = false;
+  legalGameState.locked = false;
+  legalGameState.answers = {};
+  legalGameState.studentModalOpen = true;
+
+  // Set question
+  if (questionEl) questionEl.textContent = 'How many legal moves are possible?';
+
+  // Render board
+  renderLegalBoard(boardEl, data.fen);
+
+  // Reset input and feedback
+// Reset input
+if (inputEl) {
+
+    inputEl.value = "";
+    inputEl.disabled = false;
+    inputEl.readOnly = false;
+
+    inputEl.blur();
+
+    setTimeout(() => {
+        inputEl.focus();
+    }, 50);
+
+    inputEl.onkeydown = (e) => {
+        if (e.key === "Enter") {
+            handleLegalSubmit();
+        }
+    };
+}
+
+if (feedbackEl) {
+    feedbackEl.textContent =
+        "Enter a number and click Submit.";
+}
+
+if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.style.pointerEvents = "auto";
+    submitBtn.onclick = () => handleLegalSubmit();
+}
+
+  modal.style.display = 'flex';
+}
+
+function hideLegalStudentModal() {
+  const modal = document.getElementById('lpLegalGameModal');
+  if (modal) modal.style.display = 'none';
+  legalGameState.studentModalOpen = false;
+}
+
+function handleLegalSubmit() {
+  if (legalGameState.locked || legalGameState.revealed) return;
+  const inputEl = document.getElementById('lpLegalGuessInput');
+  if (!inputEl) return;
+  const guess = parseInt(inputEl.value.trim());
+  if (isNaN(guess) || guess < 0) {
+    document.getElementById('lpLegalGameFeedback').textContent = 'Please enter a valid number.';
+    return;
+  }
+
+  // Lock
+  legalGameState.locked = true;
+  legalGameState.answers[currentUserId] = { username: currentUsername || 'Guest', guess: guess };
+
+  // Disable input
+  inputEl.disabled = true;
+  document.getElementById('lpLegalSubmitBtn').disabled = true;
+  document.getElementById('lpLegalGameFeedback').innerHTML = '<div style="color:#ffd54f;font-weight:800;">✅ Answer submitted. Waiting for Coach...</div>';
+
+  // Broadcast
+  if (movesChannel) {
+    movesChannel.send({
+      type: 'broadcast',
+      event: 'legal_submit',
+      payload: {
+        challengeId: legalGameState.challengeId,
+        userId: currentUserId,
+        username: currentUsername || 'Guest',
+        guess: guess
+      }
+    });
+  }
+}
+
+// ==========================================
+// ⚖️ ADMIN START, REVEAL, RESET
+// ==========================================
+
+async function startLegalGame() {
+  if (!isAdmin) return;
+  if (!roomCode) {
+    showJoinBanner('Create a classroom first.', false);
+    return;
+  }
+  if (!movesChannel) return;
+
+  // Generate position
+  const position = generateLegalPosition();
+  if (!position) {
+    showJoinBanner('Failed to generate a valid position. Try again.', false);
+    return;
+  }
+
+  const challengeId = 'legal_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+
+  legalGameState.active = true;
+  legalGameState.challengeId = challengeId;
+  legalGameState.fen = position.fen;
+  legalGameState.correctCount = position.correctCount;
+  legalGameState.legalDestinations = position.legalDestinations || [];
+  legalGameState.answers = {};
+  legalGameState.revealed = false;
+  legalGameState.locked = false;
+  legalGameState.adminPanelOpen = true;
+
+  // Broadcast to students
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'legal_start',
+    payload: {
+      challengeId,
+      fen: position.fen,
+      correctCount: position.correctCount, // students don't see it yet, but we send for consistency
+    }
+  });
+
+  showLegalAdminPanel();
+  showJoinBanner(`⚖️ Ask Legal started!`, false);
+}
+
+async function revealLegalGame() {
+  if (!isAdmin) return;
+  if (!legalGameState.active || legalGameState.revealed) return;
+
+  legalGameState.revealed = true;
+  legalGameState.locked = true;
+
+  // Broadcast reveal
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'legal_reveal',
+    payload: {
+      challengeId: legalGameState.challengeId,
+      correctCount: legalGameState.correctCount,
+      legalDestinations: legalGameState.legalDestinations
+    }
+  });
+
+  // Update admin panel
+  updateLegalAdminPanel();
+  document.getElementById('lpLegalAdminStatus').textContent = '🔓 Revealed';
+}
+
+async function resetLegalGame() {
+  if (!legalGameState.active) return;
+
+  // Broadcast reset
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'legal_reset',
+    payload: { challengeId: legalGameState.challengeId }
+  });
+
+  // Clear local
+  legalGameState.active = false;
+  legalGameState.challengeId = null;
+  legalGameState.fen = null;
+  legalGameState.correctCount = 0;
+  legalGameState.answers = {};
+  legalGameState.revealed = false;
+  legalGameState.locked = false;
+  legalGameState.adminPanelOpen = false;
+  legalGameState.studentModalOpen = false;
+
+  hideLegalAdminPanel();
+  hideLegalStudentModal();
+}
+
+// ==========================================
+// ⚖️ REALTIME EVENT HANDLERS (to be placed in listenRoom)
+// ==========================================
+
+// These will be added inside the broadcast listener.
+// See integration below.
+
+// Ask Legal button
+document.getElementById('lpAskLegalBtn')?.addEventListener('click', startLegalGame);
+document.getElementById('lpLegalRevealBtn')?.addEventListener('click', revealLegalGame);
+document.getElementById('lpLegalResetBtn')?.addEventListener('click', resetLegalGame);
+
 // ==========================================
 // ♟ ASK CHECKS – STATE
 // ==========================================
@@ -81291,7 +81762,8 @@ const lpRandomGames = [
   "lpAskSpotChangeBtn",
   "lpAskBasicsBtn",
    "lpAskFruitBtn",
-     "lpAskChecksBtn"
+     "lpAskChecksBtn",
+      "lpAskLegalBtn"   // ✅ Add this
 ];
 
 let lpRandomBag = [];
@@ -99216,6 +99688,78 @@ if (payload.event === "student_puzzle_completed") {
   return;
 }
 
+// ========== ASK LEGAL EVENTS ==========
+
+if (payload.event === 'legal_start') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  showLegalStudentModal(data);
+  showJoinBanner('⚖️ Coach started Ask Legal Challegne!', false);
+  return;
+}
+
+if (payload.event === 'legal_submit') {
+  if (!isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== legalGameState.challengeId) return;
+  // Store answer (only once per student)
+  if (!legalGameState.answers[data.userId]) {
+    legalGameState.answers[data.userId] = {
+      username: data.username || 'Student',
+      guess: data.guess
+    };
+    updateLegalAdminPanel();
+    showJoinBanner(`🙋 ${data.username || 'Student'} submitted guess: ${data.guess}`, false);
+  }
+  return;
+}
+
+if (payload.event === 'legal_reveal') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== legalGameState.challengeId) return;
+  legalGameState.correctCount = data.correctCount;
+  legalGameState.legalDestinations = data.legalDestinations || [];
+  legalGameState.revealed = true;
+  legalGameState.locked = true;
+
+  // Show result on student board
+  const boardEl = document.getElementById('lpLegalGameBoard');
+  const feedbackEl = document.getElementById('lpLegalGameFeedback');
+  if (boardEl) {
+    // Re-render with highlights
+    renderLegalBoard(boardEl, legalGameState.fen, data.legalDestinations || []);
+  }
+  if (feedbackEl) {
+    const myAnswer = legalGameState.answers[currentUserId];
+    const correct = myAnswer && myAnswer.guess === data.correctCount;
+    if (myAnswer) {
+      feedbackEl.innerHTML = `
+        <div style="color:${correct ? '#22c55e' : '#ef4444'}; font-weight:800; font-size:18px;">
+          ${correct ? '✅ Correct!' : '❌ Wrong'}
+        </div>
+        <div>Your guess: ${myAnswer.guess}</div>
+        <div style="color:#22c55e; font-weight:700;">Correct answer: ${data.correctCount}</div>
+      `;
+    } else {
+      feedbackEl.innerHTML = `
+        <div style="color:#fbbf24; font-weight:800;">⏳ No answer submitted</div>
+        <div style="color:#22c55e; font-weight:700;">Correct answer: ${data.correctCount}</div>
+      `;
+    }
+  }
+  // Disable input
+  document.getElementById('lpLegalGuessInput').disabled = true;
+  document.getElementById('lpLegalSubmitBtn').disabled = true;
+  return;
+}
+
+if (payload.event === 'legal_reset') {
+  if (isAdmin) return;
+  resetLegalGame();
+  return;
+}
+
 // ========== ASK CHECKS EVENTS ==========
 
 if (payload.event === 'check_start') {
@@ -115939,6 +116483,41 @@ justify-content:center;
       <button id="lpChecksSubmitBtn" style="margin-left:10px; padding:8px 16px; border:none; border-radius:6px; background:#4caf50; color:white; font-weight:700; cursor:pointer;">Submit</button>
     </div>
     <div id="lpChecksGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
+  </div>
+</div>
+
+<!-- ⚖️ ASK LEGAL ADMIN PANEL -->
+<div id="lpLegalAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:280px; z-index:99998; background:#1d1f31; border:2px solid #60a5fa; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <strong style="font-size:18px;">⚖️ Ask Legal</strong>
+    <span onclick="document.getElementById('lpLegalAdminPanel').style.display='none'" style="cursor:pointer; font-size:20px;">×</span>
+  </div>
+  <div id="lpLegalAdminStatus" style="font-weight:700; margin-bottom:8px;">Waiting...</div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+    <span id="lpLegalAdminCorrectCount">✅ 0</span>
+    <span id="lpLegalAdminAvgGuess">📊 Avg: -</span>
+  </div>
+  <div id="lpLegalAdminBoard" style="width:230px; height:230px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto 14px auto; border:2px solid #60a5fa; border-radius:7px; overflow:hidden;"></div>
+  <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px;">
+    <span id="lpLegalAdminCorrectStudents">✅ 0</span>
+    <span id="lpLegalAdminWrongStudents">❌ 0</span>
+  </div>
+  <div id="lpLegalAdminAnswers" style="max-height:200px; overflow-y:auto; margin-bottom:12px; padding-right:4px;"></div>
+  <button id="lpLegalRevealBtn" style="width:100%; padding:10px; border:none; border-radius:8px; background:#4caf50; color:white; font-weight:700; cursor:pointer; margin-bottom:6px;">🔓 Reveal</button>
+  <button id="lpLegalResetBtn" style="width:100%; padding:10px; border:none; border-radius:8px; background:#3b82f6; color:white; font-weight:700; cursor:pointer;">⚠️ Reset / Exit</button>
+</div>
+
+<!-- ⚖️ ASK LEGAL STUDENT MODAL -->
+<div id="lpLegalGameModal" style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; background:rgba(0,0,0,.48); backdrop-filter:blur(4px);">
+  <div style="width:min(92vw, 560px); background:#1d1f31; border:2px solid #60a5fa; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">⚖️ How many legal moves?</div>
+    <div id="lpLegalGameQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Find all legal moves!</div>
+    <div id="lpLegalGameBoard" style="width:min(82vw, 440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden;"></div>
+    <div style="margin-top:14px;">
+      <input id="lpLegalGuessInput" type="number" min="0" max="999" placeholder="Enter number..." style="padding:8px; width:80px; border-radius:6px; border:none; background:#2a2f4a; color:white; text-align:center; font-size:20px; font-weight:700;">
+      <button id="lpLegalSubmitBtn" style="margin-left:10px; padding:8px 16px; border:none; border-radius:6px; background:#4caf50; color:white; font-weight:700; cursor:pointer;">Submit</button>
+    </div>
+    <div id="lpLegalGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
   </div>
 </div>
 
