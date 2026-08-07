@@ -29486,6 +29486,115 @@ border-radius:20px;
 
 
 
+/* Fruit bounce animation */
+@keyframes fruitBounce {
+  0% { transform: scale(0.2); opacity: 0.2; }
+  60% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Admin panel board cells */
+#lpFruitAdminBoard > div,
+#lpFruitGameBoard > div {
+  font-size: clamp(20px, 4vw, 40px);
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+#lpFruitAdminBoard > div:hover,
+#lpFruitGameBoard > div:hover {
+  filter: brightness(1.1);
+}
+
+/* Student board cursor */
+#lpFruitGameBoard > div {
+  cursor: pointer;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #lpFruitAdminPanel {
+    right: 10px;
+    width: 240px;
+    top: 100px;
+  }
+  #lpFruitGameModal > div {
+    width: 95vw;
+  }
+}
+
+/* 🍓 Ask Fruit */
+/* 🍓 ASK FRUIT — muted berry */
+#lpAskFruitBtn {
+  margin-top: 8px;
+  background: #6a4d43 !important;
+  color: #fff6f3 !important;
+  border: 1px solid #8a665a !important;
+}
+
+#lpAskFruitBtn:hover {
+  background: #7a5a4d !important;
+}
+
+
+/* Ask Checks */
+#lpChecksAdminBoard > div,
+#lpChecksGameBoard > div {
+  font-size: clamp(20px, 4vw, 40px);
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+#lpChecksGameBoard > div {
+  cursor: pointer;
+}
+
+#lpChecksAdminAnswers {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#lpChecksAdminAnswers > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.06);
+}
+
+#lpChecksAdminAnswers .correct {
+  background: rgba(34,197,94,.18);
+  border-left: 4px solid #22c55e;
+}
+
+#lpChecksAdminAnswers .wrong {
+  background: rgba(239,68,68,.18);
+  border-left: 4px solid #ef4444;
+}
+
+#lpChecksAdminAnswers .waiting {
+  background: rgba(255,255,255,.06);
+  border-left: 4px solid #777;
+}
+
+/* Board highlight for checking moves (reveal) */
+.lp-checks-checking-square {
+  outline: 4px solid #22c55e !important;
+  outline-offset: -4px !important;
+  box-shadow: inset 0 0 20px rgba(34,197,94,.6) !important;
+}
+
+
+#lpAskChecksBtn {
+  background: #465a7b !important;
+  color: #f4f8ff !important;
+  border: 1px solid #6482aa !important;
+}
+
+#lpAskChecksBtn:hover {
+  background: #54709a !important;
+}
 
   </style>
 </head>
@@ -32228,6 +32337,8 @@ class="lp-admin-btn"
 
 </button>
 
+
+
 <button
   id="lpAskVisionBtn"
   type="button"
@@ -32268,6 +32379,11 @@ class="lp-admin-btn"
 <button id="lpAskSpotChangeBtn" type="button" data-role="admin-only" class="lp-admin-btn">🎭 Ask Change</button>
 
 <button id="lpAskBasicsBtn" type="button" data-role="admin-only" class="lp-admin-btn">⚜️ Ask Basics</button>
+
+<button id="lpAskFruitBtn" data-role="admin-only" class="lp-admin-btn">🍎 Ask Capture</button>
+
+<!-- Admin button -->
+<button id="lpAskChecksBtn" data-role="admin-only" class="lp-admin-btn">⚔️ Ask Checks</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -79634,6 +79750,1538 @@ setTimeout(render,100);
 // ===============================
 const LivePuzzle = (() => {
 
+// ==========================================
+// ♟ ASK CHECKS – STATE
+// ==========================================
+
+const checksGameState = {
+  active: false,
+  challengeId: null,
+  fen: null,                 // FEN string of the position
+  correctCount: 0,           // number of legal checking moves
+  answers: {},               // userId -> { username, guess }
+  revealed: false,
+  locked: false,
+  adminPanelOpen: false,
+  studentModalOpen: false,
+};
+
+// ==========================================
+// ♟ POSITION GENERATOR
+// ==========================================
+
+function generateChecksPosition() {
+  const MAX_ATTEMPTS = 500;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const game = new Chess();
+    // Clear board
+    game.clear();
+
+    // Randomly place the king (color chosen later)
+    // We'll decide which side to move: the enemy side will be the side that moves.
+    // The king's color will be the opposite of the side to move.
+    // So we randomly choose: side to move = white or black?
+    const sideToMove = Math.random() < 0.5 ? 'w' : 'b';
+    const kingColor = sideToMove === 'w' ? 'b' : 'w'; // enemy side
+
+    // Place the king on a random square (not on any edge for more moves)
+    const files = 'abcdefgh';
+    const kingFile = files[Math.floor(Math.random() * 8)];
+    const kingRank = Math.floor(Math.random() * 6) + 2; // 2..7
+    const kingSquare = kingFile + kingRank;
+
+    // Ensure square is empty (clear already)
+    const kingPiece = { type: 'k', color: kingColor };
+    game.put(kingPiece, kingSquare);
+
+    // Now place enemy pieces (sideToMove) randomly
+    // Number of pieces: between 8 and 20 (to have enough checking moves)
+  const enemyCount =
+Math.floor(Math.random() * 7) + 12; // 12–18
+    const pieceTypes = ['p','n','b','r','q'];
+    // We'll place pieces one by one, avoiding collisions and not on king square.
+    let placed = 0;
+    let attempts = 0;
+    while (placed < enemyCount && attempts < 200) {
+      attempts++;
+      const file = files[Math.floor(Math.random() * 8)];
+      const rank = Math.floor(Math.random() * 8) + 1;
+      const square = file + rank;
+      // Must be empty and not the king square
+      if (game.get(square) !== null) continue;
+      if (square === kingSquare) continue;
+      // For pawns, avoid placing on first/last rank (they can't be there)
+      let type = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+      if (type === 'p') {
+        // pawns cannot be on rank 1 or 8
+        if (rank === 1 || rank === 8) continue;
+        // For pawns, direction matters: if sideToMove is white, pawns move upward (rank 2->8), so they should be on ranks 2-7
+        // But we want them anywhere except 1 and 8.
+        // We'll allow them.
+      }
+      // Avoid putting the king in check initially? We'll allow it, but we need legal moves.
+      // Actually, we want to count checking moves for the side to move. If the king is already in check, then the side to move might be in check, but we still count checking moves? The prompt doesn't specify; we'll avoid positions where the king is in check initially.
+      // But we need to check after placing pieces.
+      // For simplicity, we'll generate the position and then verify no king in check.
+      // So we'll build the board first, then check.
+      const piece = { type: type, color: sideToMove };
+      game.put(piece, square);
+      placed++;
+    }
+
+    // Now we have a position. Ensure the king is not in check (otherwise some moves might be illegal due to king exposure)
+    // Check if king is in check by the sideToMove pieces (i.e., enemy of king)
+    const kingInCheck = game.in_check();
+    if (kingInCheck) continue;
+
+    // Now compute all legal moves for sideToMove
+    const moves = game.moves({ verbose: true });
+    let checkingMoves = 0;
+    const checkingDestinations = [];
+    for (const move of moves) {
+      const gameCopy = new Chess(game.fen());
+      const result = gameCopy.move(move);
+      if (!result) continue;
+      // Check if the king is now in check (the king is still on the board, but we need to see if the king's side is in check)
+      // The king is of color kingColor. We can check if gameCopy.in_check() returns true for that color.
+      // But we must be careful: after the move, it's the opponent's turn. The king may be in check.
+      // So we check if the king is in check by the side that just moved.
+      // Actually, we want to know if the move gives check. So we simulate the move and then see if the opponent's king is in check.
+      // After the move, the turn switches to opponent. We need to check if the opponent's king is in check.
+      // The opponent's king is kingColor.
+      // We can use gameCopy.in_check() which returns true if the side to move (the opponent) is in check.
+      // That is exactly what we want: after our move, does the opponent's king stand in check?
+      if (gameCopy.in_check()) {
+        checkingMoves++;
+        checkingDestinations.push(move.to);
+      }
+    }
+
+    // If the number of checking moves is between 5 and 40, accept.
+if (checkingMoves >= 12 && checkingMoves <= 35) {
+      return {
+        fen: game.fen(),
+        correctCount: checkingMoves,
+        checkingDestinations: checkingDestinations
+      };
+    }
+  }
+  // Fallback: should not happen, but create a simple position
+  const fallbackFen = '4k3/8/8/8/8/8/8/7Q w - - 0 1'; // queen can give many checks
+  const game = new Chess(fallbackFen);
+  // Compute checking moves for white
+  const moves = game.moves({ verbose: true });
+  let checkingMoves = 0;
+  for (const move of moves) {
+    const gameCopy = new Chess(fallbackFen);
+    const result = gameCopy.move(move);
+    if (!result) continue;
+    if (gameCopy.in_check()) checkingMoves++;
+  }
+  return {
+    fen: fallbackFen,
+    correctCount: checkingMoves,
+    checkingDestinations: [] // we won't use
+  };
+}
+
+// ==========================================
+// ♟ RENDER BOARD (reuses renderSpotChangeBoard style)
+// ==========================================
+
+function renderChecksBoard(container, fen, highlightSquares = null) {
+  container.innerHTML = '';
+  const game = new Chess(fen);
+  const board = game.board();
+  const files = 'abcdefgh';
+
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+      const square = files[f] + rank;
+      const cell = document.createElement('div');
+      cell.dataset.square = square;
+      const isLight = (f + rank) % 2 === 0;
+      Object.assign(cell.style, {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isLight ? '#f0d9b5' : '#b58863',
+        boxSizing: 'border-box',
+        userSelect: 'none'
+      });
+
+      // Piece
+      const piece = board[8 - rank][f];
+      if (piece) {
+        const img = document.createElement('img');
+        img.src = getVisionPieceImage(piece.color, piece.type);
+        Object.assign(img.style, {
+          width: '88%',
+          height: '88%',
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        });
+        cell.appendChild(img);
+      }
+
+      // Highlight (if any)
+      if (highlightSquares && highlightSquares.includes(square)) {
+        cell.classList.add('lp-checks-checking-square');
+      }
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+// ==========================================
+// ♟ ADMIN PANEL FUNCTIONS
+// ==========================================
+
+function showChecksAdminPanel() {
+  const panel = document.getElementById('lpChecksAdminPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  checksGameState.adminPanelOpen = true;
+  updateChecksAdminPanel();
+}
+
+function hideChecksAdminPanel() {
+  const panel = document.getElementById('lpChecksAdminPanel');
+  if (panel) panel.style.display = 'none';
+  checksGameState.adminPanelOpen = false;
+}
+
+function updateChecksAdminPanel() {
+  const statusEl = document.getElementById('lpChecksAdminStatus');
+  const boardEl = document.getElementById('lpChecksAdminBoard');
+  const correctCountEl = document.getElementById('lpChecksAdminCorrectCount');
+  const avgGuessEl = document.getElementById('lpChecksAdminAvgGuess');
+  const correctStudentsEl = document.getElementById('lpChecksAdminCorrectStudents');
+  const wrongStudentsEl = document.getElementById('lpChecksAdminWrongStudents');
+  const answersEl = document.getElementById('lpChecksAdminAnswers');
+  if (!boardEl) return;
+
+  // Status
+  if (statusEl) {
+    let text = `♟ ${checksGameState.correctCount} checks possible`;
+    if (checksGameState.revealed) text = '🔓 Revealed';
+    else if (Object.keys(checksGameState.answers).length > 0) text += ' • Answers received';
+    statusEl.textContent = text;
+  }
+
+  // Correct count
+  if (correctCountEl) correctCountEl.textContent = `✅ ${checksGameState.correctCount}`;
+
+  // Board
+  const highlights = checksGameState.revealed ? checksGameState.checkingDestinations || [] : null;
+  renderChecksBoard(boardEl, checksGameState.fen, highlights);
+
+  // Compute stats
+  const entries = Object.entries(checksGameState.answers);
+  const total = entries.length;
+  let correctCount = 0, wrongCount = 0, sum = 0;
+  entries.forEach(([userId, data]) => {
+    const guess = data.guess;
+    sum += guess;
+    if (guess === checksGameState.correctCount) correctCount++;
+    else wrongCount++;
+  });
+  const avg = total > 0 ? (sum / total).toFixed(1) : '-';
+
+  if (avgGuessEl) avgGuessEl.textContent = `📊 Avg: ${avg}`;
+  if (correctStudentsEl) correctStudentsEl.textContent = `✅ ${correctCount}`;
+  if (wrongStudentsEl) wrongStudentsEl.textContent = `❌ ${wrongCount}`;
+
+  // Answers list
+  if (answersEl) {
+    answersEl.innerHTML = '';
+    if (total === 0) {
+      answersEl.innerHTML = '<div style="opacity:.6;text-align:center;padding:10px;">Waiting for answers...</div>';
+    } else {
+      entries.forEach(([userId, data]) => {
+        const row = document.createElement('div');
+        const isCorrect = data.guess === checksGameState.correctCount;
+        const statusClass = checksGameState.revealed ? (isCorrect ? 'correct' : 'wrong') : 'waiting';
+        row.className = statusClass;
+        row.innerHTML = `
+          <span>${data.username || 'Student'}</span>
+          <span>${data.guess} ${checksGameState.revealed ? (isCorrect ? '✅' : '❌') : ''}</span>
+        `;
+        answersEl.appendChild(row);
+      });
+    }
+  }
+}
+
+// ==========================================
+// ♟ STUDENT MODAL FUNCTIONS
+// ==========================================
+
+function showChecksStudentModal(data) {
+  const modal = document.getElementById('lpChecksGameModal');
+  const boardEl = document.getElementById('lpChecksGameBoard');
+  const questionEl = document.getElementById('lpChecksGameQuestion');
+  const feedbackEl = document.getElementById('lpChecksGameFeedback');
+  const inputEl = document.getElementById('lpChecksGuessInput');
+  const submitBtn = document.getElementById('lpChecksSubmitBtn');
+
+  if (!modal || !boardEl) return;
+
+  // Store state
+  checksGameState.active = true;
+  checksGameState.challengeId = data.challengeId;
+  checksGameState.fen = data.fen;
+  checksGameState.correctCount = data.correctCount;
+  checksGameState.revealed = false;
+  checksGameState.locked = false;
+  checksGameState.answers = {};
+  checksGameState.studentModalOpen = true;
+
+  // Set question
+  if (questionEl) questionEl.textContent = 'How many legal checking moves are possible?';
+
+  // Render board
+  renderChecksBoard(boardEl, data.fen);
+
+// Reset input and feedback
+if (inputEl) {
+
+    inputEl.value = "";
+    inputEl.disabled = false;
+    inputEl.readOnly = false;
+
+    inputEl.blur();
+
+
+
+    inputEl.onkeydown = (e) => {
+        if (e.key === "Enter") {
+            handleChecksSubmit();
+        }
+    };
+}
+
+if (feedbackEl) {
+    feedbackEl.textContent =
+        "Enter a number and click Submit.";
+}
+
+if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.style.pointerEvents = "auto";
+    submitBtn.onclick = () => handleChecksSubmit();
+}
+
+  modal.style.display = 'flex';
+      setTimeout(() => {
+        inputEl.focus();
+    }, 50);
+}
+
+function hideChecksStudentModal() {
+  const modal = document.getElementById('lpChecksGameModal');
+  if (modal) modal.style.display = 'none';
+  checksGameState.studentModalOpen = false;
+}
+
+function handleChecksSubmit() {
+  if (checksGameState.locked || checksGameState.revealed) return;
+  const inputEl = document.getElementById('lpChecksGuessInput');
+  if (!inputEl) return;
+  const guess = parseInt(inputEl.value.trim());
+  if (isNaN(guess) || guess < 0) {
+    document.getElementById('lpChecksGameFeedback').textContent = 'Please enter a valid number.';
+    return;
+  }
+
+  // Lock
+  checksGameState.locked = true;
+  checksGameState.answers[currentUserId] = { username: currentUsername || 'Guest', guess: guess };
+
+  // Disable input
+  inputEl.disabled = true;
+  document.getElementById('lpChecksSubmitBtn').disabled = true;
+  document.getElementById('lpChecksGameFeedback').innerHTML = '<div style="color:#ffd54f;font-weight:800;">✅ Answer submitted. Waiting for Coach...</div>';
+
+  // Broadcast
+  if (movesChannel) {
+    movesChannel.send({
+      type: 'broadcast',
+      event: 'check_submit',
+      payload: {
+        challengeId: checksGameState.challengeId,
+        userId: currentUserId,
+        username: currentUsername || 'Guest',
+        guess: guess
+      }
+    });
+  }
+}
+
+// ==========================================
+// ♟ ADMIN START, REVEAL, RESET
+// ==========================================
+
+async function startChecksGame() {
+  if (!isAdmin) return;
+  if (!roomCode) {
+    showJoinBanner('Create a classroom first.', false);
+    return;
+  }
+  if (!movesChannel) return;
+
+  // Generate position
+  const position = generateChecksPosition();
+  if (!position) {
+    showJoinBanner('Failed to generate a valid position. Try again.', false);
+    return;
+  }
+
+  const challengeId = 'checks_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+
+  checksGameState.active = true;
+  checksGameState.challengeId = challengeId;
+  checksGameState.fen = position.fen;
+  checksGameState.correctCount = position.correctCount;
+  checksGameState.checkingDestinations = position.checkingDestinations || [];
+  checksGameState.answers = {};
+  checksGameState.revealed = false;
+  checksGameState.locked = false;
+  checksGameState.adminPanelOpen = true;
+
+  // Broadcast to students
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'check_start',
+    payload: {
+      challengeId,
+      fen: position.fen,
+      correctCount: position.correctCount, // students don't see it yet, but we send for consistency (they won't use it)
+    }
+  });
+
+  showChecksAdminPanel();
+  showJoinBanner(`⚔️ Ask Checks started!`, false);
+}
+
+async function revealChecksGame() {
+  if (!isAdmin) return;
+  if (!checksGameState.active || checksGameState.revealed) return;
+
+  checksGameState.revealed = true;
+  checksGameState.locked = true;
+
+  // Broadcast reveal
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'check_reveal',
+    payload: {
+      challengeId: checksGameState.challengeId,
+      correctCount: checksGameState.correctCount,
+      checkingDestinations: checksGameState.checkingDestinations
+    }
+  });
+
+  // Update admin panel
+  updateChecksAdminPanel();
+  document.getElementById('lpChecksAdminStatus').textContent = '🔓 Revealed';
+}
+
+async function resetChecksGame() {
+  if (!checksGameState.active) return;
+
+  // Broadcast reset
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'check_reset',
+    payload: { challengeId: checksGameState.challengeId }
+  });
+
+  // Clear local
+  checksGameState.active = false;
+  checksGameState.challengeId = null;
+  checksGameState.fen = null;
+  checksGameState.correctCount = 0;
+  checksGameState.answers = {};
+  checksGameState.revealed = false;
+  checksGameState.locked = false;
+  checksGameState.adminPanelOpen = false;
+  checksGameState.studentModalOpen = false;
+
+  hideChecksAdminPanel();
+  hideChecksStudentModal();
+}
+
+// Ask Checks button
+document.getElementById('lpAskChecksBtn')?.addEventListener('click', startChecksGame);
+document.getElementById('lpChecksRevealBtn')?.addEventListener('click', revealChecksGame);
+document.getElementById('lpChecksResetBtn')?.addEventListener('click', resetChecksGame);
+
+// ==========================================
+// ♟ REALTIME EVENT HANDLERS (to be placed in listenRoom)
+// ==========================================
+
+// These will be added inside the broadcast listener.
+// See integration below.
+
+// ==========================================
+// 🍎 FRUIT CAPTURE CHALLENGE – STATE
+// ==========================================
+
+const fruitGameState = {
+  active: false,
+  challengeId: null,
+  pieceType: null,            // 'q','k','n','b','r'
+  board: [],                  // 8x8 array: { type:'empty'|'fruit'|'barricade'|'player', fruitEmoji:'' }
+  startSquare: null,
+  fruitCount: 0,
+  remaining: 0,
+  timer: 30,
+  timerInterval: null,
+  status: 'playing',          // 'playing' | 'success' | 'fail'
+  answers: {},                // userId -> { username, timeTaken }
+  adminPanelOpen: false,
+  studentModalOpen: false,
+  pieceCycle: 0,              // index into FRUIT_PIECE_ORDER
+};
+// ✅ Add this immediately below
+let fruitAdminBoardDirty = true;
+
+const FRUIT_PIECE_ORDER = ['q','k','n','b','r'];
+const FRUIT_EMOJIS = [
+  '🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓',
+  '🍒','🥝','🥥','🥭','🍍','🥕','🌽','🍅','🥒','🥬',
+  '🥦','🌶️','🧄','🧅','🍄','🥔','🍠','🥜'
+];
+const BARRICADE_EMOJI = '🚧';
+
+// ------------------------------------------
+// 🍎 GENERATE RANDOM BOARD
+// ------------------------------------------
+
+function generateFruitBoard(pieceType) {
+  const board = [];
+  const fruits = [];
+  const barricades = [];
+  const startSquare = { row: 0, col: 0 };
+
+  // Initialise empty board
+  for (let r = 0; r < 8; r++) {
+    board[r] = [];
+    for (let c = 0; c < 8; c++) {
+      board[r][c] = { type: 'empty', fruitEmoji: '' };
+    }
+  }
+
+  // Choose start square (prefer central area)
+  const startRow = Math.floor(Math.random() * 4) + 2; // 2..5
+  const startCol = Math.floor(Math.random() * 4) + 2;
+  startSquare.row = startRow;
+  startSquare.col = startCol;
+  board[startRow][startCol] = { type: 'player', fruitEmoji: '' };
+
+  // Number of fruits: 20..60
+ const fruitCount = Math.floor(Math.random() * 21) + 20;
+
+  // Place fruits randomly (avoid start and each other)
+  let placed = 0;
+  let attempts = 0;
+  while (placed < fruitCount && attempts < 1000) {
+    attempts++;
+    const r = Math.floor(Math.random() * 8);
+    const c = Math.floor(Math.random() * 8);
+    if (board[r][c].type === 'empty') {
+      board[r][c].type = 'fruit';
+      board[r][c].fruitEmoji = FRUIT_EMOJIS[Math.floor(Math.random() * FRUIT_EMOJIS.length)];
+      placed++;
+      fruits.push({ row: r, col: c });
+    }
+  }
+
+  // Place barricades: 3..12, not on start or fruit
+  const barricadeCount = Math.floor(Math.random() * 10) + 3;
+  let placedBarricades = 0;
+  attempts = 0;
+  while (placedBarricades < barricadeCount && attempts < 500) {
+    attempts++;
+    const r = Math.floor(Math.random() * 8);
+    const c = Math.floor(Math.random() * 8);
+    if (board[r][c].type === 'empty') {
+      board[r][c].type = 'barricade';
+      board[r][c].fruitEmoji = BARRICADE_EMOJI;
+      placedBarricades++;
+      barricades.push({ row: r, col: c });
+    }
+  }
+
+  // Validate solvability (all fruits reachable)
+  if (!isFruitBoardSolvable(board, startSquare, pieceType)) {
+    // Regenerate recursively (max 10 attempts)
+    return generateFruitBoard(pieceType);
+  }
+
+  return { board, startSquare, fruitCount: placed };
+}
+
+// ------------------------------------------
+// 🍎 SOLVABILITY CHECK (BFS)
+// ------------------------------------------
+
+function isFruitBoardSolvable(board, start, pieceType) {
+  const rows = 8, cols = 8;
+  const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+  const queue = [{ row: start.row, col: start.col }];
+  visited[start.row][start.col] = true;
+
+  // Precompute all fruit positions
+  const fruitPositions = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].type === 'fruit') {
+        fruitPositions.push({ row: r, col: c });
+      }
+    }
+  }
+
+  if (fruitPositions.length === 0) return false;
+
+  // BFS from start using piece movement rules
+  while (queue.length > 0) {
+    const { row, col } = queue.shift();
+    const moves = getLegalMovesForPiece(row, col, board, pieceType);
+    for (const mv of moves) {
+      if (!visited[mv.row][mv.col]) {
+        visited[mv.row][mv.col] = true;
+        queue.push(mv);
+      }
+    }
+  }
+
+  // Check if all fruits are visited
+  for (const f of fruitPositions) {
+    if (!visited[f.row][f.col]) return false;
+  }
+  return true;
+}
+
+// ------------------------------------------
+// 🍎 LEGAL MOVES FOR A PIECE (ignoring fruit capture)
+// ------------------------------------------
+
+function getLegalMovesForPiece(row, col, board, pieceType) {
+  const moves = [];
+  const isInside = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+  const isBlocked = (r, c) => board[r][c].type === 'barricade';
+
+  if (pieceType === 'q') {
+    // Queen: all 8 directions, slide
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    for (const [dr, dc] of dirs) {
+      let r = row + dr, c = col + dc;
+      while (isInside(r, c) && !isBlocked(r, c)) {
+        moves.push({ row: r, col: c });
+        r += dr;
+        c += dc;
+      }
+    }
+  } else if (pieceType === 'r') {
+    // Rook: orthogonal
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for (const [dr, dc] of dirs) {
+      let r = row + dr, c = col + dc;
+      while (isInside(r, c) && !isBlocked(r, c)) {
+        moves.push({ row: r, col: c });
+        r += dr;
+        c += dc;
+      }
+    }
+  } else if (pieceType === 'b') {
+    // Bishop: diagonal
+    const dirs = [[1,1],[1,-1],[-1,1],[-1,-1]];
+    for (const [dr, dc] of dirs) {
+      let r = row + dr, c = col + dc;
+      while (isInside(r, c) && !isBlocked(r, c)) {
+        moves.push({ row: r, col: c });
+        r += dr;
+        c += dc;
+      }
+    }
+  } else if (pieceType === 'k') {
+    // King: one square any direction
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const r = row + dr, c = col + dc;
+        if (isInside(r, c) && !isBlocked(r, c)) {
+          moves.push({ row: r, col: c });
+        }
+      }
+    }
+  } else if (pieceType === 'n') {
+    // Knight: L‑shapes, can jump over barricades
+    const jumps = [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+    for (const [dr, dc] of jumps) {
+      const r = row + dr, c = col + dc;
+      if (isInside(r, c)) {
+        // Knights can land on barricades? No, they cannot capture barricades.
+        // But they can jump over them. We only disallow landing on barricade.
+        if (!isBlocked(r, c)) {
+          moves.push({ row: r, col: c });
+        }
+      }
+    }
+  }
+
+  // Do not allow moving onto the player's own square (already excluded)
+  // Also, we allow moving onto fruits (they will be captured) and empty squares.
+  return moves;
+}
+
+// ------------------------------------------
+// 🍎 FRUIT CAPTURE – ADMIN START
+// ------------------------------------------
+
+async function startFruitGame() {
+  if (!isAdmin) return;
+  if (!roomCode) {
+    showJoinBanner('Create a classroom first.', false);
+    return;
+  }
+  if (!movesChannel) return;
+
+  // Rotate piece type
+  const pieceType = FRUIT_PIECE_ORDER[fruitGameState.pieceCycle % FRUIT_PIECE_ORDER.length];
+  fruitGameState.pieceCycle = (fruitGameState.pieceCycle + 1) % FRUIT_PIECE_ORDER.length;
+
+  // Generate board
+  const { board, startSquare, fruitCount } = generateFruitBoard(pieceType);
+  if (!board) {
+    showJoinBanner('Failed to generate a valid board. Try again.', false);
+    return;
+  }
+
+  // Store state
+  const challengeId = 'fruit_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+  fruitGameState.active = true;
+  fruitGameState.challengeId = challengeId;
+  fruitGameState.pieceType = pieceType;
+  fruitGameState.board = board;
+  fruitAdminBoardDirty = true;
+  fruitGameState.startSquare = startSquare;
+  fruitGameState.fruitCount = fruitCount;
+  fruitGameState.remaining = fruitCount;
+  fruitGameState.timer = 60; // default 30 seconds
+  fruitGameState.status = 'playing';
+  fruitGameState.answers = {};
+  fruitGameState.adminPanelOpen = true;
+  fruitGameState.studentModalOpen = false;
+
+  // Broadcast to students (send board as serializable data)
+  const serializableBoard = board.map(row => row.map(cell => ({ ...cell })));
+  await movesChannel.send({
+    type: 'broadcast',
+    event: 'fruit_start',
+    payload: {
+      challengeId,
+      pieceType,
+      board: serializableBoard,
+      startSquare,
+      fruitCount,
+      timer: fruitGameState.timer,
+    }
+  });
+
+  // Show admin panel
+  showFruitAdminPanel();
+
+  // Start timer on admin side and broadcast every second
+  clearInterval(fruitGameState.timerInterval);
+  let timeLeft = fruitGameState.timer;
+  fruitGameState.timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+
+    clearInterval(fruitGameState.timerInterval);
+    fruitGameState.timerInterval = null;
+
+    // Stop timer
+    fruitGameState.timer = 0;
+    fruitGameState.status = "fail";
+
+    // ✅ Mark every unfinished student as failed
+    Object.values(fruitGameState.answers).forEach(player => {
+        if (player.status !== "completed") {
+            player.status = "failed";
+        }
+    });
+
+    // ✅ Immediately refresh admin panel
+    updateFruitAdminPanel();
+
+    // Notify students
+    movesChannel.send({
+        type: "broadcast",
+        event: "fruit_fail",
+        payload: { challengeId }
+    });
+
+} else {
+      // Broadcast remaining time to keep students synced
+      movesChannel.send({
+        type: 'broadcast',
+        event: 'fruit_tick',
+        payload: { timeLeft }
+      });
+      // Update admin UI
+    fruitGameState.timer = timeLeft;
+
+// Update ONLY timer text
+const timer =
+document.getElementById(
+"lpFruitAdminTimer"
+);
+
+if(timer){
+
+    timer.textContent =
+    `⏰ ${timeLeft}s`;
+
+    if(timeLeft<=10){
+
+        timer.style.color="#ff5252";
+        timer.style.fontWeight="800";
+
+    }else{
+
+        timer.style.color="";
+        timer.style.fontWeight="";
+
+    }
+
+}
+    }
+  }, 1000);
+
+  showJoinBanner(`🍎 Fruit Capture started! (${pieceType.toUpperCase()})`, false);
+}
+
+// ------------------------------------------
+// 🍎 ADMIN PANEL
+// ------------------------------------------
+
+function showFruitAdminPanel() {
+  const panel = document.getElementById('lpFruitAdminPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  fruitGameState.adminPanelOpen = true;
+  updateFruitAdminPanel();
+}
+
+function hideFruitAdminPanel() {
+  const panel = document.getElementById('lpFruitAdminPanel');
+  if (panel) panel.style.display = 'none';
+  fruitGameState.adminPanelOpen = false;
+}
+
+function updateFruitAdminPanel() {
+
+  const statusEl = document.getElementById("lpFruitAdminStatus");
+  const boardEl = document.getElementById("lpFruitAdminBoard");
+  const remainingEl = document.getElementById("lpFruitAdminRemaining");
+  const timerEl = document.getElementById("lpFruitAdminTimer");
+  const listEl = document.getElementById("lpFruitAdminAnswers");
+
+  if (!boardEl) return;
+
+  // ===========================
+  // Status
+  // ===========================
+
+  if (statusEl) {
+
+    let statusText =
+      `🍎 ${fruitGameState.pieceType.toUpperCase()} • ${fruitGameState.remaining} Fruits`;
+
+    if (fruitGameState.status === "success") {
+      statusText = "🎉 SUCCESS!";
+    }
+
+    if (fruitGameState.status === "fail") {
+      statusText = "⏰ Time Up";
+    }
+
+    statusEl.textContent = statusText;
+
+  }
+
+  // ===========================
+  // Remaining Fruits
+  // ===========================
+
+  if (remainingEl) {
+
+    remainingEl.textContent =
+      `🍎 ${fruitGameState.remaining}`;
+
+  }
+
+  // ===========================
+  // Timer
+  // ===========================
+
+  if (timerEl) {
+
+    timerEl.textContent =
+      `⏰ ${fruitGameState.timer}s`;
+
+    if (fruitGameState.timer <= 10) {
+
+      timerEl.style.color = "#ff5252";
+      timerEl.style.fontWeight = "800";
+
+    } else {
+
+      timerEl.style.color = "";
+      timerEl.style.fontWeight = "";
+
+    }
+
+  }
+
+  // ===========================
+  // Mini Board
+  // ===========================
+
+if (fruitAdminBoardDirty) {
+
+  renderFruitBoard(
+    boardEl,
+    fruitGameState.board,
+    fruitGameState.startSquare,
+    fruitGameState.pieceType
+  );
+
+  fruitAdminBoardDirty = false;
+
+}
+  // ===========================
+  // Student Status List
+  // ===========================
+
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+
+  const entries =
+    Object.entries(fruitGameState.answers);
+
+  if (entries.length === 0) {
+
+    listEl.innerHTML = `
+      <div
+        style="
+          opacity:.65;
+          text-align:center;
+          padding:10px;
+          font-style:italic;
+        ">
+        Waiting for students...
+      </div>
+    `;
+
+    return;
+
+  }
+
+ 
+
+  entries.forEach(([userId, data]) => {
+
+    const row =
+      document.createElement("div");
+
+    row.style.display = "flex";
+    row.style.justifyContent = "space-between";
+    row.style.alignItems = "center";
+
+    row.style.padding = "8px 10px";
+    row.style.marginBottom = "6px";
+
+    row.style.borderRadius = "8px";
+
+    row.style.background =
+      "rgba(255,255,255,.06)";
+
+    row.innerHTML = `
+
+      <span
+        style="
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          max-width:140px;
+        ">
+        ${data.username || "Student"}
+      </span>
+
+      <span
+        style="
+          font-size:15px;
+font-weight:700;
+          font-weight:bold;
+          color:${
+    data.status === "completed"
+        ? "#22c55e"
+        : data.status === "failed"
+        ? "#ef4444"
+        : "#facc15"
+};
+        ">
+       ${
+data.status==="completed"
+?"🟢 Completed"
+
+:data.status==="failed"
+?"🔴 Failed"
+
+:"🟡 Capturing..."
+}
+      </span>
+
+    `;
+
+    listEl.appendChild(row);
+
+  });
+
+}
+
+// ------------------------------------------
+// 🍎 RENDER FRUIT BOARD (for admin & student)
+// ------------------------------------------
+
+// ------------------------------------------
+// 🍎 RENDER FRUIT BOARD (Improved)
+// ------------------------------------------
+
+function renderFruitBoard(container, board, startSquare, pieceType) {
+
+  container.innerHTML = "";
+
+  // Ensure perfect 8×8 grid every render
+  container.style.display = "grid";
+  container.style.gridTemplateColumns = "repeat(8,1fr)";
+  container.style.gridTemplateRows = "repeat(8,1fr)";
+  container.style.width = "100%";
+  container.style.height = "100%";
+  container.style.aspectRatio = "1 / 1";
+  container.style.overflow = "hidden";
+  container.style.boxSizing = "border-box";
+
+  const isMiniBoard =
+    container.id === "lpFruitAdminBoard";
+
+  const files = "abcdefgh";
+
+  for (let r = 0; r < 8; r++) {
+
+    for (let c = 0; c < 8; c++) {
+
+      const cell = board[r][c];
+
+      const square =
+        files[c] + (8 - r);
+
+      const div =
+        document.createElement("div");
+
+      div.dataset.square = square;
+      div.dataset.row = r;
+      div.dataset.col = c;
+
+      const isLight =
+        (r + c) % 2 === 0;
+
+      div.style.background =
+        isLight ? "#f0d9b5" : "#b58863";
+
+      div.style.position = "relative";
+
+      div.style.display = "flex";
+      div.style.alignItems = "center";
+      div.style.justifyContent = "center";
+
+      div.style.width = "100%";
+      div.style.height = "100%";
+
+      div.style.minWidth = "0";
+      div.style.minHeight = "0";
+
+      div.style.aspectRatio = "1 / 1";
+
+      div.style.flex = "1 1 auto";
+div.style.maxWidth = "100%";
+div.style.maxHeight = "100%";
+
+      div.style.overflow = "hidden";
+
+      div.style.boxSizing = "border-box";
+
+      div.style.userSelect = "none";
+
+      div.style.cursor =
+        isMiniBoard ? "default" : "pointer";
+
+      div.style.lineHeight = "1";
+
+      div.style.fontSize =
+        isMiniBoard ? "18px" : "30px";
+
+      // ============================
+// Fruit
+// ============================
+
+if (cell.type === "fruit") {
+
+  div.textContent = cell.fruitEmoji || "🍎";
+
+  // 👇 Smaller than chess pieces
+  div.style.fontSize =
+    isMiniBoard ? "16px" : "22px";
+
+  if (!cell.rendered) {
+    div.style.animation = "fruitBounce .4s ease";
+    cell.rendered = true;
+  }
+
+}
+
+      // ============================
+      // Barricade
+      // ============================
+
+      else if (
+        cell.type === "barricade"
+      ) {
+
+        div.textContent = BARRICADE_EMOJI;
+
+        div.style.fontSize =
+          isMiniBoard ? "18px" : "30px";
+          
+
+      }
+
+      // ============================
+      // Player Piece
+      // ============================
+
+      else if (
+        cell.type === "player"
+      ) {
+
+        const img = document.createElement("img");
+
+const pieceCode =
+"w" + pieceType.toUpperCase();
+
+img.src =
+getPieceThemePath(currentPieceTheme)
+.replace("{piece}", pieceCode);
+
+img.draggable = false;
+
+img.loading = "eager";
+
+img.decoding = "sync";
+
+img.style.pointerEvents = "none";
+
+img.style.objectFit = "contain";
+
+img.style.display = "block";
+
+img.style.flexShrink = "0";
+
+img.style.userSelect = "none";
+
+img.style.width =
+isMiniBoard ? "60%" : "78%";
+
+img.style.height =
+isMiniBoard ? "60%" : "78%";
+img.style.filter =
+  "drop-shadow(0 0 6px rgba(255,215,0,1)) drop-shadow(0 0 12px rgba(255,180,0,0.8))";
+
+div.appendChild(img);
+
+      }
+
+      container.appendChild(div);
+
+    }
+
+  }
+
+}
+// ------------------------------------------
+// 🍎 STUDENT MODAL
+// ------------------------------------------
+
+function showFruitStudentModal(data) {
+  const modal = document.getElementById('lpFruitGameModal');
+  const boardEl = document.getElementById('lpFruitGameBoard');
+  const questionEl = document.getElementById('lpFruitGameQuestion');
+  const timerEl = document.getElementById('lpFruitGameTimer');
+  const remainingEl = document.getElementById('lpFruitGameRemaining');
+  const feedbackEl = document.getElementById('lpFruitGameFeedback');
+
+  if (!modal || !boardEl) return;
+
+  // Store data in student's state
+  fruitGameState.active = true;
+  fruitGameState.challengeId = data.challengeId;
+  fruitGameState.pieceType = data.pieceType;
+  fruitGameState.board = data.board.map(row => row.map(cell => ({ ...cell })));
+  fruitGameState.startSquare = data.startSquare;
+  fruitGameState.fruitCount = data.fruitCount;
+  fruitGameState.remaining = data.fruitCount;
+  fruitGameState.timer = data.timer;
+  fruitGameState.status = 'playing';
+  fruitGameState.studentModalOpen = true;
+
+  // Set question
+  if (questionEl) {
+    questionEl.textContent = `Capture all fruits using ${data.pieceType.toUpperCase()}!`;
+  }
+
+  // Render board
+  renderFruitBoard(boardEl, fruitGameState.board, fruitGameState.startSquare, fruitGameState.pieceType);
+
+  // Update counters
+  if (remainingEl) remainingEl.textContent = `🍎 ${fruitGameState.remaining}`;
+  if (timerEl) timerEl.textContent = `⏰ ${fruitGameState.timer}s`;
+  if (feedbackEl) feedbackEl.textContent = 'Click your piece, then click a destination.';
+
+  // Make squares clickable (for student moves)
+  const cells = boardEl.querySelectorAll('[data-row][data-col]');
+  cells.forEach(cell => {
+    cell.style.cursor = 'pointer';
+    cell.addEventListener('click', () => handleFruitSquareClick(cell));
+  });
+
+  modal.style.display = 'flex';
+}
+
+function hideFruitStudentModal() {
+  const modal = document.getElementById('lpFruitGameModal');
+  if (modal) modal.style.display = 'none';
+  fruitGameState.studentModalOpen = false;
+}
+
+// ------------------------------------------
+// 🍎 STUDENT MOVE HANDLER
+// ------------------------------------------
+
+let fruitSelected = null; // { row, col }
+
+function handleFruitSquareClick(cell) {
+  if (fruitGameState.status !== 'playing') return;
+  if (fruitGameState.timer <= 0) return;
+  if (!fruitGameState.active) return;
+
+  const row = parseInt(cell.dataset.row);
+  const col = parseInt(cell.dataset.col);
+  const board = fruitGameState.board;
+
+  // If no piece selected, and this square has the player piece, select it
+  if (!fruitSelected) {
+    if (board[row][col].type === 'player') {
+      fruitSelected = { row, col };
+      // Highlight selected piece
+    cell.style.boxShadow =
+"inset 0 0 0 3px #ffd700";
+      document.getElementById('lpFruitGameFeedback').textContent = 'Now click a destination.';
+    }
+    return;
+  }
+
+  // If a piece is selected, attempt to move to this square
+  const fromRow = fruitSelected.row;
+  const fromCol = fruitSelected.col;
+  const pieceType = fruitGameState.pieceType;
+
+  // Check if destination is a legal move
+  const legalMoves = getLegalMovesForPiece(fromRow, fromCol, board, pieceType);
+  const isValid = legalMoves.some(m => m.row === row && m.col === col);
+  if (!isValid) {
+    // Deselect if clicked on same piece or invalid
+    if (board[row][col].type === 'player') {
+      // Reselect
+      fruitSelected = { row, col };
+      // Clear previous highlight
+      document.querySelectorAll('#lpFruitGameBoard > div').forEach(el => el.style.outline = '');
+    cell.style.boxShadow =
+"inset 0 0 0 3px #ffd700";
+      document.getElementById('lpFruitGameFeedback').textContent = 'Now click a destination.';
+    } else {
+      document.getElementById('lpFruitGameFeedback').textContent = 'Illegal move. Try again.';
+    }
+    return;
+  }
+
+  // Perform move: update board
+  // Move player piece from (fromRow, fromCol) to (row, col)
+  board[fromRow][fromCol] = { type: 'empty', fruitEmoji: '' };
+  const destCell = board[row][col];
+  let captured = false;
+  if (destCell.type === 'fruit') {
+    captured = true;
+    fruitGameState.remaining--;
+    // Play capture sound/effect
+    playFruitCaptureEffect();
+  }
+  board[row][col] = { type: 'player', fruitEmoji: '' };
+  
+
+  // Clear selection
+// Clear selection
+fruitSelected = null;
+
+// Student board changed
+const boardEl =
+document.getElementById("lpFruitGameBoard");
+
+// Redraw once
+renderFruitBoard(
+    boardEl,
+    board,
+    fruitGameState.startSquare,
+    fruitGameState.pieceType
+);
+
+// Admin board needs refresh
+fruitAdminBoardDirty = true;
+
+// Reattach listeners
+boardEl
+.querySelectorAll("[data-row][data-col]")
+.forEach(c=>{
+
+    c.style.cursor="pointer";
+
+    c.onclick=null;
+
+    c.onclick=()=>handleFruitSquareClick(c);
+
+});
+
+  // Update remaining UI
+  document.getElementById('lpFruitGameRemaining').textContent = `🍎 ${fruitGameState.remaining}`;
+
+  // If captured, notify admin
+  if (captured) {
+    movesChannel.send({
+      type: 'broadcast',
+      event: 'fruit_capture',
+      payload: {
+        challengeId: fruitGameState.challengeId,
+        userId: currentUserId,
+        username: currentUsername || 'Student',
+        remaining: fruitGameState.remaining,
+        row,
+        col,
+      }
+    });
+  }
+
+  // Check win condition
+if (fruitGameState.remaining === 0) {
+
+    fruitGameState.status = "success";
+
+    // ✅ Freeze ONLY this student's game
+    fruitGameState.active = false;
+
+    // Broadcast success
+    movesChannel.send({
+        type: "broadcast",
+        event: "fruit_success",
+        payload: {
+            challengeId: fruitGameState.challengeId,
+            userId: currentUserId,
+            username: currentUsername || "Student"
+        }
+    });
+
+    // Show success UI
+    document.getElementById("lpFruitGameFeedback").innerHTML = `
+        <div style="color:#4caf50;font-size:24px;font-weight:800;">
+            🎉 SUCCESS!
+        </div>
+        <div>You captured all fruits!</div>
+    `;
+
+    // Freeze timer display at current value
+    const timerEl = document.getElementById("lpFruitGameTimer");
+    if (timerEl) {
+        timerEl.textContent = `⏰ ${fruitGameState.timer}s`;
+    }
+
+    // Confetti
+    launchConfetti();
+
+}
+}
+
+// ------------------------------------------
+// 🍎 CAPTURE EFFECTS (simple)
+// ------------------------------------------
+
+function playFruitCaptureEffect() {
+  // Simple: play a sound (if available)
+  try {
+    const audio = new Audio('sounds/capture.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  } catch(e) {}
+}
+
+function launchConfetti() {
+  // Basic confetti via emojis or simple animation
+  // We'll add a quick CSS animation to the modal
+  const modal = document.getElementById('lpFruitGameModal');
+  if (modal) {
+    modal.style.transition = 'background 0.5s';
+    modal.style.background = 'rgba(0,200,50,0.15)';
+    setTimeout(() => modal.style.background = '', 1500);
+  }
+}
+
+// ------------------------------------------
+// 🍎 ADMIN RESET
+// ------------------------------------------
+
+async function resetFruitGame() {
+
+  // Only the admin sends the reset broadcast
+  if (isAdmin) {
+
+    if (!fruitGameState.active) return;
+
+    await movesChannel.send({
+      type: "broadcast",
+      event: "fruit_reset",
+      payload: {
+        challengeId: fruitGameState.challengeId
+      }
+    });
+
+  }
+
+  // Clear local state (admin + students)
+  clearInterval(fruitGameState.timerInterval);
+
+  fruitGameState.active = false;
+  fruitGameState.challengeId = null;
+  fruitGameState.board = [];
+  fruitGameState.answers = {};
+  fruitGameState.adminPanelOpen = false;
+  fruitGameState.studentModalOpen = false;
+
+  fruitAdminBoardDirty = true;
+
+  hideFruitAdminPanel();
+  hideFruitStudentModal();
+}
+// ------------------------------------------
+// 🍎 REALTIME EVENT HANDLERS (to be placed in listenRoom)
+// ------------------------------------------
+
+// These should be added inside the movesChannel.on("broadcast", { event: "*" }, ...) callback.
+// Add these cases after existing event handlers.
+
+/*
+if (payload.event === 'fruit_start') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  // Student receives start event
+  showFruitStudentModal(data);
+  showJoinBanner('🍎 Fruit Capture Challenge started!', false);
+}
+
+if (payload.event === 'fruit_tick') {
+  if (isAdmin) return;
+  const timeLeft = payload.payload.timeLeft;
+  fruitGameState.timer = timeLeft;
+  const timerEl = document.getElementById('lpFruitGameTimer');
+  if (timerEl) timerEl.textContent = `⏰ ${timeLeft}s`;
+}
+
+if (payload.event === 'fruit_capture') {
+  if (!isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== fruitGameState.challengeId) return;
+  // Update remaining count
+  fruitGameState.remaining = data.remaining;
+  // Update admin board
+  updateFruitAdminPanel();
+  // Optionally show capture notification
+  showJoinBanner(`🍎 ${data.username || 'Student'} captured a fruit!`, false);
+}
+
+if (payload.event === 'fruit_success') {
+  if (!isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== fruitGameState.challengeId) return;
+  // Mark student as completed
+  fruitGameState.answers[data.userId] = { username: data.username, completed: true };
+  updateFruitAdminPanel();
+  showJoinBanner(`🎉 ${data.username || 'Student'} completed the challenge!`, false);
+}
+
+if (payload.event === 'fruit_fail') {
+  // Everyone receives fail event
+  if (!isAdmin) {
+    fruitGameState.status = 'fail';
+    document.getElementById('lpFruitGameFeedback').innerHTML = `
+      <div style="color:#ef4444;font-size:24px;font-weight:800;">⏰ Time Up</div>
+      <div>Better luck next time!</div>
+    `;
+    // Disable further moves
+    const boardEl = document.getElementById('lpFruitGameBoard');
+    boardEl.querySelectorAll('[data-row][data-col]').forEach(c => {
+      c.style.cursor = 'default';
+      c.replaceWith(c.cloneNode(true)); // remove listeners
+    });
+  } else {
+    fruitGameState.status = 'fail';
+    updateFruitAdminPanel();
+    showJoinBanner('⏰ Time Up!', false);
+  }
+}
+
+if (payload.event === 'fruit_reset') {
+  // Everyone resets
+  resetFruitGame();
+}
+*/
+
+// We'll now attach the event listeners in the actual movesChannel listener.
+// See integration notes below.
+
+// ------------------------------------------
+// 🍎 BUTTON EVENT LISTENERS
+// ------------------------------------------
+
+document.getElementById('lpAskFruitBtn')?.addEventListener('click', startFruitGame);
+document.getElementById('lpFruitResetBtn')?.addEventListener('click', resetFruitGame);
+
+// Also need to add the reset button for admin panel (already in HTML)
+
 const lpRandomGames = [
   "lpAskVisionBtn",
   "lpAskSafeBtn",
@@ -79641,7 +81289,8 @@ const lpRandomGames = [
   "lpAskMemoryBtn",
   "lpAskThreatBtn",
   "lpAskSpotChangeBtn",
-  "lpAskBasicsBtn"
+  "lpAskBasicsBtn",
+   "lpAskFruitBtn"
 ];
 
 let lpRandomBag = [];
@@ -97566,6 +99215,201 @@ if (payload.event === "student_puzzle_completed") {
   return;
 }
 
+// ========== ASK CHECKS EVENTS ==========
+
+if (payload.event === 'check_start') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  showChecksStudentModal(data);
+  showJoinBanner('⚔️ Coach started Ask Checks Challenge!', false);
+  return;
+}
+
+if (payload.event === 'check_submit') {
+  if (!isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== checksGameState.challengeId) return;
+  // Store answer (only once per student)
+  if (!checksGameState.answers[data.userId]) {
+    checksGameState.answers[data.userId] = {
+      username: data.username || 'Student',
+      guess: data.guess
+    };
+    updateChecksAdminPanel();
+    showJoinBanner(`🙋 ${data.username || 'Student'} submitted guess: ${data.guess}`, false);
+  }
+  return;
+}
+
+if (payload.event === 'check_reveal') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  if (data.challengeId !== checksGameState.challengeId) return;
+  checksGameState.correctCount = data.correctCount;
+  checksGameState.checkingDestinations = data.checkingDestinations || [];
+  checksGameState.revealed = true;
+  checksGameState.locked = true;
+
+  // Show result on student board
+  const boardEl = document.getElementById('lpChecksGameBoard');
+  const feedbackEl = document.getElementById('lpChecksGameFeedback');
+  if (boardEl) {
+    // Re-render with highlights
+    renderChecksBoard(boardEl, checksGameState.fen, data.checkingDestinations || []);
+  }
+  if (feedbackEl) {
+    const myAnswer = checksGameState.answers[currentUserId];
+    const correct = myAnswer && myAnswer.guess === data.correctCount;
+    if (myAnswer) {
+      feedbackEl.innerHTML = `
+        <div style="color:${correct ? '#22c55e' : '#ef4444'}; font-weight:800; font-size:18px;">
+          ${correct ? '✅ Correct!' : '❌ Wrong'}
+        </div>
+        <div>Your guess: ${myAnswer.guess}</div>
+        <div style="color:#22c55e; font-weight:700;">Correct answer: ${data.correctCount}</div>
+      `;
+    } else {
+      feedbackEl.innerHTML = `
+        <div style="color:#fbbf24; font-weight:800;">⏳ No answer submitted</div>
+        <div style="color:#22c55e; font-weight:700;">Correct answer: ${data.correctCount}</div>
+      `;
+    }
+  }
+  // Disable input
+  document.getElementById('lpChecksGuessInput').disabled = true;
+  document.getElementById('lpChecksSubmitBtn').disabled = true;
+  return;
+}
+
+if (payload.event === 'check_reset') {
+  if (isAdmin) return;
+  resetChecksGame();
+  return;
+}
+
+// Inside the broadcast event listener (after existing handlers)
+
+// 🍎 Fruit Capture events
+if (payload.event === 'fruit_start') {
+  if (isAdmin) return;
+  const data = payload.payload;
+  showFruitStudentModal(data);
+  showJoinBanner('🍎 Coach started Fruit Capture Challenge!', false);
+  return;
+}
+
+if (payload.event === "fruit_tick") {
+
+    if (isAdmin) return;
+
+    // ✅ Ignore timer updates after this student has finished
+    if (!fruitGameState.active) return;
+
+    const timeLeft = payload.payload.timeLeft;
+
+    fruitGameState.timer = timeLeft;
+
+    const timerEl = document.getElementById("lpFruitGameTimer");
+
+    if (timerEl) {
+        timerEl.textContent = `⏰ ${timeLeft}s`;
+    }
+
+    return;
+
+}
+if (payload.event === 'fruit_capture') {
+
+  if (!isAdmin) return;
+
+  const data = payload.payload;
+
+  if (data.challengeId !== fruitGameState.challengeId) return;
+
+  // Update remaining fruits
+  fruitGameState.remaining = data.remaining;
+
+  // Mark student as currently playing
+  fruitGameState.answers[data.userId] = {
+    username: data.username,
+    status: "capturing"
+  };
+
+  // Refresh admin panel
+  fruitAdminBoardDirty = true;
+  updateFruitAdminPanel();
+
+}
+
+if (payload.event === 'fruit_success') {
+
+  if (!isAdmin) return;
+
+  const data = payload.payload;
+
+  if (data.challengeId !== fruitGameState.challengeId) return;
+
+  // Mark student as completed
+  fruitGameState.answers[data.userId] = {
+    username: data.username,
+    status: "completed"
+  };
+
+  // Admin board needs refresh
+  fruitAdminBoardDirty = true;
+
+  updateFruitAdminPanel();
+
+  // Show only ONE completion banner
+  showJoinBanner(
+    `🎉 ${data.username || "Student"} completed Fruit Capture!`,
+    false
+  );
+
+  return;
+
+}
+
+if (payload.event === 'fruit_fail') {
+  // Everyone receives fail
+
+  if (!isAdmin) {
+    fruitGameState.status = 'fail';
+    document.getElementById('lpFruitGameFeedback').innerHTML = `
+      <div style="color:#ef4444;font-size:24px;font-weight:800;">⏰ Time Up</div>
+      <div>Better luck next time!</div>
+    `;
+    // Disable further moves
+    const boardEl = document.getElementById('lpFruitGameBoard');
+    boardEl.querySelectorAll('[data-row][data-col]').forEach(c => {
+      c.style.cursor = 'default';
+      c.replaceWith(c.cloneNode(true));
+    });
+  } else {
+    fruitGameState.status = 'fail';
+    Object.keys(fruitGameState.answers).forEach(id=>{
+
+if(
+fruitGameState.answers[id].status!=="completed"
+){
+
+fruitGameState.answers[id].status="failed";
+
+}
+
+});
+    updateFruitAdminPanel();
+    showJoinBanner('⏰ Time Up!', false);
+  }
+  return;
+}
+
+if (payload.event === 'fruit_reset') {
+  // Everyone resets
+  resetFruitGame();
+  return;
+}
+
 // ========== ASK BASICS EVENTS ==========
 
 // ask_basics_start (student)
@@ -114029,6 +115873,72 @@ justify-content:center;
   </div>
   <!-- Student Answers -->
   <div id="lpAskBasicsAdminAnswers" style="margin-top:14px; max-height:200px; overflow-y:auto; overflow-x:hidden; padding-right:4px;"></div>
+</div>
+
+
+<!-- 🍎 FRUIT CAPTURE STUDENT MODAL -->
+<div id="lpFruitGameModal" style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; background:rgba(0,0,0,.48); backdrop-filter:blur(4px);">
+  <div style="width:min(92vw, 560px); background:#1d1f31; border:2px solid #ffa07a; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">🍎 Fruit Capture</div>
+    <div id="lpFruitGameQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Capture all fruits!</div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+      <span id="lpFruitGameRemaining">🍎 0</span>
+      <span id="lpFruitGameTimer">⏰ 60s</span>
+    </div>
+    <div id="lpFruitGameBoard" style="width:min(82vw, 440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden;"></div>
+    <div id="lpFruitGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
+  </div>
+</div>
+
+<!-- 🍎 FRUIT CAPTURE ADMIN PANEL -->
+<div id="lpFruitAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:280px; z-index:99998; background:#1d1f31; border:2px solid #ffa07a; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <strong style="font-size:18px;">🍎 Fruit Capture</strong>
+    <span onclick="document.getElementById('lpFruitAdminPanel').style.display='none'" style="cursor:pointer; font-size:20px;">×</span>
+  </div>
+  <div id="lpFruitAdminStatus" style="font-weight:700; margin-bottom:8px;">Waiting...</div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+    <span id="lpFruitAdminRemaining">🍎 0</span>
+    <span id="lpFruitAdminTimer">⏰ 0s</span>
+  </div>
+  <div id="lpFruitAdminBoard" style="width:230px; height:230px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto 14px auto; border:2px solid #ffa07a; border-radius:7px; overflow:hidden;"></div>
+  <div id="lpFruitAdminAnswers" style="max-height:200px; overflow-y:auto; margin-bottom:12px; padding-right:4px;"></div>
+  <button id="lpFruitResetBtn" style="width:100%; padding:10px; border:none; border-radius:8px; background:#3b82f6; color:white; font-weight:700; cursor:pointer;">⚠️ Reset / Exit</button>
+</div>
+
+<!-- 🧮 ASK CHECKS ADMIN PANEL -->
+<div id="lpChecksAdminPanel" style="display:none; position:fixed; top:150px; right:80px; width:280px; z-index:99998; background:#1d1f31; border:2px solid #fbbf24; border-radius:16px; padding:18px; box-shadow:0 15px 45px rgba(0,0,0,.45); color:white;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <strong style="font-size:18px;">⚔️ Ask Checks</strong>
+    <span onclick="document.getElementById('lpChecksAdminPanel').style.display='none'" style="cursor:pointer; font-size:20px;">×</span>
+  </div>
+  <div id="lpChecksAdminStatus" style="font-weight:700; margin-bottom:8px;">Waiting...</div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+    <span id="lpChecksAdminCorrectCount">✅ 0</span>
+    <span id="lpChecksAdminAvgGuess">📊 Avg: -</span>
+  </div>
+  <div id="lpChecksAdminBoard" style="width:230px; height:230px; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto 14px auto; border:2px solid #fbbf24; border-radius:7px; overflow:hidden;"></div>
+  <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px;">
+    <span id="lpChecksAdminCorrectStudents">✅ 0</span>
+    <span id="lpChecksAdminWrongStudents">❌ 0</span>
+  </div>
+  <div id="lpChecksAdminAnswers" style="max-height:200px; overflow-y:auto; margin-bottom:12px; padding-right:4px;"></div>
+  <button id="lpChecksRevealBtn" style="width:100%; padding:10px; border:none; border-radius:8px; background:#4caf50; color:white; font-weight:700; cursor:pointer; margin-bottom:6px;">🔓 Reveal</button>
+  <button id="lpChecksResetBtn" style="width:100%; padding:10px; border:none; border-radius:8px; background:#3b82f6; color:white; font-weight:700; cursor:pointer;">⚠️ Reset / Exit</button>
+</div>
+
+<!-- 🧮 ASK CHECKS STUDENT MODAL -->
+<div id="lpChecksGameModal" style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; background:rgba(0,0,0,.48); backdrop-filter:blur(4px);">
+  <div style="width:min(92vw, 560px); background:#1d1f31; border:2px solid #fbbf24; border-radius:18px; padding:20px; box-shadow:0 18px 55px rgba(0,0,0,.55); color:white; text-align:center;">
+    <div style="font-size:22px; font-weight:800; margin-bottom:6px;">⚔️ How many checks?</div>
+    <div id="lpChecksGameQuestion" style="font-size:17px; font-weight:700; margin-bottom:14px;">Find all legal checking moves!</div>
+    <div id="lpChecksGameBoard" style="width:min(82vw, 440px); aspect-ratio:1/1; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); margin:0 auto; border:3px solid #444; border-radius:8px; overflow:hidden;"></div>
+    <div style="margin-top:14px;">
+      <input id="lpChecksGuessInput" type="number" min="0" max="999" placeholder="Enter number..." style="padding:8px; width:80px; border-radius:6px; border:none; background:#2a2f4a; color:white; text-align:center; font-size:20px; font-weight:700;">
+      <button id="lpChecksSubmitBtn" style="margin-left:10px; padding:8px 16px; border:none; border-radius:6px; background:#4caf50; color:white; font-weight:700; cursor:pointer;">Submit</button>
+    </div>
+    <div id="lpChecksGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
+  </div>
 </div>
 
 <script>
