@@ -29654,6 +29654,29 @@ border-radius:20px;
   background: #a04864 !important;
 }
 
+
+.btn-warning{
+    background: linear-gradient(135deg,#f59e0b,#d97706);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:8px 14px;
+    cursor:pointer;
+    font-weight:600;
+    transition:.2s ease;
+    box-shadow:0 3px 10px rgba(245,158,11,.35);
+}
+
+.btn-warning:hover{
+    background: linear-gradient(135deg,#fbbf24,#f59e0b);
+    transform:translateY(-1px);
+    box-shadow:0 6px 18px rgba(245,158,11,.45);
+}
+
+.btn-warning:active{
+    transform:translateY(0);
+}
+
   </style>
 </head>
 
@@ -35275,7 +35298,7 @@ Submit solution</button>
 
             </div>
             <div class="create-actions">
-              <button class="btn-success" onclick="createAssignment()">Create assignment</button>
+              <button class="btn-success" onclick="createAssignment()">Create / Update Assignment</button>
               <button class="clear-filters-btn" id="clearAssignmentFormBtn" type="button">Clear</button>
             </div>
             
@@ -40404,6 +40427,10 @@ document.getElementById('assignmentsList').addEventListener('click', (e) => {
   const assignmentId = button.dataset.id;
   
   if (!action || !assignmentId) return;
+
+  if (action === "edit") {
+  editAssignment(assignmentId);
+}
   
   if (action === 'start') {
     startAssignmentMode(assignmentId);
@@ -44385,6 +44412,19 @@ function renderAssignedTo(assign, studentNameMap) {
   | <strong>Status:</strong> ${assign.status || 'active'}
 </p>
 
+<div class="assignment-search-students" style="display:none;">
+  ${
+    assign.is_public
+      ? "all students"
+      : (Array.isArray(assign.assigned_to)
+          ? assign.assigned_to
+              .map(id => studentNameMap[id])
+              .filter(Boolean)
+              .join(" ")
+          : "")
+  }
+</div>
+
 ${renderAssignedTo(assign, studentNameMap)}
 
         ${assign.due_at ? `<p><strong>Due:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
@@ -44395,6 +44435,12 @@ ${renderAssignedTo(assign, studentNameMap)}
       <button class="btn-secondary" data-action="view" data-id="${assign.id}">
         View Details
       </button>
+
+      <button class="btn-warning"
+data-action="edit"
+data-id="${assign.id}">
+ Edit
+</button>
 
       <button class="btn-primary" data-action="test" data-id="${assign.id}">
         Test Assignment
@@ -44461,12 +44507,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const cards = list.querySelectorAll(".card");
 
     cards.forEach(card => {
-      const title = card.querySelector("h4")?.textContent.toLowerCase() || "";
-      const desc = card.querySelector("p")?.textContent.toLowerCase() || "";
+const title =
+  card.querySelector("h4")?.textContent.toLowerCase() || "";
 
-      const match =
-        title.includes(query) ||
-        desc.includes(query);
+const desc =
+  card.querySelector("p")?.textContent.toLowerCase() || "";
+
+const students =
+  card.querySelector(".assignment-search-students")
+    ?.textContent.toLowerCase() || "";
+
+const match =
+  title.includes(query) ||
+  desc.includes(query) ||
+  students.includes(query);
 
       card.style.display = match ? "block" : "none";
     });
@@ -53687,7 +53741,68 @@ function safeStyle(id, property, value) {
   }
 };
 
+async function editAssignment(id) {
 
+  const { data: assign, error } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !assign) {
+    alert("Assignment not found.");
+    return;
+  }
+
+  editingAssignmentId = id;
+
+  document.getElementById("assignTitle").value =
+    assign.title || "";
+
+  document.getElementById("assignDesc").value =
+    assign.description || "";
+
+  document.getElementById("assignType").value =
+    assign.task_type || "";
+
+  document.getElementById("assignDue").value =
+    assign.due_at
+      ? assign.due_at.substring(0,16)
+      : "";
+
+  document.getElementById("assignFEN").value =
+    assign.fen || "";
+
+  document.getElementById("assignPGN").value =
+    assign.pgn || "";
+
+  document
+    .querySelectorAll("#assignStudentsBox input[type='checkbox']")
+    .forEach(cb => {
+
+      cb.checked =
+        Array.isArray(assign.assigned_to)
+          ? assign.assigned_to.includes(cb.value)
+          : false;
+
+    });
+
+  document
+    .getElementById("createAssignmentForm")
+    ?.scrollIntoView({
+      behavior:"smooth",
+      block:"start"
+    });
+
+showJoinBanner(
+  "📚 Assignment loaded for editing",
+  false
+);
+
+  setTimeout(closeModal,1800);
+}
+
+let editingAssignmentId = null;
 
 
     window.createAssignment = async function () {
@@ -53763,7 +53878,27 @@ function safeStyle(id, property, value) {
   const finalFEN = fenInput || autoFEN || null;
 
   try {
-  const { error } = await supabase
+  let error;
+
+if (editingAssignmentId) {
+
+  ({ error } = await supabase
+    .from("assignments")
+    .update({
+      title,
+      description,
+      task_type,
+      due_at: due_at || null,
+      fen: finalFEN,
+      pgn: pgn || null,
+      assigned_to: assignedTo.length ? assignedTo : null,
+      is_public: assignedTo.length === 0
+    })
+    .eq("id", editingAssignmentId));
+
+} else {
+
+  ({ error } = await supabase
     .from("assignments")
     .insert([
       {
@@ -53776,23 +53911,26 @@ function safeStyle(id, property, value) {
         is_bulk: true,
         created_by: currentProfile.id,
         status: "active",
-
-        // ✅ CORE LOGIC
         assigned_to: assignedTo.length ? assignedTo : null,
         is_public: assignedTo.length === 0
       }
-    ]);
+    ]));
 
-  if (error) throw error;
+}
 
-    showModal(
-  "🎉 Success",
-  "<p>Assignment created successfully!</p>"
-);
+if (error) throw error;
 
-setTimeout(() => {
-  closeModal();
-}, 1500);
+if (editingAssignmentId) {
+  showJoinBanner(
+    "📚 Assignment updated successfully",
+    false
+  );
+} else {
+  showJoinBanner(
+    "📚 Assignment created successfully",
+    false
+  );
+}
 
 
     // 🧹 Clear form
@@ -53809,6 +53947,7 @@ setTimeout(() => {
 
     // 🔄 Reload list
     loadAssignments();
+    editingAssignmentId = null;
 
   } catch (err) {
     console.error("Error creating assignment:", err);
