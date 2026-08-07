@@ -32221,12 +32221,7 @@ data-role="admin-only">
         <button id="lpShareAnalysisBtn"data-role="admin-only">
   🌐 Assign Analysis
 </button>
-<button id="lpAskRandomBtn"
-        type="button"
-        data-role="admin-only"
-        class="lp-admin-btn">
-  🎁 Ask Random
-</button>
+
       </div>
       <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE STOCKFISH PANEL -->
@@ -32444,6 +32439,12 @@ class="lp-admin-btn"
 <button id="lpAskChecksBtn" data-role="admin-only" class="lp-admin-btn">⚔️ Ask Checks</button>
 <!-- Admin button -->
 <button id="lpAskLegalBtn" data-role="admin-only" class="lp-admin-btn">⚖️ Ask Legal</button>
+<button id="lpAskRandomBtn"
+        type="button"
+        data-role="admin-only"
+        class="lp-admin-btn">
+  🎁 Ask Random
+</button>
 
 
     <div id="lpPuzzleInfo" style="
@@ -79960,7 +79961,15 @@ function updateLegalAdminPanel() {
 
   // Status
   if (statusEl) {
-    let text = `⚖️ ${legalGameState.correctCount} legal moves`;
+   const game = new Chess(legalGameState.fen);
+
+const side =
+    game.turn() === "w"
+        ? "⚪ White"
+        : "⚫ Black";
+
+let text =
+    `${side} • ${legalGameState.correctCount} Legal Moves`;
     if (legalGameState.revealed) text = '🔓 Revealed';
     else if (Object.keys(legalGameState.answers).length > 0) text += ' • Answers received';
     statusEl.textContent = text;
@@ -80035,7 +80044,14 @@ function showLegalStudentModal(data) {
   legalGameState.studentModalOpen = true;
 
   // Set question
-  if (questionEl) questionEl.textContent = 'How many legal moves are possible?';
+ const game = new Chess(data.fen);
+
+if (questionEl) {
+    questionEl.textContent =
+        `How many legal moves are possible for ${
+            game.turn() === "w" ? "⚪ White" : "⚫ Black"
+        }?`;
+}
 
   // Render board
   renderLegalBoard(boardEl, data.fen);
@@ -83171,6 +83187,7 @@ function renderMemoryAdminBoard() {
       // ==============================
       // STUDENT ANSWERS
       // ==============================
+      
 
       Object.values(
   memoryGameState.answers
@@ -83259,26 +83276,27 @@ function renderMemoryAdminBoard() {
 
 });
 
-      // ==============================
-      // CORRECT ANSWER
-      // ==============================
+  // ==============================
+// CORRECT ANSWERS
+// ==============================
 
-      if (
+if (memoryGameState.revealed) {
 
-        memoryGameState.revealed &&
+    const isCorrectSquare =
+        memoryGameState.multiAnswer
+            ? memoryGameState.correctAnswers.includes(square)
+            : square === memoryGameState.correctAnswer;
 
-        square ===
-        memoryGameState.correctAnswer
+    if (isCorrectSquare) {
 
-      ) {
+        cell.style.outline = "4px solid #22c55e";
+        cell.style.outlineOffset = "-4px";
+        cell.style.boxShadow =
+            "inset 0 0 18px rgba(34,197,94,.9)";
+    }
+}
 
-        cell.style.outline =
-          "4px solid #22c55e";
-
-        cell.style.outlineOffset =
-          "-4px";
-
-      }
+      
 
       const piece =
         piecesBySquare[
@@ -85986,6 +86004,7 @@ memoryGameState.locked = false;
   "👀 Visible to students...";
 
   generateMemoryPosition();
+  
 
   generateMemoryQuestion();
 
