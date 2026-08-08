@@ -62620,7 +62620,23 @@ let lastFen = null
 let moveLock = false
 let serverTurn = 'w'
 let mpPendingPromotion = null
-let clockTimer = null
+/* ===============================
+   ⏱ CLOCK STATE — MONOTONIC SNAPSHOT MODEL
+   (replaces the old per-second DB-ticking clockTimer)
+================================ */
+let clockAnimationFrame = null   // single active requestAnimationFrame handle — never duplicate loops
+
+let snapshotWhiteTime = 0        // immutable snapshot — White's time AT snapshotAt
+let snapshotBlackTime = 0        // immutable snapshot — Black's time AT snapshotAt
+let snapshotTurn = 'w'           // whose clock was running at snapshotAt
+let snapshotAt = 0               // performance.now() timestamp the snapshot was taken
+
+let lastKnownWTime = null        // last w_time seen from the server (dedupe realtime echoes)
+let lastKnownBTime = null        // last b_time seen from the server (dedupe realtime echoes)
+let lastKnownTurn = null         // last turn seen from the server (dedupe realtime echoes)
+let lastKnownStatus = null       // last status seen from the server (dedupe realtime echoes)
+
+let mpTimeoutFired = false       // guards against duplicate local timeout writes
 let mpGameOver = false
 let mpTapSource = null
 let localFlip = false
@@ -63754,43 +63770,65 @@ async function genRoomCode() {
 function startClock() {
   if (mpGameOver || !roomId) return
 
-  stopClock()
+  // 🔒 Never allow a second render loop — this alone kills "double countdown"
+  if (clockAnimationFrame) return
 
-  clockTimer = setInterval(async () => {
-  if (mpGameOver || !roomId) return
+  clockAnimationFrame = requestAnimationFrame(mpClockTick)
+}
 
+// ================= LOCAL CLOCK RENDER LOOP =================
+// Pure renderer. Elapsed time always comes from performance.now(),
+// never from frame count or interval execution count.
+function mpClockTick() {
 
-    const field = serverTurn === 'w' ? 'w_time' : 'b_time'
+  if (mpGameOver || !roomId) {
+    clockAnimationFrame = null
+    return
+  }
 
-    const { data, error } = await supabase
-      .from('live_match_rooms')
-      .select('w_time, b_time')
-      .eq('id', roomId)
-      .single()
+  const elapsedSeconds = (performance.now() - snapshotAt) / 1000
 
-    if (error || !data) return
+  let whiteDisplay = snapshotWhiteTime
+  let blackDisplay = snapshotBlackTime
 
-    let newTime =
-      serverTurn === 'w'
-        ? Math.max(0, data.w_time - 1)
-        : Math.max(0, data.b_time - 1)
+  if (snapshotTurn === 'w') {
+    whiteDisplay = Math.max(0, snapshotWhiteTime - elapsedSeconds)
+  } else {
+    blackDisplay = Math.max(0, snapshotBlackTime - elapsedSeconds)
+  }
 
-    const update = {}
-    update[field] = newTime
+  mpRenderClockDisplay(whiteDisplay, blackDisplay)
 
-    await supabase
-      .from('live_match_rooms')
-      .update(update)
-      .eq('id', roomId)
+  const flagFell =
+    (snapshotTurn === 'w' && whiteDisplay <= 0) ||
+    (snapshotTurn === 'b' && blackDisplay <= 0)
 
-    // ⛳ FLAG FALL — FIRE ONCE
-   // ⛳ FLAG FALL — SERVER AUTHORITATIVE
-if (newTime <= 0 && !mpGameOver) {
+  if (flagFell) {
+    mpHandleLocalTimeout(snapshotTurn)
+    return // do not schedule another frame — game is over
+  }
+
+  clockAnimationFrame = requestAnimationFrame(mpClockTick)
+}
+
+// ================= TIMEOUT (fires exactly once, locally calculated) =================
+async function mpHandleLocalTimeout(loserTurn) {
+
+  if (mpGameOver || mpTimeoutFired) return
+  mpTimeoutFired = true
   mpGameOver = true
   stopClock()
 
-  const winner = serverTurn === 'w' ? 'b' : 'w'
+  // Clamp the flagged side to exactly zero for the final paint
+  if (loserTurn === 'w') snapshotWhiteTime = 0
+  else snapshotBlackTime = 0
+  mpRenderClockDisplay(snapshotWhiteTime, snapshotBlackTime)
 
+  const winner = loserTurn === 'w' ? 'b' : 'w'
+
+  // 🔒 status guard prevents both clients from independently
+  // producing conflicting timeout results — whichever write lands
+  // first "wins" the row; the second matches 0 rows and is a no-op.
   await supabase
     .from('live_match_rooms')
     .update({
@@ -63799,6 +63837,7 @@ if (newTime <= 0 && !mpGameOver) {
       updated_at: new Date().toISOString()
     })
     .eq('id', roomId)
+    .eq('status', 'playing')
 
   mpShowModal(
     'Game Over',
@@ -63806,21 +63845,17 @@ if (newTime <= 0 && !mpGameOver) {
       ? '🎉 Opponent ran out of time! You won!'
       : '⛔ Time up! You lost on time.'
   )
-mpArchiveSaveGame(winner)
+  mpArchiveSaveGame(winner)
 
   mpClearSession()
   mpEndAndUnlock()
-
-}
-
-  }, 1000)
 }
 
 
 function stopClock() {
-  if (clockTimer) {
-    clearInterval(clockTimer)
-    clockTimer = null
+  if (clockAnimationFrame) {
+    cancelAnimationFrame(clockAnimationFrame)
+    clockAnimationFrame = null
   }
 }
 
@@ -65402,7 +65437,28 @@ async function syncMoveToServer() {
     .eq('id', roomId)
     .single()
 
-  if (!data) return
+  if (!data) {
+    moveLock = false
+    return
+  }
+
+  // ⏱️ Elapsed time comes ONLY from our own local snapshot —
+  // never from the DB read above (that read is only for the
+  // opponent's untouched time, PGN base, and the static increment).
+  const elapsedSeconds = (performance.now() - snapshotAt) / 1000
+
+  const nextTurn = mpChess.turn()
+
+  let newWTime = data.w_time
+  let newBTime = data.b_time
+
+  if (mySide === 'w') {
+    const remaining = Math.max(0, snapshotWhiteTime - elapsedSeconds)
+    newWTime = Math.max(0, Math.round(remaining + data.increment))
+  } else {
+    const remaining = Math.max(0, snapshotBlackTime - elapsedSeconds)
+    newBTime = Math.max(0, Math.round(remaining + data.increment))
+  }
 
   const history = mpChess.history({ verbose: true })
   const lastMove = history[history.length - 1]
@@ -65412,21 +65468,24 @@ async function syncMoveToServer() {
   const update = {
     fen: mpChess.fen(),
     pgn: fullPGN,
-    turn: mpChess.turn(),
+    turn: nextTurn,
+    w_time: newWTime,
+    b_time: newBTime,
     updated_at: new Date().toISOString()
-  }
-
-  // ⏱️ Apply increment
-  if (mySide === 'w') {
-    update.w_time = data.w_time + data.increment
-  } else {
-    update.b_time = data.b_time + data.increment
   }
 
   await supabase
     .from('live_match_rooms')
     .update(update)
     .eq('id', roomId)
+
+  // 🔥 Rebase immediately using OUR OWN result — do not wait for the
+  // realtime echo. This is what makes the mover's own clock immune
+  // to Supabase network latency (Test 4 / "network latency" case).
+  // When the echo does arrive, lastKnown* already matches it exactly,
+  // so subscribeRoom()'s change-detection is a no-op (no double
+  // deduction, no restart).
+  mpRebaseClock(newWTime, newBTime, nextTurn, 'playing')
 
   moveLock = false
 }
@@ -65514,11 +65573,19 @@ if (savedSide) {
   updateMpPlayerLabels()
   mpForcePOVLayout()
 
-  mpChess.load(data.fen)
+mpChess.load(data.fen)
   lastFen = data.fen
   serverTurn = data.turn   // 🔥 sync turn from server
 moveLock = false        // 🔓 allow moves after reconnect
 
+  // ⏱️ Establish ONE fresh local timing snapshot from the current
+  // authoritative server row. Do NOT add increment, do NOT subtract
+  // twice, do NOT restore base_time — just trust w_time/b_time/turn
+  // exactly as they currently sit in the DB.
+  mpRebaseClock(data.w_time, data.b_time, data.turn, data.status)
+  if (data.status === 'playing') {
+    startClock()
+  }
 
   if (!mpBoard) {
   initLiveMatchBoard()
@@ -65548,7 +65615,7 @@ mpCreateBtn.onclick = async () => {
   const myName = currentProfile?.username || 'Player'
 
   const [base, inc] = mpTime.value.split('|').map(Number)
-  const code = genRoomCode()   // ✅ MUST be before supabase call
+ const code = await genRoomCode() // ✅ MUST be before supabase call
 
   const { data, error } = await supabase
     .from('live_match_rooms')
@@ -65576,7 +65643,8 @@ mpCreateBtn.onclick = async () => {
     return
   }
 
-  roomId = data.id
+roomId = data.id
+  mpRebaseClock(data.w_time, data.b_time, data.turn, data.status) // ⏱️ paint 3:00/3:00 immediately; does NOT start ticking while status is 'waiting'
   mpWhiteName = data.white_name || "Waiting..."
 mpBlackName = data.black_name || "Waiting..."
 updateMpPlayerLabels()
@@ -65669,7 +65737,10 @@ if (
 
 }
 
-  roomId = data.id
+roomId = data.id
+  // ⏱️ Joining always activates the game — seed the snapshot and start ticking now.
+  mpRebaseClock(data.w_time, data.b_time, data.turn, 'playing')
+  startClock()
 // Creator chose side — we take the opposite
 if (
 
@@ -65788,7 +65859,7 @@ mpFenCreateBtn.onclick = async () => {
   liveMatchXPGranted = false
 
   const [base, inc] = mpTime.value.split('|').map(Number)
-  const code = genRoomCode()
+ const code = await genRoomCode()
 
   // ===============================
   // APPLY FEN LOCALLY FIRST
@@ -65859,7 +65930,8 @@ updateTurnHighlight()
   // ===============================
   // FINALIZE CLIENT STATE
   // ===============================
-  roomId = data.id
+roomId = data.id
+  mpRebaseClock(data.w_time, data.b_time, data.turn, data.status) // ⏱️ paint immediately; waits for opponent like the normal Create flow
   mySide = mpSideSelect.value
 
   sessionStorage.setItem('mpRole', 'host')
@@ -65964,16 +66036,38 @@ lastPgn = row.pgn || lastPgn
 
 
 
-        // Server is the boss
+// Server is the boss
        serverTurn = row.turn
 
+// ================= CLOCK RECONCILIATION =================
+// Only rebase the local clock when the server snapshot actually
+// represents a genuine clock/game-state transition (a move landed,
+// the room just went from waiting → playing, etc). Unrelated
+// updates (draw offers, rematch flags, name changes, duplicate
+// echoes of a state we already applied) must NOT restart or
+// rebase the clock.
+const mpClockChanged =
+  row.w_time !== lastKnownWTime ||
+  row.b_time !== lastKnownBTime ||
+  row.turn   !== lastKnownTurn  ||
+  row.status !== lastKnownStatus
 
 if (row.status !== 'finished') {
-  startClock()
+
+  if (mpClockChanged) {
+    mpRebaseClock(row.w_time, row.b_time, row.turn, row.status)
+  }
+
+  // Don't burn White's clock while a lone creator is waiting for
+  // an opponent — start ticking once the room is actually 'playing'.
+  if (row.status !== 'waiting') {
+    startClock()
+  }
+
 } else {
+  lastKnownStatus = row.status
   stopClock()
 }
-
 /* ===============================
    DRAW OFFER (REMOTE)
 ================================ */
@@ -66121,9 +66215,7 @@ mpEndAndUnlock()
 }
 
 
-updateClocks(row)
-
-      }
+}
     )
     .subscribe()
 }
@@ -66134,7 +66226,10 @@ updateClocks(row)
    CLOCK DISPLAY
 ================================ */
 
-function updateClocks(row) {
+// ================= CLOCK DISPLAY (orientation-aware) =================
+// Same DOM IDs, same orientation logic as before — just fed by
+// whatever caller has the current numbers (row OR live snapshot calc).
+function mpRenderClockDisplay(whiteSeconds, blackSeconds) {
   const isBlackBottom = window.mpCurrentOrientation === 'black'
 
   // DOM slots (DO NOT CHANGE IDs)
@@ -66145,24 +66240,55 @@ function updateClocks(row) {
 
   if (isBlackBottom) {
     // 🔥 BLACK POV
-    mpUpdateClockUI(topClock, row.w_time)     // white on top
-    mpUpdateClockUI(bottomClock, row.b_time)  // black bottom
+    mpUpdateClockUI(topClock, whiteSeconds)     // white on top
+    mpUpdateClockUI(bottomClock, blackSeconds)  // black bottom
   } else {
     // 🔥 WHITE POV
-    mpUpdateClockUI(topClock, row.b_time)     // black on top
-    mpUpdateClockUI(bottomClock, row.w_time)  // white bottom
+    mpUpdateClockUI(topClock, blackSeconds)     // black on top
+    mpUpdateClockUI(bottomClock, whiteSeconds)  // white bottom
   }
 }
 
-function mpUpdateClockUI(el, sec) {
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  el.textContent = `${m}:${s.toString().padStart(2, '0')}`
-
-  if (sec <= 10) el.classList.add('low')
-  else el.classList.remove('low')
+function updateClocks(row) {
+  // Compatibility wrapper for any caller that only has a raw row
+  // (kept so nothing else in the file breaks if it ever calls this).
+  mpRenderClockDisplay(row.w_time, row.b_time)
 }
 
+// ================= REBASE — creates a new immutable snapshot =================
+// status is OPTIONAL: pass it whenever the caller actually knows the
+// authoritative status (create/join/rejoin/subscribeRoom). Omit it
+// from callers like syncMoveToServer() that don't change status —
+// lastKnownStatus is simply left untouched in that case.
+function mpRebaseClock(whiteTime, blackTime, turn, status) {
+  snapshotWhiteTime = whiteTime
+  snapshotBlackTime = blackTime
+  snapshotTurn = turn
+  snapshotAt = performance.now()
+
+  lastKnownWTime = whiteTime
+  lastKnownBTime = blackTime
+  lastKnownTurn = turn
+  if (status !== undefined) {
+    lastKnownStatus = status
+  }
+
+  mpTimeoutFired = false
+
+  mpRenderClockDisplay(whiteTime, blackTime)
+}
+
+function mpUpdateClockUI(el, sec) {
+  const clamped = Math.max(0, sec)
+  const whole = Math.floor(clamped)
+
+  const m = Math.floor(whole / 60)
+  const s = whole % 60
+  el.textContent = `${m}:${s.toString().padStart(2, '0')}`
+
+  if (clamped <= 10) el.classList.add('low')
+  else el.classList.remove('low')
+}
 
 
 
