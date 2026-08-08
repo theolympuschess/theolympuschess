@@ -64315,6 +64315,13 @@ showJoinBanner(
 
 }
 
+// =========================================================
+// 🔒 INVITE JOIN GUARD
+// Prevent the same challenge UPDATE from joining the
+// same Live Match room more than once.
+// =========================================================
+let mpLastHandledInviteChallengeId = null;
+
 async function listenForMatchChallenges() {
 
     const { data: { user } } =
@@ -64450,67 +64457,134 @@ async function listenForMatchChallenges() {
 
                     // Has the room been created?
 
-                    if (
+      if (
+    challenge.status === "starting" &&
+    challenge.room_id
+) {
 
-                        challenge.status === "starting" &&
+    // =====================================================
+    // 🔒 PREVENT DUPLICATE INVITE JOIN
+    // =====================================================
+    // Supabase can legitimately send multiple UPDATE events
+    // for the same challenge. Only handle this challenge once.
+    if (mpLastHandledInviteChallengeId === challenge.id) {
+        console.log(
+            "⏭️ Invite already handled:",
+            challenge.id
+        );
+        return;
+    }
 
-                        challenge.room_id
+    // Claim this challenge BEFORE starting the async join.
+    // This prevents another UPDATE event from entering the
+    // join pipeline while the first one is still running.
+    mpLastHandledInviteChallengeId = challenge.id;
 
-                    ) {
+    console.log("ROOM READY!");
+    console.log("Challenge ID:", challenge.id);
+    console.log("Room ID:", challenge.room_id);
 
-                        console.log(
-                            "ROOM READY!"
-                        );
+    // Close invitation popup
+    document
+        .getElementById("mpStudentChallengeModal")
+        .classList.add("hidden");
 
-                        console.log(
-                            challenge.room_id
-                        );
+    // Open Live Match tab
+    document
+        .getElementById("navLiveMatch")
+        .click();
 
+    // =====================================================
+    // FETCH ROOM CODE
+    // =====================================================
+    const { data: room, error } = await supabase
+        .from("live_match_rooms")
+        .select("room_code")
+        .eq("id", challenge.room_id)
+        .single();
 
-                        // Close invitation popup
+    if (error || !room) {
+        console.error(
+            "❌ Failed to fetch invite room:",
+            error
+        );
 
-                        document
-                            .getElementById(
-                                "mpStudentChallengeModal"
-                            )
-                            .classList.add("hidden");
+        // Allow this challenge to be attempted again
+        // if fetching the room itself failed.
+        mpLastHandledInviteChallengeId = null;
 
+        return;
+    }
 
-                        // Open Live Match tab
+    // Put the room code into the normal Join input
+// =====================================================
+// 🔥 INVITE JOIN — USE THE SAME CLEAN REJOIN PIPELINE
+// =====================================================
 
-                        document
-                            .getElementById(
-                                "navLiveMatch"
-                            )
-                            .click();
-
-
-                        // Get the room code from the room UUID
-
-const { data: room, error } = await supabase
-    .from("live_match_rooms")
-    .select("room_code")
-    .eq("id", challenge.room_id)
-    .single();
-
-if (error || !room) {
-    console.error("Failed to fetch room:", error);
+// Determine this player's authoritative side from
+// the challenge itself.
+if (challenge.white_username === myUsername) {
+    mySide = 'w';
+} else if (challenge.black_username === myUsername) {
+    mySide = 'b';
+} else {
+    console.error("❌ Invite side could not be determined.");
     return;
 }
 
+// Persist the side BEFORE mpRejoinRoomById()
+// because that function restores the side from sessionStorage.
+sessionStorage.setItem('mpSide', mySide);
+sessionStorage.setItem('mpRole', 'student');
 
-// Put the room code into the normal Join input box
+// Save the room session.
+roomId = challenge.room_id;
+mpSaveSession();
 
-mpJoinCode.value = room.room_code;
+console.log("🔥 INVITE REJOIN:", {
+    challengeId: challenge.id,
+    roomId: challenge.room_id,
+    mySide
+});
 
+// =====================================================
+// 🔥 IMPORTANT
+// Make sure the room is actually playing before the
+// client enters the normal live-match state.
+// =====================================================
+const { error: startError } = await supabase
+    .from("live_match_rooms")
+    .update({
+        status: "playing",
+        white_id: challenge.white_username === myUsername
+            ? "student"
+            : "host",
+        black_id: challenge.black_username === myUsername
+            ? "student"
+            : "host"
+    })
+    .eq("id", challenge.room_id);
 
-// Execute the normal JOIN ROOM logic
+if (startError) {
+    console.error("❌ Invite room activation failed:", startError);
+    return;
+}
 
-await mpJoinBtn.onclick();
+// =====================================================
+// 🔥 USE THE SAME PIPELINE THAT WORKS AFTER REFRESH
+// =====================================================
+await mpRejoinRoomById(challenge.room_id);
 
-                   
+console.log(
+    "✅ INVITE REJOIN COMPLETE:",
+    challenge.room_id
+);
 
-                    }
+    console.log(
+        "✅ INVITE JOIN PIPELINE FINISHED:",
+        room.room_code
+    );
+}
 
                 }
 
