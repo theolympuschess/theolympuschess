@@ -29703,6 +29703,97 @@ border-radius:20px;
     transform:translateY(0);
 }
 
+
+.olympus-hidden {
+  display: none !important;
+}
+
+.olympus-clock-box {
+  min-width: 130px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #20233a;
+  border: 1px solid #3a3f63;
+  font-size: 13px;
+  font-weight: 700;
+  color: #9aa3c7;
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.olympus-clock-box.olympus-clock-active {
+  background: #2b3f2e;
+  border-color: #4caf50;
+  color: #eafff0;
+}
+
+.olympus-clock-box.olympus-clock-low {
+  background: #4a1f22;
+  border-color: #e53935;
+  color: #ffe1e1;
+  animation: olympus-pulse 1s infinite;
+}
+
+@keyframes olympus-pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: .55; }
+  100% { opacity: 1; }
+}
+
+.olympus-clock-time {
+  font-size: 20px;
+  font-weight: 900;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.olympus-promo-btn {
+  width: 56px;
+  height: 56px;
+  font-size: 30px;
+  background: #20233a;
+  border: 1px solid #8b9dc3;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
+}
+
+.olympus-promo-btn:hover {
+  background: #3b82f6;
+  transform: translateY(-2px);
+}
+
+#olympusBoard .square-55d63 {
+  transition: background-color .15s ease;
+}
+
+.olympus-last-move {
+  box-shadow: inset 0 0 0 4px rgba(59,130,246,.65) !important;
+}
+
+.olympus-check-square {
+  box-shadow: inset 0 0 0 4px rgba(229,57,53,.75) !important;
+}
+
+#olympusBoard:hover {
+  cursor: grab;
+}
+
+#olympusBoard:active {
+  cursor: grabbing;
+}
+
+
+#lpAskOlympusBtn {
+  background: #6b4f7a !important;
+  color: #f9f2ff !important;
+  border: 1px solid #9874aa !important;
+}
+
+#lpAskOlympusBtn:hover {
+  background: #7d5c8f !important;
+}
+
   </style>
 </head>
 
@@ -32276,6 +32367,13 @@ data-role="admin-only">
   🌐 Assign Analysis
 </button>
 
+<button id="lpAskRandomBtn"
+        type="button"
+        data-role="admin-only"
+        class="lp-admin-btn">
+  🎁 Ask Random
+</button>
+
       </div>
       <!-- ===================================== -->
 <!-- ♟ LIVE PUZZLE STOCKFISH PANEL -->
@@ -32493,11 +32591,15 @@ class="lp-admin-btn"
 <button id="lpAskChecksBtn" data-role="admin-only" class="lp-admin-btn">⚔️ Ask Checks</button>
 <!-- Admin button -->
 <button id="lpAskLegalBtn" data-role="admin-only" class="lp-admin-btn">⚖️ Ask Legal</button>
-<button id="lpAskRandomBtn"
-        type="button"
-        data-role="admin-only"
-        class="lp-admin-btn">
-  🎁 Ask Random
+
+
+<button
+  id="lpAskOlympusBtn"
+  type="button"
+  data-role="admin-only"
+  class="lp-admin-btn"
+>
+  🏆 Ask Olympus 
 </button>
 
 
@@ -69809,7 +69911,7 @@ let spectatorLastFen = null;
 
 async function mpOpenSpectator(roomId, type) {
   mpClearSpectatorState();
-  mpShowModal('Spectating', '👁 Watching live game');
+  mpShowModal('Spectating', '🟢 Watching live game');
 
   if (!spectatorBoard) {
     spectatorBoard = Chessboard('mpBoard', {
@@ -79987,6 +80089,1158 @@ setTimeout(render,100);
 // LIVE PUZZLE NAMESPACE (STEP 2)
 // ===============================
 const LivePuzzle = (() => {
+
+
+  // ==========================================
+// ⚔ OLYMPUS AI CHALLENGE — ISOLATED STATE
+// ==========================================
+
+const OLYMPUS_START_FEN =
+  "1nbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk - 0 1";
+
+const OLYMPUS_TIME_CONTROL = 600; // 10 minutes, no increment
+const OLYMPUS_ENGINE_MOVETIME = 1200; // ms — strongest move within a responsive time budget
+
+let olympusGame = null;              // Chess.js instance for this feature only
+let olympusBoard = null;             // Chessboard.js instance for #olympusBoard
+let olympusActive = false;           // true while a challenge is in progress
+let olympusGameOver = false;
+
+let olympusWhiteTime = OLYMPUS_TIME_CONTROL;
+let olympusBlackTime = OLYMPUS_TIME_CONTROL;
+let olympusClockInterval = null;
+
+let olympusThinking = false;         // true while Olympus AI is computing a move
+let olympusPendingPromotion = null;  // { from, to }
+
+let olympusWorker = null;
+let olympusWorkerReady = false;
+let olympusWorkerQueuedFen = null;
+
+let olympusResultSent = false;
+
+// ==========================================
+// ⚔️ OLYMPUS — ADMIN STUDENT STATUS
+// ==========================================
+
+const olympusStudentStatuses = {};
+// ==========================================
+// ⚔ OLYMPUS — BOARD RENDERER
+// ==========================================
+
+// ==========================================
+// ⚔️ OLYMPUS — LOCAL PIECE THEME
+// Uses the academy's existing piece assets
+// ==========================================
+
+function olympusPieceTheme(piece) {
+  if (!piece) return "";
+
+  const color = piece[0];
+  const type = piece[1].toLowerCase();
+
+  return getVisionPieceImage(color, type);
+}
+
+function initOlympusBoard() {
+
+  if (olympusBoard) {
+    olympusBoard.destroy();
+    olympusBoard = null;
+  }
+
+  olympusBoard = Chessboard("olympusBoard", {
+
+    position: olympusGame.fen(),
+
+    orientation: "white", // student is ALWAYS white, board is never flipped
+
+    draggable: true,
+
+    onDragStart: olympusOnDragStart,
+
+    onDrop: olympusOnDrop,
+
+    onSnapEnd: () => {
+      olympusBoard.position(olympusGame.fen(), false);
+    },
+
+    pieceTheme: olympusPieceTheme
+
+  });
+}
+
+// Static admin mini board — renders ONCE (initial handicap position only)
+function renderOlympusAdminMiniBoard() {
+
+  const container = document.getElementById("lpOlympusAdminBoard");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const miniGame = new Chess(OLYMPUS_START_FEN);
+  const boardMatrix = miniGame.board();
+  const files = "abcdefgh";
+
+  for (let rank = 8; rank >= 1; rank--) {
+    for (let f = 0; f < 8; f++) {
+
+      const cell = document.createElement("div");
+      const isLight = (f + rank) % 2 === 0;
+
+      Object.assign(cell.style, {
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isLight ? "#f0d9b5" : "#b58863",
+        boxSizing: "border-box",
+        userSelect: "none"
+      });
+
+      const piece = boardMatrix[8 - rank][f];
+
+      if (piece) {
+        const img = document.createElement("img");
+        img.src = olympusPieceTheme(piece.color + piece.type.toUpperCase());
+        Object.assign(img.style, {
+          width: "88%",
+          height: "88%",
+          objectFit: "contain",
+          pointerEvents: "none",
+          userSelect: "none"
+        });
+        cell.appendChild(img);
+      }
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+function olympusHighlightLastMove(from, to) {
+  document.querySelectorAll("#olympusBoard .olympus-last-move")
+    .forEach(el => el.classList.remove("olympus-last-move"));
+
+  [from, to].forEach(square => {
+    const el = document.querySelector(
+      `#olympusBoard .square-${square}`
+    );
+    if (el) el.classList.add("olympus-last-move");
+  });
+}
+
+function olympusHighlightCheck() {
+  document.querySelectorAll("#olympusBoard .olympus-check-square")
+    .forEach(el => el.classList.remove("olympus-check-square"));
+
+  if (!olympusGame.in_check()) return;
+
+  const turnColor = olympusGame.turn(); // side currently in check
+  const boardMatrix = olympusGame.board();
+  const files = "abcdefgh";
+
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const piece = boardMatrix[r][f];
+      if (piece && piece.type === "k" && piece.color === turnColor) {
+        const square = files[f] + (8 - r);
+        const el = document.querySelector(`#olympusBoard .square-${square}`);
+        if (el) el.classList.add("olympus-check-square");
+      }
+    }
+  }
+}
+
+// ==========================================
+// ⚔ OLYMPUS — STUDENT UI
+// ==========================================
+
+function showOlympusModal() {
+  document.getElementById("lpOlympusModal").style.display = "flex";
+}
+
+function hideOlympusModal() {
+  document.getElementById("lpOlympusModal").style.display = "none";
+}
+
+function updateOlympusStatus(text) {
+  const el = document.getElementById("lpOlympusStatus");
+  if (el) el.textContent = text;
+}
+
+function olympusFormatTime(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m + ":" + (sec < 10 ? "0" : "") + sec;
+}
+
+function updateOlympusClocks() {
+
+  const whiteEl = document.getElementById("lpOlympusWhiteClock");
+  const blackEl = document.getElementById("lpOlympusBlackClock");
+  const whiteBox = document.getElementById("lpOlympusWhiteClockBox");
+  const blackBox = document.getElementById("lpOlympusBlackClockBox");
+
+  if (whiteEl) whiteEl.textContent = olympusFormatTime(olympusWhiteTime);
+  if (blackEl) blackEl.textContent = olympusFormatTime(olympusBlackTime);
+
+  if (whiteBox && blackBox) {
+
+    const turn = olympusGame ? olympusGame.turn() : "w";
+
+    whiteBox.classList.toggle("olympus-clock-active", turn === "w" && olympusActive && !olympusGameOver);
+    blackBox.classList.toggle("olympus-clock-active", turn === "b" && olympusActive && !olympusGameOver);
+
+    whiteBox.classList.toggle("olympus-clock-low", olympusWhiteTime <= 20 && olympusActive && !olympusGameOver);
+    blackBox.classList.toggle("olympus-clock-low", olympusBlackTime <= 20 && olympusActive && !olympusGameOver);
+  }
+}
+
+function startOlympusClockTimer() {
+
+  clearInterval(olympusClockInterval);
+
+  olympusClockInterval = setInterval(() => {
+
+    if (!olympusActive || olympusGameOver) {
+      clearInterval(olympusClockInterval);
+      return;
+    }
+
+    if (olympusGame.turn() === "w") {
+      olympusWhiteTime--;
+      if (olympusWhiteTime <= 0) {
+        olympusWhiteTime = 0;
+        updateOlympusClocks();
+        olympusEndGame("ai_win", "Timeout");
+        return;
+      }
+    } else {
+      olympusBlackTime--;
+      if (olympusBlackTime <= 0) {
+        olympusBlackTime = 0;
+        updateOlympusClocks();
+        olympusEndGame("student_win", "Timeout");
+        return;
+      }
+    }
+
+    updateOlympusClocks();
+
+  }, 1000);
+}
+
+function stopOlympusClockTimer() {
+  clearInterval(olympusClockInterval);
+  olympusClockInterval = null;
+}
+
+// ==========================================
+// ⚔ OLYMPUS — ADMIN PANEL
+// ==========================================
+
+function showOlympusAdminPanel() {
+  const panel = document.getElementById("lpOlympusAdminPanel");
+  if (!panel) return;
+  panel.style.display = "block";
+  renderOlympusAdminMiniBoard();
+  updateOlympusAdminStatus("🟢 Playing");
+  updateOlympusAdminResult("—");
+}
+
+function hideOlympusAdminPanel() {
+  const panel = document.getElementById("lpOlympusAdminPanel");
+  if (panel) panel.style.display = "none";
+}
+
+function updateOlympusAdminStatus(text) {
+  const el = document.getElementById("lpOlympusAdminStatus");
+  if (el) el.textContent = text;
+}
+
+function updateOlympusAdminResult(text) {
+  const el = document.getElementById("lpOlympusAdminResult");
+  if (el) el.textContent = "Result: " + text;
+}
+// ==========================================
+// ⚔️ OLYMPUS — RENDER STUDENT STATUSES
+// ==========================================
+
+function renderOlympusStudentStatuses() {
+
+  const box =
+    document.getElementById(
+      "lpOlympusStudentStatusList"
+    );
+
+  if (!box) return;
+
+  box.innerHTML = "";
+
+  const students =
+    Object.values(
+      olympusStudentStatuses
+    );
+
+  if (!students.length) {
+
+    box.innerHTML = `
+      <div style="
+        padding:8px;
+        text-align:center;
+        color:rgba(255,255,255,.5);
+        font-size:12px;
+      ">
+        Waiting for students...
+      </div>
+    `;
+
+    return;
+  }
+
+  students.forEach(student => {
+
+    let icon = "🟢";
+    let text = "Playing";
+    let color = "#4ade80";
+
+    if (student.status === "student_win") {
+      icon = "🏆";
+      text = "Won";
+      color = "#22c55e";
+    }
+
+    else if (student.status === "ai_win") {
+      icon = "💀";
+      text = "Lost";
+      color = "#ef4444";
+    }
+
+    else if (student.status === "draw") {
+      icon = "🤝";
+      text = "Draw";
+      color = "#fbbf24";
+    }
+
+    const row =
+      document.createElement("div");
+
+    row.style.cssText = `
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:7px 10px;
+      border-radius:8px;
+      background:rgba(255,255,255,.055);
+      border:1px solid rgba(255,255,255,.08);
+      font-size:13px;
+    `;
+
+    // 👁️ CLICK STUDENT TO WATCH GAME
+row.style.cursor = "pointer";
+
+row.title =
+  "Click to watch this student's game";
+
+row.onclick = () => {
+  openOlympusSpectatorBoard(
+    student.user_id
+  );
+};
+
+    row.innerHTML = `
+      <span style="
+        font-weight:800;
+        color:white;
+      ">
+        ${icon} ${student.username}
+      </span>
+
+      <span style="
+        font-weight:800;
+        color:${color};
+      ">
+        ${text}
+      </span>
+    `;
+
+    box.appendChild(row);
+
+  });
+}
+
+// ==========================================
+// ⚔️ OLYMPUS — ADMIN SPECTATOR BOARD
+// ==========================================
+
+function openOlympusSpectatorBoard(userId) {
+
+  const student =
+    olympusStudentStatuses[userId];
+
+  if (!student) return;
+  window.olympusSpectatorUserId =
+  userId;
+
+  const panel =
+    document.getElementById(
+      "lpOlympusSpectatorPanel"
+    );
+
+  const title =
+    document.getElementById(
+      "lpOlympusSpectatorTitle"
+    );
+
+  if (!panel) return;
+
+panel.style.display = "flex";
+
+  if (title) {
+
+    title.textContent =
+      "🟢 Watching " +
+      (student.username || "Student");
+
+  }
+
+  renderOlympusSpectatorBoard(
+    student
+  );
+}
+
+function renderOlympusSpectatorBoard(student) {
+
+  const board =
+    document.getElementById(
+      "lpOlympusSpectatorBoard"
+    );
+
+  if (!board) return;
+
+  board.innerHTML = "";
+
+  // Rebuild the student's game locally
+  const game =
+    new Chess(
+      OLYMPUS_START_FEN
+    );
+
+  // Replay stored moves
+  (student.moves || []).forEach(moveData => {
+
+    try {
+
+      game.move({
+        from:
+          moveData.from,
+
+        to:
+          moveData.to,
+
+        promotion:
+          moveData.promotion || "q"
+
+      });
+
+    } catch (err) {
+
+      console.warn(
+        "Olympus spectator move replay failed:",
+        moveData,
+        err
+      );
+
+    }
+
+  });
+
+  const boardState =
+    game.board();
+
+  const files =
+    "abcdefgh";
+
+  for (
+    let rank = 8;
+    rank >= 1;
+    rank--
+  ) {
+
+    for (
+      let f = 0;
+      f < 8;
+      f++
+    ) {
+
+      const cell =
+        document.createElement("div");
+
+      const isLight =
+        (f + rank) % 2 === 0;
+
+      Object.assign(
+        cell.style,
+        {
+
+          position:
+            "relative",
+
+          display:
+            "flex",
+
+          alignItems:
+            "center",
+
+          justifyContent:
+            "center",
+
+          background:
+            isLight
+              ? "#f0d9b5"
+              : "#b58863",
+
+          boxSizing:
+            "border-box"
+
+        }
+      );
+
+      const piece =
+        boardState[8 - rank][f];
+
+      if (piece) {
+
+        const img =
+          document.createElement(
+            "img"
+          );
+
+        img.src =
+          getVisionPieceImage(
+            piece.color,
+            piece.type
+          );
+
+        Object.assign(
+          img.style,
+          {
+
+            width:
+              "88%",
+
+            height:
+              "88%",
+
+            objectFit:
+              "contain",
+
+            pointerEvents:
+              "none"
+
+          }
+        );
+
+        cell.appendChild(img);
+
+      }
+
+      board.appendChild(cell);
+
+    }
+
+  }
+
+}
+
+document
+  .getElementById(
+    "lpOlympusCloseSpectatorBtn"
+  )
+  ?.addEventListener(
+    "click",
+    () => {
+
+      const panel =
+        document.getElementById(
+          "lpOlympusSpectatorPanel"
+        );
+
+      if (panel) {
+        panel.style.display =
+          "none";
+      }
+
+    }
+  );
+
+// ==========================================
+// ⚔ OLYMPUS — ENGINE LOGIC
+// (reuses the project's existing local engine file,
+//  in a dedicated Worker instance isolated from lpSfWorker)
+// ==========================================
+
+function initOlympusWorker() {
+
+  if (olympusWorker) return;
+
+  olympusWorker = new Worker("./stockfish/stockfish.js");
+  olympusWorkerReady = false;
+
+  olympusWorker.onmessage = handleOlympusWorkerMessage;
+
+  olympusWorker.postMessage("uci");
+}
+
+function handleOlympusWorkerMessage(e) {
+
+  const line = e.data;
+  if (typeof line !== "string") return;
+
+  if (line === "uciok") {
+    olympusWorker.postMessage("isready");
+    return;
+  }
+
+  if (line === "readyok") {
+    olympusWorkerReady = true;
+
+    if (olympusWorkerQueuedFen) {
+      const fen = olympusWorkerQueuedFen;
+      olympusWorkerQueuedFen = null;
+      olympusRequestAIMoveNow(fen);
+    }
+    return;
+  }
+
+  if (line.startsWith("bestmove")) {
+
+    const parts = line.split(" ");
+    const uciMove = parts[1];
+
+    if (!uciMove || uciMove === "(none)") {
+      olympusThinking = false;
+      return;
+    }
+
+    olympusPlayAIMove(uciMove);
+    return;
+  }
+
+}
+
+function olympusRequestAIMove() {
+
+  if (!olympusWorker) {
+    initOlympusWorker();
+  }
+
+  olympusThinking = true;
+  updateOlympusStatus("⚔ Olympus AI is thinking...");
+
+  if (!olympusWorkerReady) {
+    olympusWorkerQueuedFen = olympusGame.fen();
+    return;
+  }
+
+  olympusRequestAIMoveNow(olympusGame.fen());
+}
+
+function olympusRequestAIMoveNow(fen) {
+  olympusWorker.postMessage("position fen " + fen);
+  olympusWorker.postMessage("go movetime " + OLYMPUS_ENGINE_MOVETIME);
+}
+
+function terminateOlympusWorker() {
+  if (olympusWorker) {
+    olympusWorker.postMessage("stop");
+    olympusWorker.terminate();
+    olympusWorker = null;
+  }
+  olympusWorkerReady = false;
+  olympusWorkerQueuedFen = null;
+}
+
+// ==========================================
+// ⚔ OLYMPUS — MOVE HANDLING
+// ==========================================
+
+function olympusOnDragStart(source, piece) {
+
+  if (!olympusActive || olympusGameOver) return false;
+  if (isAdmin) return false;
+  if (olympusThinking) return false;
+  if (olympusGame.turn() !== "w") return false;
+  if (piece.startsWith("b")) return false; // student always plays White
+
+  return true;
+}
+
+async function olympusOnDrop(source, target) {
+
+  if (!olympusActive || olympusGameOver) return "snapback";
+
+  const move = olympusGame.move({
+    from: source,
+    to: target,
+    promotion: "q"
+  });
+
+  if (!move) return "snapback";
+
+  // ================= PROMOTION =================
+  if (
+    move.piece === "p" &&
+    target[1] === "8"
+  ) {
+    olympusGame.undo();
+    olympusShowPromotion(source, target);
+    return;
+  }
+
+  await olympusAfterPlayerMove(move);
+}
+
+async function olympusAfterPlayerMove(move) {
+
+  olympusBoard.position(olympusGame.fen(), false);
+  playOlympusMoveSound(move);
+  olympusHighlightLastMove(move.from, move.to);
+  olympusHighlightCheck();
+
+  olympusBroadcastMove(move);
+
+  const endState = olympusCheckGameEnd();
+
+  if (endState.over) {
+    olympusEndGame(endState.result, endState.reason);
+    return;
+  }
+
+  updateOlympusStatus("⚔ Olympus AI is thinking...");
+  olympusRequestAIMove();
+}
+
+function olympusPlayAIMove(uciMove) {
+
+  olympusThinking = false;
+
+  const from = uciMove.substring(0, 2);
+  const to = uciMove.substring(2, 4);
+  const promotion = uciMove.length > 4 ? uciMove[4] : undefined;
+
+  const move = olympusGame.move({
+    from,
+    to,
+    promotion: promotion || "q"
+  });
+
+  if (!move) {
+    // Engine returned a move that no longer matches current state — resync silently
+    olympusBoard.position(olympusGame.fen(), false);
+    
+    return;
+  }
+
+  olympusBoard.position(olympusGame.fen(), false);
+    // 🔊 Olympus AI move sound
+  playOlympusMoveSound(move);
+
+  olympusHighlightLastMove(move.from, move.to);
+  olympusHighlightCheck();
+
+  olympusBroadcastMove(move);
+
+  const endState = olympusCheckGameEnd();
+
+  if (endState.over) {
+    olympusEndGame(endState.result, endState.reason);
+    return;
+  }
+
+  updateOlympusStatus("Your move — you are White.");
+}
+
+function olympusResign() {
+
+  if (!olympusActive || olympusGameOver) return;
+  if (isAdmin) return;
+
+  olympusEndGame("ai_win", "Resignation");
+}
+
+// ==========================================
+// ⚔ OLYMPUS — PROMOTION MODAL
+// (fully isolated from #lpPromotionModal / lpCompletePromotion)
+// ==========================================
+
+function olympusShowPromotion(from, to) {
+  olympusPendingPromotion = { from, to };
+  document.getElementById("lpOlympusPromotionModal").classList.remove("olympus-hidden");
+}
+
+async function olympusCompletePromotion(piece) {
+
+  if (!olympusPendingPromotion) return;
+
+  const { from, to } = olympusPendingPromotion;
+  olympusPendingPromotion = null;
+
+  document.getElementById("lpOlympusPromotionModal").classList.add("olympus-hidden");
+
+  const move = olympusGame.move({
+    from,
+    to,
+    promotion: piece
+  });
+
+  if (!move) {
+    olympusBoard.position(olympusGame.fen(), false);
+    return;
+  }
+
+  await olympusAfterPlayerMove(move);
+}
+
+function initOlympusPromotionButtons() {
+  document.querySelectorAll("#lpOlympusPromotionModal .olympus-promo-btn")
+    .forEach(btn => {
+      btn.onclick = () => olympusCompletePromotion(btn.dataset.piece);
+    });
+}
+
+
+// ==========================================
+// ⚔ OLYMPUS — BROADCAST EVENTS
+// (reuses the existing lp-moves-{roomCode} broadcast channel)
+// ==========================================
+
+function olympusBroadcastStart() {
+
+  if (!roomCode || !movesChannel) return;
+
+  movesChannel.send({
+    type: "broadcast",
+    event: "boss_start",
+    payload: {
+      classroom_title: classroomTitle,
+      started_by: currentUserId
+    }
+  });
+}
+
+// ==========================================
+// ⚔️ OLYMPUS — BROADCAST MOVE
+// Lightweight spectator sync
+// ==========================================
+
+function olympusBroadcastMove(move) {
+
+  if (!roomCode || !movesChannel) return;
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event: "boss_move",
+
+    payload: {
+
+      user_id:
+        currentUserId,
+
+      username:
+        currentUsername || "Student",
+
+      san:
+        move.san,
+
+      from:
+        move.from,
+
+      to:
+        move.to,
+
+      promotion:
+        move.promotion || null,
+
+      mover:
+        move.color === "w"
+          ? "white"
+          : "black"
+
+    }
+
+  });
+
+}
+function olympusBroadcastEnd(result, reason) {
+
+  if (!roomCode || !movesChannel) return;
+
+  movesChannel.send({
+    type: "broadcast",
+    event: "boss_end",
+    payload: {
+      user_id: currentUserId,
+      username: currentUsername,
+      result,
+      reason
+    }
+  });
+}
+
+// ==========================================
+// ⚔️ OLYMPUS — ISOLATED MOVE SOUND
+// Uses existing lpSoundEngine correctly
+// ==========================================
+
+function playOlympusMoveSound(move) {
+  if (!move || !window.lpSoundEngine) return;
+
+  try {
+    lpSoundEngine.play(
+      move,
+      olympusGame
+    );
+  } catch (err) {
+    console.warn(
+      "Olympus move sound failed:",
+      err
+    );
+  }
+}
+
+function olympusBroadcastReset() {
+
+  if (!roomCode || !movesChannel) return;
+
+  movesChannel.send({
+    type: "broadcast",
+    event: "boss_reset",
+    payload: {
+      by: currentUserId
+    }
+  });
+}
+
+// ==========================================
+// ⚔ OLYMPUS — GAME END DETECTION
+// ==========================================
+
+function olympusCheckGameEnd() {
+
+  if (olympusGame.in_checkmate()) {
+    // The side whose turn it now is has been checkmated,
+    // so the side that just moved won.
+    const studentWon = olympusGame.turn() === "b";
+    return {
+      over: true,
+      result: studentWon ? "student_win" : "ai_win",
+      reason: "Checkmate"
+    };
+  }
+
+  if (olympusGame.in_stalemate()) {
+    return { over: true, result: "draw", reason: "Stalemate" };
+  }
+
+  if (olympusGame.insufficient_material()) {
+    return { over: true, result: "draw", reason: "Insufficient Material" };
+  }
+
+  if (olympusGame.in_threefold_repetition()) {
+    return { over: true, result: "draw", reason: "Threefold Repetition" };
+  }
+
+  if (olympusGame.in_draw()) {
+    return { over: true, result: "draw", reason: "Fifty-Move Rule" };
+  }
+
+  return { over: false };
+}
+
+function olympusEndGame(result, reason) {
+
+  if (olympusGameOver) return;
+
+  olympusGameOver = true;
+  olympusActive = false;
+
+  stopOlympusClockTimer();
+
+  if (olympusThinking && olympusWorker) {
+    olympusWorker.postMessage("stop");
+  }
+  olympusThinking = false;
+
+  // ================= DISABLE MOVING =================
+  if (olympusBoard) {
+    olympusBoard.draggable = false;
+  }
+
+  let title = "🤝 Draw";
+  if (result === "student_win") title = "🏆 Student Won";
+  if (result === "ai_win") title = "💀 Olympus AI Won";
+
+  updateOlympusStatus(title + " — " + reason);
+
+  if (!isAdmin) {
+    showOlympusResultModal(title, reason);
+  }
+
+  if (!olympusResultSent) {
+    olympusResultSent = true;
+    olympusBroadcastEnd(result, reason);
+  }
+
+  if (isAdmin) {
+    updateOlympusAdminStatus(title);
+    updateOlympusAdminResult(reason);
+  }
+}
+
+function showOlympusResultModal(title, reason) {
+  document.getElementById("lpOlympusResultTitle").textContent = title;
+  document.getElementById("lpOlympusResultReason").textContent = reason;
+  document.getElementById("lpOlympusResultModal").classList.remove("olympus-hidden");
+}
+
+function hideOlympusResultModal() {
+  document.getElementById("lpOlympusResultModal").classList.add("olympus-hidden");
+}
+
+// ==========================================
+// ⚔ OLYMPUS — RESET (full clean teardown)
+// ==========================================
+
+function resetOlympusChallenge(broadcast = true) {
+
+  // ---- timers ----
+  stopOlympusClockTimer();
+
+  // ---- engine ----
+  terminateOlympusWorker();
+  olympusThinking = false;
+
+  // ---- game state ----
+  olympusGame = new Chess(OLYMPUS_START_FEN);
+  olympusActive = false;
+  olympusGameOver = false;
+  olympusResultSent = false;
+  olympusWhiteTime = OLYMPUS_TIME_CONTROL;
+  olympusBlackTime = OLYMPUS_TIME_CONTROL;
+  olympusPendingPromotion = null;
+
+  // ---- board ----
+  if (olympusBoard) {
+    olympusBoard.destroy();
+    olympusBoard = null;
+  }
+
+  // ---- modals ----
+  hideOlympusModal();
+  hideOlympusResultModal();
+  document.getElementById("lpOlympusPromotionModal")?.classList.add("olympus-hidden");
+
+  // ---- admin panel ----
+// ---- admin panel ----
+if (isAdmin) {
+  hideOlympusAdminPanel();
+}
+  if (broadcast && isAdmin) {
+    olympusBroadcastReset();
+  }
+}
+
+// ==========================================
+// ⚔ OLYMPUS — BUTTON LISTENERS
+// (called once from init() — see Section 15)
+// ==========================================
+
+function initOlympusListeners() {
+
+  // ---- ADMIN: launch the challenge ----
+  document.getElementById("lpAskOlympusBtn")?.addEventListener("click", () => {
+
+    if (!isAdmin || !roomCode) return;
+
+    showOlympusAdminPanel();
+
+    // 📢 Tell students that Coach started the challenge
+  showJoinBanner(
+    "The Olympus AI Challenge Started!",
+    false
+  );
+
+    olympusBroadcastStart();
+  });
+
+  // ---- ADMIN: reset ----
+  document.getElementById("lpOlympusResetBtn")?.addEventListener("click", () => {
+    if (!isAdmin) return;
+    resetOlympusChallenge(true);
+  });
+
+  // ---- STUDENT: resign ----
+  document.getElementById("lpOlympusResignBtn")?.addEventListener("click", () => {
+    olympusResign();
+  });
+
+  // ---- STUDENT/ADMIN: close result modal ----
+  document.getElementById("lpOlympusResultCloseBtn")?.addEventListener("click", () => {
+    hideOlympusResultModal();
+  });
+
+  // ---- Promotion modal buttons ----
+  initOlympusPromotionButtons();
+}
+
+// Student-side: called when boss_start is received (see Section 14)
+function studentStartOlympusChallenge() {
+
+  if (isAdmin) return;
+
+  olympusGame = new Chess(OLYMPUS_START_FEN);
+  olympusActive = true;
+  olympusGameOver = false;
+  olympusResultSent = false;
+  olympusWhiteTime = OLYMPUS_TIME_CONTROL;
+  olympusBlackTime = OLYMPUS_TIME_CONTROL;
+  olympusThinking = false;
+  olympusPendingPromotion = null;
+
+  showOlympusModal();
+  initOlympusBoard();
+  updateOlympusClocks();
+  updateOlympusStatus("Your move — you are White.");
+
+  startOlympusClockTimer();
+  // 📢 Tell Coach this student is playing
+if (movesChannel && currentUserId) {
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event: "boss_player_start",
+
+    payload: {
+
+      user_id:
+        currentUserId,
+
+      username:
+        currentUsername || "Student"
+
+    }
+
+  });
+
+}
+}
 
   // ==========================================
 // ⚖️ ASK LEGAL – STATE
@@ -91365,6 +92619,7 @@ let lpSfDebounce = null;
 
   // ================= INIT =================
   function init() {
+    initOlympusListeners();
 
   document.getElementById('lpAskBasicsBtn').onclick = startAskBasics;
 document.getElementById('lpAskBasicsRevealBtn').onclick = revealAskBasics;
@@ -99863,6 +101118,237 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+    // ========== ⚔ OLYMPUS AI CHALLENGE EVENTS ==========
+
+if (payload.event === "boss_start") {
+
+  if (isAdmin) return;
+
+  // 📢 Student notification
+  showJoinBanner(
+    "🏆 Coach started the Olympus AI Challenge!",
+    false
+  );
+
+  studentStartOlympusChallenge();
+
+  // Tell Coach that THIS student is now playing
+  if (movesChannel) {
+
+    movesChannel.send({
+      type: "broadcast",
+
+      event: "boss_player_start",
+
+      payload: {
+
+        user_id:
+          currentUserId,
+
+        username:
+          currentUsername || "Student"
+
+      }
+
+    });
+
+  }
+
+  return;
+}
+
+// ==========================================
+// ⚔️ OLYMPUS — STUDENT STARTED PLAYING
+// ==========================================
+
+if (payload.event === "boss_player_start") {
+
+  if (!isAdmin) return;
+
+  const {
+    user_id,
+    username
+  } = payload.payload || {};
+
+  if (!user_id) return;
+
+olympusStudentStatuses[user_id] = {
+
+  user_id: user_id,
+
+  username:
+    username || "Student",
+
+  status:
+    "playing",
+
+  moves: []
+
+};
+
+  renderOlympusStudentStatuses();
+
+  return;
+}
+
+// ==========================================
+// ⚔️ OLYMPUS — ADMIN LIVE MOVE STORAGE
+// ==========================================
+
+if (payload.event === "boss_move") {
+
+  if (!isAdmin) return;
+
+  const data =
+    payload.payload || {};
+
+  if (!data.user_id) return;
+
+  // Create student record if needed
+  if (!olympusStudentStatuses[data.user_id]) {
+
+    olympusStudentStatuses[data.user_id] = {
+
+      user_id:
+        data.user_id,
+
+      username:
+        data.username || "Student",
+
+      status:
+        "playing",
+
+      moves: []
+
+    };
+
+  }
+
+  const student =
+    olympusStudentStatuses[data.user_id];
+    if (!Array.isArray(student.moves)) {
+  student.moves = [];
+}
+
+  // Keep username updated
+  student.username =
+    data.username ||
+    student.username ||
+    "Student";
+
+  // Store only the tiny move data
+  student.moves.push({
+
+    from:
+      data.from,
+
+    to:
+      data.to,
+
+    promotion:
+      data.promotion || null,
+
+    san:
+      data.san || ""
+
+  });
+
+  // Keep status as Playing while game is active
+  if (
+    student.status !== "student_win" &&
+    student.status !== "ai_win" &&
+    student.status !== "draw"
+  ) {
+    student.status = "playing";
+  }
+
+  renderOlympusStudentStatuses();
+
+  const spectatorPanel =
+  document.getElementById(
+    "lpOlympusSpectatorPanel"
+  );
+
+if (
+  spectatorPanel &&
+  spectatorPanel.style.display !== "none" &&
+  window.olympusSpectatorUserId === data.user_id
+) {
+
+  renderOlympusSpectatorBoard(
+    student
+  );
+
+}
+
+  return;
+}
+
+if (payload.event === "boss_end") {
+
+  if (!isAdmin) return;
+
+  const {
+    user_id,
+    username,
+    result,
+    reason
+  } = payload.payload || {};
+
+  if (!user_id) return;
+
+  // ==========================================
+  // UPDATE THAT STUDENT'S STATUS
+  // ==========================================
+
+  olympusStudentStatuses[user_id] = {
+
+    user_id: user_id,
+
+    username:
+      username || "Student",
+
+    status:
+      result
+
+  };
+
+  // 🔄 Refresh Admin student list
+  renderOlympusStudentStatuses();
+
+  // ==========================================
+  // GLOBAL ADMIN RESULT
+  // ==========================================
+
+  let title = "🤝 Draw";
+
+  if (result === "student_win") {
+    title = "🏆 Student Won";
+  }
+
+  else if (result === "ai_win") {
+    title = "💀 Olympus AI Won";
+  }
+
+  updateOlympusAdminStatus(title);
+
+  updateOlympusAdminResult(
+    reason || ""
+  );
+
+  showJoinBanner(
+    `⚔ ${username || "Student"} finished Olympus AI Challenge: ${title}`,
+    false
+  );
+
+  return;
+}
+
+if (payload.event === "boss_reset") {
+  resetOlympusChallenge(false);
+  return;
+}
 
    // ==========================================
 // 🎉 STUDENT COMPLETED NORMAL PUZZLE
@@ -116715,6 +118201,421 @@ justify-content:center;
     </div>
     <div id="lpLegalGameFeedback" style="min-height:45px; margin-top:14px; font-weight:700;"></div>
   </div>
+</div>
+
+<!-- ==========================================
+     ⚔ OLYMPUS AI CHALLENGE — ADMIN PANEL
+========================================== -->
+
+<div
+  id="lpOlympusAdminPanel"
+  style="
+    display:none;
+    position:fixed;
+    top:150px;
+    right:80px;
+    width:280px;
+    z-index:99998;
+
+    background:#1d1f31;
+    border:2px solid #8b9dc3;
+    border-radius:16px;
+    padding:18px;
+
+    box-shadow:0 15px 45px rgba(0,0,0,.45);
+    color:white;
+  "
+>
+
+  <div
+    style="
+      font-size:19px;
+      font-weight:800;
+      margin-bottom:12px;
+    "
+  >
+    ⚔ Olympus AI Challenge
+  </div>
+
+  <div
+    id="lpOlympusAdminStatus"
+    style="
+      margin-bottom:12px;
+      font-weight:700;
+    "
+  >
+    🟢 Playing
+  </div>
+
+  <div
+    id="lpOlympusAdminResult"
+    style="
+      margin-bottom:12px;
+      font-weight:700;
+      color:#8b9dc3;
+    "
+  >
+    Result: —
+  </div>
+  <!-- ==========================================
+     ⚔ OLYMPUS — STUDENT STATUS LIST
+========================================== -->
+
+<div
+  id="lpOlympusStudentStatusList"
+  style="
+    margin:12px 0 14px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    max-height:180px;
+    overflow-y:auto;
+  "
+></div>
+
+  <!-- ⚔ OLYMPUS ADMIN MINI BOARD (static, initial handicap position only) -->
+
+  <div
+    id="lpOlympusAdminBoard"
+    style="
+      width:230px;
+      height:230px;
+
+      display:grid;
+      grid-template-columns:repeat(8,1fr);
+      grid-template-rows:repeat(8,1fr);
+
+      margin:0 auto 14px auto;
+
+      border:2px solid #8b9dc3;
+      border-radius:7px;
+
+      overflow:hidden;
+      box-sizing:border-box;
+    "
+  ></div>
+
+  <button
+    id="lpOlympusResetBtn"
+    type="button"
+    style="
+      width:100%;
+      padding:10px 12px;
+
+      background:#3b82f6;
+      color:white;
+
+      border:1px solid rgba(255,255,255,.85);
+      border-radius:8px;
+
+      font-size:14px;
+      font-weight:800;
+
+      cursor:pointer;
+    "
+  >
+    🔄 Reset Challenge
+  </button>
+
+</div>
+
+
+<!-- ==========================================
+     ⚔ OLYMPUS AI CHALLENGE — STUDENT MODAL
+========================================== -->
+
+<div
+  id="lpOlympusModal"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:100000;
+    background:rgba(5,8,20,.92);
+    backdrop-filter:blur(3px);
+    -webkit-backdrop-filter:blur(3px);
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div
+    style="
+      width:min(96vw,640px);
+      max-height:96vh;
+      overflow-y:auto;
+      background:#171a2b;
+      border:2px solid #8b9dc3;
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 18px 55px rgba(0,0,0,.55);
+      color:#fff;
+      text-align:center;
+    "
+  >
+
+    <div style="font-size:22px; font-weight:800; margin-bottom:4px;">
+      🏆 Olympus AI Challenge
+    </div>
+
+    <div
+      id="lpOlympusStatus"
+      style="
+        font-size:16px;
+        font-weight:700;
+        margin-bottom:10px;
+        color:#dce0f5;
+      "
+    >
+      You are White. Defeat the Olympus AI!
+    </div>
+
+    <!-- CLOCKS -->
+    <div
+      style="
+        display:flex;
+        justify-content:space-between;
+        max-width:min(82vw,480px);
+        margin:0 auto 10px auto;
+      "
+    >
+      <div
+        id="lpOlympusBlackClockBox"
+        class="olympus-clock-box"
+      >
+        ⚫ Olympus AI
+        <div id="lpOlympusBlackClock" class="olympus-clock-time">3:00</div>
+      </div>
+
+      <div
+        id="lpOlympusWhiteClockBox"
+        class="olympus-clock-box olympus-clock-active"
+      >
+        ⚪ You
+        <div id="lpOlympusWhiteClock" class="olympus-clock-time">3:00</div>
+      </div>
+    </div>
+
+    <!-- BOARD -->
+    <div
+      id="olympusBoard"
+      style="
+        width:min(82vw,480px);
+        aspect-ratio:1/1;
+        margin:auto;
+        user-select:none;
+      "
+    ></div>
+
+    <div
+      id="lpOlympusFileCoords"
+      style="
+        display:flex;
+        justify-content:space-around;
+        max-width:min(82vw,480px);
+        margin:4px auto 0 auto;
+        font-size:12px;
+        font-weight:700;
+        color:#8b9dc3;
+      "
+    >
+      <span>a</span><span>b</span><span>c</span><span>d</span>
+      <span>e</span><span>f</span><span>g</span><span>h</span>
+    </div>
+
+    <div style="margin-top:14px;">
+      <button
+        id="lpOlympusResignBtn"
+        type="button"
+        style="
+          padding:9px 16px;
+          background:#e53935;
+          color:#fff;
+          border:1px solid rgba(255,255,255,.85);
+          border-radius:8px;
+          font-weight:800;
+          cursor:pointer;
+        "
+      >
+        🏳️ Resign
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ==========================================
+     ⚔ OLYMPUS AI CHALLENGE — PROMOTION MODAL
+     (fully isolated — does NOT reuse #lpPromotionModal)
+========================================== -->
+
+<div
+  id="lpOlympusPromotionModal"
+  class="olympus-hidden"
+  style="
+    position:fixed;
+    inset:0;
+    z-index:100002;
+    background:rgba(5,8,20,.85);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div
+    style="
+      background:#171a2b;
+      border:2px solid #8b9dc3;
+      border-radius:16px;
+      padding:20px;
+      text-align:center;
+      color:#fff;
+    "
+  >
+    <div style="font-size:17px; font-weight:800; margin-bottom:14px;">
+      Promote your pawn
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button class="olympus-promo-btn" data-piece="q" type="button">♕</button>
+      <button class="olympus-promo-btn" data-piece="r" type="button">♖</button>
+      <button class="olympus-promo-btn" data-piece="b" type="button">♗</button>
+      <button class="olympus-promo-btn" data-piece="n" type="button">♘</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==========================================
+     ⚔ OLYMPUS AI CHALLENGE — RESULT MODAL
+========================================== -->
+
+<div
+  id="lpOlympusResultModal"
+  class="olympus-hidden"
+  style="
+    position:fixed;
+    inset:0;
+    z-index:100003;
+    background:rgba(5,8,20,.9);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div
+    style="
+      background:#171a2b;
+      border:2px solid #8b9dc3;
+      border-radius:18px;
+      padding:26px;
+      text-align:center;
+      color:#fff;
+      width:min(90vw,380px);
+    "
+  >
+    <div id="lpOlympusResultTitle" style="font-size:26px; font-weight:900; margin-bottom:8px;">
+      🏆 Student Won
+    </div>
+    <div id="lpOlympusResultReason" style="font-size:15px; font-weight:600; color:#dce0f5; margin-bottom:18px;">
+      Checkmate
+    </div>
+    <button
+      id="lpOlympusResultCloseBtn"
+      type="button"
+      style="
+        padding:10px 20px;
+        background:#3b82f6;
+        color:#fff;
+        border:1px solid rgba(255,255,255,.85);
+        border-radius:8px;
+        font-weight:800;
+        cursor:pointer;
+      "
+    >
+      Close
+    </button>
+  </div>
+</div>
+
+<!-- ==========================================
+     ⚔ OLYMPUS — ADMIN SPECTATOR BOARD
+========================================== -->
+
+<div
+  id="lpOlympusSpectatorPanel"
+  style="
+    display:none;
+
+    position:fixed;
+    inset:0;
+
+    z-index:100001;
+
+    background:rgba(5,8,20,.88);
+
+    backdrop-filter:blur(3px);
+    -webkit-backdrop-filter:blur(3px);
+
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+
+    box-sizing:border-box;
+  "
+>
+
+  <div
+    id="lpOlympusSpectatorTitle"
+    style="
+      text-align:center;
+      font-size:14px;
+      font-weight:800;
+      margin-bottom:8px;
+    "
+  >
+    👨🏻‍🎓 Watching Student
+  </div>
+
+  <div
+    id="lpOlympusSpectatorBoard"
+style="
+  width:min(78vw, 560px);
+  height:min(78vw, 560px);
+
+  margin:0 auto;
+
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  grid-template-rows:repeat(8,1fr);
+
+  border:3px solid #8b9dc3;
+  border-radius:9px;
+
+  overflow:hidden;
+  box-sizing:border-box;
+"
+  ></div>
+
+  <button
+    id="lpOlympusCloseSpectatorBtn"
+    type="button"
+    style="
+      display:block;
+     width:230px;
+      margin-top:10px;
+      padding:8px;
+      background:#30344d;
+      color:white;
+      border:1px solid #8b9dc3;
+      border-radius:8px;
+      font-weight:800;
+      cursor:pointer;
+    "
+  >
+    ✕ Close Board
+  </button>
+
 </div>
 
 <script>
