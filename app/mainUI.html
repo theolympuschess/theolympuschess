@@ -50176,13 +50176,13 @@ coachSpeak(speech);
 
           clearInterval(waitSpeech);
 
-          setTimeout(runCoachReviewStep, 500);
+          setTimeout(runCoachReviewStep, 10);
 
         }
 
-      }, 200);
+      }, 100);
 
-    }, 1000);
+    }, 100);
 
   });
 
@@ -53393,74 +53393,179 @@ window.criticalMomentMove = null;
 window.criticalMomentSwing = 0;
 
 
+// ==========================================
+// ♟ STUDY ENGINE — LIFECYCLE STATE
+// ==========================================
+
+// Engine readiness (no more per-navigation "isready" listeners)
+let studyEngineInitializing = false;
+
+// Search generation / active-position tracking.
+// Any engine output not tied to the CURRENT generation/FEN is stale and ignored.
+let studyEngineGeneration = 0;
+let studyEngineSearchFen = null;
+let studyEngineSearching = false;
+let studyEnginePendingSearch = null;
+let studyEngineWaitingForStop = false;
+
+// At most one pending request survives while the engine is still initializing.
+let studyEnginePendingAnalysis = null; // { generation, fen }
+
+
 function initStudyEngine() {
-  if (studyEngine) return;
+  if (studyEngine) return; // ONE persistent worker for the whole session
 
   studyEngine = new Worker("./stockfish/stockfish.js");
+  studyEngineInitializing = true;
+  studyEngineReady = false;
 
+  // ONE permanent message handler — never replaced, never duplicated.
   studyEngine.onmessage = (e) => {
     const line = e.data;
     if (typeof line !== "string") return;
+
+    if (line === "readyok") {
+      studyEngineInitializing = false;
+      studyEngineReady = true;
+
+      // Only the newest navigation request (if any arrived while we were
+      // still initializing) gets searched — older ones are simply discarded.
+      if (studyEnginePendingAnalysis) {
+        const pending = studyEnginePendingAnalysis;
+        studyEnginePendingAnalysis = null;
+        startStudyEngineSearch(pending.generation, pending.fen);
+      }
+      return;
+    }
+
+    if (line.startsWith("bestmove")) {
+
+  studyEngineSearching = false;
+
+  // The previous search is now completely finished.
+  // Only NOW can we safely start the newest requested position.
+  if (studyEngineWaitingForStop) {
+    beginStudyEngineSearch();
+  }
+
+  return;
+}
+
     updateStudyEngineUI(line);
   };
 
   studyEngine.postMessage("uci");
   studyEngine.postMessage("setoption name Hash value 64");
-
-  // 🔥 ADD THIS LINE (CRITICAL)
   studyEngine.postMessage("setoption name MultiPV value 3");
-
   studyEngine.postMessage("isready");
 }
-
-
-
 
 
 function analyzeStudyPosition() {
 
   if (!studyEngine || !studyChess || !studyEngineEnabled) return;
 
+  // 🔢 New generation — any output tied to an older generation is stale.
+  studyEngineGeneration++;
+  const generation = studyEngineGeneration;
+
+  // 📸 Capture the exact FEN being analyzed ONCE, right now — never re-read
+  // studyChess.fen() later while processing engine output.
+  const fen = studyChess.fen();
+
+  // Reset UI immediately for the new position.
   studyLastDepth = 0;
   studyPV = {};
-
   document.getElementById("studyEval").textContent = "…";
   document.getElementById("studyPVLines").innerHTML = "";
+  document.getElementById("studyDepth").textContent = "0";
 
-  // stop previous search
-  studyEngine.postMessage("stop");
+  // The old best move belonged to the old FEN — clear it for the new position.
+  window.studyBestMove = null;
+  window.studyBestMoveFen = null;
 
-  // wait until engine is ready
-  studyEngine.postMessage("isready");
+  if (!studyEngineReady || studyEngineInitializing) {
+    // Engine still starting up (e.g. right after toggling ON). Remember
+    // only the newest requested position — earlier ones are dropped.
+    studyEnginePendingAnalysis = { generation, fen };
+    return;
+  }
 
-  const handleReady = (e) => {
-
-    if (e.data !== "readyok") return;
-
-    studyEngine.removeEventListener("message", handleReady);
-
-    studyEngine.postMessage(
-      "position fen " + studyChess.fen()
-    );
-
-    studyEngine.postMessage("go movetime 4000");
-  };
-
-  studyEngine.addEventListener("message", handleReady);
+  startStudyEngineSearch(generation, fen);
 }
 
 
+function startStudyEngineSearch(generation, fen) {
 
+  if (generation !== studyEngineGeneration) return;
+  if (!studyEngine || !studyEngineEnabled) return;
+
+  // Always keep only the newest requested position.
+  studyEnginePendingSearch = {
+    generation,
+    fen
+  };
+
+  // If Stockfish is already calculating, stop it first.
+  // We DO NOT immediately send the new position.
+  if (studyEngineSearching) {
+
+    studyEngineWaitingForStop = true;
+    studyEngine.postMessage("stop");
+
+    return;
+  }
+
+  // No previous search is running.
+  beginStudyEngineSearch();
+}
+
+function beginStudyEngineSearch() {
+
+  const pending = studyEnginePendingSearch;
+
+  if (!pending) return;
+  if (!studyEngine || !studyEngineEnabled) return;
+
+  // If this request became stale while waiting, discard it.
+  if (pending.generation !== studyEngineGeneration) {
+    studyEnginePendingSearch = null;
+    return;
+  }
+
+  studyEnginePendingSearch = null;
+  studyEngineWaitingForStop = false;
+
+  studyEngineSearchFen = pending.fen;
+  studyEngineSearching = true;
+
+  studyEngine.postMessage("position fen " + pending.fen);
+  studyEngine.postMessage("go movetime 5000");
+}
 
 
 // ===== ENGINE STATE =====
 let studyLastDepth = 0;
 const STUDY_MIN_EVAL_DEPTH = 6;
 
+
 function updateStudyEngineUI(line) {
   if (!studyEngineEnabled) return;
   if (typeof line !== "string") return;
+
+  if (line.startsWith("bestmove")) {
+    studyEngineSearching = false;
+    return;
+  }
+
   if (!line.startsWith("info")) return;
+
+  // Everything below is evaluated against the FEN that was ACTUALLY sent
+  // to the engine for the current search — never a live studyChess.fen().
+  const analysisFen = studyEngineSearchFen;
+  if (!analysisFen) return;
+
+  const analysisTurn = analysisFen.split(" ")[1]; // 'w' or 'b' for the analyzed position
 
   /* ================= DEPTH ================= */
   const depthMatch = line.match(/depth (\d+)/);
@@ -53471,130 +53576,118 @@ function updateStudyEngineUI(line) {
 
   /* ================= ONLY PV 1 CONTROLS EVAL ================= */
   const isPV1 = /multipv 1\b/.test(line);
-  if (!isPV1) {
-    // still allow PV rendering later
-  }
 
   const evalBox = document.getElementById("studyEval");
   const cpMatch = line.match(/score cp (-?\d+)/);
   const mateMatch = line.match(/score mate (-?\d+)/);
 
- 
-// ===== MATE (PV1 ONLY) =====
-// ===== MATE (PV1 ONLY) =====
-if (mateMatch && isPV1) {
+  // ===== MATE (PV1 ONLY) =====
+  if (mateMatch && isPV1) {
 
-  let mate = parseInt(mateMatch[1], 10);
+    let mate = parseInt(mateMatch[1], 10);
+    if (analysisTurn === "b") mate = -mate;
 
-  if (studyChess.turn() === "b") mate = -mate;
+    evalBox.textContent = `M${mate}`;
 
-  evalBox.textContent = `M${mate}`;
-
-  evalBox.classList.remove(
-    "eval-positive",
-    "eval-negative",
-    "eval-equal"
-  );
-
-  evalBox.classList.add("eval-mate");
-
-}
+    evalBox.classList.remove("eval-positive", "eval-negative", "eval-equal");
+    evalBox.classList.add("eval-mate");
+  }
 
   // ===== CENTIPAWN (PV1 ONLY + DEPTH GATED) =====
-  if (cpMatch && isPV1) {
-    if (studyLastDepth < STUDY_MIN_EVAL_DEPTH) return;
+  // 🔧 FIXED: this used to `return` out of the ENTIRE function when below
+  // the display-depth threshold, silently blocking all PV rendering below.
+  // Now it only gates the evaluation-number update.
+  if (cpMatch && isPV1 && studyLastDepth >= STUDY_MIN_EVAL_DEPTH) {
 
     let cp = parseInt(cpMatch[1], 10);
-    if (studyChess.turn() === "b") cp = -cp;
+    if (analysisTurn === "b") cp = -cp;
 
     const evalValue = (cp / 100).toFixed(2);
     evalBox.textContent = cp > 0 ? `+${evalValue}` : evalValue;
 
-evalBox.classList.remove(
-  "eval-positive",
-  "eval-negative",
-  "eval-equal",
-  "eval-mate"
-);
+    evalBox.classList.remove("eval-positive", "eval-negative", "eval-equal", "eval-mate");
 
-if (cp > 20) {
-  evalBox.classList.add("eval-positive");
-}
-else if (cp < -20) {
-  evalBox.classList.add("eval-negative");
-}
-else {
-  evalBox.classList.add("eval-equal");
-}
+    if (cp > 20) {
+      evalBox.classList.add("eval-positive");
+    } else if (cp < -20) {
+      evalBox.classList.add("eval-negative");
+    } else {
+      evalBox.classList.add("eval-equal");
+    }
   }
-// ==========================================
-// 🧠 ENGINE BEST MOVE TRACKER
-// ==========================================
-if (!window.studyBestMove) {
-  window.studyBestMove = null;
-}
+
+  // ==========================================
+  // 🧠 ENGINE BEST MOVE TRACKER
+  // ==========================================
+  if (!window.studyBestMove) {
+    window.studyBestMove = null;
+  }
+
   /* ================= MULTI-PV DISPLAY ================= */
-  const pvMatch = line.match(/multipv (\d+).* pv (.+)/);
+ const pvMatch = line.match(/multipv (\d+).* pv (.+)/);
   if (!pvMatch) return;
 
   const index = pvMatch[1];
   const uciPv = pvMatch[2];
+
   // store best move from PV1
-if (index === "1") {
+  if (index === "1") {
 
-  const bestMoveUci = uciPv.split(" ")[0];
+    const bestMoveUci = uciPv.split(" ")[0];
 
-  const temp = new Chess();
-  temp.load(studyChess.fen());
+    const temp = new Chess();
+    temp.load(analysisFen);
 
-  const move = temp.move({
-    from: bestMoveUci.slice(0,2),
-    to: bestMoveUci.slice(2,4),
-    promotion: bestMoveUci[4]
-  });
+    const move = temp.move({
+      from: bestMoveUci.slice(0, 2),
+      to: bestMoveUci.slice(2, 4),
+      promotion: bestMoveUci[4]
+    });
 
-  if (move) {
+    if (move) {
 
-    window.studyBestMove = move.san;
-    window.studyBestMoveFen = studyChess.fen();
+      window.studyBestMove = move.san;
+      window.studyBestMoveFen = analysisFen;
 
-    // ⭐ capture move specifically for review
-    if (coachWaitingBestMove) {
-      coachBestMoveForReview = move.san;
+      // ⭐ capture move specifically for review
+      if (coachWaitingBestMove) {
+        coachBestMoveForReview = move.san;
+      }
     }
-
   }
 
-}
+ const sanPv = uciLineToSAN(analysisFen, uciPv);
 
-  const sanPv = uciLineToSAN(studyChess.fen(), uciPv);
-  let evalText = "";
+// Do not create an empty engine line.
+// This can happen if a stale/partial UCI PV arrives while
+// the study position is being changed.
+if (!sanPv) return;
 
-// centipawn
-if (cpMatch) {
-  let cp = parseInt(cpMatch[1], 10);
-  if (studyChess.turn() === "b") cp = -cp;
-  evalText = (cp > 0 ? "+" : "") + (cp / 100).toFixed(2);
-}
+let evalText = "";
 
-// mate
-if (mateMatch) {
-  let mate = parseInt(mateMatch[1], 10);
-  if (studyChess.turn() === "b") mate = -mate;
-  evalText = "M" + mate;
-}
+  // centipawn
+  if (cpMatch) {
+    let cp = parseInt(cpMatch[1], 10);
+    if (analysisTurn === "b") cp = -cp;
+    evalText = (cp > 0 ? "+" : "") + (cp / 100).toFixed(2);
+  }
 
-studyPV[index] = {
-  eval: evalText,
-  line: sanPv
-};
+  // mate
+  if (mateMatch) {
+    let mate = parseInt(mateMatch[1], 10);
+    if (analysisTurn === "b") mate = -mate;
+    evalText = "M" + mate;
+  }
+
+  studyPV[index] = {
+    eval: evalText,
+    line: sanPv
+  };
 
   const pvBox = document.getElementById("studyPVLines");
   pvBox.innerHTML = "";
 
- Object.keys(studyPV)
-  .sort((a, b) => a - b)
-  .forEach(i => {
+  Object.keys(studyPV).sort((a, b) => a - b).forEach(i => {
 
     const pv = studyPV[i];
 
@@ -53606,9 +53699,6 @@ studyPV[index] = {
     pvBox.appendChild(div);
   });
 }
-
-
-
 
 
 function uciLineToSAN(fen, uciLine) {
@@ -53631,17 +53721,18 @@ function uciLineToSAN(fen, uciLine) {
   return sanMoves.join(" ");
 }
 
-function getCurrentEval(){
+
+function getCurrentEval() {
 
   const evalBox = document.getElementById("studyEval");
-  if(!evalBox) return 0;
+  if (!evalBox) return 0;
 
   const text = evalBox.textContent;
 
-  if(text.startsWith("M")) return 10;
+  if (text.startsWith("M")) return 10;
 
   const num = parseFloat(text);
-  if(isNaN(num)) return 0;
+  if (isNaN(num)) return 0;
 
   return num;
 }
@@ -76698,7 +76789,7 @@ function analyzeFenForBestMove(fen, callback){
   studyEngine.addEventListener("message", handleBest);
 
   studyEngine.postMessage("position fen " + fen);
-  studyEngine.postMessage("go movetime 3000");
+  studyEngine.postMessage("go movetime 1000");
 
 }
 
