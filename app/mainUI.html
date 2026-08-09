@@ -65735,22 +65735,49 @@ if (savedSide) {
 
 
 
-  updateMpPlayerLabels()
-  mpForcePOVLayout()
+// =====================================================
+// 🔥 RESET POV FOR THIS GAME
+// Board POV and CLOCK POV must use the same player side.
+// This is especially important when starting Game 2
+// without refreshing the application.
+// =====================================================
+
+window.mpCurrentOrientation =
+  mySide === 'b' ? 'black' : 'white'
+
+updateMpPlayerLabels()
+mpForcePOVLayout()
+
+// Re-assert it after layout code in case mpForcePOVLayout()
+// changes the orientation state.
+window.mpCurrentOrientation =
+  mySide === 'b' ? 'black' : 'white'
+
+// =====================================================
+// 🔥 AUTHORITATIVE NEW-GAME STATE
+// =====================================================
 
 mpChess.load(data.fen)
-  lastFen = data.fen
-  serverTurn = data.turn   // 🔥 sync turn from server
-moveLock = false        // 🔓 allow moves after reconnect
 
-  // ⏱️ Establish ONE fresh local timing snapshot from the current
-  // authoritative server row. Do NOT add increment, do NOT subtract
-  // twice, do NOT restore base_time — just trust w_time/b_time/turn
-  // exactly as they currently sit in the DB.
-  mpRebaseClock(data.w_time, data.b_time, data.turn, data.status)
-  if (data.status === 'playing') {
-    startClock()
-  }
+lastFen = data.fen
+serverTurn = data.turn || 'w'
+moveLock = false
+mpGameOver = false
+
+// =====================================================
+// ⏱️ CLOCK — SAME SERVER TURN + CORRECT POV
+// =====================================================
+
+mpRebaseClock(
+  Number(data.w_time) || 0,
+  Number(data.b_time) || 0,
+  serverTurn,
+  data.status
+)
+
+if (data.status === 'playing') {
+  startClock()
+}
 
   if (!mpBoard) {
   initLiveMatchBoard()
