@@ -30371,6 +30371,116 @@ border-radius:20px;
 }
 
 
+/* =====================================================
+   ♟ LICHESS USERNAME HISTORY
+===================================================== */
+
+.quick-lichess-history {
+  position: absolute;
+
+  top: 48px;
+  left: 0;
+
+  width: 170px;
+
+  max-height: 220px;
+
+  overflow-y: auto;
+
+  padding: 5px;
+
+  background: #101522;
+
+  border: 1px solid #303951;
+  border-radius: 9px;
+
+  z-index: 100000;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,.45);
+
+  animation: qlgHistoryIn .15s ease;
+}
+
+.quick-lichess-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  min-height: 34px;
+
+  padding: 5px 7px;
+
+  border-radius: 6px;
+
+  color: #dfe5ff;
+
+  font-size: 12px;
+
+  transition:
+    background .15s ease;
+}
+
+.quick-lichess-history-item:hover {
+  background: #202942;
+}
+
+.quick-lichess-history-name {
+  flex: 1;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.quick-lichess-history-delete {
+  width: 23px;
+  height: 23px;
+
+  flex-shrink: 0;
+
+  border: 0;
+  border-radius: 5px;
+
+  background: transparent;
+
+  color: #77819e;
+
+  font-size: 15px;
+
+  cursor: pointer;
+
+  transition:
+    background .15s ease,
+    color .15s ease;
+}
+
+.quick-lichess-history-delete:hover {
+  background: #3a2028;
+  color: #ff7f8d;
+}
+
+@keyframes qlgHistoryIn {
+
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
+
+
   </style>
 </head>
 
@@ -31581,6 +31691,11 @@ ATTENDANCE SECTION
   placeholder="Lichess username"
   autocomplete="off"
 />
+
+<div
+  id="quickLichessHistory"
+  class="quick-lichess-history hidden"
+></div>
 
 <button id="quickFetchLichessBtn">🔎</button>
 
@@ -78481,6 +78596,332 @@ async function importAllQuickLichessGames() {
 
 const quickFetchBtn = document.getElementById("quickFetchLichessBtn");
 const quickUserInput = document.getElementById("quickLichessUser");
+// =====================================================
+// ♟ QUICK LICHESS USERNAME HISTORY
+// =====================================================
+
+const QUICK_LICHESS_HISTORY_KEY =
+  "olympusQuickLichessUserHistory";
+
+function getQuickLichessHistory() {
+
+  try {
+
+    const saved = JSON.parse(
+      localStorage.getItem(
+        QUICK_LICHESS_HISTORY_KEY
+      ) || "[]"
+    );
+
+    return Array.isArray(saved)
+      ? saved
+      : [];
+
+  } catch (err) {
+
+    console.error(
+      "❌ Failed to load Lichess username history:",
+      err
+    );
+
+    return [];
+
+  }
+
+}
+
+
+function saveQuickLichessUsername(username) {
+
+  username = username.trim();
+
+  if (!username) return;
+
+  let users =
+    getQuickLichessHistory();
+
+  users = users.filter(
+    user =>
+      user.toLowerCase() !==
+      username.toLowerCase()
+  );
+
+  users.unshift(username);
+
+  users = users.slice(0, 20);
+
+  localStorage.setItem(
+    QUICK_LICHESS_HISTORY_KEY,
+    JSON.stringify(users)
+  );
+
+}
+
+
+function deleteQuickLichessUsername(username) {
+
+  let users =
+    getQuickLichessHistory();
+
+  users = users.filter(
+    user =>
+      user.toLowerCase() !==
+      username.toLowerCase()
+  );
+
+  localStorage.setItem(
+    QUICK_LICHESS_HISTORY_KEY,
+    JSON.stringify(users)
+  );
+
+  renderQuickLichessHistory();
+
+}
+
+
+function renderQuickLichessHistory() {
+
+  const input =
+    document.getElementById(
+      "quickLichessUser"
+    );
+
+  const historyBox =
+    document.getElementById(
+      "quickLichessHistory"
+    );
+
+  if (!input || !historyBox) return;
+
+  const users =
+    getQuickLichessHistory();
+
+  historyBox.innerHTML = "";
+
+  if (!users.length) {
+
+    historyBox.classList.add("hidden");
+
+    return;
+
+  }
+
+  users.forEach(username => {
+
+    const row =
+      document.createElement("div");
+
+    row.className =
+      "quick-lichess-history-item";
+
+    const name =
+      document.createElement("span");
+
+    name.className =
+      "quick-lichess-history-name";
+
+    name.textContent =
+      username;
+
+    const deleteBtn =
+      document.createElement("button");
+
+    deleteBtn.type = "button";
+
+    deleteBtn.className =
+      "quick-lichess-history-delete";
+
+    deleteBtn.textContent = "×";
+
+    // ⭐ Select username
+    name.addEventListener("click", () => {
+
+      input.value = username;
+
+      historyBox.classList.add("hidden");
+
+      input.focus();
+
+    });
+
+    // ⭐ Delete username
+    deleteBtn.addEventListener(
+      "click",
+      (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        deleteQuickLichessUsername(
+          username
+        );
+
+      }
+    );
+
+    row.appendChild(name);
+    row.appendChild(deleteBtn);
+
+    historyBox.appendChild(row);
+
+  });
+
+  historyBox.classList.remove("hidden");
+
+}
+
+
+// =====================================================
+// ♟ SHOW HISTORY WHEN INPUT IS FOCUSED
+// =====================================================
+
+quickUserInput?.addEventListener(
+  "focus",
+  () => {
+
+    renderQuickLichessHistory();
+
+  }
+);
+
+
+// =====================================================
+// ♟ FILTER HISTORY WHILE TYPING
+// =====================================================
+
+quickUserInput?.addEventListener(
+  "input",
+  () => {
+
+    const query =
+      quickUserInput.value
+        .trim()
+        .toLowerCase();
+
+    const historyBox =
+      document.getElementById(
+        "quickLichessHistory"
+      );
+
+    if (!historyBox) return;
+
+    const users =
+      getQuickLichessHistory()
+        .filter(user =>
+          user
+            .toLowerCase()
+            .includes(query)
+        );
+
+    historyBox.innerHTML = "";
+
+    if (!users.length) {
+
+      historyBox.classList.add(
+        "hidden"
+      );
+
+      return;
+
+    }
+
+    users.forEach(username => {
+
+      const row =
+        document.createElement("div");
+
+      row.className =
+        "quick-lichess-history-item";
+
+      const name =
+        document.createElement("span");
+
+      name.className =
+        "quick-lichess-history-name";
+
+      name.textContent =
+        username;
+
+      const deleteBtn =
+        document.createElement("button");
+
+      deleteBtn.type = "button";
+
+      deleteBtn.className =
+        "quick-lichess-history-delete";
+
+      deleteBtn.textContent = "×";
+
+      name.onclick = () => {
+
+        quickUserInput.value =
+          username;
+
+        historyBox.classList.add(
+          "hidden"
+        );
+
+      };
+
+      deleteBtn.onclick = (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        deleteQuickLichessUsername(
+          username
+        );
+
+      };
+
+      row.appendChild(name);
+      row.appendChild(deleteBtn);
+
+      historyBox.appendChild(row);
+
+    });
+
+    historyBox.classList.remove(
+      "hidden"
+    );
+
+  }
+);
+
+
+// =====================================================
+// ♟ CLOSE HISTORY OUTSIDE
+// =====================================================
+
+document.addEventListener(
+  "click",
+  (e) => {
+
+    const wrapper =
+      document.querySelector(
+        ".quick-lichess-wrapper"
+      );
+
+    const historyBox =
+      document.getElementById(
+        "quickLichessHistory"
+      );
+
+    if (
+      !wrapper ||
+      !historyBox
+    ) return;
+
+    if (!wrapper.contains(e.target)) {
+
+      historyBox.classList.add(
+        "hidden"
+      );
+
+    }
+
+  }
+);
 
 if (quickFetchBtn && quickUserInput) {
 
@@ -78488,7 +78929,7 @@ if (quickFetchBtn && quickUserInput) {
 
     const username = quickUserInput.value.trim();
     if (!username) return;
-
+saveQuickLichessUsername(username);
     quickFetchBtn.disabled = true;
     quickFetchBtn.textContent = "Loading...";
 
