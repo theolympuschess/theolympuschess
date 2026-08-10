@@ -29848,6 +29848,202 @@ border-radius:20px;
   background: #7d5c8f !important;
 }
 
+/* ==========================================
+   💳 PAYMENT SYSTEM — ISOLATED STYLES
+========================================== */
+
+.lp-payment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100050;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.lp-payment-modal {
+  width: 420px;
+  max-width: calc(100vw - 24px);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  color: white;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  opacity: 0;
+  transform: translateY(6px);
+  animation: lpPaymentFadeIn 0.15s ease forwards;
+}
+
+@keyframes lpPaymentFadeIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lp-payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.lp-payment-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lp-payment-close {
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.75;
+  padding: 2px 6px;
+}
+
+.lp-payment-close:hover {
+  opacity: 1;
+}
+
+.lp-payment-body {
+  padding: 16px 18px 20px 18px;
+}
+
+.lp-payment-label {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 10px 0 5px 0;
+}
+
+.lp-payment-input {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: none;
+  background: #1f2937;
+  color: white;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.lp-payment-error {
+  color: #f87171;
+  font-size: 12px;
+  min-height: 14px;
+  margin-top: 8px;
+}
+
+.lp-payment-empty {
+  opacity: 0.6;
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+.lp-payment-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.lp-payment-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  color: white;
+}
+
+.lp-payment-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lp-payment-btn-save {
+  background: #16a34a;
+  flex: 1;
+}
+
+.lp-payment-btn-cancel {
+  background: #374151;
+}
+
+.lp-payment-btn-danger {
+  background: #ff4d4d;
+}
+
+.lp-payment-delete-all {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.lp-payment-summary {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: #1f2937;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.lp-payment-history {
+  margin-top: 14px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #1a2233;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.lp-payment-row-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.lp-payment-row-meta {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+.lp-payment-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lp-payment-mini-btn {
+  border: none;
+  background: #2b3155;
+  color: white;
+  padding: 5px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lp-payment-mini-btn-danger {
+  background: #7f1d1d;
+}
+
   </style>
 </head>
 
@@ -30735,7 +30931,7 @@ ATTENDANCE SECTION
                 margin-top:8px;
               "
             >
-              💳 Save Classes
+               Save Classes
             </button>
 
           </div>
@@ -105355,6 +105551,7 @@ let batchMap = {};
 let allBatchNames = [];
 let subscriptionMap = {};
 let attendanceView = "students";
+let profileIdMap = {}; 
 
 function initAttendanceFilters() {
 
@@ -105442,9 +105639,9 @@ async function loadAttendance() {
   
     
       .order("started_at", { ascending:false });
-      const { data: profiles } = await supabase
+const { data: profiles } = await supabase
   .from("profiles")
-  .select("username, active");
+  .select("id, username, active");
   const { data: batchData } = await supabase
   .from("student_batches")
   .select("*");
@@ -105498,6 +105695,9 @@ profiles?.forEach(profile => {
   const name = profile.username;
 
   if (!name || name === "Unknown") return;
+
+  // 💳 build the id map alongside the existing loop — no extra query
+  profileIdMap[name] = profile.id;
 
   // create empty attendance
   attendanceMap[name] = [];
@@ -105961,6 +106161,25 @@ LPInvoice.openInvoiceModal('${name}');
       "
     >
       Invoice
+    </button>
+
+    <button
+      onclick="
+event.stopPropagation();
+LPPayment.openPaymentModal('${name}');
+"
+      style="
+        border:none;
+        background:#16a34a;
+        color:white;
+        padding:5px 9px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:12px;
+        font-weight:700;
+      "
+    >
+      Payment
     </button>
 
   </div>
@@ -107181,6 +107400,20 @@ pdf.save(
 );
 }
 
+  // 💳 Tiny read-only getters — let LPPayment reuse already-loaded data
+  // instead of duplicating a profile/batch query.
+  function getProfileId(username) {
+    return profileIdMap[username] || null;
+  }
+
+  function getStudentBatch(username) {
+    return batchMap[username] || null;
+  }
+
+  function getAllBatchNames() {
+    return allBatchNames.slice();
+  }
+
   return {
     markAttendance,
     loadAttendance,
@@ -107196,7 +107429,11 @@ deleteBatch,
 showBatch,
 setView,
 
-saveSubscription
+saveSubscription,
+
+getProfileId,
+getStudentBatch,
+getAllBatchNames
   };
 
 })();
@@ -107205,6 +107442,523 @@ window.LPAttendance = LPAttendance;
 // LP INVOICE SYSTEM
 // THE OLYMPUS CHESS ACADEMY
 // ======================================================
+// ======================================================
+// LP PAYMENT SYSTEM
+// THE OLYMPUS CHESS ACADEMY
+// ======================================================
+
+const LPPayment = (() => {
+
+  let currentStudentName = "";
+  let currentStudentId = null;
+  let editingPaymentId = null;
+  let paymentRecords = [];
+
+  let modalBuilt = false;
+
+  const MONTH_NAMES = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
+
+  // -------------------------------------------------
+  // Local date helpers (no timezone shifting — payment
+  // dates are calendar dates, not timestamps)
+  // -------------------------------------------------
+  function todayISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatDisplayDate(iso) {
+    if (!iso) return "-";
+    const parts = iso.split("-");
+    if (parts.length !== 3) return iso;
+    const [y, m, d] = parts;
+    const monthIndex = parseInt(m, 10) - 1;
+    const monthName = MONTH_NAMES[monthIndex] || m;
+    return `${d} ${monthName} ${y}`;
+  }
+
+  function formatCurrency(amount) {
+    const n = Number(amount) || 0;
+    return "₹" + n.toLocaleString("en-IN");
+  }
+
+  // -------------------------------------------------
+  // MODAL — built once, on first open
+  // -------------------------------------------------
+  function ensurePaymentModal() {
+
+    if (modalBuilt) return;
+    modalBuilt = true;
+
+    const modal = document.createElement("div");
+    modal.id = "lpPaymentModal";
+    modal.className = "lp-payment-overlay";
+    modal.style.display = "none";
+
+    modal.innerHTML = `
+      <div class="lp-payment-modal">
+
+        <div class="lp-payment-header">
+          <div id="lpPaymentTitle" class="lp-payment-title">💳 Payment</div>
+          <div id="lpPaymentClose" class="lp-payment-close">×</div>
+        </div>
+
+        <div class="lp-payment-body">
+
+          <div class="lp-payment-form">
+
+            <label class="lp-payment-label">Amount</label>
+            <input
+              type="number"
+              id="lpPaymentAmount"
+              class="lp-payment-input"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 1800"
+            />
+
+            <label class="lp-payment-label">Type</label>
+            <select id="lpPaymentType" class="lp-payment-input">
+              <option value="Batch">Batch</option>
+              <option value="1-on-1">1-on-1</option>
+            </select>
+
+            <label class="lp-payment-label">Batch</label>
+            <select id="lpPaymentBatch" class="lp-payment-input"></select>
+
+            <label class="lp-payment-label">Payment Date</label>
+            <input
+              type="date"
+              id="lpPaymentDate"
+              class="lp-payment-input"
+            />
+
+            <label class="lp-payment-label">Classes</label>
+            <input
+              type="number"
+              id="lpPaymentClasses"
+              class="lp-payment-input"
+              min="0"
+              step="1"
+              placeholder="e.g. 8"
+            />
+
+            <div id="lpPaymentFormError" class="lp-payment-error"></div>
+
+            <div class="lp-payment-form-actions">
+              <button id="lpPaymentSaveBtn" class="lp-payment-btn lp-payment-btn-save">
+                Save Payment
+              </button>
+              <button id="lpPaymentCancelEditBtn" class="lp-payment-btn lp-payment-btn-cancel" style="display:none;">
+                Cancel Edit
+              </button>
+            </div>
+
+          </div>
+
+          <div class="lp-payment-summary" id="lpPaymentSummary"></div>
+
+          <div class="lp-payment-history" id="lpPaymentHistory">
+            Loading payment history...
+          </div>
+
+          <button id="lpPaymentDeleteAllBtn" class="lp-payment-btn lp-payment-btn-danger lp-payment-delete-all">
+            🗑 Delete All History
+          </button>
+
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // ---- static listeners (attached exactly once) ----
+
+    document.getElementById("lpPaymentClose")
+      .addEventListener("click", closePaymentModal);
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closePaymentModal();
+    });
+
+    document.getElementById("lpPaymentType")
+      .addEventListener("change", handleTypeChange);
+
+    document.getElementById("lpPaymentSaveBtn")
+      .addEventListener("click", handleSaveOrUpdate);
+
+    document.getElementById("lpPaymentCancelEditBtn")
+      .addEventListener("click", cancelEditMode);
+
+    document.getElementById("lpPaymentDeleteAllBtn")
+      .addEventListener("click", handleDeleteAll);
+
+    // Scoped ESC handling — attached exactly once, safely checks
+    // whether the modal is actually open before doing anything.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (modal.style.display === "none") return;
+      closePaymentModal();
+    });
+  }
+
+  function handleTypeChange() {
+    const type = document.getElementById("lpPaymentType").value;
+    const batchSelect = document.getElementById("lpPaymentBatch");
+    batchSelect.disabled = (type === "1-on-1");
+  }
+
+  // -------------------------------------------------
+  // OPEN
+  // -------------------------------------------------
+  function openPaymentModal(name) {
+
+    ensurePaymentModal();
+
+    currentStudentName = name;
+    currentStudentId = window.LPAttendance.getProfileId(name);
+
+    document.getElementById("lpPaymentTitle").textContent =
+      `💳 Payment — ${name}`;
+
+    resetFormToAddMode();
+    populateBatchDropdown();
+
+    document.getElementById("lpPaymentModal").style.display = "flex";
+
+    if (!currentStudentId) {
+      document.getElementById("lpPaymentHistory").innerHTML =
+        `<div class="lp-payment-error">Could not resolve this student's profile ID. Payment history unavailable.</div>`;
+      document.getElementById("lpPaymentSummary").innerHTML = "";
+      return;
+    }
+
+    loadPaymentHistory();
+  }
+
+  function closePaymentModal() {
+    const modal = document.getElementById("lpPaymentModal");
+    if (modal) modal.style.display = "none";
+
+    editingPaymentId = null;
+    // No Supabase calls, no attendance reload, no batch/subscription changes.
+  }
+
+  function populateBatchDropdown() {
+    const batchSelect = document.getElementById("lpPaymentBatch");
+    const batchNames = window.LPAttendance.getAllBatchNames();
+    const currentBatch = window.LPAttendance.getStudentBatch(currentStudentName);
+
+    const options = new Set(batchNames);
+    if (currentBatch) options.add(currentBatch);
+    options.add("No Batch");
+
+    batchSelect.innerHTML = Array.from(options)
+      .map(b => `<option value="${b}">${b}</option>`)
+      .join("");
+
+    batchSelect.value = currentBatch || "No Batch";
+  }
+
+  function resetFormToAddMode() {
+    editingPaymentId = null;
+
+    document.getElementById("lpPaymentAmount").value = "";
+    document.getElementById("lpPaymentType").value = "Batch";
+    document.getElementById("lpPaymentDate").value = todayISO();
+    document.getElementById("lpPaymentClasses").value = 8;
+    document.getElementById("lpPaymentFormError").textContent = "";
+
+    document.getElementById("lpPaymentBatch").disabled = false;
+
+    document.getElementById("lpPaymentSaveBtn").textContent = "Save Payment";
+    document.getElementById("lpPaymentCancelEditBtn").style.display = "none";
+  }
+
+  function cancelEditMode() {
+    resetFormToAddMode();
+    populateBatchDropdown();
+  }
+
+  // -------------------------------------------------
+  // LOAD HISTORY — the ONE lightweight query
+  // -------------------------------------------------
+  async function loadPaymentHistory() {
+
+    const historyBox = document.getElementById("lpPaymentHistory");
+    historyBox.innerHTML = "Loading payment history...";
+
+    const { data, error } = await supabase
+      .from("student_payments")
+      .select("id, amount, payment_type, batch_name, payment_date, classes")
+      .eq("student_id", currentStudentId)
+      .order("payment_date", { ascending: false });
+
+    if (error) {
+      console.error("💳 Payment history load failed:", error);
+      historyBox.innerHTML = `<div class="lp-payment-error">Failed to load payment history.</div>`;
+      document.getElementById("lpPaymentSummary").innerHTML = "";
+      return;
+    }
+
+    paymentRecords = data || [];
+    renderPaymentHistory();
+  }
+
+  function renderPaymentHistory() {
+
+    const summaryBox = document.getElementById("lpPaymentSummary");
+    const historyBox = document.getElementById("lpPaymentHistory");
+
+    // ---- summary, computed locally — no extra queries ----
+    const totalPaid = paymentRecords.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const totalClasses = paymentRecords.reduce((sum, r) => sum + Number(r.classes || 0), 0);
+
+    summaryBox.innerHTML = `
+      Total Paid: <b>${formatCurrency(totalPaid)}</b><br>
+      Payments: <b>${paymentRecords.length}</b><br>
+      Classes Purchased: <b>${totalClasses}</b>
+    `;
+
+    if (paymentRecords.length === 0) {
+      historyBox.innerHTML = `<div class="lp-payment-empty">No payment records yet.</div>`;
+      return;
+    }
+
+    historyBox.innerHTML = paymentRecords.map(r => `
+      <div class="lp-payment-row">
+        <div class="lp-payment-row-main">
+          <div class="lp-payment-row-amount">${formatCurrency(r.amount)}</div>
+          <div class="lp-payment-row-meta">
+            ${r.payment_type}${r.batch_name ? " • " + r.batch_name : ""}<br>
+            ${r.classes} class${Number(r.classes) === 1 ? "" : "es"} • ${formatDisplayDate(r.payment_date)}
+          </div>
+        </div>
+        <div class="lp-payment-row-actions">
+          <button class="lp-payment-mini-btn" data-edit-id="${r.id}">Edit</button>
+          <button class="lp-payment-mini-btn lp-payment-mini-btn-danger" data-delete-id="${r.id}">Delete</button>
+        </div>
+      </div>
+    `).join("");
+
+    historyBox.querySelectorAll("[data-edit-id]").forEach(btn => {
+      btn.addEventListener("click", () => enterEditMode(btn.dataset.editId));
+    });
+
+    historyBox.querySelectorAll("[data-delete-id]").forEach(btn => {
+      btn.addEventListener("click", () => handleDeleteOne(btn.dataset.deleteId));
+    });
+  }
+
+  function enterEditMode(paymentId) {
+    const record = paymentRecords.find(r => String(r.id) === String(paymentId));
+    if (!record) return;
+
+    editingPaymentId = record.id;
+
+    document.getElementById("lpPaymentAmount").value = record.amount;
+    document.getElementById("lpPaymentType").value = record.payment_type;
+    document.getElementById("lpPaymentDate").value = record.payment_date;
+    document.getElementById("lpPaymentClasses").value = record.classes;
+
+    populateBatchDropdown();
+    if (record.batch_name) {
+      document.getElementById("lpPaymentBatch").value = record.batch_name;
+    }
+    document.getElementById("lpPaymentBatch").disabled = (record.payment_type === "1-on-1");
+
+    document.getElementById("lpPaymentSaveBtn").textContent = "Update Payment";
+    document.getElementById("lpPaymentCancelEditBtn").style.display = "inline-block";
+    document.getElementById("lpPaymentFormError").textContent = "";
+  }
+
+  // -------------------------------------------------
+  // VALIDATION
+  // -------------------------------------------------
+  function readFormOrError() {
+
+    const amountRaw = document.getElementById("lpPaymentAmount").value;
+    const type = document.getElementById("lpPaymentType").value;
+    const batch = document.getElementById("lpPaymentBatch").value;
+    const date = document.getElementById("lpPaymentDate").value;
+    const classesRaw = document.getElementById("lpPaymentClasses").value;
+
+    const amount = Number(amountRaw);
+    const classes = Number(classesRaw);
+
+    if (amountRaw === "" || isNaN(amount) || amount < 0) {
+      return { error: "Enter a valid amount (0 or more)." };
+    }
+
+    if (type !== "Batch" && type !== "1-on-1") {
+      return { error: "Invalid payment type." };
+    }
+
+    if (!date) {
+      return { error: "Payment date is required." };
+    }
+
+    if (classesRaw === "" || isNaN(classes) || !Number.isFinite(classes) || classes < 0 || !Number.isInteger(classes)) {
+      return { error: "Enter a valid whole number of classes (0 or more)." };
+    }
+
+    return {
+      payload: {
+        student_id: currentStudentId,
+        amount: amount,
+        payment_type: type,
+        batch_name: type === "1-on-1" ? null : (batch || null),
+        payment_date: date,
+        classes: classes
+      }
+    };
+  }
+
+  // -------------------------------------------------
+  // SAVE / UPDATE
+  // -------------------------------------------------
+  async function handleSaveOrUpdate() {
+
+    if (!currentStudentId) {
+      document.getElementById("lpPaymentFormError").textContent =
+        "Cannot save — student profile ID not resolved.";
+      return;
+    }
+
+    const result = readFormOrError();
+    const errorBox = document.getElementById("lpPaymentFormError");
+
+    if (result.error) {
+      errorBox.textContent = result.error;
+      return;
+    }
+
+    errorBox.textContent = "";
+
+    const saveBtn = document.getElementById("lpPaymentSaveBtn");
+    const originalLabel = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = editingPaymentId ? "Updating..." : "Saving...";
+
+    try {
+
+      if (editingPaymentId) {
+
+        const { error } = await supabase
+          .from("student_payments")
+          .update(result.payload)
+          .eq("id", editingPaymentId);
+
+        if (error) {
+          console.error("💳 Payment update failed:", error);
+          errorBox.textContent = "Failed to update payment.";
+          return;
+        }
+
+      } else {
+
+        const { error } = await supabase
+          .from("student_payments")
+          .insert(result.payload);
+
+        if (error) {
+          console.error("💳 Payment insert failed:", error);
+          errorBox.textContent = "Failed to save payment.";
+          return;
+        }
+      }
+
+      resetFormToAddMode();
+      populateBatchDropdown();
+      await loadPaymentHistory(); // refresh ONLY this student's history
+
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = editingPaymentId ? "Update Payment" : originalLabel;
+    }
+  }
+
+  // -------------------------------------------------
+  // DELETE ONE
+  // -------------------------------------------------
+  async function handleDeleteOne(paymentId) {
+
+    const ok = confirm("Delete this payment record?");
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("student_payments")
+      .delete()
+      .eq("id", paymentId);
+
+    if (error) {
+      console.error("💳 Payment delete failed:", error);
+      alert("Failed to delete payment record.");
+      return;
+    }
+
+    if (editingPaymentId && String(editingPaymentId) === String(paymentId)) {
+      resetFormToAddMode();
+      populateBatchDropdown();
+    }
+
+    await loadPaymentHistory();
+  }
+
+  // -------------------------------------------------
+  // DELETE ALL
+  // -------------------------------------------------
+  async function handleDeleteAll() {
+
+    if (!currentStudentId) return;
+
+    const ok = confirm(
+      "Delete ALL payment records for this student?\nThis cannot be undone."
+    );
+    if (!ok) return;
+
+    const deleteAllBtn = document.getElementById("lpPaymentDeleteAllBtn");
+    deleteAllBtn.disabled = true;
+    const originalLabel = deleteAllBtn.textContent;
+    deleteAllBtn.textContent = "Deleting...";
+
+    try {
+
+      const { error } = await supabase
+        .from("student_payments")
+        .delete()
+        .eq("student_id", currentStudentId);
+
+      if (error) {
+        console.error("💳 Delete-all failed:", error);
+        alert("Failed to delete payment history.");
+        return;
+      }
+
+      resetFormToAddMode();
+      populateBatchDropdown();
+      await loadPaymentHistory();
+
+    } finally {
+      deleteAllBtn.disabled = false;
+      deleteAllBtn.textContent = originalLabel;
+    }
+  }
+
+  return {
+    openPaymentModal,
+    closePaymentModal
+  };
+
+})();
+
+window.LPPayment = LPPayment;
 
 const LPInvoice = (() => {
 
