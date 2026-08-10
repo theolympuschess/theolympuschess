@@ -48224,7 +48224,45 @@ studyState.studyId = data.id;
 
 
   // 🔓 Open the SAME import modal
-  studyImportModal.classList.remove("hidden");
+  // ⭐ Normal PGN Database → Study
+// Never start AI Coach Review from database loading.
+window.autoStartBotCoachReview = false;
+
+// ⭐ Automatically click the EXISTING Import button.
+const importConfirmBtn =
+  document.getElementById("importStudyConfirm");
+
+if (!importConfirmBtn) {
+  console.error("❌ Study import confirm button not found");
+  return;
+}
+
+// Give the textarea time to receive the PGN,
+// then trigger the exact same Import action
+// as manually clicking the button.
+setTimeout(() => {
+
+  importConfirmBtn.click();
+
+  // ⭐ After the existing importer creates the chapter,
+  // automatically select the first chapter.
+  setTimeout(() => {
+
+    const firstChapter =
+      document.querySelector(".study-chapter");
+
+    if (!firstChapter) {
+      console.error(
+        "❌ Study: first chapter not found after database import."
+      );
+      return;
+    }
+
+    firstChapter.click();
+
+  }, 300);
+
+}, 100);
 });
 
 
@@ -48248,10 +48286,9 @@ studyState.studyId = data.id;
     modal.classList.add("hidden");
   });
 function extractChapterName(pgn, fallback) {
-  const match = pgn.match(/\[ChapterName\s+"([^"]+)"\]/);
-  return match ? match[1] : fallback;
+  const match = pgn.match(/\[ChapterName\s+"([^"]+)"\]/i);
+  return match ? match[1].trim() : fallback;
 }
-
   // Confirm import
  confirmBtn.addEventListener("click", () => {
 
@@ -48283,20 +48320,110 @@ studyState.chapters = [];
 studyState.chapterTrees = {};
 
 // 🔥 Build new chapters
-studyState.chapters = games.map((pgn, i) => ({
-  title: extractChapterName(pgn, `Chapter ${i + 1}`),
-  pgn
-}));
+// 🔥 Build new chapters
+studyState.chapters = games.map((pgn, i) => {
+
+  let chapterTitle = extractChapterName(
+    pgn,
+    `Chapter ${i + 1}`
+  );
+
+  // ⭐ BOT REVIEW OVERRIDE
+  // The Bot Review button provides the exact player-vs-bot
+  // chapter name separately because the saved PGN may already
+  // contain its own headers.
+  if (
+    i === 0 &&
+    window.pendingBotReviewChapterName
+  ) {
+    chapterTitle = window.pendingBotReviewChapterName;
+  }
+
+  return {
+    title: chapterTitle,
+    pgn
+  };
+
+});
+// ⭐ Clear Bot Review chapter-name override
+window.pendingBotReviewChapterName = null;
 
 
-    renderStudyChapters();
-  
+renderStudyChapters();
+
 showJoinBanner(
   "✅ Study Imported Successfully",
   false
 );
-    modal.classList.add("hidden");
-    studyPgnInput.value = "";
+
+modal.classList.add("hidden");
+studyPgnInput.value = "";
+
+// =====================================================
+// ⭐ AUTO SELECT FIRST CHAPTER
+// Applies to:
+// • Manual PGN upload
+// • Database PGN loading
+// • Bot Review
+// • Multiplayer Review
+// =====================================================
+
+setTimeout(() => {
+
+  if (
+    !studyState.chapters ||
+    !studyState.chapters.length
+  ) {
+    console.error(
+      "❌ Study: no imported chapters found."
+    );
+    return;
+  }
+
+  const firstChapter =
+    document.querySelector(".study-chapter");
+
+  if (!firstChapter) {
+    console.error(
+      "❌ Study: first chapter element not found."
+    );
+    return;
+  }
+
+  // ⭐ Same action as manually clicking Chapter 1.
+  firstChapter.click();
+
+}, 100);
+
+// =====================================================
+// ⭐ AUTO BOT / MULTIPLAYER COACH REVIEW
+// =====================================================
+
+if (window.autoStartBotCoachReview) {
+
+  window.autoStartBotCoachReview = false;
+
+  setTimeout(() => {
+
+    if (!studyMoveTreeRoot) {
+      console.error(
+        "❌ Coach Review: studyMoveTreeRoot was not created."
+      );
+      return;
+    }
+
+    const reviewBtn =
+      document.getElementById("coachReviewBtn");
+
+    if (reviewBtn) {
+      reviewBtn.click();
+    } else {
+      startCoachReview();
+    }
+
+  }, 300);
+
+}
   });
 
 
@@ -48865,8 +48992,7 @@ if (token.startsWith("$")) {
   const addBtn = document.createElement("button");
   addBtn.textContent = "➕ New Chapter";
   addBtn.className = "study-action-btn create-btn";
-  addBtn.onclick = () => {
-
+addBtn.onclick = () => {
   let counter = 1;
   let name;
 
@@ -48875,8 +49001,69 @@ if (token.startsWith("$")) {
     counter++;
   } while (studyState.chapters.some(ch => ch.title === name));
 
+  // ⭐ Create the new chapter
   createNewStudyChapter(name);
 
+  // ⭐ Automatically select the newly created chapter
+setTimeout(() => {
+
+  const chapters =
+    document.querySelectorAll(".study-chapter");
+
+  if (!chapters.length) {
+    console.error("❌ New Study chapter was not created.");
+    return;
+  }
+
+  // ⭐ Newly created chapter
+  const newChapter =
+    chapters[chapters.length - 1];
+
+  // ⭐ Select the new chapter first
+  newChapter.click();
+
+  // =====================================================
+  // ⭐ ISOLATED CHAPTER-LIST SCROLL
+  // Scroll ONLY the chapter list container.
+  // Never scroll the page or any outer application container.
+  // =====================================================
+
+  const chapterList =
+    newChapter.closest("#studyList") ||
+    newChapter.closest(".study-list") ||
+    newChapter.parentElement;
+
+  if (chapterList) {
+
+    const listRect =
+      chapterList.getBoundingClientRect();
+
+    const chapterRect =
+      newChapter.getBoundingClientRect();
+
+    // Only scroll if the new chapter is outside
+    // the visible area of the chapter list.
+    if (
+      chapterRect.bottom > listRect.bottom ||
+      chapterRect.top < listRect.top
+    ) {
+
+      const targetTop =
+        newChapter.offsetTop -
+        chapterList.offsetTop -
+        (chapterList.clientHeight -
+         newChapter.offsetHeight) +
+        10;
+
+      chapterList.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: "smooth"
+      });
+
+    }
+  }
+
+}, 50);
 };
 
   studyList.appendChild(addBtn);
@@ -48970,12 +49157,63 @@ deleteBtn.onclick = (e) => {
 
   if (!confirm("Delete this chapter?")) return;
 
+  // ⭐ Remove the chapter
   studyState.chapters.splice(idx, 1);
 
+  // =====================================================
+  // ⭐ KEEP CHAPTER TREES ALIGNED WITH CHAPTERS
+  // =====================================================
+
   if (studyState.chapterTrees) {
-    delete studyState.chapterTrees[idx];
+
+    const newChapterTrees = {};
+
+    studyState.chapters.forEach((chapter, newIndex) => {
+
+      const oldIndex =
+        newIndex >= idx
+          ? newIndex + 1
+          : newIndex;
+
+      if (studyState.chapterTrees[oldIndex]) {
+        newChapterTrees[newIndex] =
+          studyState.chapterTrees[oldIndex];
+      }
+
+    });
+
+    studyState.chapterTrees =
+      newChapterTrees;
   }
 
+  // =====================================================
+  // ⭐ KEEP CURRENT CHAPTER INDEX VALID
+  // =====================================================
+
+  if (studyState.chapters.length === 0) {
+
+    studyState.currentChapterIndex = null;
+    studyMoveTreeRoot = null;
+    studyCurrentNode = null;
+
+  } else if (
+    studyState.currentChapterIndex === idx
+  ) {
+
+    studyState.currentChapterIndex =
+      Math.min(
+        idx,
+        studyState.chapters.length - 1
+      );
+
+  } else if (
+    studyState.currentChapterIndex > idx
+  ) {
+
+    studyState.currentChapterIndex--;
+  }
+
+  // ⭐ Re-render chapters
   renderStudyChapters();
 };
 
@@ -49547,9 +49785,38 @@ pasteBtn.onclick = (e) => {
       importStudyPgn(raw);
     }
 
+    // =====================================================
+    // ⭐ AUTO-SELECT THE IMPORTED CHAPTER
+    // =====================================================
+
+    setTimeout(() => {
+
+      const chapters =
+        document.querySelectorAll(".study-chapter");
+
+      if (!chapters.length) {
+        console.error(
+          "❌ PGN Import: no Study chapter found."
+        );
+        return;
+      }
+
+      // The currently imported chapter is the active one.
+      const activeChapter =
+        document.querySelector(".study-chapter.active");
+
+      if (activeChapter) {
+        activeChapter.click();
+        return;
+      }
+
+      // Safety fallback: select the first chapter.
+      chapters[0].click();
+
+    }, 100);
+
   });
 };
-
 // ========================================
 // 📂 DRAG & DROP PGN / TXT
 // ========================================
@@ -63097,6 +63364,7 @@ document.getElementById("mpOpenInAnalysis").onclick = () => {
   const blackName = game.black_name || "Black";
 
   let result = "*";
+
   if (game.winner === "w") result = "1-0";
   if (game.winner === "b") result = "0-1";
   if (game.winner === "draw") result = "1/2-1/2";
@@ -63105,6 +63373,8 @@ document.getElementById("mpOpenInAnalysis").onclick = () => {
     .toISOString()
     .split("T")[0];
 
+  const chapterName = `${whiteName} vs ${blackName}`;
+
   const header =
 `[Event "Live Match"]
 [Site "Olympus Chess Academy"]
@@ -63112,25 +63382,72 @@ document.getElementById("mpOpenInAnalysis").onclick = () => {
 [White "${whiteName}"]
 [Black "${blackName}"]
 [Result "${result}"]
+[ChapterName "${chapterName}"]
 
 `;
 
-  const fullPGN = header + (game.pgn || "");
+  const savedPGN = (game.pgn || "").trim();
 
-  // Switch to Analysis tab
-  document.querySelector('.nav-btn[data-tab="board"]')?.click();
+  let fullPGN = savedPGN;
+
+  // ⭐ Add headers only if the saved PGN does not already contain them.
+  if (!/\[(Event|White|Black|Result)\s+"/i.test(savedPGN)) {
+    fullPGN = header + savedPGN;
+  }
+
+  // ⭐ Use the existing Study chapter-name system.
+  window.pendingBotReviewChapterName =
+    `${whiteName} vs ${blackName}`;
+
+  // ⭐ IMPORTANT:
+  // This is Analysis only.
+  // Do NOT automatically start AI Coach Review.
+  window.autoStartBotCoachReview = false;
+
+  // ⭐ Switch to STUDY tab, not Board/Analysis tab.
+  document.querySelector('.nav-btn[data-tab="study"]')?.click();
 
   setTimeout(() => {
 
-    const pgnBox = document.getElementById("pgnInput");
-    if (!pgnBox) return;
+    const pgnBox =
+      document.getElementById("studyPgnInput");
 
+    const confirmBtn =
+      document.getElementById("importStudyConfirm");
+
+    if (!pgnBox || !confirmBtn) {
+      console.error("❌ Study import controls not found");
+      return;
+    }
+
+    // ⭐ Load the Multiplayer PGN into Study importer.
     pgnBox.value = fullPGN;
 
-    window.loadPGN();
+    // ⭐ Use the existing Study import pipeline.
+    confirmBtn.click();
+
+    // ⭐ Automatically select the first imported chapter.
+    // This does NOT start Coach Review.
+    setTimeout(() => {
+
+      const firstChapter =
+        document.querySelector(".study-chapter");
+
+      if (!firstChapter) {
+        console.error(
+          "❌ Study: first chapter not found."
+        );
+        return;
+      }
+
+      // Same action as manually clicking the first chapter.
+      firstChapter.click();
+
+    }, 300);
 
   }, 200);
 
+  // ⭐ Close Multiplayer replay modal.
   mpReplayModal.classList.add("hidden");
 };
 
@@ -70101,22 +70418,63 @@ document.getElementById("vsOpenInAnalysis").onclick = () => {
 
 `;
 
-  const fullPGN = header + (game.pgn || "");
+  const savedPGN = (game.pgn || "").trim();
 
-  // 🔥 Switch to Analysis tab
-  document.querySelector('.nav-btn[data-tab="board"]')?.click();
+  let fullPGN = savedPGN;
+
+  // Add headers only when the saved game contains moves only.
+  if (!/\[(Event|White|Black|Result)\s+"/i.test(savedPGN)) {
+    fullPGN = header + savedPGN;
+  }
+
+  // 🔥 SWITCH TO STUDY TAB — NOT ANALYSIS TAB
+  document.querySelector('.nav-btn[data-tab="study"]')?.click();
 
   setTimeout(() => {
 
-    const pgnBox = document.getElementById("pgnInput");
-    if (!pgnBox) return;
+    const pgnBox = document.getElementById("studyPgnInput");
+    const confirmBtn = document.getElementById("importStudyConfirm");
 
+    if (!pgnBox || !confirmBtn) {
+      console.error("❌ Study import controls not found");
+      return;
+    }
+
+    // Put the game into Study import box.
     pgnBox.value = fullPGN;
 
-    window.loadPGN();
+    // ⭐ IMPORTANT:
+    // This is the NORMAL "Open in Study" flow.
+    // Do NOT start Coach Review automatically.
+   // ⭐ Use player names for the imported Study chapter
+window.pendingBotReviewChapterName =
+  `${whiteName} vs ${blackName}`;
+
+// ⭐ IMPORTANT: Analysis mode must NOT start Coach Review
+window.autoStartBotCoachReview = false;
+
+ // ⭐ Run the existing Study import pipeline.
+confirmBtn.click();
+
+// ⭐ Automatically select the first imported chapter.
+// This does NOT start AI Coach Review.
+setTimeout(() => {
+
+  const firstChapter = document.querySelector(".study-chapter");
+
+  if (!firstChapter) {
+    console.error("❌ Study: first chapter not found.");
+    return;
+  }
+
+  // Same action as manually clicking Chapter 1.
+  firstChapter.click();
+
+}, 300);
 
   }, 200);
 
+  // Close replay modal.
   document.getElementById("vsReplayModal")?.classList.add("hidden");
 };
 
@@ -70152,35 +70510,60 @@ document.getElementById("vsStartReview").onclick = () => {
     .toISOString()
     .split("T")[0];
 
-  const header =
+const chapterName = `${whiteName} vs ${blackName}`;
+
+const header =
 `[Event "Bot Game Review"]
 [Site "Olympus Chess Academy"]
 [Date "${date}"]
 [White "${whiteName}"]
 [Black "${blackName}"]
 [Result "${result}"]
+[ChapterName "${chapterName}"]
 
 `;
 
-  const fullPGN = header + (game.pgn || "");
+// 🔥 USE THE SAVED BOT PGN AS-IS IF IT ALREADY CONTAINS PGN HEADERS.
+// This prevents the Study importer from seeing our generated header
+// as one chapter and the actual game as another chapter.
+const savedPGN = (game.pgn || "").trim();
 
-  // 🔥 SWITCH TO STUDY TAB
+let fullPGN = savedPGN;
+
+if (!/\[(Event|White|Black|Result)\s+"/i.test(savedPGN)) {
+  // The saved PGN contains moves only, so add our headers.
+  fullPGN = header + savedPGN;
+}
+
+// 🔥 SWITCH TO STUDY TAB
   document.querySelector('.nav-btn[data-tab="study"]')?.click();
 
-  setTimeout(() => {
+setTimeout(() => {
 
-    const modal = document.getElementById("studyImportModal");
-    const pgnBox = document.getElementById("studyPgnInput");
+  const pgnBox = document.getElementById("studyPgnInput");
+  const confirmBtn = document.getElementById("importStudyConfirm");
 
-    if (!modal || !pgnBox) return;
+  if (!pgnBox || !confirmBtn) {
+    console.error("❌ Study import controls not found");
+    return;
+  }
 
-    // ⭐ Fill PGN in import box
-    pgnBox.value = fullPGN;
+  // ⭐ Put the Bot Game PGN into the existing Study importer
+  pgnBox.value = fullPGN;
 
-    // ⭐ Open import modal
-    modal.classList.remove("hidden");
+  // ⭐ Store the desired Bot Review chapter name
+  window.pendingBotReviewChapterName =
+    `${whiteName} vs ${blackName}`;
 
-  }, 200);
+  // ⭐ Tell Study Import to automatically continue into AI Review
+  window.autoStartBotCoachReview = true;
+
+  // ⭐ Run the EXISTING Study Import logic
+  // This avoids duplicating the importer and keeps all existing
+  // chapter/tree creation logic intact.
+  confirmBtn.click();
+
+}, 200);
 
   // close replay modal
   document.getElementById("vsReplayModal")?.classList.add("hidden");
@@ -75080,7 +75463,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const newBtn = document.getElementById("staticNewChapterBtn");
   const saveBtn = document.getElementById("staticSaveStudyBtn");
 
-  if (newBtn) {
+if (newBtn) {
   newBtn.addEventListener("click", () => {
 
     let counter = 1;
@@ -75092,7 +75475,69 @@ document.addEventListener("DOMContentLoaded", () => {
       counter++;
     } while (studyState.chapters.some(ch => ch.title === name));
 
+    // ⭐ Create the new chapter
     createNewStudyChapter(name);
+
+    // ⭐ Automatically select the newly created chapter
+    setTimeout(() => {
+
+  const chapters =
+    document.querySelectorAll(".study-chapter");
+
+  if (!chapters.length) {
+    console.error("❌ New Study chapter was not created.");
+    return;
+  }
+
+  // ⭐ Newly created chapter
+  const newChapter =
+    chapters[chapters.length - 1];
+
+  // ⭐ Select the new chapter first
+  newChapter.click();
+
+  // =====================================================
+  // ⭐ ISOLATED CHAPTER-LIST SCROLL
+  // Scroll ONLY the chapter list container.
+  // Never scroll the page or any outer application container.
+  // =====================================================
+
+  const chapterList =
+    newChapter.closest("#studyList") ||
+    newChapter.closest(".study-list") ||
+    newChapter.parentElement;
+
+  if (chapterList) {
+
+    const listRect =
+      chapterList.getBoundingClientRect();
+
+    const chapterRect =
+      newChapter.getBoundingClientRect();
+
+    // Only scroll if the new chapter is outside
+    // the visible area of the chapter list.
+    if (
+      chapterRect.bottom > listRect.bottom ||
+      chapterRect.top < listRect.top
+    ) {
+
+      const targetTop =
+        newChapter.offsetTop -
+        chapterList.offsetTop -
+        (chapterList.clientHeight -
+         newChapter.offsetHeight) +
+        10;
+
+      chapterList.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: "smooth"
+      });
+
+    }
+  }
+
+}, 50);
 
   });
 }
@@ -77393,10 +77838,29 @@ document.getElementById("mpOpenInStudy").onclick = () => {
 
     if (!studyInput) return;
 
-    studyInput.value = fullPGN;
+ // ⭐ Store the desired Multiplayer Review chapter name
+window.pendingBotReviewChapterName =
+  `${whiteName} vs ${blackName}`;
+  window.autoStartBotCoachReview = true;
 
-    // open study import modal
-    document.getElementById("studyImportModal")?.classList.remove("hidden");
+studyInput.value = fullPGN;
+
+// ⭐ Store Multiplayer Review chapter name
+window.pendingBotReviewChapterName =
+  `${whiteName} vs ${blackName}`;
+
+// ⭐ Automatically continue into Coach Review
+window.autoStartBotCoachReview = true;
+
+// ⭐ Automatically trigger the existing Study Import button
+const importConfirmBtn =
+  document.getElementById("importStudyConfirm");
+
+if (importConfirmBtn) {
+  setTimeout(() => {
+    importConfirmBtn.click();
+  }, 200);
+}
 
   }, 200);
 
