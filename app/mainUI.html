@@ -10868,15 +10868,25 @@ No JS / No HTML changes
 
 
 
+/* =========================================
+   STUDENT VIEW
+   Students cannot access drawing controls
+   but CAN see teacher's broadcast drawing
+   ========================================= */
+
 .student-view #drawToolbox {
   display: none !important;
 }
 
-.student-view #drawCanvas,
-.student-view #previewCanvas {
-  display: none !important;
+.student-view #drawCanvas {
+  display: block !important;
+  pointer-events: none !important;
 }
 
+.student-view #previewCanvas {
+  display: none !important;
+  pointer-events: none !important;
+}
 
 
 
@@ -63293,6 +63303,22 @@ let drawing = false;
 let startX, startY;
 let mouseX = 0;
 let mouseY = 0;
+// =====================================================
+// 🎨 SAFE DRAWING BROADCAST BRIDGE
+// =====================================================
+
+function sendDrawingSync() {
+
+  if (
+    typeof LivePuzzle !== "undefined" &&
+    typeof LivePuzzle.broadcastDrawing === "function"
+  ) {
+
+    LivePuzzle.broadcastDrawing();
+
+  }
+
+}
 
 
 // Resize canvas
@@ -63384,9 +63410,18 @@ canvas.addEventListener("mouseup", e => {
 
   // Free Draw / Eraser are already drawn continuously
   // during mousemove.
-  if (mode === "pen" || mode === "erase") {
-    return;
-  }
+// Free Draw / Eraser are already drawn continuously
+// during mousemove.
+if (
+  mode === "pen" ||
+  mode === "erase"
+) {
+
+  sendDrawingSync();
+
+  return;
+
+}
 
   // ============================
   // LINE
@@ -63454,6 +63489,7 @@ canvas.addEventListener("mouseup", e => {
   }
 
   ctx.stroke();
+  sendDrawingSync();
 });
 
 canvas.addEventListener("mousemove", e => {
@@ -63651,9 +63687,26 @@ canvas.addEventListener("mousemove", e => {
 
 
 // Clear
-clearBtn.addEventListener("click", () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-});
+// =====================================================
+// 🗑️ CLEAR DRAWING + SYNC
+// =====================================================
+
+clearBtn.addEventListener(
+  "click",
+  () => {
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    // Send empty canvas to students
+    sendDrawingSync();
+
+  }
+);
 
 // Drag toolbox
 let drag = false;
@@ -63855,10 +63908,51 @@ function updateToolboxUI() {
 }
 
 // Toggle when clicking header
-toolboxHeader.addEventListener("click", () => {
-  drawEnabled = !drawEnabled;
-  updateToolboxUI();
-});
+// =====================================================
+// 🎨 DRAW TOOLBOX OPEN / CLOSE
+// =====================================================
+
+toolboxHeader.addEventListener(
+  "click",
+  () => {
+
+    // ================================================
+    // CLOSING
+    // ================================================
+
+    if (drawEnabled) {
+
+      // Clear local drawing
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      // Sync empty canvas to students
+      sendDrawingSync();
+
+      // Turn drawing OFF
+      drawEnabled = false;
+
+    }
+
+    // ================================================
+    // OPENING
+    // ================================================
+
+    else {
+
+      drawEnabled = true;
+
+    }
+
+    // Apply your existing toolbox UI
+    updateToolboxUI();
+
+  }
+);
 
 // Init state
 updateToolboxUI();
@@ -96267,6 +96361,58 @@ let lpSfPvMap = {};
 
 let lpSfDebounce = null;
 
+// =====================================================
+// 🎨 LIVE DRAWING BROADCAST
+// Uses the EXISTING lp-moves-ROOMCODE channel
+// =====================================================
+
+function broadcastDrawing() {
+
+  // Admin only
+  if (!isAdmin) return;
+
+  // Classroom must exist
+  if (!roomCode) return;
+
+  // Existing realtime channel must exist
+  if (!movesChannel) return;
+
+  const canvas =
+    document.getElementById("drawCanvas");
+
+  if (!canvas) return;
+
+  try {
+
+    const image =
+      canvas.toDataURL(
+        "image/webp",
+        0.4
+      );
+
+    movesChannel.send({
+
+      type: "broadcast",
+
+      event: "drawing",
+
+      payload: {
+        image: image
+      }
+
+    });
+
+  } catch (err) {
+
+    console.error(
+      "Drawing broadcast failed:",
+      err
+    );
+
+  }
+
+}
+
   // ================= INIT =================
   function init() {
     initOlympusListeners();
@@ -104866,6 +105012,61 @@ if (movesChannel) {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
 
+          // =================================================
+      // 🎨 DRAWING SYNC
+      // =================================================
+
+      if (
+        payload.event === "drawing"
+      ) {
+
+        // Admin already has the original canvas
+        if (isAdmin) return;
+
+        const canvas =
+          document.getElementById(
+            "drawCanvas"
+          );
+
+        if (
+          !canvas ||
+          !payload.payload?.image
+        ) {
+          return;
+        }
+
+        const img =
+          new Image();
+
+        img.onload = () => {
+
+          const ctx =
+            canvas.getContext("2d");
+
+          ctx.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+        };
+
+        img.src =
+          payload.payload.image;
+
+        return;
+
+      }
+
     // ========== ⚔ OLYMPUS AI CHALLENGE EVENTS ==========
 
 if (payload.event === "boss_start") {
@@ -108834,6 +109035,7 @@ showJoinBanner(
 
 return {
   init,
+   broadcastDrawing,
   getRoomCode: () => roomCode,
   checkClassroomInvite: lpCheckClassroomInvite,
   listenForClassroomInvite: lpListenForClassroomInvite,
