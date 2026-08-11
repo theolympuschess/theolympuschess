@@ -104102,96 +104102,137 @@ const { data } = await supabase
 
 
 
-async function rejoinAdminRoom(){
+async function rejoinAdminRoom() {
 
-const {
-  data: { user }
-} = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
-if (!user) return;
-
-const { data } = await supabase
-  .from("live_puzzle_rooms")
-  .select("code")
-  .eq(
-    "admin_id",
-    user.id
-  )
-  .maybeSingle();
-
-if(!data){
-
-showToast(
-"❌ Classroom no longer exists."
-);
-
-return;
-
-}
-
-roomCode=data.code;
-
-isAdmin=true;
+  if (!user) return;
 
 
+  const { data } =
+    await supabase
+      .from("live_puzzle_rooms")
+      .select("code")
+      .eq("admin_id", user.id)
+      .maybeSingle();
 
-updateRoomUI();
 
-showJoinBanner(
-  "✅ Classroom Rejoined Successfully"
-);
+  if (!data) {
 
-// 🧹 Safety cleanup
-try{
+    showToast(
+      "❌ Classroom no longer exists."
+    );
 
-if(movesChannel){
+    return;
+  }
 
-await supabase.removeChannel(
-movesChannel
-);
 
-movesChannel=null;
+  roomCode = data.code;
 
-}
+  isAdmin = true;
 
-}catch(err){
+  lpExitedRoom = false;
 
-console.log(err);
 
-}
-
-listenRoom();
-
-loadStudents();
-
-setTimeout(()=>{
-
-if(!movesChannel) return;
-
-movesChannel.send({
-
-type:"broadcast",
-
-event:"sync-request",
-
-payload:{}
-
-});
-
-// 🔄 Open Classroom exactly like a manual click
-  const liveBtn = document.querySelector(
-    '.nav-btn[data-tab="livePuzzle"]'
-  );
+  // 🔄 Open Classroom exactly like manual click
+  const liveBtn =
+    document.querySelector(
+      '.nav-btn[data-tab="livePuzzle"]'
+    );
 
   if (liveBtn) {
     liveBtn.click();
   }
 
-},500);
 
-document.getElementById(
-"lpAdminRejoinBtn"
-).style.display="none";
+  updateRoomUI();
+
+
+  // 🧹 Safety cleanup
+  try {
+
+    if (movesChannel) {
+
+      await supabase.removeChannel(
+        movesChannel
+      );
+
+      movesChannel = null;
+
+    }
+
+  } catch (err) {
+
+    console.log(err);
+
+  }
+
+
+  // 🔌 Reconnect realtime
+  listenRoom();
+
+
+  // 📚 Restore current classroom puzzle/state
+  await loadCurrentPuzzle();
+
+  // 📚 RESTORE CLASSROOM TITLE
+const { data: titleData } =
+  await supabase
+    .from("live_puzzle_attempts")
+    .select("classroom_title")
+    .eq("room_code", roomCode)
+    .not("classroom_title", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+if (titleData?.classroom_title) {
+
+  classroomTitle =
+    titleData.classroom_title;
+
+  updateClassroomTitle();
+
+}
+
+
+  // 👥 Restore students
+  await loadStudents();
+
+
+  // 🔄 Ask connected students for their current sync state
+  setTimeout(() => {
+
+    if (!movesChannel) return;
+
+    movesChannel.send({
+
+      type: "broadcast",
+
+      event: "sync-request",
+
+      payload: {}
+
+    });
+
+  }, 500);
+
+
+  // Hide rejoin button
+  const rejoinBtn =
+    document.getElementById(
+      "lpAdminRejoinBtn"
+    );
+
+  if (rejoinBtn) {
+    rejoinBtn.style.display = "none";
+  }
+
+
+  showJoinBanner(
+    "✅ Classroom Rejoined Successfully"
+  );
 
 }
 
