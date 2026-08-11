@@ -30751,14 +30751,15 @@ border-radius:20px;
   <div class="toolbox-body">
     <input type="color" id="drawColor" value="#ff0000">
 
-    <select id="drawMode">
-      <option value="pen">Free Draw</option>
-      <option value="line">Line</option>
-      <option value="arrow">Arrow</option>
-      <option value="circle">Circle</option>
-      <option value="cross">Cross</option>
-      <option value="erase">Eraser</option>
-    </select>
+<select id="drawMode">
+  <option value="cursor">🖱️ Cursor</option>
+  <option value="pen">✏️ Free Draw</option>
+  <option value="line">📏 Line</option>
+  <option value="arrow">➤ Arrow</option>
+  <option value="circle">⭕ Circle</option>
+  <option value="cross">❌ Cross</option>
+  <option value="erase">🧹 Eraser</option>
+</select>
 
     <input type="range" id="drawSize" min="2" max="20" value="4">
 
@@ -63309,7 +63310,7 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
     drawEnabled = false;
     updateToolboxUI();
 
-    if (tab === "study" || tab === "board" || tab === "editor") {
+    if (tab === "study" || tab === "livePuzzle" || tab === "editor") {
       toolbox.classList.remove("hidden");
     } else {
       toolbox.classList.add("hidden");
@@ -63320,60 +63321,134 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
 
 // Drawing
 canvas.addEventListener("mousedown", e => {
+
+  // 🖱️ NORMAL CURSOR MODE
+  // Canvas is disabled in this mode, so normal app/chess
+  // interaction remains available.
+  if (modeSelect.value === "cursor") return;
+
   if (!drawEnabled) return;
   if (!document.body.classList.contains("admin-view")) return;
 
-
-
-
   drawing = true;
+
   startX = e.clientX;
   startY = e.clientY;
+
+  // Start free-draw / eraser path from the first point
+  if (
+    modeSelect.value === "pen" ||
+    modeSelect.value === "erase"
+  ) {
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+  }
+
 });
 
 canvas.addEventListener("mouseup", e => {
-ctx.globalCompositeOperation = "source-over"; // reset
+
+  // Always reset drawing state
+  ctx.globalCompositeOperation = "source-over";
+
   if (!drawing) return;
+
   drawing = false;
 
   // Clear preview layer when shape is finalized
-  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  previewCtx.clearRect(
+    0,
+    0,
+    previewCanvas.width,
+    previewCanvas.height
+  );
 
   const x = e.clientX;
   const y = e.clientY;
+
+  const mode = modeSelect.value;
+
+  // 🖱️ Cursor mode never draws
+  if (mode === "cursor") {
+    return;
+  }
 
   ctx.strokeStyle = colorPicker.value;
   ctx.lineWidth = sizeSlider.value;
   ctx.lineCap = "round";
 
-  const mode = modeSelect.value;
-
   ctx.beginPath();
 
+  // Free Draw / Eraser are already drawn continuously
+  // during mousemove.
   if (mode === "pen" || mode === "erase") {
     return;
   }
 
-if (mode === "line") {
-  ctx.moveTo(startX, startY);
-  ctx.lineTo(x, y);
-}
-
-if (mode === "arrow") {
-  drawArrowPro(startX, startY, x, y);
-}
-
-
-  if (mode === "circle") {
-    const radius = Math.hypot(x - startX, y - startY);
-    ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+  // ============================
+  // LINE
+  // ============================
+  if (mode === "line") {
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(x, y);
   }
 
+  // ============================
+  // ARROW
+  // ============================
+  if (mode === "arrow") {
+    drawArrowPro(
+      startX,
+      startY,
+      x,
+      y
+    );
+  }
+
+  // ============================
+  // CIRCLE
+  // ============================
+  if (mode === "circle") {
+
+    const radius = Math.hypot(
+      x - startX,
+      y - startY
+    );
+
+    ctx.arc(
+      startX,
+      startY,
+      radius,
+      0,
+      Math.PI * 2
+    );
+  }
+
+  // ============================
+  // CROSS
+  // ============================
   if (mode === "cross") {
-    ctx.moveTo(startX - 15, startY - 15);
-    ctx.lineTo(startX + 15, startY + 15);
-    ctx.moveTo(startX + 15, startY - 15);
-    ctx.lineTo(startX - 15, startY + 15);
+
+    ctx.moveTo(
+      startX - 15,
+      startY - 15
+    );
+
+    ctx.lineTo(
+      startX + 15,
+      startY + 15
+    );
+
+    ctx.moveTo(
+      startX + 15,
+      startY - 15
+    );
+
+    ctx.lineTo(
+      startX - 15,
+      startY + 15
+    );
   }
 
   ctx.stroke();
@@ -63386,88 +63461,188 @@ canvas.addEventListener("mousemove", e => {
 
   const mode = modeSelect.value;
 
-  // Always clear preview
-  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  // ============================
+  // 🖱️ CURSOR MODE
+  // ============================
+  if (mode === "cursor") {
 
-  // ========================
-  // ERASER CURSOR (always visible in erase mode)
-  // ========================
-  if (drawEnabled && mode === "erase") {
+    previewCtx.clearRect(
+      0,
+      0,
+      previewCanvas.width,
+      previewCanvas.height
+    );
+
+    return;
+  }
+
+  // Always clear preview before drawing
+  previewCtx.clearRect(
+    0,
+    0,
+    previewCanvas.width,
+    previewCanvas.height
+  );
+
+  // ============================
+  // ERASER CURSOR
+  // ============================
+  if (
+    drawEnabled &&
+    mode === "erase"
+  ) {
     drawEraserCursor();
   }
 
-  // If not drawing, stop here
+  // If not currently drawing,
+  // only show shape preview / eraser cursor.
   if (!drawing) return;
 
-  // ========================
+  // ============================
   // FREE DRAW / ERASE
-  // ========================
-if (mode === "pen" || mode === "erase") {
+  // ============================
+  if (
+    mode === "pen" ||
+    mode === "erase"
+  ) {
 
-  const baseSize = parseInt(sizeSlider.value);
+    const baseSize =
+      parseInt(sizeSlider.value);
 
-  ctx.lineCap = "round";
+    ctx.lineCap = "round";
 
-  if (mode === "erase") {
+    if (mode === "erase") {
 
-    ctx.globalCompositeOperation = "destination-out";
+      ctx.globalCompositeOperation =
+        "destination-out";
 
-    const radius = baseSize * 3;       // same as visual
-    ctx.lineWidth = radius * 2;        // diameter = actual erase width
+      const radius =
+        baseSize * 3;
 
-  } else {
+      ctx.lineWidth =
+        radius * 2;
 
-    ctx.globalCompositeOperation = "source-over";
-    ctx.strokeStyle = colorPicker.value;
-    ctx.lineWidth = baseSize;
+    } else {
 
+      ctx.globalCompositeOperation =
+        "source-over";
+
+      ctx.strokeStyle =
+        colorPicker.value;
+
+      ctx.lineWidth =
+        baseSize;
+    }
+
+    ctx.lineTo(
+      e.clientX,
+      e.clientY
+    );
+
+    ctx.stroke();
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      e.clientX,
+      e.clientY
+    );
+
+    return;
   }
 
-  ctx.lineTo(e.clientX, e.clientY);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(e.clientX, e.clientY);
-
-  return;
-}
-
-
-
-  // ========================
+  // ============================
   // SHAPE PREVIEW
-  // ========================
+  // ============================
+
   const x = e.clientX;
   const y = e.clientY;
 
-  previewCtx.strokeStyle = colorPicker.value;
-  previewCtx.lineWidth = sizeSlider.value;
-  previewCtx.setLineDash([6, 4]);
-  previewCtx.lineCap = "round";
+  previewCtx.strokeStyle =
+    colorPicker.value;
+
+  previewCtx.lineWidth =
+    sizeSlider.value;
+
+  previewCtx.setLineDash([
+    6,
+    4
+  ]);
+
+  previewCtx.lineCap =
+    "round";
 
   previewCtx.beginPath();
 
+  // Circle
   if (mode === "circle") {
-    const radius = Math.hypot(x - startX, y - startY);
-    previewCtx.arc(startX, startY, radius, 0, Math.PI * 2);
+
+    const radius =
+      Math.hypot(
+        x - startX,
+        y - startY
+      );
+
+    previewCtx.arc(
+      startX,
+      startY,
+      radius,
+      0,
+      Math.PI * 2
+    );
   }
 
+  // Line
   if (mode === "line") {
-    previewCtx.moveTo(startX, startY);
-    previewCtx.lineTo(x, y);
+
+    previewCtx.moveTo(
+      startX,
+      startY
+    );
+
+    previewCtx.lineTo(
+      x,
+      y
+    );
   }
 
+  // Arrow
   if (mode === "arrow") {
-    drawArrowPreview(startX, startY, x, y);
+
+    drawArrowPreview(
+      startX,
+      startY,
+      x,
+      y
+    );
   }
 
+  // Cross
   if (mode === "cross") {
-    previewCtx.moveTo(startX - 15, startY - 15);
-    previewCtx.lineTo(startX + 15, startY + 15);
-    previewCtx.moveTo(startX + 15, startY - 15);
-    previewCtx.lineTo(startX - 15, startY + 15);
+
+    previewCtx.moveTo(
+      startX - 15,
+      startY - 15
+    );
+
+    previewCtx.lineTo(
+      startX + 15,
+      startY + 15
+    );
+
+    previewCtx.moveTo(
+      startX + 15,
+      startY - 15
+    );
+
+    previewCtx.lineTo(
+      startX - 15,
+      startY + 15
+    );
   }
 
   previewCtx.stroke();
+
   previewCtx.setLineDash([]);
 });
 
@@ -63567,7 +63742,7 @@ function checkInitialTab() {
 
   const tab = activeBtn.dataset.tab;
 
-  if (tab === "study" || tab === "board" || tab === "editor") {
+  if (tab === "study" || tab === "livePuzzle" || tab === "editor") {
     toolbox.classList.remove("hidden");
     canvas.style.display = "block";
   } else {
@@ -63595,23 +63770,85 @@ let drawEnabled = false; // ⛔ drawing OFF by default
 
 
 function updateToolboxUI() {
+
   if (drawEnabled) {
-    toolbox.classList.remove("draw-collapsed");
 
-    // SHOW canvas
+    toolbox.classList.remove(
+      "draw-collapsed"
+    );
+
+    // Keep canvas available while toolbox is open.
     canvas.style.display = "block";
-    canvas.style.cursor = drawEnabled && modeSelect.value === "erase" ? "none" : "default";
 
+    // =====================================
+    // 🖱️ CURSOR MODE
+    // =====================================
+    if (modeSelect.value === "cursor") {
 
-    toolboxTitle.textContent = "✏️ Draw Tools";
-  } else {
-    toolbox.classList.add("draw-collapsed");
+      // IMPORTANT:
+      // Let all clicks pass through to the
+      // chessboard / application underneath.
+      canvas.style.pointerEvents = "none";
 
-    // HIDE canvas completely
+      // Preview canvas already has pointer-events:none
+      previewCanvas.style.pointerEvents = "none";
+
+      canvas.style.cursor = "default";
+
+      previewCtx.clearRect(
+        0,
+        0,
+        previewCanvas.width,
+        previewCanvas.height
+      );
+
+      toolboxTitle.textContent =
+        "🖱️ Cursor Mode";
+
+    }
+
+    // =====================================
+    // ✏️ DRAWING MODE
+    // =====================================
+    else {
+
+      // Canvas receives mouse events.
+      canvas.style.pointerEvents = "auto";
+
+      canvas.style.cursor =
+        modeSelect.value === "erase"
+          ? "none"
+          : "crosshair";
+
+      toolboxTitle.textContent =
+        "✏️ Draw Tools";
+    }
+
+  }
+
+  // =====================================
+  // TOOLBOX CLOSED
+  // =====================================
+  else {
+
+    toolbox.classList.add(
+      "draw-collapsed"
+    );
+
     canvas.style.display = "none";
-     previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height); // 🔥 clear eraser circle
 
-    toolboxTitle.textContent = "✏️ Open Tools";
+    canvas.style.pointerEvents =
+      "none";
+
+    previewCtx.clearRect(
+      0,
+      0,
+      previewCanvas.width,
+      previewCanvas.height
+    );
+
+    toolboxTitle.textContent =
+      "✏️ Open Tools";
   }
 }
 
@@ -63625,10 +63862,23 @@ toolboxHeader.addEventListener("click", () => {
 updateToolboxUI();
 
 modeSelect.addEventListener("change", () => {
-  canvas.style.cursor =
-    drawEnabled && modeSelect.value === "erase"
-      ? "none"
-      : "default";
+
+  // 🔄 Recalculate drawing/cursor interaction
+  updateToolboxUI();
+
+  // Clear any temporary preview immediately
+  previewCtx.clearRect(
+    0,
+    0,
+    previewCanvas.width,
+    previewCanvas.height
+  );
+
+  // Make sure an unfinished drawing cannot continue
+  drawing = false;
+
+  ctx.globalCompositeOperation =
+    "source-over";
 });
 
 previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
