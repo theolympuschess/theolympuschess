@@ -54701,38 +54701,284 @@ function initStudyEngine() {
   studyEngine.postMessage("isready");
 }
 
+// =====================================================
+// ♻️ STUDY ENGINE WORKER RECOVERY
+// =====================================================
+// Recreates the persistent Stockfish Worker when the
+// previous position was terminal and the Worker stops
+// responding to normal Study navigation.
+//
+// This does NOT change:
+// • Hash 64
+// • MultiPV 3
+// • Study search time 5000ms
+// • Coach Review search time
+// • Evaluation/PV logic
+// =====================================================
+
+function resetStudyEngineWorkerForRecovery(fen, generation) {
+
+  console.warn(
+    "♻️ Study Engine: rebuilding Stockfish Worker",
+    {
+      generation,
+      fen
+    }
+  );
+
+  // -----------------------------------------------------
+  // 1. Invalidate every previous Study request
+  // -----------------------------------------------------
+
+  studyEngineGeneration++;
+
+  const recoveryGeneration =
+    studyEngineGeneration;
+
+  // -----------------------------------------------------
+  // 2. Kill the stuck Worker
+  // -----------------------------------------------------
+
+  if (studyEngine) {
+
+    try {
+      studyEngine.terminate();
+    } catch (err) {
+      console.warn(
+        "⚠️ Study Engine terminate warning:",
+        err
+      );
+    }
+
+  }
+
+  // -----------------------------------------------------
+  // 3. Completely clear old Worker state
+  // -----------------------------------------------------
+
+  studyEngine = null;
+
+  studyEngineReady = false;
+  studyEngineInitializing = false;
+
+  studyEngineSearching = false;
+  studyEngineWaitingForStop = false;
+
+  studyEngineSearchFen = null;
+
+  studyEnginePendingSearch = null;
+  studyEnginePendingAnalysis = null;
+
+  // -----------------------------------------------------
+  // 4. Start a completely fresh Stockfish Worker
+  // -----------------------------------------------------
+
+  initStudyEngine();
+
+  // -----------------------------------------------------
+  // 5. Wait for the NEW Worker to become ready.
+  //
+  // initStudyEngine() already sends:
+  //     uci
+  //     Hash 64
+  //     MultiPV 3
+  //     isready
+  //
+  // The permanent readyok handler will normally process
+  // pending analysis, so we only store the newest request.
+  // -----------------------------------------------------
+
+  studyEnginePendingAnalysis = {
+    generation: recoveryGeneration,
+    fen
+  };
+
+  console.log(
+    "♻️ Study Engine: fresh Worker created",
+    {
+      generation: recoveryGeneration
+    }
+  );
+}
+
 
 function analyzeStudyPosition() {
 
   if (!studyEngine || !studyChess || !studyEngineEnabled) return;
 
-  // 🔢 New generation — any output tied to an older generation is stale.
+  // =====================================================
+  // 🔢 NEW GENERATION
+  // =====================================================
+
   studyEngineGeneration++;
-  const generation = studyEngineGeneration;
 
-  // 📸 Capture the exact FEN being analyzed ONCE, right now — never re-read
-  // studyChess.fen() later while processing engine output.
-  const fen = studyChess.fen();
+  const generation =
+    studyEngineGeneration;
 
-  // Reset UI immediately for the new position.
+  // =====================================================
+  // 📸 CAPTURE CURRENT STUDY FEN ONCE
+  // =====================================================
+
+  const fen =
+    studyChess.fen();
+
+  // =====================================================
+  // ♻️ CHECK WHETHER THE PREVIOUS ENGINE POSITION
+  // WAS A TERMINAL POSITION
+  //
+  // IMPORTANT:
+  // We intentionally DO NOT check:
+  //
+  //     !studyEngineSearching
+  //
+  // because the actual frozen state showed:
+  //
+  //     searching: true
+  //     waitingForStop: true
+  //
+  // =====================================================
+
+  const previousStudyEngineFen =
+    studyEngineSearchFen;
+
+  if (
+    previousStudyEngineFen &&
+    previousStudyEngineFen !== fen
+  ) {
+
+    let previousPositionWasGameOver =
+      false;
+
+    try {
+
+      const previousChess =
+        new Chess();
+
+      const loaded =
+        previousChess.load(
+          previousStudyEngineFen
+        );
+
+if (loaded) {
+
+  previousPositionWasGameOver =
+    previousChess.game_over();
+
+}
+
+    } catch (err) {
+
+      console.warn(
+        "⚠️ Study Engine: failed to inspect previous FEN:",
+        err
+      );
+
+    }
+
+    // ===================================================
+    // ⭐ TERMINAL POSITION → REBUILD WORKER
+    // ===================================================
+
+    if (previousPositionWasGameOver) {
+
+      console.warn(
+        "♻️ Study Engine: previous position was terminal. Rebuilding Worker.",
+        {
+          previousFen:
+            previousStudyEngineFen,
+
+          newFen:
+            fen,
+
+          searching:
+            studyEngineSearching,
+
+          waitingForStop:
+            studyEngineWaitingForStop
+        }
+      );
+
+      resetStudyEngineWorkerForRecovery(
+        fen,
+        generation
+      );
+
+      // The recovery function creates a completely
+      // fresh Worker and queues the NEW FEN.
+      //
+      // Do not continue through the old engine pipeline.
+      return;
+    }
+  }
+
+  // =====================================================
+  // 🔄 RESET STUDY ENGINE UI
+  // =====================================================
+
   studyLastDepth = 0;
-  studyPV = {};
-  document.getElementById("studyEval").textContent = "…";
-  document.getElementById("studyPVLines").innerHTML = "";
-  document.getElementById("studyDepth").textContent = "0";
 
-  // The old best move belonged to the old FEN — clear it for the new position.
+  studyPV = {};
+
+  const evalBox =
+    document.getElementById(
+      "studyEval"
+    );
+
+  const pvBox =
+    document.getElementById(
+      "studyPVLines"
+    );
+
+  const depthBox =
+    document.getElementById(
+      "studyDepth"
+    );
+
+  if (evalBox) {
+    evalBox.textContent = "…";
+  }
+
+  if (pvBox) {
+    pvBox.innerHTML = "";
+  }
+
+  if (depthBox) {
+    depthBox.textContent = "0";
+  }
+
+  // =====================================================
+  // 🧠 CLEAR OLD BEST MOVE
+  // =====================================================
+
   window.studyBestMove = null;
   window.studyBestMoveFen = null;
 
-  if (!studyEngineReady || studyEngineInitializing) {
-    // Engine still starting up (e.g. right after toggling ON). Remember
-    // only the newest requested position — earlier ones are dropped.
-    studyEnginePendingAnalysis = { generation, fen };
+  // =====================================================
+  // ⏳ ENGINE STILL INITIALIZING
+  // =====================================================
+
+  if (
+    !studyEngineReady ||
+    studyEngineInitializing
+  ) {
+
+    // Only the newest requested position survives.
+    studyEnginePendingAnalysis = {
+      generation,
+      fen
+    };
+
     return;
   }
 
-  startStudyEngineSearch(generation, fen);
+  // =====================================================
+  // ♟️ NORMAL STUDY ENGINE FLOW
+  // =====================================================
+
+  startStudyEngineSearch(
+    generation,
+    fen
+  );
 }
 
 
