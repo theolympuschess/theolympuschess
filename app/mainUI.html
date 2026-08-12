@@ -18346,11 +18346,12 @@ position:fixed;
 top:120px;
 left:300px;
 width:420px;
-background:#1b2035;
+background:#6b7280;
 border-radius:10px;
 box-shadow:0 10px 40px rgba(0,0,0,0.6);
 z-index:9999;
 padding:10px;
+
 }
 
 .fen-editor.hidden{
@@ -18370,6 +18371,19 @@ border-radius:6px;
 #fenEditorBoard{
 width:360px;
 margin:10px auto;
+}
+
+/* ==========================================
+   FEN EDITOR PIECE GRAB CURSOR
+   FULLY ISOLATED
+   ========================================== */
+
+#fenEditorBoard .piece-417db {
+    cursor: grab !important;
+}
+
+#fenEditorBoard .piece-417db:active {
+    cursor: grabbing !important;
 }
 
 .fen-editor-controls{
@@ -77388,6 +77402,9 @@ let fenEditorBoard = null;
 // --------------------------------------
 // INIT EDITOR BOARD (only once)
 // --------------------------------------
+// --------------------------------------
+// INIT EDITOR BOARD (only once)
+// --------------------------------------
 function initFenEditor() {
 
   if (fenEditorBoard) return;
@@ -77401,6 +77418,36 @@ function initFenEditor() {
     position: "start",
     pieceTheme: getPieceThemePath(currentPieceTheme),
 
+    // ==========================================
+    // 🛡️ FEN EDITOR SPARE PIECE DRAG VISIBILITY
+    // FULLY ISOLATED TO THIS EDITOR
+    // ==========================================
+onDragStart: (source, piece) => {
+
+  requestAnimationFrame(() => {
+
+        const dragPieces =
+          document.querySelectorAll(
+            "body > .piece-417db"
+          );
+
+        dragPieces.forEach(el => {
+
+          // Only the currently visible Chessboard.js
+          // temporary drag piece gets elevated.
+          if (el.style.display !== "none") {
+
+            el.style.zIndex = "1000000";
+            el.style.visibility = "visible";
+            el.style.opacity = "1";
+          }
+
+        });
+
+      });
+
+    },
+
     onDrop: (source, target, piece) => {
 
       if (target === "offboard") return;
@@ -77408,13 +77455,84 @@ function initFenEditor() {
       fenEditorChess.remove(source);
 
       const color = piece[0];
-      const type  = piece[1].toLowerCase();
+      const type = piece[1].toLowerCase();
 
-      fenEditorChess.put({ type, color }, target);
+      fenEditorChess.put(
+        { type, color },
+        target
+      );
 
       syncFenEditorFEN();
     }
   });
+
+  // Restore normal drag-piece state after the drag finishes.
+  document.addEventListener("mouseup", () => {
+
+    document
+      .querySelectorAll("body > .piece-417db")
+      .forEach(el => {
+
+        el.style.zIndex = "";
+        el.style.visibility = "";
+        el.style.opacity = "";
+      });
+
+   });
+
+  // ==========================================
+  // 🖱️ RIGHT CLICK PIECE = TOGGLE COLOR
+  // FULLY ISOLATED TO FEN EDITOR BOARD
+  // ==========================================
+  const fenBoardElement =
+    document.getElementById("fenEditorBoard");
+
+  if (fenBoardElement) {
+
+    fenBoardElement.addEventListener("contextmenu", (e) => {
+
+      e.preventDefault();
+
+      // Find the chessboard square under the mouse.
+      const square = e.target.closest(".square-55d63");
+
+      if (!square || !fenEditorChess) return;
+
+      const squareName =
+        square.getAttribute("data-square");
+
+      if (!squareName) return;
+
+      const piece = fenEditorChess.get(squareName);
+
+      if (!piece) return;
+
+      // Toggle piece color.
+      const newColor =
+        piece.color === "w" ? "b" : "w";
+
+      fenEditorChess.remove(squareName);
+
+      fenEditorChess.put(
+        {
+          type: piece.type,
+          color: newColor
+        },
+        squareName
+      );
+
+      // Update the visual board.
+      fenEditorBoard.position(
+        fenEditorChess.fen(),
+        false
+      );
+
+      // Update generated FEN.
+      syncFenEditorFEN();
+
+    });
+
+  }
 
   setTimeout(syncFenEditorFEN, 50);
 }
