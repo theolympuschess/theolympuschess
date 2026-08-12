@@ -30494,9 +30494,9 @@ border-radius:20px;
 
 .lp-pgn-chapter-window {
   position: fixed;
-  top: 100px;
-  left: 50%;
-  transform: translateX(-50%);
+top: 50%;
+left: 10px;
+transform: translateY(-50%);
   width: 330px;
   max-width: 92vw;
   height: min(830px, 94vh);
@@ -30743,6 +30743,81 @@ border-radius:20px;
 #lpOpenPgnChapterBrowserBtn:hover {
   filter: brightness(1.12);
   transform: translateY(-1px);
+}
+
+.lp-analysis-variation {
+  color: #8ab4f8;
+  font-style: italic;
+}
+
+.lp-analysis-variation-move {
+  color: #8ab4f8;
+}
+
+.lp-analysis-move {
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.lp-analysis-move:hover {
+  background: rgba(255,255,255,.08);
+}
+
+.lp-analysis-move.active {
+  background: #ffd54f;
+  color: #1a1a1a !important;
+  font-weight: 800;
+  border-radius: 4px;
+}
+
+.lp-analysis-branch-popover {
+  z-index: 99999;
+  background: #1f2440;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  padding: 10px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lp-analysis-branch-popover-title {
+  color: #ffd54f;
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.lp-analysis-branch-popover-option {
+  background: #2a2f4a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.lp-analysis-branch-popover-option:hover {
+  background: #3a405b;
+}
+
+.lp-analysis-branch-popover-main {
+  border-left: 3px solid #4caf50;
+}
+
+.lp-analysis-branch-popover-cancel {
+  margin-top: 4px;
+  background: transparent;
+  color: rgba(255,255,255,.6);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
 }
 
   </style>
@@ -96538,6 +96613,13 @@ let studentAnalysisGame =
   new Chess();
 let lpPendingPromotion = null;
 let analysisPromotionData = null;
+// ================= ANALYSIS TREE (NEW) =================
+let analysisTree = null;          // root node object
+let analysisNodeMap = {};         // id -> node
+let analysisCurrentId = null;     // currently selected node id
+let analysisBaseFen = null;       // starting FEN for this tree
+let analysisNodeCounter = 0;      // id generator
+let analysisPopoverOpen = false;  // branch-selection popover state
 // 🔥 TIMER SYSTEM
 let timeLimit = 0;
 let timeLeft = 0;
@@ -96606,6 +96688,318 @@ let lpSfFen = null;
 let lpSfPvMap = {};
 
 let lpSfDebounce = null;
+
+function lpCreateAnalysisNode(parentId, move) {
+  const id = "an_" + (++analysisNodeCounter) + "_" + Date.now().toString(36);
+  const parent = analysisNodeMap[parentId];
+  const node = {
+    id,
+    parentId,
+    move: move || null,
+    children: [],
+    mainChildId: null,
+    ply: parent ? (parent.ply || 0) + 1 : 0
+  };
+  analysisNodeMap[id] = node;
+  if (parent) {
+    parent.children.push(id);
+    if (!parent.mainChildId) parent.mainChildId = id;
+  }
+  return node;
+}
+
+function lpInitAnalysisTree(baseFen) {
+    
+  analysisNodeMap = {};
+  analysisNodeCounter = 0;
+  analysisBaseFen = baseFen || "start";
+
+  const root = {
+    id: "root",
+    parentId: null,
+    move: null,
+    children: [],
+    mainChildId: null,
+    ply: 0
+  };
+
+  analysisNodeMap["root"] = root;
+  analysisTree = root;
+  analysisCurrentId = "root";
+  
+}
+// Pre-populates the tree's main line with the puzzle's original moves,
+// so entering Analysis Mode shows the existing PGN instead of a blank board.
+// Branching off any of these nodes later works exactly like any other node.
+function lpSeedAnalysisTreeFromSolution() {
+  let parentId = "root";
+
+  const tempGame = new Chess();
+  if (analysisBaseFen && analysisBaseFen !== "start") {
+    tempGame.load(analysisBaseFen);
+  } else {
+    tempGame.reset();
+  }
+
+  solutionMoves.forEach(mv => {
+    const played = tempGame.move({
+      from: mv.from,
+      to: mv.to,
+      promotion: mv.promotion || "q"
+    });
+    if (!played) return;
+
+    const node = lpCreateAnalysisNode(parentId, played);
+    parentId = node.id;
+  });
+}
+
+function lpAnalysisPathToNode(nodeId) {
+  const path = [];
+  let node = analysisNodeMap[nodeId];
+  while (node) {
+    path.unshift(node);
+    node = node.parentId ? analysisNodeMap[node.parentId] : null;
+  }
+  return path; // includes root first
+}
+
+function lpRebuildAnalysisGameToNode(nodeId) {
+  const path = lpAnalysisPathToNode(nodeId);
+  const g = new Chess();
+
+  if (analysisBaseFen && analysisBaseFen !== "start") {
+    g.load(analysisBaseFen);
+  } else {
+    g.reset();
+  }
+
+  for (let i = 1; i < path.length; i++) {
+    const mv = path[i].move;
+    if (mv) {
+      g.move({ from: mv.from, to: mv.to, promotion: mv.promotion || "q" });
+    }
+  }
+
+  return g;
+}
+
+function lpFindMatchingChild(node, moveObj) {
+  for (const childId of node.children) {
+    const child = analysisNodeMap[childId];
+    if (
+      child.move &&
+      child.move.from === moveObj.from &&
+      child.move.to === moveObj.to &&
+      (child.move.promotion || "") === (moveObj.promotion || "")
+    ) {
+      return child;
+    }
+  }
+  return null;
+}
+
+// Moves from root to nodeId, as plain {from,to,promotion} — used for wire sync.
+function lpAnalysisPathMoves(nodeId) {
+  const path = lpAnalysisPathToNode(nodeId); // includes root first
+  return path.slice(1).map(n => ({
+    from: n.move.from,
+    to: n.move.to,
+    promotion: n.move.promotion || null
+  }));
+}
+
+// Replays a received path against the LOCAL tree, reusing/creating nodes
+// exactly like a live move would (see lpApplyAnalysisMove). Returns the
+// node id it lands on, or the deepest reachable node id if a move fails.
+function lpMergeAnalysisPath(pathMoves) {
+  let nodeId = "root";
+  for (const mv of pathMoves) {
+    const child = lpApplyAnalysisMove(nodeId, mv);
+    if (!child) break;
+    nodeId = child.id;
+  }
+  return nodeId;
+}
+
+// Apply a move FROM a given node, reusing an existing child or creating a new variation.
+// Returns the resulting node, or null if the move is illegal.
+function lpApplyAnalysisMove(
+  fromNodeId,
+  moveInput
+) {
+
+  const node =
+    analysisNodeMap[fromNodeId];
+
+  if (!node) {
+    return null;
+  }
+
+  const posGame =
+    lpRebuildAnalysisGameToNode(
+      fromNodeId
+    );
+
+  const played =
+    posGame.move(
+      moveInput
+    );
+
+  if (!played) {
+    return null;
+  }
+
+  let child =
+    lpFindMatchingChild(
+      node,
+      played
+    );
+
+  if (!child) {
+
+    child =
+      lpCreateAnalysisNode(
+        fromNodeId,
+        played
+      );
+
+  }
+
+  return child;
+}
+
+function lpSetAnalysisCurrent(nodeId, { broadcast = true, updateBoard = true, animate = true } = {}) {
+    
+  if (!analysisNodeMap[nodeId]) return;
+
+  analysisCurrentId = nodeId;
+  analysisGame = lpRebuildAnalysisGameToNode(nodeId);
+
+  if (updateBoard) {
+    board.position(analysisGame.fen(), animate);
+    lpTriggerEngineUpdate();
+  }
+
+  const node = analysisNodeMap[nodeId];
+  if (node.move) {
+    lpSoundEngine.play(node.move, analysisGame);
+    highlightLastMove(node.move.from, node.move.to, "lpBoard");
+  }
+  highlightCheckSquare(analysisGame, "lpBoard");
+
+  renderAnalysisPGN();
+
+  if (broadcast) {
+    lpBroadcastAnalysisPosition(node);
+  }
+}
+
+function lpBroadcastAnalysisPosition(node) {
+  if (!isAdmin || !allowStudentAnalysisView || !roomCode) return;
+
+  const path =
+  lpAnalysisPathToNode(node.id)
+    .map(n => n.id);
+
+const pathMoves =
+  lpAnalysisPathMoves(node.id);
+
+  if (!movesChannel) return;
+
+movesChannel.send({
+    type: "broadcast",
+    event: "analysis_position",
+    payload: {
+      fen: analysisGame.fen(),
+      orientation: board.orientation(),
+      from: node.move ? node.move.from : null,
+      to: node.move ? node.move.to : null,
+      moveData: node.move || null,
+
+     analysisNodeId:
+  node.id,
+
+analysisPath:
+  path,
+
+analysisPathMoves:
+  pathMoves,
+
+analysisTreeVersion:
+  analysisNodeCounter
+    }
+  });
+}
+
+// ---- Branch selection popover ----
+
+function lpShowAnalysisBranchPopover(node, anchorEl) {
+  lpCloseAnalysisBranchPopover();
+
+  const popover = document.createElement("div");
+  popover.id = "lpAnalysisBranchPopover";
+  popover.className = "lp-analysis-branch-popover";
+
+  const title = document.createElement("div");
+  title.className = "lp-analysis-branch-popover-title";
+  title.textContent = "Choose continuation";
+  popover.appendChild(title);
+
+  node.children.forEach(childId => {
+    const child = analysisNodeMap[childId];
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "lp-analysis-branch-popover-option" +
+      (childId === node.mainChildId ? " lp-analysis-branch-main" : "");
+    btn.textContent = (childId === node.mainChildId ? "● " : "○ ") + child.move.san;
+    btn.onclick = () => {
+      lpCloseAnalysisBranchPopover();
+      lpSetAnalysisCurrent(childId);
+    };
+    popover.appendChild(btn);
+  });
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "lp-analysis-branch-popover-cancel";
+  cancel.textContent = "Cancel";
+  cancel.onclick = () => lpCloseAnalysisBranchPopover();
+  popover.appendChild(cancel);
+
+  document.body.appendChild(popover);
+
+  const rect = (anchorEl || document.getElementById("lpBoard")).getBoundingClientRect();
+  popover.style.position = "fixed";
+  popover.style.left = Math.min(rect.left, window.innerWidth - 220) + "px";
+  popover.style.top = Math.min(rect.top + 40, window.innerHeight - 200) + "px";
+
+  analysisPopoverOpen = true;
+
+  setTimeout(() => {
+    document.addEventListener("mousedown", lpAnalysisPopoverOutsideClick);
+    document.addEventListener("keydown", lpAnalysisPopoverEscape);
+  }, 0);
+}
+
+function lpAnalysisPopoverOutsideClick(e) {
+  const popover = document.getElementById("lpAnalysisBranchPopover");
+  if (popover && !popover.contains(e.target)) {
+    lpCloseAnalysisBranchPopover();
+  }
+}
+
+function lpAnalysisPopoverEscape(e) {
+  if (e.key === "Escape") lpCloseAnalysisBranchPopover();
+}
+
+function lpCloseAnalysisBranchPopover() {
+  const popover = document.getElementById("lpAnalysisBranchPopover");
+  if (popover) popover.remove();
+  analysisPopoverOpen = false;
+  document.removeEventListener("mousedown", lpAnalysisPopoverOutsideClick);
+  document.removeEventListener("keydown", lpAnalysisPopoverEscape);
+}
 
 // =====================================================
 // 🎨 LIVE DRAWING BROADCAST
@@ -97091,9 +97485,8 @@ shareBtn.classList.toggle(
             orientation:
               board.orientation(),
 
-            analysisMoves,
-
-            analysisIndex,
+            analysisPathMoves:
+              lpAnalysisPathMoves(analysisCurrentId),
 
             currentIndex,
 
@@ -97343,155 +97736,39 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("keydown", (e) => {
 
-  // ================= ONLY BACKSPACE =================
-  if (e.key !== "Backspace")
-    return;
+  if (e.key !== "Backspace") return;
+  if (!isAnalysisMode) return;
 
-  // ================= ANALYSIS ONLY =================
-  if (!isAnalysisMode)
-    return;
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-  // ================= INPUT SAFETY =================
-  const tag =
-    document.activeElement?.tagName;
+  const studyPopup = document.getElementById("studyVariationPopup");
+  if (studyPopup && !studyPopup.classList.contains("hidden")) return;
 
-  if (
-    tag === "INPUT" ||
-    tag === "TEXTAREA"
-  ) return;
-
-  // ================= STUDY POPUP SAFETY =================
-  const studyPopup =
-    document.getElementById(
-      "studyVariationPopup"
-    );
-
-  if (
-    studyPopup &&
-    !studyPopup.classList.contains("hidden")
-  ) {
-    return;
-  }
-
-  // ================= LIVE PUZZLE ONLY =================
-  const liveSection =
-    document.getElementById(
-      "livePuzzle-section"
-    );
-
+  const liveSection = document.getElementById("livePuzzle-section");
   if (!liveSection) return;
+  if (!liveSection.matches(":hover")) return;
 
-  // 🔥 ONLY when mouse inside live puzzle
-  const hovered =
-    liveSection.matches(":hover");
-
-  if (!hovered) return;
-
-  // ================= FIND ACTIVE MOVE =================
-  const activeMove =
-    document.querySelector(
-      ".lp-analysis-move.active"
-    );
-
-  // 🔥 NO ACTIVE MOVE
+  const activeMove = document.querySelector(".lp-analysis-move.active");
   if (!activeMove) return;
 
-  const deleteIndex =
-    parseInt(
-      activeMove.dataset.index
-    );
-
-  if (
-    isNaN(deleteIndex)
-  ) return;
+  const nodeId = activeMove.dataset.nodeId;
+  const node = analysisNodeMap[nodeId];
+  if (!node || node.id === "root" || !node.parentId) return;
 
   e.preventDefault();
 
-  // ================= DELETE UNTIL MOVE =================
-  analysisMoves =
-    analysisMoves.slice(
-      0,
-      deleteIndex
-    );
-
-  // ================= REBUILD POSITION =================
-  analysisGame.reset();
-
-  const tempGame =
-    new Chess();
-
-  tempGame.load_pgn(
-    puzzles[currentIndex]
-  );
-
-  const startFen =
-    tempGame.header().FEN;
-
-  if (startFen) {
-    analysisGame.load(startFen);
+  // Deletes this move AND everything under it — an explicit user action,
+  // not a "moved from an earlier position" truncation. Sibling variations
+  // and everything above are untouched.
+  const parent = analysisNodeMap[node.parentId];
+  parent.children = parent.children.filter(id => id !== node.id);
+  if (parent.mainChildId === node.id) {
+    parent.mainChildId = parent.children[0] || null;
   }
+  delete analysisNodeMap[node.id];
 
-  analysisMoves.forEach(move => {
-    analysisGame.move(move);
-  });
-
-  analysisIndex =
-    analysisMoves.length;
-
-  // ================= UPDATE BOARD =================
-  board.position(
-    analysisGame.fen()
-  );
-
-  renderAnalysisPGN();
-
-  // ================= LAST MOVE =================
-  const prevMove =
-    analysisMoves[
-      analysisMoves.length - 1
-    ];
-
-  if (prevMove) {
-
-    highlightLastMove(
-      prevMove.from,
-      prevMove.to,
-      "lpBoard"
-    );
-
-  }
-
-  highlightCheckSquare(
-    analysisGame,
-    "lpBoard"
-  );
-
-  document.dispatchEvent(
-    new Event("lpPositionChanged")
-  );
-
-  // ================= STUDENT SYNC =================
-  if (
-    isAdmin &&
-    allowStudentAnalysisView
-  ) {
-
-    supabase.channel(
-      "lp-moves-" + roomCode
-    ).send({
-      type: "broadcast",
-      event: "analysis_position",
-      payload: {
-        fen: analysisGame.fen(),
-        orientation:
-          board.orientation(),
-        from: prevMove?.from,
-        to: prevMove?.to
-      }
-    });
-
-  }
-
+  lpSetAnalysisCurrent(parent.id);
 });
 
     document.getElementById("lpLoadPuzzlesBtn").onclick = loadSelectedLibrary;
@@ -101376,81 +101653,35 @@ async function lpCompletePromotion(piece) {
 // ================= ANALYSIS PROMOTION =================
 if (isAnalysisMode && analysisPromotionData) {
 
-  const move = analysisGame.move({
-    from: analysisPromotionData.from,
-    to: analysisPromotionData.to,
+  const { from, to, shared } = analysisPromotionData;
+  analysisPromotionData = null;
+
+  document.getElementById("lpPromotionModal").classList.add("hidden");
+
+  const childNode = lpApplyAnalysisMove(analysisCurrentId, {
+    from,
+    to,
     promotion: piece
   });
 
-  analysisPromotionData = null;
+  if (!childNode) return;
 
-  document.getElementById("lpPromotionModal")
-    .classList.add("hidden");
+  lpSetAnalysisCurrent(childNode.id);
 
-  if (!move) return;
-  // 🔊 ANALYSIS PROMOTION SOUND
-lpSoundEngine.play(
-  move,
-  analysisGame
-);
-
-analysisMoves = [
-  ...analysisMoves,
-  move
-];
-
-analysisIndex =
-  analysisMoves.length;
-  renderAnalysisPGN();
-
-  board.position(analysisGame.fen());
-  lpTriggerEngineUpdate();
-  // 🔥 LAST MOVE HIGHLIGHT
-highlightLastMove(
-  move.from,
-  move.to,
-  "lpBoard"
-);
-highlightCheckSquare(
-  analysisGame,
-  "lpBoard"
-);
-  // 🔥 LIVE ANALYSIS PROMOTION SYNC
-// 🔥 LIVE ANALYSIS PROMOTION SYNC
-if (
-  allowStudentAnalysisView &&
-  movesChannel
-) {
-
-  movesChannel.send({
-
-    type: "broadcast",
-
-    event: "student_analysis_move",
-
-    payload: {
-
-      sender:
-        currentUserId,
-
-      fen:
-        analysisGame.fen(),
-
-      move,
-
-      analysisMoves:
-        [...analysisMoves],
-
-      analysisIndex,
-
-      orientation:
-        board.orientation()
-
-    }
-
-  });
-
-}
+  // Admin's promotion already broadcasts via lpSetAnalysisCurrent's
+  // built-in analysis_position send. A student in Shared Analysis mode
+  // needs the separate peer-sync event instead.
+  if (shared && !isAdmin && movesChannel) {
+    movesChannel.send({
+      type: "broadcast",
+      event: "student_analysis_move",
+      payload: {
+        sender: currentUserId,
+        analysisPathMoves: lpAnalysisPathMoves(analysisCurrentId),
+        orientation: board.orientation()
+      }
+    });
+  }
 
   return;
 }
@@ -101707,6 +101938,11 @@ currentIndex = 0;
     lpPgnChapterNeedsRebuild = true; // NEW — force rebuild for the new library
 
     loadPuzzle(currentIndex);
+      // 🔥 SHOW ONLY WHEN WHOLE PGN IS LOADED
+  showJoinBanner(
+    "📚 New PGN Database Loaded",
+    false
+  );
 
     updatePuzzleCounter();
 
@@ -101834,6 +102070,7 @@ function loadPuzzle(index) {
   setInitialOrientation();
   // ✅ SHOW PGN (ADMIN ONLY)
 renderAnalysisPGN();
+
 setTimeout(() => {
 
   lpTriggerEngineUpdate();
@@ -101845,167 +102082,144 @@ setTimeout(() => {
 
 function renderAnalysisPGN() {
 
-  const pgnBox =
-    document.getElementById("lpPgnBox");
-
+  const pgnBox = document.getElementById("lpPgnBox");
   if (!pgnBox) return;
 
   let html = "";
 
-     // ================= CHAPTER NAME =================
-let chapterName = "";
-
-if (puzzles[currentIndex]) {
-
-  const chapterGame = new Chess();
-  chapterGame.load_pgn(puzzles[currentIndex]);
-  
-
-  chapterName =
-  chapterGame.header().ChapterName || "";
-}
-
-if (chapterName) {
-
-  html += `
-    <div style="
-      width:100%;
-      margin-bottom:10px;
-      padding-bottom:8px;
-      border-bottom:1px solid rgba(255,255,255,.15);
-      color:#ffd54f;
-      font-size:15px;
-      font-weight:800;
-    ">
-      📚 ${chapterName}
-    </div>
-  `;
-
-}
-
-// ================= NORMAL PUZZLE =================
-if (!isAnalysisMode) {
-
-  for (let i = 0; i < solutionMoves.length; i++) {
-
-    const move = solutionMoves[i];
-
-    if (i % 2 === 0) {
-
-      html += `
-        <span style="
-          color:#ffcc66;
-          font-weight:700;
-          margin-right:6px;
-        ">
-          ${Math.floor(i / 2) + 1}.
-        </span>
-      `;
-
-    }
-
+  // ================= CHAPTER NAME (unchanged) =================
+  let chapterName = "";
+  if (puzzles[currentIndex]) {
+    const chapterGame = new Chess();
+    chapterGame.load_pgn(puzzles[currentIndex]);
+    chapterName = chapterGame.header().ChapterName || "";
+  }
+  if (chapterName) {
     html += `
-      <span
-        class="
-          lp-analysis-move
-          ${i === previewIndex - 1 ? "active" : ""}
-        "
-        data-index="${i}"
-        style="
-          cursor:pointer;
-        "
-      >
-        ${move.san}
-      </span>
+      <div style="
+        width:100%;
+        margin-bottom:10px;
+        padding-bottom:8px;
+        border-bottom:1px solid rgba(255,255,255,.15);
+        color:#ffd54f;
+        font-size:15px;
+        font-weight:800;
+      ">
+        📚 ${chapterName}
+      </div>
     `;
   }
 
-pgnBox.innerHTML = html;
+  // ================= NORMAL PUZZLE (UNCHANGED — linear) =================
+  if (!isAnalysisMode) {
 
-// 🔥 KEEP CURRENT YELLOW MOVE VISIBLE
-requestAnimationFrame(() => {
-  lpKeepCurrentNotationVisible();
-});
+    for (let i = 0; i < solutionMoves.length; i++) {
+      const move = solutionMoves[i];
+      if (i % 2 === 0) {
+        html += `
+          <span style="color:#ffcc66;font-weight:700;margin-right:6px;">
+            ${Math.floor(i / 2) + 1}.
+          </span>
+        `;
+      }
+      html += `
+        <span class="lp-analysis-move ${i === previewIndex - 1 ? "active" : ""}"
+              data-index="${i}" style="cursor:pointer;">
+          ${move.san}
+        </span>
+      `;
+    }
 
-// 🔥 CLICKABLE NORMAL PGN
-pgnBox
-    .querySelectorAll(
-      ".lp-analysis-move"
-    )
-    .forEach(el => {
+    pgnBox.innerHTML = html;
 
+    requestAnimationFrame(() => { lpKeepCurrentNotationVisible(); });
+
+    pgnBox.querySelectorAll(".lp-analysis-move").forEach(el => {
       el.onclick = () => {
-
-        const index =
-          parseInt(
-            el.dataset.index
-          );
-
+        const index = parseInt(el.dataset.index);
         jumpToAnalysisMove(index);
-
       };
-
     });
 
-  return;
-}
-// 🔥 FALLBACK TO ORIGINAL PGN
-if (
-  isAnalysisMode &&
-  analysisMoves.length === 0
-) {
-
-  analysisMoves =
-    [...solutionMoves];
-
-}
-  // ================= ANALYSIS MODE =================
-  for (let i = 0; i < analysisMoves.length; i++) {
-
-    const move = analysisMoves[i];
-
-    if (i % 2 === 0) {
-      html += `
-        <span style="
-          color:#ffcc66;
-          font-weight:700;
-          margin-right:6px;
-        ">
-          ${Math.floor(i / 2) + 1}.
-        </span>
-      `;
-    }
-
-    html += `
-      <span
-        class="lp-analysis-move
-        ${i === analysisIndex - 1 ? "active" : ""}"
-        data-index="${i}">
-        ${move.san}
-      </span>
-    `;
+    return;
   }
 
-pgnBox.innerHTML = html;
+  // ================= ANALYSIS MODE — TREE RENDER (NEW) =================
+  if (!analysisTree || !analysisNodeMap["root"]) {
+    pgnBox.innerHTML = html;
+    return;
+  }
 
-// 🔥 KEEP CURRENT YELLOW MOVE VISIBLE
-requestAnimationFrame(() => {
-  lpKeepCurrentNotationVisible();
-});
+  html += lpRenderAnalysisSequence(analysisTree.id);
 
-pgnBox.querySelectorAll(".lp-analysis-move")
-.forEach(el => {
+  pgnBox.innerHTML = html;
 
-  el.onclick = () => {
+  requestAnimationFrame(() => { lpKeepCurrentNotationVisible(); });
 
-    const index =
-      parseInt(el.dataset.index);
+  pgnBox.querySelectorAll(".lp-analysis-move").forEach(el => {
+    el.onclick = () => {
+      const nodeId = el.dataset.nodeId;
+      if (!nodeId) return;
+      lpSetAnalysisCurrent(nodeId);
+    };
+  });
+}
 
-    jumpToAnalysisMove(index);
+// Recursively renders the continuation starting at `nodeId` as inline PGN.
+function lpRenderAnalysisSequence(nodeId) {
 
-  };
+  let html = "";
+  const startNode = analysisNodeMap[nodeId];
+  if (!startNode) return html;
 
-});
+  let parent = startNode;
+  let current = parent.children.length ? analysisNodeMap[parent.mainChildId] : null;
+  let needsMoveNumber = true;
+
+  while (current) {
+
+    html += lpRenderMoveSpan(current, needsMoveNumber) + " ";
+    needsMoveNumber = false;
+
+    const siblingIds = parent.children.filter(id => id !== current.id);
+
+    siblingIds.forEach(sibId => {
+      const sibNode = analysisNodeMap[sibId];
+      html += `<span class="lp-analysis-variation">(`;
+      html += lpRenderMoveSpan(sibNode, true);
+      html += " ";
+      html += lpRenderAnalysisSequence(sibNode.id);
+      html += `)</span> `;
+    });
+
+    if (siblingIds.length > 0) needsMoveNumber = true;
+
+    parent = current;
+    current = parent.children.length ? analysisNodeMap[parent.mainChildId] : null;
+  }
+
+  return html;
+}
+
+function lpRenderMoveSpan(node, showNumber) {
+  const moveNumber = Math.ceil(node.ply / 2);
+  const isWhite = node.move.color === "w";
+
+  let prefix = "";
+  if (isWhite) {
+    prefix = moveNumber + ". ";
+  } else if (showNumber) {
+    prefix = moveNumber + "... ";
+  }
+
+  const parent = analysisNodeMap[node.parentId];
+  const isMainLine = parent && parent.mainChildId === node.id;
+
+  const cls = "lp-analysis-move" +
+    (isMainLine ? "" : " lp-analysis-variation-move") +
+    (node.id === analysisCurrentId ? " active" : "");
+
+  return `<span class="${cls}" data-node-id="${node.id}">${prefix}${node.move.san}</span>`;
 }
 
 function lpKeepCurrentNotationVisible() {
@@ -102059,638 +102273,215 @@ function jumpToAnalysisMove(index) {
 
   // ================= ANALYSIS MODE =================
   if (isAnalysisMode) {
-
-    analysisGame.reset();
-
-    const tempGame = new Chess();
-
-    tempGame.load_pgn(
-      puzzles[currentIndex]
-    );
-
-    const startFen =
-      tempGame.header().FEN;
-
-    if (startFen) {
-      analysisGame.load(startFen);
+    // Legacy flat-index callers resolve against the tree's MAIN line only.
+    let node = analysisTree;
+    for (let i = 0; i <= index && node; i++) {
+      if (!node.children.length) break;
+      node = analysisNodeMap[node.mainChildId];
     }
-
-    for (let i = 0; i <= index; i++) {
-
-      if (analysisMoves[i]) {
-        analysisGame.move(
-          analysisMoves[i]
-        );
-      }
-
+    if (node && node.id !== "root") {
+      lpSetAnalysisCurrent(node.id);
     }
-
-    analysisIndex = index + 1;
-
-    board.position(
-      analysisGame.fen()
-    );
-    lpTriggerEngineUpdate(); 
-    if (
-  isAdmin &&
-  allowStudentAnalysisView
-) {
-
-  const move =
-    analysisMoves[index];
-
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
-    type: "broadcast",
-    event: "analysis_position",
-    payload: {
-      fen: analysisGame.fen(),
-      orientation:
-        board.orientation(),
-      from: move?.from,
-      to: move?.to
-    }
-  });
-
-}
-
-    renderAnalysisPGN();
-
-    const move =
-      analysisMoves[index];
-
-    if (move) {
-       // 🔊 JUMP SOUND
-  lpSoundEngine.play(
-    move,
-    analysisGame
-  );
-
-      highlightLastMove(
-        move.from,
-        move.to,
-        "lpBoard"
-      );
-
-      highlightCheckSquare(
-        analysisGame,
-        "lpBoard"
-      );
-    }
-
     return;
   }
 
-// ================= NORMAL PUZZLE =================
-previewGame.reset();
+  // ================= NORMAL PUZZLE (UNCHANGED) =================
+  previewGame.reset();
 
-const tempGame = new Chess();
+  const tempGame = new Chess();
+  tempGame.load_pgn(puzzles[currentIndex]);
+  const startFen = tempGame.header().FEN;
+  if (startFen) previewGame.load(startFen);
 
-tempGame.load_pgn(
-  puzzles[currentIndex]
-);
-
-const startFen =
-  tempGame.header().FEN;
-
-if (startFen) {
-  previewGame.load(startFen);
-}
-
-for (let i = 0; i <= index; i++) {
-
-  if (solutionMoves[i]) {
-
-    previewGame.move(
-      solutionMoves[i]
-    );
-
+  for (let i = 0; i <= index; i++) {
+    if (solutionMoves[i]) previewGame.move(solutionMoves[i]);
   }
 
-}
+  previewIndex = index + 1;
+  board.position(previewGame.fen());
+  lpTriggerEngineUpdate();
 
-previewIndex = index + 1;
+  const move = solutionMoves[index];
+  if (move) {
+    lpSoundEngine.play(move, previewGame);
+    highlightLastMove(move.from, move.to, "lpBoard");
+    highlightCheckSquare(previewGame, "lpBoard");
 
-board.position(
-  previewGame.fen()
-);
-
-lpTriggerEngineUpdate();
-
-const move =
-  solutionMoves[index];
-
-if (move) {
-
-  // 🔊 JUMP SOUND
-  lpSoundEngine.play(
-    move,
-    previewGame
-  );
-
-  highlightLastMove(
-    move.from,
-    move.to,
-    "lpBoard"
-  );
-
-  highlightCheckSquare(
-    previewGame,
-    "lpBoard"
-  );
-
-  // 🔥 LIVE SYNC TO STUDENTS
-  if (
-    isAdmin &&
-    roomCode &&
-    allowStudentAnalysisView
-  ) {
-
-    supabase.channel(
-      "lp-moves-" + roomCode
-    ).send({
-      type: "broadcast",
-      event: "preview_position",
-      payload: {
-        fen:
-          previewGame.fen(),
-
-        orientation:
-          board.orientation(),
-
-        from:
-          move?.from,
-
-        to:
-          move?.to,
-
-        moveData:
-          move
-      }
-    });
-
+    if (isAdmin && roomCode && allowStudentAnalysisView) {
+      supabase.channel("lp-moves-" + roomCode).send({
+        type: "broadcast",
+        event: "preview_position",
+        payload: {
+          fen: previewGame.fen(),
+          orientation: board.orientation(),
+          from: move?.from,
+          to: move?.to,
+          moveData: move
+        }
+      });
+    }
   }
 
-}
-
-// 🔥 IMPORTANT: KEEP LAST
-renderAnalysisPGN();
+  renderAnalysisPGN();
 }
 
 function nextPreviewMove() {
 
-  // ================= ANALYSIS MODE =================
+  // ================= ANALYSIS MODE (TREE) =================
   if (isAnalysisMode) {
 
-    if (analysisIndex >= analysisMoves.length)
-      return;
+    const node = analysisNodeMap[analysisCurrentId];
+    if (!node || node.children.length === 0) return;
 
-    analysisGame.move(
-      analysisMoves[analysisIndex]
-    );
-
-    // 🔊 ANALYSIS MOVE SOUND
-    lpSoundEngine.play(
-      analysisMoves[analysisIndex],
-      analysisGame
-    );
-
-    analysisIndex++;
-
-    renderAnalysisPGN();
-
-    board.position(
-      analysisGame.fen()
-    );
-
-    lpTriggerEngineUpdate();
-
-    // 🔥 LAST MOVE HIGHLIGHT
-    highlightLastMove(
-      analysisMoves[analysisIndex - 1].from,
-      analysisMoves[analysisIndex - 1].to,
-      "lpBoard"
-    );
-
-    highlightCheckSquare(
-      analysisGame,
-      "lpBoard"
-    );
-
-    if (
-      isAdmin &&
-      allowStudentAnalysisView
-    ) {
-
-      supabase.channel(
-        "lp-moves-" + roomCode
-      ).send({
-        type: "broadcast",
-        event: "analysis_position",
-        payload: {
-          fen: analysisGame.fen(),
-          orientation:
-            board.orientation(),
-
-          from:
-            analysisMoves[
-              analysisIndex - 1
-            ]?.from,
-
-          to:
-            analysisMoves[
-              analysisIndex - 1
-            ]?.to,
-
-          moveData:
-            analysisMoves[
-              analysisIndex - 1
-            ]
-        }
-      });
-
+    if (node.children.length === 1) {
+      lpSetAnalysisCurrent(node.mainChildId);
+    } else {
+      lpShowAnalysisBranchPopover(node, document.getElementById("lpNextMoveBtn"));
     }
 
     return;
   }
 
-  // ================= NORMAL PREVIEW =================
-  if (previewIndex >= solutionMoves.length)
-    return;
+  // ================= NORMAL PREVIEW (UNCHANGED) =================
+  if (previewIndex >= solutionMoves.length) return;
 
-  const playedMove =
-    previewGame.move(
-      solutionMoves[previewIndex]
-    );
-
-  // 🔊 PREVIEW SOUND
-  lpSoundEngine.play(
-    playedMove,
-    previewGame
-  );
-
+  const playedMove = previewGame.move(solutionMoves[previewIndex]);
+  lpSoundEngine.play(playedMove, previewGame);
   previewIndex++;
-
   lpTriggerEngineUpdate();
-
-  board.position(
-    previewGame.fen()
-  );
-
+  board.position(previewGame.fen());
   lpTriggerEngineUpdate();
+  highlightLastMove(playedMove.from, playedMove.to, "lpBoard");
+  highlightCheckSquare(previewGame, "lpBoard");
 
-  // 🔥 LAST MOVE HIGHLIGHT
-  highlightLastMove(
-    playedMove.from,
-    playedMove.to,
-    "lpBoard"
-  );
-
-  highlightCheckSquare(
-    previewGame,
-    "lpBoard"
-  );
-
-  // 🔥 LIVE SYNC TO STUDENTS
-if (
-  isAdmin &&
-  roomCode &&
-  allowStudentAnalysisView
-){
-
-    supabase.channel(
-      "lp-moves-" + roomCode
-    ).send({
+  if (isAdmin && roomCode && allowStudentAnalysisView) {
+    supabase.channel("lp-moves-" + roomCode).send({
       type: "broadcast",
       event: "preview_position",
       payload: {
         fen: previewGame.fen(),
-
-        orientation:
-          board.orientation(),
-
-        from:
-          playedMove.from,
-
-        to:
-          playedMove.to,
-
-        moveData:
-          playedMove
+        orientation: board.orientation(),
+        from: playedMove.from,
+        to: playedMove.to,
+        moveData: playedMove
       }
     });
-
   }
 
-// 🔥 REFRESH ACTIVE PGN HIGHLIGHT
   renderAnalysisPGN();
-
 }
 
 
 function prevPreviewMove() {
 
-  // ================= ANALYSIS MODE =================
+  // ================= ANALYSIS MODE (TREE) =================
   if (isAnalysisMode) {
 
-    if (analysisIndex <= 0)
-      return;
+    const node = analysisNodeMap[analysisCurrentId];
+    if (!node || !node.parentId) return;
 
-    // 🔊 BACKWARD SOUND
-    lpSoundEngine.play(
-      analysisMoves[
-        analysisIndex - 1
-      ],
-      analysisGame
-    );
-
-    analysisGame.undo();
-
-    analysisIndex--;
-
-    renderAnalysisPGN();
-
-    board.position(
-      analysisGame.fen()
-    );
-
-    lpTriggerEngineUpdate();
-
-    // 🔥 LAST MOVE HIGHLIGHT
-    const prevMove =
-      analysisMoves[
-        analysisIndex - 1
-      ];
-
-    if (prevMove) {
-
-      highlightLastMove(
-        prevMove.from,
-        prevMove.to,
-        "lpBoard"
-      );
-
-      highlightCheckSquare(
-        analysisGame,
-        "lpBoard"
-      );
-
-    }
-
-    if (
-      isAdmin &&
-      allowStudentAnalysisView
-    ) {
-
-      supabase.channel(
-        "lp-moves-" + roomCode
-      ).send({
-        type: "broadcast",
-        event: "analysis_position",
-        payload: {
-          fen:
-            analysisGame.fen(),
-
-          orientation:
-            board.orientation(),
-
-          from:
-            prevMove?.from,
-
-          to:
-            prevMove?.to,
-
-          moveData:
-            prevMove
-        }
-      });
-
-    }
-
+    lpSetAnalysisCurrent(node.parentId);
     return;
   }
 
-  // ================= NORMAL PREVIEW =================
-  if (previewIndex <= 0)
-    return;
+  // ================= NORMAL PREVIEW (UNCHANGED) =================
+  if (previewIndex <= 0) return;
 
-  // 🔊 BACKWARD SOUND
-  lpSoundEngine.play(
-    solutionMoves[
-      previewIndex - 1
-    ],
-    previewGame
-  );
-
+  lpSoundEngine.play(solutionMoves[previewIndex - 1], previewGame);
   previewGame.undo();
-
   previewIndex--;
-
+  lpTriggerEngineUpdate();
+  board.position(previewGame.fen());
   lpTriggerEngineUpdate();
 
-  board.position(
-    previewGame.fen()
-  );
-
-  lpTriggerEngineUpdate();
-
-  // 🔥 LAST MOVE HIGHLIGHT
-  const prevMove =
-    solutionMoves[
-      previewIndex - 1
-    ];
-
+  const prevMove = solutionMoves[previewIndex - 1];
   if (prevMove) {
-
-    highlightLastMove(
-      prevMove.from,
-      prevMove.to,
-      "lpBoard"
-    );
-
-    highlightCheckSquare(
-      previewGame,
-      "lpBoard"
-    );
-
+    highlightLastMove(prevMove.from, prevMove.to, "lpBoard");
+    highlightCheckSquare(previewGame, "lpBoard");
   }
 
-  // 🔥 LIVE SYNC TO STUDENTS
-if (
-  isAdmin &&
-  roomCode &&
-  allowStudentAnalysisView
-) {
-
-    supabase.channel(
-      "lp-moves-" + roomCode
-    ).send({
+  if (isAdmin && roomCode && allowStudentAnalysisView) {
+    supabase.channel("lp-moves-" + roomCode).send({
       type: "broadcast",
       event: "preview_position",
       payload: {
-        fen:
-          previewGame.fen(),
-
-        orientation:
-          board.orientation(),
-
-        from:
-          prevMove?.from,
-
-        to:
-          prevMove?.to,
-
-        moveData:
-          prevMove
+        fen: previewGame.fen(),
+        orientation: board.orientation(),
+        from: prevMove?.from,
+        to: prevMove?.to,
+        moveData: prevMove
       }
     });
-
   }
 
-// 🔥 REFRESH ACTIVE PGN HIGHLIGHT
   renderAnalysisPGN();
-
 }
 // ================= LOAD CURRENT PUZZLE INTO ANALYSIS =================
 function loadCurrentPuzzleAnalysis() {
 
-  // 🔥 EXIT PUZZLE MODE
   isAnalysisMode = true;
 
-  analysisMoves = [];
-  analysisIndex = 0;
+  const tempGame = new Chess();
+  tempGame.load_pgn(puzzles[currentIndex]);
+  const startFen = tempGame.header().FEN || "start";
+
+lpInitAnalysisTree(startFen);
+  lpSeedAnalysisTreeFromSolution();
+  analysisGame = lpRebuildAnalysisGameToNode("root");
+
   renderAnalysisPGN();
 
-  // 🔥 COPY CURRENT POSITION
- // 🔥 LOAD CURRENT DATABASE PUZZLE POSITION
-const tempGame = new Chess();
-
-tempGame.load_pgn(puzzles[currentIndex]);
-
-const startFen = tempGame.header().FEN;
-
-if (startFen) {
-  analysisGame.load(startFen);
-} else {
-  analysisGame.reset();
-}
-
-
-  // 🔥 RECREATE BOARD IN FREE MODE
   board = Chessboard("lpBoard", {
 
     position: analysisGame.fen(),
-     orientation:
-    solutionMoves[0]?.color === "b"
-      ? "black"
-      : "white",
-
+    orientation: solutionMoves[0]?.color === "b" ? "black" : "white",
     draggable: true,
 
-   onDrop: function(source, target) {
+    onDrop: function (source, target) {
 
-  const piece =
-    analysisGame.get(source);
+      const piece = analysisGame.get(source);
 
-  // ================= PROMOTION =================
-  if (
-    piece &&
-    piece.type === "p" &&
-    (
-      (piece.color === "w" && target[1] === "8") ||
-      (piece.color === "b" && target[1] === "1")
-    )
-  ) {
+      if (
+        piece && piece.type === "p" &&
+        ((piece.color === "w" && target[1] === "8") ||
+         (piece.color === "b" && target[1] === "1"))
+      ) {
+        analysisPromotionData = { from: source, to: target };
+        lpShowPromotion(source, target);
+        return;
+      }
 
-    analysisPromotionData = {
-      from: source,
-      to: target
-    };
+const childNode = lpApplyAnalysisMove(analysisCurrentId, {
+        from: source,
+        to: target,
+        promotion: "q"
+      });
 
-    lpShowPromotion(source, target);
 
-    return;
-  }
 
-  const move = analysisGame.move({
-    from: source,
-    to: target
-  });
+if (!childNode) {
 
-  if (!move) return "snapback";
-  // 🔊 ANALYSIS MOVE SOUND
-lpSoundEngine.play(
-  move,
-  analysisGame
-);
 
-  analysisMoves.push(move);
-  analysisIndex++;
-  renderAnalysisPGN();
-  // 🔥 LAST MOVE HIGHLIGHT
-highlightLastMove(
-  source,
-  target,
-  "lpBoard"
-);
-highlightCheckSquare(
-  analysisGame,
-  "lpBoard"
-);
-if (
-  isAdmin &&
-  allowStudentAnalysisView
-) {
 
-  movesChannel.send({
-
-    type: "broadcast",
-
-    event:
-      "student_analysis_move",
-
-    payload: {
-
-      sender:
-        currentUserId,
-
-      fen:
-        analysisGame.fen(),
-
-      move,
-
-      analysisMoves,
-
-      analysisIndex,
-
-      orientation:
-        board.orientation()
-
-    }
-
-  });
-
+  return "snapback";
 }
 
-
-
-     setTimeout(() => {
-  board.position(analysisGame.fen(), false);
-  lpTriggerEngineUpdate();
-}, 0);
+      // Don't touch board.position() here — chessboard.js will call
+      // onSnapEnd right after the drag animation finishes, and that's
+      // the single place the board syncs to the new fen. Calling
+      // board.position() mid-drag as well is what caused the double move.
+      lpSetAnalysisCurrent(childNode.id, { updateBoard: false });
     },
 
     onSnapEnd: () => {
-      board.position(analysisGame.fen());
+      board.position(analysisGame.fen(), false);
       lpTriggerEngineUpdate();
     },
 
     pieceTheme: resolveLivePuzzlePieceTheme
-
   });
-  updateBoardCoordinates();
 
+  updateBoardCoordinates();
   showToast("📥 Analysis Loaded");
 }
 
@@ -102866,6 +102657,7 @@ if (!allowStudentAnalysisView) {
     }
   });
   // 🔥 INSTANT CURRENT BOARD SYNC
+// 🔥 INSTANT CURRENT BOARD SYNC
 if (allowStudentAnalysisView) {
 
   let currentFen = "start";
@@ -102887,17 +102679,18 @@ if (allowStudentAnalysisView) {
       "start";
   }
 
-  supabase.channel(
-    "lp-moves-" + roomCode
-  ).send({
-    type: "broadcast",
-    event: "analysis_position",
-    payload: {
-      fen: currentFen,
-      orientation:
-        board.orientation()
-    }
-  });
+  // 🔥 IMPORTANT: use the already subscribed channel
+  if (movesChannel) {
+    movesChannel.send({
+      type: "broadcast",
+      event: "analysis_position",
+      payload: {
+        fen: currentFen,
+        orientation:
+          board.orientation()
+      }
+    });
+  }
 
 }
 
@@ -107305,214 +107098,255 @@ if (
   "shared_analysis_sync"
 ) {
 
-  // 🔥 ADMIN IGNORE
+
   if (isAdmin) return;
 
-  const data =
-    payload.payload;
+  const data = payload.payload;
+  if (!data || !data.fen) return;
 
-  // 🔥 ENABLE
   allowStudentAnalysisView = true;
-  showJoinBanner(
-  "🌐 Analyis Sharing Started",
-  false
-);
+  showJoinBanner("🌐 Analyis Sharing Started", false);
 
   isAnalysisMode = true;
+  currentIndex = data.currentIndex || 0;
 
-  // 🔥 SAVE ANALYSIS
-  analysisMoves =
-    data.analysisMoves || [];
-
-  analysisIndex =
-    data.analysisIndex || 0;
-
-  currentIndex =
-    data.currentIndex || 0;
-
-  lpPieceFilterMode =
-    data.pieceFilter || "all";
-
+  lpPieceFilterMode = data.pieceFilter || "all";
   refreshLivePuzzleFilterUI();
 
-  // 🔥 LOAD POSITION
-  analysisGame.load(
-    data.fen
-  );
+  const orientation = data.orientation || "white";
 
-  // 🔥 BOARD
-  board.orientation(
-    data.orientation || "white"
-  );
-
-  updateBoardCoordinates();
-
-  board.position(
-    analysisGame.fen()
-  );
-
-  lpTriggerEngineUpdate();
-
-  // 🔥 DRAWINGS
+  // ================= DRAWINGS (unchanged) =================
   if (data.drawings) {
-
-    Object.keys(
-      lpDrawingsByFen
-    ).forEach(key => {
-
+    Object.keys(lpDrawingsByFen).forEach(key => {
       delete lpDrawingsByFen[key];
-
     });
-
-    Object.assign(
-      lpDrawingsByFen,
-      data.drawings
-    );
-
+    Object.assign(lpDrawingsByFen, data.drawings);
   }
 
-  // 🔥 REDRAW
-  requestAnimationFrame(() => {
-
-    document.dispatchEvent(
-      new Event(
-        "lpPositionChanged"
-      )
-    );
-
-  });
-
-  // 🔥 REBUILD ANALYSIS BOARD
-  board = Chessboard(
-    "lpBoard",
-    {
-
-      position:
-        analysisGame.fen(),
-
-      orientation:
-        data.orientation || "white",
-
-      draggable: true,
-
-      onDrop:
-        function(
-          source,
-          target
-        ) {
-
-      const piece =
-  analysisGame.get(source);
-
-// ================= PROMOTION =================
-if (
-  piece &&
-  piece.type === "p" &&
-  (
-    (piece.color === "w" &&
-      target[1] === "8") ||
-
-    (piece.color === "b" &&
-      target[1] === "1")
-  )
-) {
-
-  analysisPromotionData = {
-    from: source,
-    to: target,
-    shared: true
-  };
-
-  lpShowPromotion(
-    source,
-    target
-  );
-
-  return;
-}
-
-const move =
-  analysisGame.move({
-    from: source,
-    to: target
-  });
-
-if (!move)
-  return "snapback";
-
-          // 🔥 LOCAL UPDATE
-          analysisMoves.push(move);
-
-          analysisIndex++;
-
-          renderAnalysisPGN();
-
-          setTimeout(() => {
-
-            board.position(
-              analysisGame.fen(),
-              false
-            );
-
-            lpTriggerEngineUpdate();
-
-          }, 0);
-
-          // 🔥 BROADCAST BACK
-          movesChannel.send({
-
-            type: "broadcast",
-
-            event:
-              "student_analysis_move",
-
-            payload: {
-
-              fen:
-                analysisGame.fen(),
-
-              move,
-
-              analysisMoves,
-
-              analysisIndex,
-
-              orientation:
-                board.orientation()
-
-            }
-
-          });
-
-        },
-
-      pieceTheme: function(piece) {
-
-  if (!piece)
-    return "";
+  // ================= BEST-EFFORT TREE REBUILD (for notation) =================
+  // Never let this block the board update below — if it fails for any
+  // reason (puzzles[] not synced yet, bad PGN, etc.), we still show
+  // the correct position from data.fen.
+  let landedFen = data.fen;
 
   try {
 
-    return resolveLivePuzzlePieceTheme(
-      piece
-    );
+const tempGame = new Chess();
 
-  } catch(err) {
+// 🔥 IMPORTANT:
+// If the student does not yet have the puzzle in
+// puzzles[], use the FEN sent by the admin.
+//
+// The admin FEN is the authoritative current
+// analysis starting position.
 
-    console.warn(
-      "Piece theme error:",
-      err
-    );
+let baseFen =
+  data.fen || "start";
 
-    return "";
+if (puzzles[currentIndex]) {
 
-  }
+  tempGame.load_pgn(
+    puzzles[currentIndex]
+  );
 
+  baseFen =
+    tempGame.header().FEN ||
+    data.fen ||
+    "start";
 }
 
+lpInitAnalysisTree(baseFen);
+
+const landedId =
+  lpMergeAnalysisPath(
+    data.analysisPathMoves || []
+  );
+
+analysisCurrentId =
+  landedId;
+
+analysisGame =
+  lpRebuildAnalysisGameToNode(
+    landedId
+  );
+
+// 🔥 ADMIN FEN IS AUTHORITATIVE
+// Do NOT replace it with a locally rebuilt FEN.
+landedFen =
+  data.fen;
+
+  } catch (err) {
+
+    console.warn("Shared analysis tree rebuild failed, showing fen only:", err);
+
+    // Fall back to a flat single-node tree so navigation/notation code
+    // doesn't crash later, even though it won't show branch history.
+    lpInitAnalysisTree(data.fen);
+    analysisGame = new Chess(data.fen);
+    landedFen = data.fen;
+  }
+
+  // ================= REBUILD EDITABLE STUDENT BOARD (always runs) =================
+  board = Chessboard("lpBoard", {
+
+    position: landedFen,
+    orientation: orientation,
+    draggable: true,
+
+    onDragStart: function(source, piece) {
+
+  // 🔥 SHARED ANALYSIS
+  // Admin + student can move either side.
+  if (
+    !isAnalysisMode ||
+    !allowStudentAnalysisView
+  ) {
+    return false;
+  }
+
+  return true;
+},
+
+onDrop: function (source, target) {
+ 
+
+  if (
+    !isAnalysisMode ||
+    !allowStudentAnalysisView
+  ) {
+    return "snapback";
+  }
+
+  const piece =
+    analysisGame.get(source);
+
+  // ================= PROMOTION =================
+
+  if (
+    piece &&
+    piece.type === "p" &&
+    (
+      (piece.color === "w" && target[1] === "8") ||
+      (piece.color === "b" && target[1] === "1")
+    )
+  ) {
+
+    analysisPromotionData = {
+      from: source,
+      to: target,
+      shared: true
+    };
+
+    lpShowPromotion(
+      source,
+      target
+    );
+
+    return;
+  }
+
+  // ================= APPLY MOVE =================
+
+  const childNode =
+    lpApplyAnalysisMove(
+      analysisCurrentId,
+      {
+        from: source,
+        to: target,
+        promotion: "q"
+      }
+    );
+
+  if (!childNode) {
+    return "snapback";
+  }
+
+  // ================= UPDATE TREE =================
+
+  // 🔥 UPDATE TREE + INTERNAL GAME
+  // BUT DO NOT TOUCH THE BOARD YET
+  lpSetAnalysisCurrent(
+    childNode.id,
+    {
+      broadcast: false,
+      updateBoard: false
     }
   );
 
+
+  // ================= UPDATE BOARD =================
+
+  setTimeout(() => {
+
+    board.position(
+      analysisGame.fen(),
+      false
+    );
+
+    lpTriggerEngineUpdate();
+
+  }, 0);
+
+  // ================= BROADCAST STUDENT MOVE =================
+
+  if (movesChannel) {
+
+    movesChannel.send({
+
+      type: "broadcast",
+
+      event:
+        "student_analysis_move",
+
+      payload: {
+
+        sender:
+          currentUserId,
+
+        fen:
+          analysisGame.fen(),
+
+        analysisPathMoves:
+          lpAnalysisPathMoves(
+            analysisCurrentId
+          ),
+
+        orientation:
+          board.orientation(),
+
+        move: {
+          from: source,
+          to: target,
+          promotion: "q"
+        }
+
+      }
+
+    });
+
+  }
+
+},
+
+    onSnapEnd: () => {
+      board.position(analysisGame.fen(), false);
+      lpTriggerEngineUpdate();
+    },
+
+    pieceTheme: function (piece) {
+      if (!piece) return "";
+      try {
+        return resolveLivePuzzlePieceTheme(piece);
+      } catch (err) {
+        console.warn("Piece theme error:", err);
+        return "";
+      }
+    }
+
+  });
+
+  updateBoardCoordinates();
+  lpTriggerEngineUpdate();
   renderAnalysisPGN();
 
   return;
@@ -107526,147 +107360,43 @@ if (
   "student_analysis_move"
 ) {
 
-  const data =
-    payload.payload;
+  const data = payload.payload;
 
-  // 🔥 IGNORE OWN MOVE
-// 🔥 IGNORE ONLY IF BOARD ALREADY SAME
-if (
-  String(data.sender) ===
-  String(currentUserId) &&
-  analysisGame.fen() === data.fen
-) {
-  return;
-}
+  if (String(data.sender) === String(currentUserId)) return;
+  if (!isAnalysisMode) return;
+  if (!allowStudentAnalysisView) return;
 
-  // 🔥 SAFE CHECK
-  if (!data.fen) {
-    return;
-  }
+  let landedId = null;
 
-  // 🔥 UPDATE ANALYSIS
-  analysisMoves =
-    data.analysisMoves || [];
-
-  analysisIndex =
-    data.analysisIndex || 0;
-
-  // 🔥 LOAD POSITION
   try {
-
-    analysisGame.load(
-      data.fen
-    );
-
-  } catch(err) {
-
-    console.warn(
-      "Analysis load failed",
-      err
-    );
-
-    return;
-  }
-
-  // 🔥 SAFE ORIENTATION
-  try {
-
-    board.orientation(
-      data.orientation || "white"
-    );
-
-  } catch(err) {
-
-    console.warn(
-      "Orientation failed",
-      err
-    );
-
-  }
-
-  updateBoardCoordinates();
-
-  // 🔥 SAFE BOARD UPDATE
-  try {
-
-    board.position(
-      analysisGame.fen(),
-      false
-    );
-
-  } catch(err) {
-
-    console.warn(
-      "Board update failed",
-      err
-    );
-
-  }
-
-  lpTriggerEngineUpdate();
-
-  // 🔥 SOUND
-  if (
-    data.move &&
-    lpSoundEngine
-  ) {
-
-    try {
-
-      lpSoundEngine.play(
-        data.move,
-        analysisGame
-      );
-
-    } catch(err) {
-
-      console.warn(
-        "Sound failed",
-        err
-      );
-
+    if (analysisNodeMap && analysisNodeMap["root"] && Array.isArray(data.analysisPathMoves)) {
+      landedId = lpMergeAnalysisPath(data.analysisPathMoves);
     }
-
+  } catch (err) {
+    console.warn("student_analysis_move tree merge failed:", err);
   }
 
-  // 🔥 MOVE HIGHLIGHT
-  if (data.move) {
+  if (landedId) {
 
-    try {
+    lpSetAnalysisCurrent(landedId, { broadcast: false });
 
-      highlightLastMove(
-        data.move.from,
-        data.move.to,
-        "lpBoard"
-      );
+  } else if (data.fen) {
 
-    } catch(err) {}
-
+    // Fallback: at least show the right position even if the tree
+    // couldn't be reconstructed locally.
+    analysisGame = new Chess(data.fen);
+    board.position(data.fen);
+    lpTriggerEngineUpdate();
   }
 
-  // 🔥 CHECK HIGHLIGHT
-  try {
-
-    highlightCheckSquare(
-      analysisGame,
-      "lpBoard"
-    );
-
-  } catch(err) {}
-
-  // 🔥 PGN
-  try {
-
-    renderAnalysisPGN();
-
-  } catch(err) {
-
-    console.warn(
-      "PGN render failed",
-      err
-    );
-
+  if (data.orientation) {
+    try { board.orientation(data.orientation); } catch (err) {}
+    updateBoardCoordinates();
   }
+
+  requestAnimationFrame(() => {
+    document.dispatchEvent(new Event("lpPositionChanged"));
+  });
 
   return;
 }
@@ -107731,9 +107461,11 @@ if (puzzles[currentIndex]) {
 // 🔥 RESET PUZZLE FLOW
 moveIndex = 0;
 
-// 🔥 RESET ANALYSIS
-analysisMoves = [];
-analysisIndex = 0;
+// 🔥 RESET ANALYSIS TREE
+analysisTree = null;
+analysisNodeMap = {};
+analysisCurrentId = null;
+analysisBaseFen = null;
 
 analysisGame.reset();
 
@@ -108267,80 +107999,184 @@ if (
   "analysis_position"
 ) {
 
-  // 🔥 ADMIN ignores
+
+  // Admin does not process its own broadcast
   if (isAdmin) return;
 
-  // 🔥 SHARE OFF
-  if (!allowStudentAnalysisView)
-    return;
+  // Shared analysis must be ON
+  if (!allowStudentAnalysisView) return;
 
-  board.orientation(
-  payload.payload.orientation || "white"
-);
-updateBoardCoordinates();
+  const data =
+    payload.payload || {};
 
-board.orientation(
-  payload.payload.orientation || "white"
-);
-updateBoardCoordinates();
-isAnalysisMode = true;
-board.position(
-  payload.payload.fen
-);
-lpTriggerEngineUpdate();
-// 🔊 STUDENT ANALYSIS SOUND
-if (
-  payload.payload.moveData
-) {
+  if (!data.fen) return;
 
-  lpSoundEngine.play(
-    payload.payload.moveData
-  );
+  // ============================================
+  // SHARED ANALYSIS IS ACTIVE
+  // ============================================
 
-}
-// 🔥 UPDATE STUDENT ANALYSIS GAME
-studentAnalysisGame.load(
-  payload.payload.fen
-);
-lpTriggerEngineUpdate();
+  isAnalysisMode = true;
 
+  // ============================================
+  // REBUILD / FOLLOW ADMIN'S ANALYSIS PATH
+  // ============================================
 
-// 🔥 CHECK HIGHLIGHT
-highlightCheckSquare(
-  studentAnalysisGame,
-  "lpBoard"
-);
-// 🔥 LAST MOVE HIGHLIGHT
-if (
-  payload.payload.from &&
-  payload.payload.to
-) {
+  let landedId = null;
 
-  setTimeout(() => {
+  try {
 
-    highlightLastMove(
-      payload.payload.from,
-      payload.payload.to,
-      "lpBoard"
+    if (
+      Array.isArray(
+        data.analysisPathMoves
+      )
+    ) {
+
+      landedId =
+        lpMergeAnalysisPath(
+          data.analysisPathMoves
+        );
+
+    }
+
+  } catch (err) {
+
+    console.warn(
+      "Student analysis path sync failed:",
+      err
     );
 
-  }, 60);
+  }
 
-}
-liveAnalysisFenKey =
-  payload.payload.fen
-    .split(" ")
-    .slice(0,4)
-    .join(" ");
+  // ============================================
+  // UPDATE CURRENT TREE NODE
+  // ============================================
 
-// 🔥 FORCE DRAW REDRAW AFTER POSITION
-setTimeout(() => {
+  if (landedId) {
 
-  document.dispatchEvent(
-    new Event("lpPositionChanged")
+    analysisCurrentId =
+      landedId;
+
+  }
+
+  // ============================================
+  // 🔥 MOST IMPORTANT
+  // ADMIN FEN IS AUTHORITATIVE
+  // ============================================
+
+  analysisGame =
+    new Chess(
+      data.fen
+    );
+
+  // Keep the legacy student analysis game
+  // synchronized as well.
+
+  studentAnalysisGame =
+    new Chess(
+      data.fen
+    );
+
+  // ============================================
+  // UPDATE BOARD
+  // ============================================
+
+  board.orientation(
+    data.orientation ||
+    "white"
   );
 
-}, 40);
+  updateBoardCoordinates();
+
+  board.position(
+    data.fen,
+    false
+  );
+
+  // ============================================
+  // ENGINE
+  // ============================================
+
+  lpTriggerEngineUpdate();
+
+  // ============================================
+  // SOUND
+  // ============================================
+
+  if (data.moveData) {
+
+    try {
+
+      lpSoundEngine.play(
+        data.moveData,
+        analysisGame
+      );
+
+    } catch (err) {
+
+      console.warn(
+        "Analysis sound failed:",
+        err
+      );
+
+    }
+
+  }
+
+  // ============================================
+  // CHECK
+  // ============================================
+
+  highlightCheckSquare(
+    analysisGame,
+    "lpBoard"
+  );
+
+  // ============================================
+  // LAST MOVE
+  // ============================================
+
+  if (
+    data.from &&
+    data.to
+  ) {
+
+    setTimeout(() => {
+
+      highlightLastMove(
+        data.from,
+        data.to,
+        "lpBoard"
+      );
+
+    }, 60);
+
+  }
+
+  // ============================================
+  // LIVE FEN KEY
+  // ============================================
+
+  liveAnalysisFenKey =
+    data.fen
+      .split(" ")
+      .slice(0, 4)
+      .join(" ");
+
+  // ============================================
+  // REFRESH NOTATION / DRAWINGS
+  // ============================================
+
+  renderAnalysisPGN();
+
+  requestAnimationFrame(() => {
+
+    document.dispatchEvent(
+      new Event(
+        "lpPositionChanged"
+      )
+    );
+
+  });
 
   return;
 }
