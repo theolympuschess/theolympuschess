@@ -110206,40 +110206,60 @@ async function assignBatch() {
     document.getElementById("lpBatchName")
     ?.value
     ?.trim();
-    const classLimit =
-  Number(
-    document.getElementById(
-      "lpClassLimit"
-    )?.value || 24
-  );
 
   if (!username || !batch) return;
 
-  await supabase
+  // ==========================================
+  // BATCH ONLY
+  // ==========================================
+  // IMPORTANT:
+  // Do NOT read lpClassLimit here.
+  // Do NOT modify student_subscriptions here.
+  //
+  // Subscription class count is controlled
+  // ONLY by saveSubscription().
+  // ==========================================
+
+  const { error: deleteError } = await supabase
     .from("student_batches")
     .delete()
     .eq("username", username);
 
-  await supabase
+  if (deleteError) {
+    console.error(
+      "❌ Failed to replace existing batch:",
+      deleteError
+    );
+    alert("Failed to assign batch.");
+    return;
+  }
+
+  const { error: insertError } = await supabase
     .from("student_batches")
     .insert({
       username: username,
       batch_name: batch
     });
-    await supabase
-  .from("student_subscriptions")
-  .upsert({
-    username: username,
-    total_classes: classLimit
-  });
 
+  if (insertError) {
+    console.error(
+      "❌ Failed to assign batch:",
+      insertError
+    );
+    alert("Failed to assign batch.");
+    return;
+  }
+
+  // Refresh UI.
+  // This reads the existing subscription,
+  // but does NOT change it.
   await loadAttendance();
+
   if (
-  typeof loadStudentsForAssignment2
-  === "function"
-) {
-  loadStudentsForAssignment2();
-}
+    typeof loadStudentsForAssignment2 === "function"
+  ) {
+    loadStudentsForAssignment2();
+  }
 
   document.getElementById(
     "lpBatchStudent"
@@ -110249,9 +110269,6 @@ async function assignBatch() {
     "lpBatchName"
   ).value = "";
 }
-document.getElementById(
-  "lpClassLimit"
-).value = 24;
 
 // ===============================
 // SAVE SUBSCRIPTION ONLY
