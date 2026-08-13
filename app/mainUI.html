@@ -32257,13 +32257,7 @@ ATTENDANCE SECTION
 
   <div style="display:flex; align-items:center; gap:8px;">
 
-  <span
-    id="saveStudyBtn"
-    class="study-save-btn hidden"
-    title="Save this PGN to library"
-  >
-   
-  </span>
+
   
 
   <!-- 🎨 Study Board Colors -->
@@ -49388,9 +49382,7 @@ function extractChapterName(pgn, fallback) {
 importedStudyTitle =
   currentStudyTitle || "Imported Study";
 
-document
-  .getElementById("saveStudyBtn")
-  .classList.remove("hidden");
+
 
 
     // split multiple PGNs (Lichess-compatible)
@@ -49523,65 +49515,6 @@ if (window.autoStartBotCoachReview) {
   });
 
 
-// ===============================
-// 💾 SAVE STUDY TO PGN LIBRARY
-// ===============================
-const saveBtn = document.getElementById("saveStudyBtn");
-
-if (saveBtn) {
-  saveBtn.addEventListener("click", async () => {
-    if (!importedStudyPGN) {
-      alert("No PGN to save");
-      return;
-    }
-
-    const defaultTitle =
-      importedStudyTitle ||
-      currentStudyTitle ||
-      "New Study";
-
-    const title = prompt(
-      "Enter a name for this study:",
-      defaultTitle
-    );
-
-    if (!title || !title.trim()) {
-      alert("Study name is required.");
-      return;
-    }
-
-    saveBtn.textContent = "⏳ Saving...";
-    saveBtn.style.pointerEvents = "none";
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error } = await supabase
-      .from("bulk_pgn_library")
-      .insert({
-        title: title.trim(),
-        pgn: importedStudyPGN,
-        source: "study",
-        created_by: user?.id || null
-      });
-
-    if (error) {
-      console.error("❌ Save failed:", error);
-      alert("Failed to save PGN");
-      saveBtn.textContent = "💾 Save";
-      saveBtn.style.pointerEvents = "auto";
-      return;
-    }
-
-    saveBtn.textContent = "✅ Saved";
-    setTimeout(() => {
-      saveBtn.classList.add("hidden");
-      saveBtn.textContent = "💾 Save";
-      saveBtn.style.pointerEvents = "auto";
-    }, 1200);
-
-    console.log("✅ Study saved as:", title);
-  });
-}
 
 
 function buildPGNFromTree(root) {
@@ -50982,8 +50915,8 @@ studyList.appendChild(chapterWrapper);
 // 🔥 set active chapter index
   studyState.currentChapterIndex = idx;
   // 🔹 Update Study Title
-  document.getElementById("studyTitle").textContent =
-    `${currentStudyTitle} • ${ch.title}`;
+document.getElementById("studyTitle").textContent =
+  `${currentStudyTitle} • ${studyState.chapters.length} Chapters • ${ch.title}`;
 
   // Active highlight
   document
