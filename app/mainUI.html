@@ -28603,6 +28603,8 @@ left:180%;
 #lpPieceFilterMainBtn {
   position: relative;
   overflow: hidden;
+    margin-top: -13px;
+   
 
   background:
     linear-gradient(
@@ -31105,6 +31107,162 @@ transform: translateY(-50%);
   color: #111827;
 
   font-size: 12px;
+
+}
+
+/* =====================================================
+   ♟ ROOM INFO + LICHESS — SAME ROW
+===================================================== */
+
+.lp-room-lichess-row {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-top: 10px;
+
+  box-sizing: border-box;
+}
+
+
+/* =====================================================
+   ROOM INFO
+===================================================== */
+
+#lpRoomInfo {
+  flex: 0 0 auto;
+
+  margin-top: 0 !important;
+
+  white-space: nowrap;
+}
+
+
+/* =====================================================
+   ♟ LIVE LICHESS SEARCH
+===================================================== */
+
+.lp-live-lichess-search {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  margin: 0;
+
+  flex: 0 0 auto;
+}
+
+
+/* INPUT */
+
+.lp-live-lichess-search input {
+  width: 170px;
+  height: 32px;
+
+  box-sizing: border-box;
+
+  padding: 6px 11px;
+
+  border: 1px solid #4f46e5;
+  border-radius: 9px;
+
+  background: linear-gradient(
+    135deg,
+    #1e2145,
+    #29245a
+  );
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  outline: none;
+
+  box-shadow:
+    0 3px 10px rgba(79,70,229,.20);
+}
+
+.lp-live-lichess-search input::placeholder {
+  color: #b8b8d9;
+}
+
+.lp-live-lichess-search input:focus {
+  border-color: #a855f7;
+
+  box-shadow:
+    0 0 0 2px rgba(168,85,247,.18),
+    0 4px 14px rgba(99,102,241,.25);
+}
+
+
+/* SEARCH BUTTON */
+
+.lp-live-lichess-search button {
+  width: 36px;
+  height: 32px;
+  margin-top: -12px;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: 1px solid #06b6d4;
+  border-radius: 9px;
+
+  background: linear-gradient(
+    135deg,
+    #0e7490,
+    #2563eb
+  );
+
+  color: white;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 15px;
+
+  box-shadow:
+    0 3px 10px rgba(14,116,144,.30);
+
+  transition:
+    transform .15s ease,
+    box-shadow .18s ease;
+}
+
+.lp-live-lichess-search button:hover {
+  box-shadow:
+    0 5px 16px rgba(6,182,212,.35);
+
+  transform: translateY(-1px);
+}
+
+.lp-live-lichess-search button:active {
+  transform: scale(.93);
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 600px) {
+
+  .lp-room-lichess-row {
+    gap: 6px;
+  }
+
+  .lp-live-lichess-search input {
+    width: 170px;
+  }
 
 }
 
@@ -33743,9 +33901,32 @@ data-role="admin-only">
 
 </div>
 
-      <!-- ROOM INFO -->
-      <div id="lpRoomInfo" style="margin-top:10px;"></div>
+<!-- ROOM + LICHESS ROW -->
+<div class="lp-room-lichess-row">
 
+  <!-- ROOM INFO -->
+  <div id="lpRoomInfo"></div>
+
+  <!-- ♟ LIVE LICHESS SEARCH -->
+  <div
+    class="lp-live-lichess-search"
+    data-role="admin-only"
+  >
+
+    <input
+      id="lpLiveLichessUser"
+      type="text"
+      placeholder="Type Lichess username..."
+      autocomplete="off"
+    >
+
+    <button id="lpLiveLichessSearchBtn">
+      🔎
+    </button>
+
+  </div>
+
+</div>
       <!-- ADMIN PANEL -->
 <div id="lpAdminPanel" style="display:none; margin-top:20px;">
 
@@ -79488,6 +79669,7 @@ document.getElementById("closeCoachPanel")?.addEventListener("click", () => {
    ====================================== */
 
 let quickLichessGames = [];
+let quickLichessTarget = "study";
 let quickLichessUsername = "";
 let quickLichessImporting = false;
 
@@ -79681,6 +79863,80 @@ async function selectQuickLichessGame(index) {
     }
 
     const pgn = await res.text();
+
+// =====================================================
+// ♟ LIVE CLASSROOM DESTINATION
+// =====================================================
+
+if (quickLichessTarget === "live") {
+
+  const liveInput =
+    document.getElementById("lpImportPgnTextarea");
+
+  const liveModal =
+    document.getElementById("lpImportPgnModal");
+
+  if (!liveInput || !liveModal) {
+
+    qlgShowInlineError(
+      "Live PGN importer is unavailable."
+    );
+
+    return;
+  }
+
+  // ⭐ Send PGN directly to LIVE CLASSROOM
+  // =====================================================
+// ♟ ADD LICHESS PLAYER NAMES + RESULT AS CHAPTER NAME
+// =====================================================
+
+const whiteName =
+  game.players?.white?.user?.name ||
+  game.players?.white?.user?.id ||
+  "White";
+
+const blackName =
+  game.players?.black?.user?.name ||
+  game.players?.black?.user?.id ||
+  "Black";
+
+// ⭐ LICHESS RESULT
+const gameResult =
+  game.winner === "white"
+    ? "1 - 0"
+    : game.winner === "black"
+      ? "0 - 1"
+      : "½ - ½";
+
+// ⭐ PLAYER NAMES + RESULT
+const chapterName =
+  `${whiteName} vs ${blackName} ★ ${gameResult}`;
+
+let fullPGN =
+  pgn.trim();
+
+if (
+  !/\[ChapterName\s+"[^"]*"\]/i
+    .test(fullPGN)
+) {
+
+  fullPGN =
+    `[ChapterName "${chapterName}"]\n` +
+    fullPGN;
+}
+
+// ⭐ SEND NAMED PGN TO LIVE IMPORT BOX
+liveInput.value =
+  fullPGN;
+
+  // Close Lichess game browser
+  closeQuickLichessBrowser();
+
+  // Open EXISTING Live PGN modal
+  liveModal.style.display = "flex";
+
+  return;
+}
 
     // =====================================================
     // ⭐ PLAYER NAMES
@@ -80370,6 +80626,7 @@ saveQuickLichessUsername(username);
           }
         })
         .filter(Boolean);
+        quickLichessTarget = "study";
 
       openQuickLichessBrowser(username, quickLichessGames);
 
@@ -80507,6 +80764,127 @@ if (importConfirmBtn) {
   mpReplayModal.classList.add("hidden");
 
 };
+
+
+// =====================================================
+// ♟ LIVE CLASSROOM → EXISTING LICHESS ENGINE
+// =====================================================
+
+document.getElementById("lpLiveLichessSearchBtn")
+?.addEventListener("click", async () => {
+
+  const input =
+    document.getElementById("lpLiveLichessUser");
+
+  const btn =
+    document.getElementById("lpLiveLichessSearchBtn");
+
+  const username =
+    input?.value.trim();
+
+  if (!username) return;
+
+  btn.disabled = true;
+  btn.textContent = "Loading...";
+
+  try {
+
+    const res = await fetch(
+      `https://lichess.org/api/games/user/${username}?max=50`,
+      {
+        headers: {
+          Accept: "application/x-ndjson"
+        }
+      }
+    );
+
+    if (!res.ok) {
+
+      quickLichessGames = [];
+
+      openQuickLichessBrowser(
+        username,
+        []
+      );
+
+      qlgShowMessage(
+        res.status === 404
+          ? `Lichess user "${username}" was not found.`
+          : "Failed to fetch games."
+      );
+
+      return;
+    }
+
+    const text = await res.text();
+
+    const lines =
+      text
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+    quickLichessGames =
+  lines
+    .map(line => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+// ⭐ IMPORTANT: THIS SEARCH CAME FROM LIVE CLASSROOM
+quickLichessTarget = "live";
+
+// ⭐ SAME EXISTING LICHESS MODAL
+openQuickLichessBrowser(
+  username,
+  quickLichessGames
+);
+
+  } catch (err) {
+
+    console.error(
+      "Live Lichess search error:",
+      err
+    );
+
+    quickLichessGames = [];
+
+    openQuickLichessBrowser(
+      username,
+      []
+    );
+
+    qlgShowMessage(
+      "Failed to fetch games."
+    );
+
+  } finally {
+
+    btn.disabled = false;
+    btn.textContent = "🔎";
+
+  }
+
+});
+
+document.getElementById("lpLiveLichessUser")
+?.addEventListener("keydown", e => {
+
+  if (e.key === "Enter") {
+
+    e.preventDefault();
+
+    document
+      .getElementById("lpLiveLichessSearchBtn")
+      ?.click();
+
+  }
+
+});
 
 
 
