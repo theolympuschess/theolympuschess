@@ -54409,7 +54409,12 @@ function getSquareFromEvent(e) {
    LIVE MATCH DRAW SYSTEM (DESKTOP ONLY - SAFE VERSION)
 ===================================================== */
 
-function initLiveMatchDrawing(wrapper, boardEl, canvas) {
+function initLiveMatchDrawing(
+  wrapper,
+  boardEl,
+  canvas,
+  onDrawingChange = null
+) {
 
   // 🚫 Disable on mobile devices
   if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
@@ -54432,6 +54437,25 @@ function initLiveMatchDrawing(wrapper, boardEl, canvas) {
   let dragMoved = false;
 
   const liveDrawings = {};
+  // =====================================================
+// 🎨 REMOTE DRAWING BRIDGE
+// Allows the existing Realtime listener to update
+// this drawing engine without creating another engine.
+// =====================================================
+
+window.mpApplyRemoteLiveMatchDrawings = function (
+  fenKey,
+  drawings
+) {
+
+  if (!fenKey) return;
+
+  liveDrawings[fenKey] = Array.isArray(drawings)
+    ? drawings.map(d => ({ ...d }))
+    : [];
+
+  redraw();
+};
 
   /* ===============================
      RESIZE / ALIGNMENT
@@ -54485,32 +54509,56 @@ function initLiveMatchDrawing(wrapper, boardEl, canvas) {
      SQUARE DETECTION
   ============================== */
 
-  function getSquareFromEvent(e) {
+function getSquareFromEvent(e) {
 
-    const boardGrid = boardEl.querySelector(".board-b72b1");
-    if (!boardGrid) return null;
+  const boardGrid = boardEl.querySelector(".board-b72b1");
+  if (!boardGrid) return null;
 
-    const rect = boardGrid.getBoundingClientRect();
-    const size = rect.width / 8;
+  const rect = boardGrid.getBoundingClientRect();
+  const size = rect.width / 8;
 
-    const x = Math.floor((e.clientX - rect.left) / size);
-    const y = Math.floor((e.clientY - rect.top) / size);
+  let x = Math.floor((e.clientX - rect.left) / size);
+  let y = Math.floor((e.clientY - rect.top) / size);
 
-    if (x < 0 || x > 7 || y < 0 || y > 7) return null;
+  if (x < 0 || x > 7 || y < 0 || y > 7) return null;
 
-    return String.fromCharCode(97 + x) + (8 - y);
+  // =====================================================
+  // ♟️ BLACK POV
+  // Convert visual board coordinates back to real
+  // chess-square coordinates.
+  // =====================================================
+
+  if (window.mpCurrentOrientation === "black") {
+    x = 7 - x;
+    y = 7 - y;
   }
 
-  function squareCenter(square) {
-    const file = square.charCodeAt(0) - 97;
-    const rank = 8 - parseInt(square[1]);
-    const size = canvas.width / 8;
+  return String.fromCharCode(97 + x) + (8 - y);
+}
 
-    return {
-      x: file * size + size / 2,
-      y: rank * size + size / 2
-    };
+function squareCenter(square) {
+
+  const size = canvas.width / 8;
+
+  let file = square.charCodeAt(0) - 97;
+  let rank = 8 - parseInt(square[1]);
+
+  // =====================================================
+  // ♟️ BLACK POV
+  // Convert the real chess square into the visually
+  // flipped coordinates used by the Black-oriented board.
+  // =====================================================
+
+  if (window.mpCurrentOrientation === "black") {
+    file = 7 - file;
+    rank = 7 - rank;
   }
+
+  return {
+    x: file * size + size / 2,
+    y: rank * size + size / 2
+  };
+}
 
   /* ===============================
      DRAW ENGINE
@@ -54656,13 +54704,39 @@ function initLiveMatchDrawing(wrapper, boardEl, canvas) {
     }
 
     redraw();
+
+    // =====================================================
+    // 🎨 ADMIN DRAWING → STUDENTS
+    // Only send after the drawing operation is complete.
+    // =====================================================
+    if (typeof onDrawingChange === "function") {
+      onDrawingChange(
+        currentFenKey(),
+        getDrawings()
+      );
+    }
+
   }, true);
 
   // Left click clears drawings
   wrapper.addEventListener("click", e => {
+
     if (e.button !== 0) return;
+
     getDrawings().length = 0;
+
     redraw();
+
+    // =====================================================
+    // 🎨 ADMIN CLEAR → STUDENTS
+    // =====================================================
+    if (typeof onDrawingChange === "function") {
+      onDrawingChange(
+        currentFenKey(),
+        getDrawings()
+      );
+    }
+
   });
 
 }
@@ -67590,7 +67664,36 @@ if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) {
 
   boardEl.appendChild(canvas);
 
-  initLiveMatchDrawing(boardEl, boardEl, canvas);
+ initLiveMatchDrawing(
+  boardEl,
+  boardEl,
+  canvas,
+
+  // =====================================================
+  // 🎨 ADMIN → STUDENT DRAWING BROADCAST
+  // =====================================================
+  (fenKey, drawings) => {
+
+    // ONLY ADMIN CAN BROADCAST
+    if (currentProfile?.role !== "admin") return;
+
+    if (!channel || !roomId) return;
+
+    channel.send({
+      type: "broadcast",
+      event: "mp-admin-drawings",
+      payload: {
+        roomId: roomId,
+        fenKey: fenKey,
+
+        // Keep chess-square coordinates exactly as they are.
+        // Example: e4, e2 → e4.
+        drawings: drawings.map(d => ({ ...d }))
+      }
+    });
+
+  }
+);
 }
 
 
@@ -68332,10 +68435,54 @@ mpForcePOVLayout()
 function subscribeRoom() {
   if (channel) return
 
-  channel = supabase
-    .channel(`live-match-${roomId}`)
-    .on(
-      'postgres_changes',
+channel = supabase
+  .channel(`live-match-${roomId}`)
+
+  // =====================================================
+  // 🎨 ADMIN DRAWING → STUDENTS
+  // Uses the EXISTING Live Match channel.
+  // =====================================================
+  .on(
+    "broadcast",
+    {
+      event: "mp-admin-drawings"
+    },
+    ({ payload }) => {
+
+      // Admin does not need to receive its own drawing.
+      if (currentProfile?.role === "admin") return;
+
+      if (!payload) return;
+
+      if (payload.roomId !== roomId) return;
+
+      if (!mpChess) return;
+
+      const currentFenKey =
+        mpChess
+          .fen()
+          .split(" ")
+          .slice(0, 4)
+          .join(" ");
+
+      // Only show drawings belonging to the
+      // currently displayed position.
+      if (payload.fenKey !== currentFenKey) return;
+
+      if (
+        typeof window.mpApplyRemoteLiveMatchDrawings ===
+        "function"
+      ) {
+        window.mpApplyRemoteLiveMatchDrawings(
+          payload.fenKey,
+          payload.drawings
+        );
+      }
+    }
+  )
+
+  .on(
+    'postgres_changes',
       {
         event: 'UPDATE',
         schema: 'public',
