@@ -31265,6 +31265,110 @@ transform: translateY(-50%);
   }
 
 }
+/* =====================================================
+   📝 LIVE WHITEBOARD
+   ===================================================== */
+
+#lpWhiteboard {
+  position: fixed;
+
+  width: 600px;
+  height: 466px;
+
+  left: 50%;
+  top: 50%;
+
+  transform: translate(-50%, -50%);
+
+  background: #ffffff;
+
+  border-radius: 4px;
+
+  box-shadow:
+    0 18px 60px rgba(0,0,0,.35);
+
+  border: 1px solid #d8d8d8;
+
+  z-index: 7000;
+
+  overflow: hidden;
+}
+
+
+/* HEADER */
+
+#lpWhiteboardHeader {
+
+  height: 36px;
+
+  background: #f1f1f1;
+
+  color: #222;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  padding: 0 10px;
+
+  font-weight: 700;
+
+  font-size: 13px;
+
+  cursor: move;
+
+  user-select: none;
+}
+
+
+/* CLOSE */
+
+#lpWhiteboardClose {
+
+  width: 24px;
+  height: 24px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  font-size: 20px;
+
+  color: #555;
+}
+
+
+/* CANVAS */
+
+#lpWhiteboardCanvas {
+
+  display: block;
+
+  width: 100%;
+  height: calc(100% - 36px);
+
+  background: #fff;
+
+  cursor: crosshair;
+}
+
+
+/* STUDENT */
+
+.student-view #lpWhiteboard {
+
+  pointer-events: none;
+}
+
+.student-view #lpWhiteboardCanvas {
+
+  pointer-events: none;
+}
 
   </style>
 </head>
@@ -31291,6 +31395,12 @@ transform: translateY(-50%);
   <option value="cross">❌ Cross</option>
   <option value="erase">🧹 Eraser</option>
 </select>
+<button
+  id="lpWhiteboardToggleBtn"
+  type="button"
+>
+  📝 Whiteboard
+</button>
 
     <input type="range" id="drawSize" min="2" max="20" value="4">
 
@@ -31301,7 +31411,25 @@ transform: translateY(-50%);
 <canvas id="drawCanvas"></canvas>
 <canvas id="previewCanvas"></canvas>
 
+<!-- =====================================================
+     📝 LIVE CLASS WHITEBOARD
+     ===================================================== -->
 
+<div
+  id="lpWhiteboard"
+  style="display:none;"
+>
+
+  <div id="lpWhiteboardHeader">
+    📝 Coach Whiteboard
+    <span id="lpWhiteboardClose">×</span>
+  </div>
+
+  <canvas
+    id="lpWhiteboardCanvas"
+  ></canvas>
+
+</div>
 
 
 
@@ -64507,6 +64635,17 @@ clearBtn.addEventListener(
       canvas.width,
       canvas.height
     );
+    if (
+  lpWhiteboardOpen
+) {
+
+  lpWbClearLocal();
+
+  LivePuzzle?.whiteboardBroadcast(
+    "whiteboard-clear"
+  );
+
+}
 
     // Send empty canvas to students
     sendDrawingSync();
@@ -64810,7 +64949,646 @@ function drawEraserCursor() {
   previewCtx.setLineDash([]);
 }
 
+// =====================================================
+// 📝 LIVE WHITEBOARD
+// =====================================================
 
+const lpWhiteboard =
+  document.getElementById(
+    "lpWhiteboard"
+  );
+
+const lpWhiteboardCanvas =
+  document.getElementById(
+    "lpWhiteboardCanvas"
+  );
+
+const lpWhiteboardCtx =
+  lpWhiteboardCanvas.getContext(
+    "2d"
+  );
+
+const lpWhiteboardToggleBtn =
+  document.getElementById(
+    "lpWhiteboardToggleBtn"
+  );
+
+const lpWhiteboardClose =
+  document.getElementById(
+    "lpWhiteboardClose"
+  );
+
+const lpWhiteboardHeader =
+  document.getElementById(
+    "lpWhiteboardHeader"
+  );
+  let lpWhiteboardOpen = false;
+
+
+// =====================================================
+// 📐 FIXED PAPER SIZE
+// =====================================================
+
+const LP_WB_WIDTH = 600;
+const LP_WB_HEIGHT = 430;
+
+lpWhiteboardCanvas.width =
+  LP_WB_WIDTH;
+
+lpWhiteboardCanvas.height =
+  LP_WB_HEIGHT;
+
+
+// =====================================================
+// ✏️ DRAW STATE
+// =====================================================
+
+let lpWbDrawing = false;
+
+let lpWbPoints = [];
+
+
+// =====================================================
+// 🧹 CLEAR LOCAL
+// =====================================================
+
+function lpWbClearLocal() {
+
+  lpWhiteboardCtx.clearRect(
+    0,
+    0,
+    lpWhiteboardCanvas.width,
+    lpWhiteboardCanvas.height
+  );
+
+}
+
+
+// =====================================================
+// 📍 NORMALIZE POSITION
+// =====================================================
+
+function lpWbPoint(e) {
+
+  const rect =
+    lpWhiteboardCanvas.getBoundingClientRect();
+
+  return {
+
+    x:
+      (e.clientX - rect.left) /
+      rect.width,
+
+    y:
+      (e.clientY - rect.top) /
+      rect.height
+
+  };
+
+}
+
+
+// =====================================================
+// ✏️ DRAW ONE POINT
+// =====================================================
+
+function lpWbDrawStroke(
+  points,
+  color,
+  size
+) {
+
+  if (
+    !points ||
+    points.length === 0
+  ) {
+    return;
+  }
+
+lpWhiteboardCtx.strokeStyle =
+  color || colorPicker.value;
+
+  lpWhiteboardCtx.lineWidth =
+    size || 3;
+
+  lpWhiteboardCtx.lineCap =
+    "round";
+
+  lpWhiteboardCtx.lineJoin =
+    "round";
+
+  lpWhiteboardCtx.beginPath();
+
+  points.forEach(
+    (p, index) => {
+
+      const x =
+        p.x *
+        lpWhiteboardCanvas.width;
+
+      const y =
+        p.y *
+        lpWhiteboardCanvas.height;
+
+      if (index === 0) {
+
+        lpWhiteboardCtx.moveTo(
+          x,
+          y
+        );
+
+      } else {
+
+        lpWhiteboardCtx.lineTo(
+          x,
+          y
+        );
+
+      }
+
+    }
+  );
+
+  lpWhiteboardCtx.stroke();
+}
+
+
+// =====================================================
+// 🖱️ ADMIN DRAW START
+// =====================================================
+
+lpWhiteboardCanvas.addEventListener(
+  "pointerdown",
+  e => {
+
+    if (
+      !document.body.classList.contains(
+        "admin-view"
+      )
+    ) {
+      return;
+    }
+
+    if (
+      !lpWhiteboardOpen ||
+      !lpWhiteboard
+    ) {
+      return;
+    }
+
+    lpWbDrawing = true;
+
+    lpWbPoints = [
+      lpWbPoint(e)
+    ];
+
+    lpWhiteboardCanvas.setPointerCapture(
+      e.pointerId
+    );
+
+  }
+);
+
+
+// =====================================================
+// 🖱️ ADMIN DRAW MOVE
+// =====================================================
+
+lpWhiteboardCanvas.addEventListener(
+  "pointermove",
+  e => {
+
+    if (!lpWbDrawing) return;
+
+    const p =
+      lpWbPoint(e);
+
+    lpWbPoints.push(p);
+
+    const last =
+      lpWbPoints[
+        lpWbPoints.length - 2
+      ];
+
+  lpWhiteboardCtx.strokeStyle =
+  colorPicker.value;
+
+    lpWhiteboardCtx.lineWidth =
+      3;
+
+    lpWhiteboardCtx.lineCap =
+      "round";
+
+    lpWhiteboardCtx.beginPath();
+
+    lpWhiteboardCtx.moveTo(
+      last.x *
+      lpWhiteboardCanvas.width,
+
+      last.y *
+      lpWhiteboardCanvas.height
+    );
+
+    lpWhiteboardCtx.lineTo(
+      p.x *
+      lpWhiteboardCanvas.width,
+
+      p.y *
+      lpWhiteboardCanvas.height
+    );
+
+    lpWhiteboardCtx.stroke();
+
+  }
+);
+
+
+// =====================================================
+// 🖱️ ADMIN DRAW END
+// =====================================================
+
+lpWhiteboardCanvas.addEventListener(
+  "pointerup",
+  e => {
+
+    if (!lpWbDrawing) return;
+
+    lpWbDrawing = false;
+
+    if (
+      lpWbPoints.length < 2
+    ) {
+      return;
+    }
+
+    // Local final drawing
+lpWbDrawStroke(
+  lpWbPoints,
+  colorPicker.value,
+  sizeSlider.value
+);
+
+    // Send ONE tiny stroke
+    if (
+      typeof LivePuzzle !==
+      "undefined" &&
+      LivePuzzle.whiteboardBroadcast
+    ) {
+
+      LivePuzzle.whiteboardBroadcast(
+        "whiteboard-stroke",
+        {
+          points:
+            lpWbPoints,
+
+      color:
+  colorPicker.value,
+
+size:
+  Number(sizeSlider.value)
+        }
+      );
+
+    }
+
+    lpWbPoints = [];
+
+  }
+);
+
+
+// =====================================================
+// 📝 OPEN / CLOSE
+// =====================================================
+
+function lpOpenWhiteboard(
+  left,
+  top
+) {
+
+  lpWhiteboardOpen = true;
+
+  if (
+    typeof left === "number"
+  ) {
+    lpWhiteboard.style.left =
+      left + "px";
+
+    lpWhiteboard.style.top =
+      top + "px";
+
+    lpWhiteboard.style.transform =
+      "none";
+  }
+
+  lpWhiteboard.style.display =
+    "block";
+
+}
+
+
+function lpCloseWhiteboard() {
+
+  lpWhiteboardOpen = false;
+
+  lpWbClearLocal();
+
+  lpWhiteboard.style.display =
+    "none";
+
+}
+window.lpOpenWhiteboard = lpOpenWhiteboard;
+window.lpCloseWhiteboard = lpCloseWhiteboard;
+
+
+// =====================================================
+// 🎛 WHITEBOARD TOGGLE BUTTON
+// =====================================================
+
+lpWhiteboardToggleBtn?.addEventListener(
+  "click",
+  () => {
+
+    // Students cannot control the whiteboard
+    if (
+      !document.body.classList.contains(
+        "admin-view"
+      )
+    ) {
+      return;
+    }
+
+    // Check the ACTUAL whiteboard visibility
+    const isOpen =
+      lpWhiteboard &&
+      lpWhiteboard.style.display === "block";
+
+
+    // =================================================
+    // 📝 OPEN
+    // =================================================
+
+    if (!isOpen) {
+
+      const left =
+        Math.max(
+          20,
+          (window.innerWidth - 600) / 2
+        );
+
+      const top =
+        Math.max(
+          80,
+          (window.innerHeight - 466) / 2
+        );
+
+
+      lpOpenWhiteboard(
+        left,
+        top
+      );
+
+
+      // 📡 Tell students
+      if (
+        typeof LivePuzzle !== "undefined" &&
+        LivePuzzle.whiteboardBroadcast
+      ) {
+
+        LivePuzzle.whiteboardBroadcast(
+          "whiteboard-open",
+          {
+            left,
+            top
+          }
+        );
+
+      }
+
+    }
+
+
+    // =================================================
+    // ❌ CLOSE
+    // =================================================
+
+    else {
+
+      lpCloseWhiteboard();
+
+
+      // 📡 Tell students
+      if (
+        typeof LivePuzzle !== "undefined" &&
+        LivePuzzle.whiteboardBroadcast
+      ) {
+
+        LivePuzzle.whiteboardBroadcast(
+          "whiteboard-close"
+        );
+
+      }
+
+    }
+
+  }
+);
+
+
+// =====================================================
+// ❌ CLOSE BUTTON
+// =====================================================
+
+lpWhiteboardClose?.addEventListener(
+  "click",
+  e => {
+
+    e.stopPropagation();
+
+    lpCloseWhiteboard();
+
+    LivePuzzle?.whiteboardBroadcast(
+      "whiteboard-close"
+    );
+
+  }
+);
+// =====================================================
+// 👨‍🎓 STUDENT — OPEN
+// =====================================================
+
+window.lpWhiteboardOpenStudent =
+function(data) {
+
+  if (
+    !data
+  ) return;
+
+  lpOpenWhiteboard(
+    data.left,
+    data.top
+  );
+
+};
+
+
+// =====================================================
+// 👨‍🎓 STUDENT — CLOSE
+// =====================================================
+
+window.lpWhiteboardCloseStudent =
+function() {
+
+  lpCloseWhiteboard();
+
+};
+
+
+// =====================================================
+// 👨‍🎓 STUDENT — STROKE
+// =====================================================
+
+window.lpWhiteboardStrokeStudent =
+function(data) {
+
+  if (
+    !data?.points
+  ) return;
+
+  lpWbDrawStroke(
+    data.points,
+    data.color,
+    data.size
+  );
+
+};
+
+
+// =====================================================
+// 👨‍🎓 STUDENT — CLEAR
+// =====================================================
+
+window.lpWhiteboardClearStudent =
+function() {
+
+  lpWbClearLocal();
+
+};
+// =====================================================
+// 🖐️ DRAG WHITEBOARD
+// =====================================================
+
+let lpWbDragging =
+  false;
+
+let lpWbDragOffsetX =
+  0;
+
+let lpWbDragOffsetY =
+  0;
+
+
+lpWhiteboardHeader.addEventListener(
+  "pointerdown",
+  e => {
+
+    if (
+      !document.body.classList.contains(
+        "admin-view"
+      )
+    ) {
+      return;
+    }
+
+    lpWbDragging =
+      true;
+
+    const rect =
+      lpWhiteboard.getBoundingClientRect();
+
+    lpWbDragOffsetX =
+      e.clientX -
+      rect.left;
+
+    lpWbDragOffsetY =
+      e.clientY -
+      rect.top;
+
+    lpWhiteboardHeader.setPointerCapture(
+      e.pointerId
+    );
+
+  }
+);
+
+
+lpWhiteboardHeader.addEventListener(
+  "pointermove",
+  e => {
+
+    if (!lpWbDragging) return;
+
+    lpWhiteboard.style.transform =
+      "none";
+
+    lpWhiteboard.style.left =
+      (
+        e.clientX -
+        lpWbDragOffsetX
+      ) + "px";
+
+    lpWhiteboard.style.top =
+      (
+        e.clientY -
+        lpWbDragOffsetY
+      ) + "px";
+
+  }
+);
+
+
+lpWhiteboardHeader.addEventListener(
+  "pointerup",
+  e => {
+
+    if (!lpWbDragging) return;
+
+    lpWbDragging =
+      false;
+
+    const rect =
+      lpWhiteboard.getBoundingClientRect();
+
+    LivePuzzle?.whiteboardBroadcast(
+      "whiteboard-move",
+      {
+        left:
+          rect.left,
+
+        top:
+          rect.top
+      }
+    );
+
+  }
+);
+window.lpWhiteboardMoveStudent =
+function(data) {
+
+  if (
+    !data
+  ) return;
+
+  lpWhiteboard.style.transform =
+    "none";
+
+  lpWhiteboard.style.left =
+    data.left + "px";
+
+  lpWhiteboard.style.top =
+    data.top + "px";
+
+};
 
 
 
@@ -97499,6 +98277,38 @@ let currentUserId = null;
 let currentUsername = "";
 let studentMoves = {}; 
 let movesChannel = null; 
+// =====================================================
+// 📝 WHITEBOARD STATE
+// =====================================================
+
+let lpWhiteboardOpen = false;
+
+let lpWhiteboardLeft = 0;
+let lpWhiteboardTop = 0;
+// =====================================================
+// 📝 WHITEBOARD BROADCAST
+// =====================================================
+
+function whiteboardBroadcast(
+  event,
+  payload = {}
+) {
+
+  if (!isAdmin) return;
+  if (!roomCode) return;
+  if (!movesChannel) return;
+
+  movesChannel.send({
+
+    type: "broadcast",
+
+    event,
+
+    payload
+
+  });
+
+}
 let lpExitedRoom = false;
 
 // =====================================
@@ -110510,6 +111320,84 @@ requestAnimationFrame(() => {
 
   return;
 }
+// =====================================================
+// 📝 WHITEBOARD EVENTS
+// =====================================================
+
+if (
+  payload.event === "whiteboard-open"
+) {
+
+  if (!isAdmin) {
+
+    window.lpWhiteboardOpenStudent?.(
+      payload.payload
+    );
+
+  }
+
+  return;
+}
+
+
+if (
+  payload.event === "whiteboard-close"
+) {
+
+  if (!isAdmin) {
+
+    window.lpWhiteboardCloseStudent?.();
+
+  }
+
+  return;
+}
+
+
+if (
+  payload.event === "whiteboard-stroke"
+) {
+
+  if (!isAdmin) {
+
+    window.lpWhiteboardStrokeStudent?.(
+      payload.payload
+    );
+
+  }
+
+  return;
+}
+
+
+if (
+  payload.event === "whiteboard-move"
+) {
+
+  if (!isAdmin) {
+
+    window.lpWhiteboardMoveStudent?.(
+      payload.payload
+    );
+
+  }
+
+  return;
+}
+
+
+if (
+  payload.event === "whiteboard-clear"
+) {
+
+  if (!isAdmin) {
+
+    window.lpWhiteboardClearStudent?.();
+
+  }
+
+  return;
+}
       // ================= TITLE REQUEST =================
 if (
   payload.event ===
@@ -111725,6 +112613,7 @@ showJoinBanner(
 return {
   init,
    broadcastDrawing,
+    whiteboardBroadcast,
   getRoomCode: () => roomCode,
   checkClassroomInvite: lpCheckClassroomInvite,
   listenForClassroomInvite: lpListenForClassroomInvite,
@@ -126181,6 +127070,8 @@ style="
   </div>
 
 </div>
+
+
 
 <script>
 /* =========================================================
