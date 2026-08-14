@@ -79926,16 +79926,27 @@ if (
 }
 
 // ⭐ SEND NAMED PGN TO LIVE IMPORT BOX
-liveInput.value =
-  fullPGN;
+liveInput.value = fullPGN;
 
-  // Close Lichess game browser
-  closeQuickLichessBrowser();
+// Close Lichess browser
+closeQuickLichessBrowser();
 
-  // Open EXISTING Live PGN modal
-  liveModal.style.display = "flex";
+// Open Live import modal
+liveModal.style.display = "flex";
 
-  return;
+// ⭐ AUTOMATICALLY CLICK LIVE LOAD PGN
+setTimeout(() => {
+
+  const liveLoadBtn =
+    document.getElementById("lpLoadImportPgnBtn");
+
+  if (liveLoadBtn) {
+    liveLoadBtn.click();
+  }
+
+}, 100);
+
+return;
 }
 
     // =====================================================
@@ -100472,9 +100483,28 @@ if (
 // ♟ RAPID NAVIGATION STATE
 // =====================================
 
+
 let lpIsRapidNavigating = false;
 
 let lpRapidNavTimeout = null;
+
+// =====================================
+// ♟ ENGINE SEARCH LIFECYCLE / RENDER THROTTLE (NEW)
+// =====================================
+
+// Holds { fen, depth } for the analysis that should start
+// as soon as the engine confirms the previous search has
+// been fully flushed (via isready/readyok). While this is
+// set, any incoming "info" lines are stale and ignored.
+let lpSfPendingAnalysis = null;
+
+// requestAnimationFrame-based throttle so Stockfish "info"
+// messages don't hammer the DOM on every single line.
+let lpSfRenderScheduled = false;
+
+// Cache of the last rendered PV per line, so unchanged PVs
+// don't get re-converted to SAN / re-written to the DOM.
+let lpSfLastPvSignature = {};
 // =====================================
 // ♟ INIT LIVE PUZZLE STOCKFISH
 // =====================================
@@ -100659,9 +100689,29 @@ function handleLivePuzzleSfMessage(e) {
     return;
   }
 
-  if (line === "readyok") {
+    if (line === "readyok") {
 
     lpSfReady = true;
+
+    // ================= FLUSH COMPLETE: START QUEUED SEARCH =================
+    // isready/readyok guarantees the engine has fully flushed
+    // any output from the previous (stopped) search, so it's
+    // now safe to start analysing the latest position without
+    // stale "info" lines leaking into the new one.
+    if (lpSfPendingAnalysis) {
+
+      const next = lpSfPendingAnalysis;
+      lpSfPendingAnalysis = null;
+
+      lpSfWorker.postMessage(
+        `position fen ${next.fen}`
+      );
+
+      lpSfWorker.postMessage(
+        `go depth ${next.depth}`
+      );
+
+    }
 
     return;
   }
@@ -100671,6 +100721,15 @@ function handleLivePuzzleSfMessage(e) {
   if (
     line.startsWith("info")
   ) {
+
+    // ================= IGNORE STALE SEARCH =================
+    // While a newer analysis request is queued (waiting on
+    // isready/readyok), any "info" still arriving belongs to
+    // the search we just told the engine to stop. Drop it so
+    // it can never overwrite the latest position's PV/eval.
+    if (lpSfPendingAnalysis) {
+      return;
+    }
 
     const depthMatch =
       line.match(
@@ -100802,7 +100861,7 @@ lpSfPvMap[pvIndex] = {
 
 };
 
-      renderLivePuzzlePv();
+      scheduleLivePuzzlePvRender();
 
     }
 
@@ -100836,12 +100895,10 @@ function lpAnalyseCurrentPosition() {
 
   else {
 
-fen =
-  isAnalysisMode
-    ? analysisGame.fen()
-    : previewGame.fen
-      ? previewGame.fen()
-      : game.fen();
+    fen =
+      previewGame.fen
+        ? previewGame.fen()
+        : game.fen();
 
     // 🔥 fallback
     if (!fen) {
@@ -100857,41 +100914,75 @@ fen =
 
   lpSfPvMap = {};
 
+  // Reset the PV render cache so the new position always
+  // paints, even if its SAN happens to match a stale line.
+  lpSfLastPvSignature = {};
+
+  // =====================================
+  // 🔥 TARGET DEPTH (engine strength unchanged)
+  // =====================================
+
+  const targetDepth =
+    isAnalysisMode
+      ? (
+          window.innerWidth < 768
+            ? 11
+            : 14
+        )
+      : (
+          window.innerWidth < 768
+            ? 10
+            : 13
+        );
+
+  // =====================================
+  // 🔥 LATEST POSITION WINS
+  // =====================================
+  // Cancel whatever the engine is doing now, then queue this
+  // position so it starts the instant the engine confirms the
+  // old search has been fully flushed (see the "readyok"
+  // handling in handleLivePuzzleSfMessage). If the user keeps
+  // navigating, this just gets overwritten with the newer
+  // position, so only the position they actually settle on
+  // ever reaches "go depth".
+
+  lpSfPendingAnalysis = {
+    fen,
+    depth: targetDepth
+  };
+
   lpSfWorker.postMessage(
     "stop"
   );
 
-
-
   lpSfWorker.postMessage(
-    `position fen ${fen}`
+    "isready"
   );
+}
 
 // =====================================
-  // 🔥 ADAPTIVE DEPTH
-  // =====================================
+// ♟ SCHEDULE PV RENDER (THROTTLED)
+// =====================================
+// Stockfish can send many "info" messages per second. lpSfPvMap
+// is simply overwritten with the latest PV/eval above, and we
+// only paint it once per animation frame instead of on every
+// UCI line. The engine itself is never throttled — only DOM work.
 
-  const targetDepth =
+function scheduleLivePuzzlePvRender() {
 
-    lpIsRapidNavigating
-      ? 8
-      : (
-          isAnalysisMode
-            ? (
-                window.innerWidth < 768
-                  ? 11
-                  : 14
-              )
-            : (
-                window.innerWidth < 768
-                  ? 10
-                  : 13
-              )
-        );
+  if (lpSfRenderScheduled)
+    return;
 
-  lpSfWorker.postMessage(
-    `go depth ${targetDepth}`
-  );
+  lpSfRenderScheduled = true;
+
+  requestAnimationFrame(() => {
+
+    lpSfRenderScheduled = false;
+
+    renderLivePuzzlePv();
+
+  });
+
 }
 
 // =====================================
@@ -100915,10 +101006,29 @@ function renderLivePuzzlePv() {
 
     if (!pv) {
 
-      el.textContent = "–";
+      if (lpSfLastPvSignature[i] !== null) {
+        el.textContent = "–";
+        lpSfLastPvSignature[i] = null;
+      }
 
       continue;
     }
+
+    // =====================================
+    // 🔥 SKIP UNCHANGED PV (CACHE)
+    // =====================================
+    // Avoids repeating legal-move generation / SAN conversion
+    // and DOM writes for a line that hasn't actually changed
+    // since the last render.
+
+    const signature =
+      lpSfFen + "|" + pv.eval + "|" + pv.moves.join(",");
+
+    if (lpSfLastPvSignature[i] === signature) {
+      continue;
+    }
+
+    lpSfLastPvSignature[i] = signature;
 
     // =====================================
     // 🔥 SAFE CHESS INSTANCE
@@ -101077,6 +101187,8 @@ function renderLivePuzzlePv() {
 // =====================================
 
 function clearLivePuzzleSfUI() {
+
+  lpSfLastPvSignature = {};
 
   document.getElementById(
     "lpSfEval"
@@ -104822,7 +104934,6 @@ function nextPreviewMove() {
   const playedMove = previewGame.move(solutionMoves[previewIndex]);
   lpSoundEngine.play(playedMove, previewGame);
   previewIndex++;
-  lpTriggerEngineUpdate();
   board.position(previewGame.fen());
   lpTriggerEngineUpdate();
   highlightLastMove(playedMove.from, playedMove.to, "lpBoard");
@@ -104864,7 +104975,6 @@ function prevPreviewMove() {
   lpSoundEngine.play(solutionMoves[previewIndex - 1], previewGame);
   previewGame.undo();
   previewIndex--;
-  lpTriggerEngineUpdate();
   board.position(previewGame.fen());
   lpTriggerEngineUpdate();
 
