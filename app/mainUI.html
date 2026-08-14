@@ -112703,36 +112703,76 @@ function initAttendanceFilters() {
   // ===============================
   // MARK ATTENDANCE
   // ===============================
+// ===============================
+// MARK ATTENDANCE
+// ===============================
 async function markAttendance(username) {
 
- if (!LivePuzzle.getRoomCode() || !username) return;
+  if (!LivePuzzle.getRoomCode() || !username) return;
 
-  const today = new Date().toISOString().slice(0,10);
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0, 10);
 
-  // already joined today?
-  const { data: existing } = await supabase
-    .from("live_puzzle_attempts")
-    .select("id")
-    .eq("room_code", LivePuzzle.getRoomCode())
-    .eq("username", username)
-    .gte("started_at", today + "T00:00:00");
+  // ==========================================
+  // CHECK IF ALREADY ATTENDED TODAY
+  // ==========================================
+  const { data: existing, error: checkError } =
+    await supabase
+      .from("live_puzzle_attempts")
+      .select("id")
+      .eq("room_code", LivePuzzle.getRoomCode())
+      .eq("username", username)
+      .gte(
+        "started_at",
+        today + "T00:00:00"
+      );
+
+  if (checkError) {
+    console.error(
+      "❌ Attendance check failed:",
+      checkError
+    );
+    return;
+  }
 
   if (existing && existing.length > 0) {
     return;
   }
 
-  // lightweight attendance row
-  await supabase
-    .from("live_puzzle_attempts")
-    .insert({
-     room_code: LivePuzzle.getRoomCode(),
-      username: username,
-      
-      correct: false,
-      wrong_count: 0
-    });
+  // ==========================================
+  // CREATE ATTENDANCE ROW
+  // ==========================================
+  const { error: insertError } =
+    await supabase
+      .from("live_puzzle_attempts")
+      .insert({
+        room_code: LivePuzzle.getRoomCode(),
+        username: username,
+        correct: false,
+        wrong_count: 0
+      });
 
-  console.log("Attendance Added:", username);
+  if (insertError) {
+    console.error(
+      "❌ Attendance insert failed:",
+      insertError
+    );
+    return;
+  }
+
+  console.log(
+    "✅ Attendance Added:",
+    username
+  );
+
+  // ==========================================
+  // IMPORTANT:
+  // RELOAD ATTENDANCE SO THE REMAINING COUNT
+  // IS RECALCULATED IMMEDIATELY.
+  // ==========================================
+  await loadAttendance();
 }
 
   // ===============================
