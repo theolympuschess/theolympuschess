@@ -113241,129 +113241,287 @@ async function markAttendance(username) {
   await loadAttendance();
 }
 
-  // ===============================
-  // LOAD ATTENDANCE
-  // ===============================
+// ===============================
+// LOAD ATTENDANCE
+// ===============================
 async function loadAttendance() {
-   // ✅ PUT HERE
+
+  // ✅ Initialize attendance filters
   initAttendanceFilters();
 
-  const wrap = document.getElementById(
-    "lpAttendanceStudentList"
-  );
+  const wrap =
+    document.getElementById(
+      "lpAttendanceStudentList"
+    );
+
+  if (!wrap) return;
 
   wrap.innerHTML = "Loading...";
 
   try {
 
-    const { data, error } = await supabase
-  .from("live_puzzle_attempts")
-  .select("*")
-  
-    
-      .order("started_at", { ascending:false });
-const { data: profiles } = await supabase
-  .from("profiles")
-  .select("id, username, active");
-  const { data: batchData } = await supabase
-  .from("student_batches")
-  .select("*");
-  const { data: subData } = await supabase
-  .from("student_subscriptions")
-  .select("*");
+    // =====================================================
+    // 📥 LOAD ALL ATTENDANCE RECORDS IN PAGES
+    // =====================================================
+    // Supabase/PostgREST can return a limited number of
+    // rows per request. Your live_puzzle_attempts table
+    // is already above 1,000 rows, so we load it in pages.
+    // =====================================================
 
-    console.log("ATT DATA:", data);
-    console.log("ATT ERROR:", error);
+    const PAGE_SIZE = 1000;
 
-    if (error) {
-      wrap.innerHTML = "DB Error";
-      return;
+    let allAttendanceRows = [];
+    let from = 0;
+
+    while (true) {
+
+      const {
+        data: pageData,
+        error: pageError
+      } = await supabase
+        .from("live_puzzle_attempts")
+        .select("*")
+        .order("started_at", {
+          ascending: false
+        })
+        .order("id", {
+          ascending: false
+        })
+        .range(
+          from,
+          from + PAGE_SIZE - 1
+        );
+
+      if (pageError) {
+
+        console.error(
+          "❌ Attendance page load failed:",
+          pageError
+        );
+
+        wrap.innerHTML = "DB Error";
+        return;
+      }
+
+      if (
+        pageData &&
+        pageData.length > 0
+      ) {
+        allAttendanceRows.push(
+          ...pageData
+        );
+      }
+
+      // ==============================================
+      // Fewer than 1000 means this was the last page.
+      // ==============================================
+      if (
+        !pageData ||
+        pageData.length < PAGE_SIZE
+      ) {
+        break;
+      }
+
+      from += PAGE_SIZE;
     }
 
-    if (!data || data.length === 0) {
-      wrap.innerHTML = "No attendance";
-      return;
+    const data =
+      allAttendanceRows;
+
+    console.log(
+      "✅ ALL ATTENDANCE ROWS LOADED:",
+      data.length
+    );
+
+    // =====================================================
+    // 👨‍🎓 LOAD ACTIVE PROFILES
+    // =====================================================
+
+    const {
+      data: profiles,
+      error: profileError
+    } = await supabase
+      .from("profiles")
+      .select(
+        "id, username, active"
+      );
+
+    if (profileError) {
+      console.error(
+        "❌ Profile load failed:",
+        profileError
+      );
     }
+
+    // =====================================================
+    // 📚 LOAD BATCHES
+    // =====================================================
+
+    const {
+      data: batchData,
+      error: batchError
+    } = await supabase
+      .from("student_batches")
+      .select("*");
+
+    if (batchError) {
+      console.error(
+        "❌ Batch load failed:",
+        batchError
+      );
+    }
+
+    // =====================================================
+    // 💳 LOAD SUBSCRIPTIONS
+    // =====================================================
+
+    const {
+      data: subData,
+      error: subError
+    } = await supabase
+      .from("student_subscriptions")
+      .select("*");
+
+    if (subError) {
+      console.error(
+        "❌ Subscription load failed:",
+        subError
+      );
+    }
+
+    // =====================================================
+    // RESET LOCAL MAPS
+    // =====================================================
 
     batchMap = {};
     allBatchNames = [];
     subscriptionMap = {};
-
-batchData?.forEach(b => {
-
-  batchMap[b.username] =
-    b.batch_name;
-
-  if (
-    b.batch_name &&
-    !allBatchNames.includes(b.batch_name)
-  ) {
-    allBatchNames.push(b.batch_name);
-  }
-
-});
-subData?.forEach(s => {
-
-  subscriptionMap[s.username] =
-    s.total_classes;
-
-});
     attendanceMap = {};
 
-// ✅ FIRST LOAD ALL ACTIVE PROFILES
-profiles?.forEach(profile => {
+    // =====================================================
+    // 📚 BUILD BATCH MAP
+    // =====================================================
 
-  if (!profile.active) return;
+    batchData?.forEach(b => {
 
-  const name = profile.username;
+      batchMap[b.username] =
+        b.batch_name;
 
-  if (!name || name === "Unknown") return;
+      if (
+        b.batch_name &&
+        !allBatchNames.includes(
+          b.batch_name
+        )
+      ) {
+        allBatchNames.push(
+          b.batch_name
+        );
+      }
 
-  // 💳 build the id map alongside the existing loop — no extra query
-  profileIdMap[name] = profile.id;
+    });
 
-  // create empty attendance
-  attendanceMap[name] = [];
+    // =====================================================
+    // 💳 BUILD SUBSCRIPTION MAP
+    // =====================================================
 
-});
+    subData?.forEach(s => {
 
-// ✅ THEN ADD REAL ATTENDANCE DATA
-data.forEach(row => {
+      subscriptionMap[
+        s.username
+      ] =
+        s.total_classes;
 
-  const studentProfile = profiles?.find(
-    p => p.username === row.username
-  );
+    });
 
-  if (!studentProfile?.active) {
-    return;
-  }
+    // =====================================================
+    // 👨‍🎓 LOAD ACTIVE STUDENTS FIRST
+    // =====================================================
 
-  if (!row.username || row.username === "Unknown") {
-    return;
-  }
+    profiles?.forEach(profile => {
 
-  const name =
-    row.username ||
-    row.student_name ||
-    "Unknown";
+      if (!profile.active) return;
 
-  // safety
-  if (!attendanceMap[name]) {
-    attendanceMap[name] = [];
-  }
+      const name =
+        profile.username;
 
-  attendanceMap[name].push(row);
+      if (
+        !name ||
+        name === "Unknown"
+      ) {
+        return;
+      }
 
-});
+      // 💳 Build profile ID map
+      profileIdMap[name] =
+        profile.id;
+
+      // Create empty attendance
+      // so students with no attendance
+      // can still appear.
+      attendanceMap[name] = [];
+
+    });
+
+    // =====================================================
+    // 📅 ADD ALL ATTENDANCE DATA
+    // =====================================================
+
+    data.forEach(row => {
+
+      if (
+        !row.username ||
+        row.username === "Unknown"
+      ) {
+        return;
+      }
+
+      const studentProfile =
+        profiles?.find(
+          p =>
+            p.username ===
+            row.username
+        );
+
+      // Only active students
+      // are included.
+      if (
+        !studentProfile?.active
+      ) {
+        return;
+      }
+
+      const name =
+        row.username;
+
+      if (
+        !attendanceMap[name]
+      ) {
+        attendanceMap[name] = [];
+      }
+
+      attendanceMap[name].push(
+        row
+      );
+
+    });
+
+    // =====================================================
+    // 🎨 RENDER STUDENT LIST
+    // =====================================================
 
     renderStudentList();
+
     initBatchAutocomplete();
 
-  } catch(err) {
+  } catch (err) {
 
-    console.error(err);
+    console.error(
+      "❌ Attendance load failed:",
+      err
+    );
 
-    wrap.innerHTML = "Load failed";
+    wrap.innerHTML =
+      "Load failed";
   }
 }
 // ===============================
