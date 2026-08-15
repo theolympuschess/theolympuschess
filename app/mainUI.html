@@ -49538,34 +49538,220 @@ function showFloatingModal(title, message, onClose) {
 
 async function populateStudyDropdown() {
 
-  const studySelect = document.getElementById("studySelect");
+  const studySelect =
+    document.getElementById("studySelect");
+
   if (!studySelect) return;
-  
+
+  // 🔐 Check admin
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+
+  if (user) {
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    isAdmin = profile?.role === "admin";
+  }
 
   const { data, error } = await supabase
     .from("bulk_pgn_library")
     .select("id, title, is_visible")
     .eq("is_active", true)
-    .order("id", { ascending: false })
+    .order("id", { ascending: false });
 
   if (error) {
-    console.error("Dropdown load error:", error);
+    console.error(
+      "Dropdown load error:",
+      error
+    );
     return;
   }
 
-  studySelect.innerHTML = '<option value="">Study</option>';
+  // 🔒 Remember currently selected study
+  const currentStudyId =
+    studySelect.value;
 
-  data.forEach(row => {
+  // 🔎 Remember current admin filter
+  const currentFilter =
+    studySelect.dataset.visibilityFilter ||
+    "all";
 
-    const icon = row.is_visible ? "🟢" : "🔴";
+  // 🔄 Clear dropdown
+  studySelect.innerHTML =
+    '<option value="">Study</option>';
 
-    const option = document.createElement("option");
+
+  // ==========================================
+  // 🔐 ADMIN FILTERS ONLY
+  // ==========================================
+
+if (isAdmin) {
+
+  const allOption =
+    document.createElement("option");
+
+  allOption.value =
+    "__filter_all__";
+
+  allOption.textContent =
+    "🟦 All Studies";
+
+  allOption.style.fontSize =
+    "17px";
+
+
+
+  studySelect.appendChild(allOption);
+
+
+  const visibleOption =
+    document.createElement("option");
+
+  visibleOption.value =
+    "__filter_visible__";
+
+  visibleOption.textContent =
+    "🟩 Visible Studies";
+
+  visibleOption.style.fontSize =
+    "17px";
+
+
+
+  studySelect.appendChild(visibleOption);
+
+
+  const hiddenOption =
+    document.createElement("option");
+
+  hiddenOption.value =
+    "__filter_hidden__";
+
+  hiddenOption.textContent =
+    "🟥 Hidden Studies";
+
+  hiddenOption.style.fontSize =
+    "17px";
+
+
+
+  studySelect.appendChild(hiddenOption);
+  
+  const separator =
+  document.createElement("option");
+
+separator.disabled = true;
+
+separator.textContent =
+  "━━━━━━━━━━━━━━━━━━━━";
+
+separator.style.color =
+  "#64748b";
+
+separator.style.background =
+  "#151a2e";
+
+studySelect.appendChild(separator);
+
+}
+
+
+
+  // ==========================================
+  // APPLY CURRENT FILTER
+  // ==========================================
+
+  let filteredData = data;
+
+  if (
+    isAdmin &&
+    currentFilter === "visible"
+  ) {
+
+    filteredData =
+      data.filter(
+        row => row.is_visible === true
+      );
+
+  }
+
+  if (
+    isAdmin &&
+    currentFilter === "hidden"
+  ) {
+
+    filteredData =
+      data.filter(
+        row => row.is_visible === false
+      );
+
+  }
+  // 📊 STUDY COUNT
+const countOption =
+  document.createElement("option");
+
+countOption.disabled = true;
+
+const count =
+  filteredData.length;
+
+countOption.textContent =
+  `📊 ${count} ${count === 1 ? "Study" : "Studies"}`;
+
+countOption.style.fontSize =
+  "14px";
+
+countOption.style.color =
+  "#94a3b8";
+
+studySelect.appendChild(
+  countOption
+);
+
+
+  // ==========================================
+  // ADD STUDIES
+  // ==========================================
+
+  filteredData.forEach(row => {
+
+    const option =
+      document.createElement("option");
+
     option.value = row.id;
-    option.textContent = `${icon} ${row.title}`;
+
+  const icon =
+  row.is_visible ? "🟢" : "🔴";
+
+option.textContent =
+  `${icon} ${row.title}`;
 
     studySelect.appendChild(option);
 
   });
+
+
+  // 🔒 Restore selected study
+  if (
+    currentStudyId &&
+    [...studySelect.options].some(
+      option =>
+        option.value === currentStudyId
+    )
+  ) {
+
+    studySelect.value =
+      currentStudyId;
+
+  }
 
 }
 async function toggleStudyVisibility(studyId) {
@@ -49642,6 +49828,48 @@ fileInput.addEventListener("change", () => {
   reader.readAsText(file);
 });
 document.getElementById("studySelect").addEventListener("change", async (e) => {
+const selectedValue =
+  e.target.value;
+
+// 🔎 ADMIN FILTER
+if (
+  selectedValue === "__filter_all__" ||
+  selectedValue === "__filter_visible__" ||
+  selectedValue === "__filter_hidden__"
+) {
+
+  if (selectedValue === "__filter_all__") {
+    studySelect.dataset.visibilityFilter =
+      "all";
+  }
+
+  if (selectedValue === "__filter_visible__") {
+    studySelect.dataset.visibilityFilter =
+      "visible";
+  }
+
+  if (selectedValue === "__filter_hidden__") {
+    studySelect.dataset.visibilityFilter =
+      "hidden";
+  }
+
+  await populateStudyDropdown();
+
+  // 🔄 Keep dropdown open after changing filter
+  setTimeout(() => {
+
+    studySelect.focus();
+
+    try {
+      studySelect.showPicker();
+    } catch (err) {
+      // Browser doesn't support showPicker
+    }
+
+  }, 50);
+
+  return;
+}
   hardResetStudyState();   // 🔥 ADD THIS HERE
   const pgnId = e.target.value;
   if (!pgnId) return;
@@ -49738,7 +49966,8 @@ if (studyVisibilityBtn && studySelect) {
   // ------------------------------------------
   async function refreshStudyVisibilityButton() {
 
-    const studyId = studySelect.value;
+   const studyId =
+  studyState.studyId || studySelect.value;
 
 if (!studyId) {
   studyVisibilityBtn.textContent = "";
