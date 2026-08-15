@@ -32521,9 +32521,30 @@ ATTENDANCE SECTION
 
 <div class="section" id="study-section">
   
-  <h2>
-  📘 Study
+<h2>
+  📘 Olympus Study
   <span id="studyTitle" class="study-title"></span>
+
+<button
+  id="studyVisibilityBtn"
+  type="button"
+  data-role="admin-only"
+  title="Toggle student visibility"
+  style="
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin-left: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none;
+    outline: none;
+  "
+></button>
 </h2>
 
 <div class="study-header-row">
@@ -49519,6 +49540,7 @@ async function populateStudyDropdown() {
 
   const studySelect = document.getElementById("studySelect");
   if (!studySelect) return;
+  
 
   const { data, error } = await supabase
     .from("bulk_pgn_library")
@@ -49546,6 +49568,45 @@ async function populateStudyDropdown() {
   });
 
 }
+async function toggleStudyVisibility(studyId) {
+
+  if (!studyId) return;
+
+  const { data, error } = await supabase
+    .from("bulk_pgn_library")
+    .select("id, title, is_visible")
+    .eq("id", studyId)
+    .single();
+
+  if (error || !data) {
+    console.error("❌ Failed to get study:", error);
+    return;
+  }
+
+  const newState = !data.is_visible;
+
+  const { error: updateError } = await supabase
+    .from("bulk_pgn_library")
+    .update({
+      is_visible: newState
+    })
+    .eq("id", studyId);
+
+  if (updateError) {
+    console.error("❌ Visibility toggle failed:", updateError);
+    return;
+  }
+
+  await populateStudyDropdown();
+
+  const studySelect =
+    document.getElementById("studySelect");
+
+  if (studySelect) {
+    studySelect.value = studyId;
+  }
+}
+
 
 // ===============================
 // 📘 Study PGN Import (UI only) — FIXED
@@ -49600,6 +49661,16 @@ document.getElementById("studySelect").addEventListener("change", async (e) => {
 
   // 🔥 IMPORTANT
 studyState.studyId = data.id;
+const h2Btn =
+  document.getElementById("studyVisibilityBtn");
+
+if (h2Btn) {
+  h2Btn.textContent =
+    data.is_visible ? "VISIBLE" : "HIDDEN";
+
+  h2Btn.style.color =
+    data.is_visible ? "#22c55e" : "#ef4444";
+}
 
   // 🔑 THIS IS THE MAGIC
   studyPgnInput.value = data.pgn;
@@ -49650,6 +49721,130 @@ setTimeout(() => {
 
 }, 100);
 });
+// ============================================
+// 👁️ STUDY VISIBILITY BUTTON
+// ============================================
+
+const studyVisibilityBtn =
+  document.getElementById("studyVisibilityBtn");
+
+const studySelect =
+  document.getElementById("studySelect");
+
+if (studyVisibilityBtn && studySelect) {
+
+  // ------------------------------------------
+  // UPDATE BUTTON ICON
+  // ------------------------------------------
+  async function refreshStudyVisibilityButton() {
+
+    const studyId = studySelect.value;
+
+if (!studyId) {
+  studyVisibilityBtn.textContent = "";
+  studyVisibilityBtn.title =
+    "Select a study first";
+  return;
+}
+
+    const { data, error } = await supabase
+      .from("bulk_pgn_library")
+      .select("is_visible")
+      .eq("id", studyId)
+      .single();
+
+    if (error || !data) {
+      console.error(
+        "❌ Visibility status load failed:",
+        error
+      );
+      return;
+    }
+    
+
+  studyVisibilityBtn.textContent =
+  data.is_visible ? "VISIBLE" : "HIDDEN";
+
+studyVisibilityBtn.style.color =
+  data.is_visible ? "#22c55e" : "#ef4444";
+
+    studyVisibilityBtn.title =
+      data.is_visible
+        ? "Visible to students — click to hide"
+        : "Hidden from students — click to make visible";
+  }
+
+
+  // ------------------------------------------
+  // STUDY SELECTION CHANGED
+  // ------------------------------------------
+  studySelect.addEventListener(
+    "change",
+    () => {
+
+      // Give the existing study-loading pipeline
+      // time to finish selecting the study.
+      setTimeout(() => {
+        refreshStudyVisibilityButton();
+      }, 150);
+
+    }
+  );
+
+
+  // ------------------------------------------
+  // BUTTON CLICK
+  // ------------------------------------------
+  studyVisibilityBtn.addEventListener(
+    "click",
+    async (e) => {
+
+      e.preventDefault();
+      e.stopPropagation();
+
+const studyId =
+  studyState.studyId;
+
+if (!studyId) {
+  alert("Please select a study first.");
+  return;
+}
+
+      await toggleStudyVisibility(studyId);
+      // 🔔 Show visibility change banner
+
+
+      // Update button immediately
+      await refreshStudyVisibilityButton();
+
+      // 🔄 Update matching Search Box visibility immediately
+const searchEyeBtn =
+  document.querySelector(
+    `[data-study-id="${studyId}"]`
+  );
+
+if (searchEyeBtn) {
+
+  const isVisible =
+    studyVisibilityBtn.textContent === "VISIBLE";
+
+  searchEyeBtn.textContent =
+    isVisible ? "VISIBLE" : "HIDDEN";
+
+  searchEyeBtn.style.color =
+    isVisible ? "#22c55e" : "#ef4444";
+}
+
+    }
+  );
+
+
+  // ------------------------------------------
+  // INITIAL STATE
+  // ------------------------------------------
+  refreshStudyVisibilityButton();
+
+}
 
 
 
@@ -53485,8 +53680,15 @@ const { data, error } = await queryBuilder;
 
   // 👁 visibility button
   const eyeBtn = document.createElement("span");
+  eyeBtn.dataset.studyId = row.id;
 
-eyeBtn.textContent = row.is_visible ? "🟢" : "🔴";
+eyeBtn.textContent =
+  row.is_visible ? "VISIBLE" : "HIDDEN";
+
+eyeBtn.style.color =
+  row.is_visible ? "#22c55e" : "#ef4444";
+
+eyeBtn.style.fontWeight = "500";
 
 eyeBtn.title = row.is_visible
   ? "Visible to students"
@@ -53512,10 +53714,37 @@ eyeBtn.style.marginLeft = "10px";
       return;
     }
 
-    row.is_visible = newState;
 
-   eyeBtn.textContent = newState ? "🟢" : "🔴";
-   // 🔄 refresh Study dropdown
+row.is_visible = newState;
+
+eyeBtn.textContent =
+  newState ? "VISIBLE" : "HIDDEN";
+
+eyeBtn.style.color =
+  newState ? "#22c55e" : "#ef4444";
+
+eyeBtn.style.fontWeight = "500";
+
+// 🔄 Update H2 button if this is the currently opened study
+if (
+  String(row.id) === String(studyState.studyId)
+) {
+  const h2VisibilityBtn =
+    document.getElementById("studyVisibilityBtn");
+
+  if (h2VisibilityBtn) {
+    h2VisibilityBtn.textContent =
+      newState ? "VISIBLE" : "HIDDEN";
+
+    h2VisibilityBtn.style.color =
+      newState ? "#22c55e" : "#ef4444";
+      
+  }
+}
+
+
+
+// 🔄 refresh Study dropdown
 populateStudyDropdown();
   };
 
