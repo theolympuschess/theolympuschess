@@ -98803,6 +98803,25 @@ function whiteboardBroadcast(
 
 }
 let lpExitedRoom = false;
+// 🟢🔴 PRESENCE (admin-only, reuses movesChannel, no DB, no new channel)
+let lpStudentPresence = {};      // userId -> last heartbeat timestamp (admin side only)
+let lpPresenceHeartbeat = null;  // student's outgoing heartbeat interval
+let lpPresenceChecker = null;    // admin's local offline-check interval
+const LP_PRESENCE_TIMEOUT = 3000;
+
+function lpIsUserOnline(userId) {
+  const last = lpStudentPresence[String(userId)];
+  if (!last) return false;
+  return (Date.now() - last) < LP_PRESENCE_TIMEOUT;
+}
+
+function lpUpdatePresenceDots() {
+  if (!isAdmin) return;
+  document.querySelectorAll(".lp-presence-dot").forEach(dot => {
+    const uid = dot.dataset.userId;
+    dot.textContent = lpIsUserOnline(uid) ? "🟢" : "🔴";
+  });
+}
 
 // =====================================
 // 🎓 CLASSROOM INVITE SYSTEM
@@ -106311,6 +106330,7 @@ function prevPreviewMove() {
 
   renderAnalysisPGN();
 }
+
 // ================= LOAD CURRENT PUZZLE INTO ANALYSIS =================
 function loadCurrentPuzzleAnalysis() {
   if (lpCustomAnalysisPosition) {
@@ -107319,6 +107339,7 @@ const movesDisplay = `
 `;
     const div = document.createElement("div");
     div.className = "lp-student";
+    div.dataset.userId = s.user_id;
 
    let status = "⏳ Waiting";
 
@@ -107352,13 +107373,15 @@ div.innerHTML = `
   align-items:center;
   gap:8px;
 ">
-
-  <span style="
+${isAdmin ? `<span class="lp-presence-dot" data-user-id="${s.user_id}" style="font-size:14px;">${lpIsUserOnline(s.user_id) ? "🟢" : "🔴"}</span>` : ""}
+        <span style="
     font-size:30px;
     line-height:1;
   ">
     ${badge}
   </span>
+
+
 
 <strong
 ${xpOnClick}
@@ -108968,6 +108991,27 @@ if (movesChannel) {
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+      // =================================================
+      // 🟢🔴 STUDENT PRESENCE HEARTBEAT (admin-only, local state)
+      // =================================================
+      if (payload.event === "student_presence") {
+
+        if (!isAdmin) return;
+
+        const uid = payload.payload?.user_id;
+        if (!uid) return;
+
+        lpStudentPresence[String(uid)] = Date.now();
+
+        // instant feedback, no need to wait for the 1s checker tick
+        const dot = document.querySelector(
+          `.lp-presence-dot[data-user-id="${CSS.escape(String(uid))}"]`
+        );
+        if (dot) dot.textContent = "🟢";
+
+        return;
+      }
 
           // =================================================
       // 🎨 DRAWING SYNC
@@ -112547,6 +112591,31 @@ if (payload.event === "reset_moves") {
 
     })
     .subscribe();
+
+  // 🟢🔴 PRESENCE — start the right side, clearing any previous interval
+  clearInterval(lpPresenceHeartbeat);
+  clearInterval(lpPresenceChecker);
+  lpPresenceHeartbeat = null;
+  lpPresenceChecker = null;
+
+  if (isAdmin) {
+
+    lpPresenceChecker = setInterval(() => {
+      lpUpdatePresenceDots();
+    }, 1000);
+
+  } else {
+
+    lpPresenceHeartbeat = setInterval(() => {
+      if (!movesChannel || lpExitedRoom) return;
+      movesChannel.send({
+        type: "broadcast",
+        event: "student_presence",
+        payload: { user_id: String(currentUserId) }
+      });
+    }, 2000);
+
+  }
 }
 
 
@@ -112754,6 +112823,13 @@ const wasAdmin = isAdmin;
   clearInterval(timerInterval);
 
   timerInterval = null;
+
+  // ================= PRESENCE RESET =================
+  clearInterval(lpPresenceHeartbeat);
+  clearInterval(lpPresenceChecker);
+  lpPresenceHeartbeat = null;
+  lpPresenceChecker = null;
+  lpStudentPresence = {};
 
   // ================= REMOVE REALTIME CHANNEL =================
   try {
