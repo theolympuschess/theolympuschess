@@ -34278,9 +34278,22 @@ class="lp-admin-btn"
 
 </div>
 
-   <!-- STUDENTS -->
+<!-- STUDENTS -->
 <div id="lpStudentsList" style="margin-top:20px;">
-  <h3>👨‍🎓 Students</h3>
+
+<div 
+  id="lpCreatedForBar" 
+  style=" 
+    display:none; 
+    font-size:12px; 
+    font-weight:600; 
+    color:#aeb4c7; 
+    margin-bottom:6px; 
+    padding-left:2px; 
+  " 
+></div> 
+
+<h3>👨‍🎓 Students</h3>
 
   <div
     id="lpStudentsContainer"
@@ -98816,11 +98829,21 @@ function lpIsUserOnline(userId) {
 }
 
 function lpUpdatePresenceDots() {
-  if (!isAdmin) return;
+
   document.querySelectorAll(".lp-presence-dot").forEach(dot => {
+
     const uid = dot.dataset.userId;
-    dot.textContent = lpIsUserOnline(uid) ? "🟢" : "🔴";
+
+    const online = lpIsUserOnline(uid);
+
+    dot.textContent = online ? "Online" : "Offline";
+
+    dot.style.color = online
+      ? "#4caf50"
+      : "#ff5252";
+
   });
+
 }
 
 // =====================================
@@ -107373,7 +107396,15 @@ div.innerHTML = `
   align-items:center;
   gap:8px;
 ">
-${isAdmin ? `<span class="lp-presence-dot" data-user-id="${s.user_id}" style="font-size:14px;">${lpIsUserOnline(s.user_id) ? "🟢" : "🔴"}</span>` : ""}
+  <span class="lp-presence-dot"
+        data-user-id="${s.user_id}"
+        style="
+          font-size:13px;
+          font-weight:700;
+          color:${lpIsUserOnline(s.user_id) ? "#4caf50" : "#ff5252"};
+        ">
+    ${lpIsUserOnline(s.user_id) ? "Online" : "Offline"}
+  </span>
         <span style="
     font-size:30px;
     line-height:1;
@@ -108186,12 +108217,37 @@ console.log("🚀 INSERT RESULT:", result);
 // 🎓 SAVE SELECTED STUDENTS
 await lpSaveRoomInvites();
 
+// 🎓 SHOW WHO THIS CLASSROOM WAS CREATED FOR
+const createdForBar =
+  document.getElementById("lpCreatedForBar");
+
+if (createdForBar && isAdmin) {
+
+  const names =
+    Array.from(lpSelectedInviteUsernames);
+
+  if (names.length > 0) {
+
+    createdForBar.textContent =
+      "Classroom for: " + names.join(", ");
+
+    createdForBar.style.display = "block";
+
+  } else {
+
+    createdForBar.textContent = "";
+    createdForBar.style.display = "none";
+
+  }
+
+}
 
 lpExitedRoom = false;
-  // 🔥 START REALTIME FIRST
-  listenRoom();
 
-  loadStudents();
+// 🔥 START REALTIME FIRST
+listenRoom();
+
+loadStudents();
 
 // 🔥 SEND CLASSROOM TITLE
 setTimeout(() => {
@@ -108507,11 +108563,54 @@ async function rejoinAdminRoom() {
   }
 
 
-  roomCode = data.code;
+roomCode = data.code;
 
-  isAdmin = true;
+isAdmin = true;
 
-  lpExitedRoom = false;
+lpExitedRoom = false;
+
+// 🎓 RESTORE "CLASSROOM FOR" NAMES
+const { data: roomInvites } = await supabase
+  .from("live_puzzle_invites")
+  .select("student_id")
+  .eq("room_code", roomCode);
+
+const createdForBar =
+  document.getElementById("lpCreatedForBar");
+
+if (createdForBar && roomInvites?.length) {
+
+  const studentIds = [
+    ...new Set(
+      roomInvites
+        .map(row => row.student_id)
+        .filter(Boolean)
+    )
+  ];
+
+  if (studentIds.length) {
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", studentIds);
+
+    const names = (profiles || [])
+      .map(p => p.username)
+      .filter(Boolean);
+
+    if (names.length) {
+
+      createdForBar.textContent =
+        "Classroom for: " + names.join(", ");
+
+      createdForBar.style.display = "block";
+
+    }
+
+  }
+
+}
 
 
   // 🔄 Open Classroom exactly like manual click
@@ -108997,7 +109096,7 @@ if (movesChannel) {
       // =================================================
       if (payload.event === "student_presence") {
 
-        if (!isAdmin) return;
+      
 
         const uid = payload.payload?.user_id;
         if (!uid) return;
@@ -109005,10 +109104,14 @@ if (movesChannel) {
         lpStudentPresence[String(uid)] = Date.now();
 
         // instant feedback, no need to wait for the 1s checker tick
-        const dot = document.querySelector(
-          `.lp-presence-dot[data-user-id="${CSS.escape(String(uid))}"]`
-        );
-        if (dot) dot.textContent = "🟢";
+  const dot = document.querySelector(
+  `.lp-presence-dot[data-user-id="${CSS.escape(String(uid))}"]`
+);
+
+if (dot) {
+  dot.textContent = "Online";
+  dot.style.color = "#4caf50";
+}
 
         return;
       }
@@ -112606,14 +112709,33 @@ if (payload.event === "reset_moves") {
 
   } else {
 
-    lpPresenceHeartbeat = setInterval(() => {
-      if (!movesChannel || lpExitedRoom) return;
-      movesChannel.send({
-        type: "broadcast",
-        event: "student_presence",
-        payload: { user_id: String(currentUserId) }
-      });
-    }, 2000);
+const sendPresenceHeartbeat = () => {
+
+  if (!movesChannel || lpExitedRoom || !currentUserId) return;
+
+  // 🟢 Student knows THEY are online
+  lpStudentPresence[String(currentUserId)] = Date.now();
+
+  // 🔄 Update local status immediately
+  lpUpdatePresenceDots();
+
+  // 📡 Tell admin
+  movesChannel.send({
+    type: "broadcast",
+    event: "student_presence",
+    payload: {
+      user_id: String(currentUserId)
+    }
+  });
+
+};
+
+sendPresenceHeartbeat();
+
+lpPresenceHeartbeat = setInterval(
+  sendPresenceHeartbeat,
+  2000
+);
 
   }
 }
@@ -112978,6 +113100,17 @@ lpPgnChapterNeedsRebuild = true;
   document.getElementById(
     "lpStudentsContainer"
   ).innerHTML = "";
+
+  // ================= CREATED FOR RESET =================
+const createdForBar =
+  document.getElementById("lpCreatedForBar");
+
+if (createdForBar) {
+
+  createdForBar.textContent = "";
+  createdForBar.style.display = "none";
+
+}
 
   // ================= PUZZLE INFO =================
   document.getElementById(
