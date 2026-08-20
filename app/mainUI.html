@@ -73956,6 +73956,7 @@ card.id = `live-card-${game.id}`;
 const boardDiv = document.createElement('div');
 boardDiv.className = 'mp-watch-board';
 
+
 const names = document.createElement('div');
 names.className = 'mp-archive-names';
 names.textContent =
@@ -74034,10 +74035,34 @@ updateLiveTurnIndicator(newFen);
 
       watchGridChannels.push(channel); // 🔥 REQUIRED
 
-    card.onclick = () => {
-      supabase.removeChannel(channel)
-      mpOpenSpectator(game.id, game.type)
-    }
+  // 🚫 MINI BOARD MUST NEVER OPEN SPECTATOR
+boardDiv.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+// 🚫 ALSO BLOCK PIECE DRAG / POINTER EVENTS
+boardDiv.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+boardDiv.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+// 🟢 CARD CLICK — ONLY OUTSIDE THE MINI BOARD
+card.addEventListener('click', (e) => {
+
+  // 🚫 If click came from mini board, NEVER open game
+  if (boardDiv.contains(e.target)) {
+    return;
+  }
+
+  supabase.removeChannel(liveChannels[game.id]);
+  mpOpenSpectator(game.id, game.type);
+});
   })
 }
 
