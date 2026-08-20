@@ -46235,7 +46235,10 @@ function renderAssignedTo(assign, studentNameMap) {
   }
 </div>
 
-${renderAssignedTo(assign, studentNameMap)}
+${currentProfile.role === "admin"
+  ? renderAssignedTo(assign, studentNameMap)
+  : ""
+}
 
         ${assign.due_at ? `<p><strong>Due:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
         <div class="assignment-actions">
@@ -74706,40 +74709,17 @@ async function openAssignmentBulkPreview(assignmentId) {
 
 
 function splitBulkPGN(pgn) {
-  const games = pgn
-    .split(/\n\n(?=\[Event|\[FEN)/)
-    .map(g => g.trim())
-    .filter(Boolean);
+  if (!pgn || typeof pgn !== "string") {
+    return [];
+  }
 
-  return games.map(g => {
-    // 🔹 Extract FEN
-    const fenMatch = g.match(/\[FEN "([^"]+)"\]/);
-    if (!fenMatch) return null;
+  // Use the same parser as the actual bulk-assignment system
+  const puzzles = splitBulkPGNIntoPuzzles(pgn);
 
-    // 🔹 Remove headers
-    let movesText = g.replace(/\[[^\]]+\]/g, "");
-
-    // 🔹 Remove comments, NAGs, results
-    movesText = movesText
-      .replace(/\{[^}]*\}/g, "")
-      .replace(/\$\d+/g, "")
-      .replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*/g, "");
-
-    // 🔹 Normalize whitespace
-    movesText = movesText.replace(/\s+/g, " ").trim();
-
-    // 🔹 Extract SAN moves (handles multi-move)
-    const sanMoves = movesText
-      .replace(/\d+\.(\.\.)?/g, "") // remove move numbers
-      .trim()
-      .split(" ")
-      .filter(m => m && !m.includes("..."));
-
-    return {
-      fen: fenMatch[1],
-      solution: sanMoves.join(" ")
-    };
-  }).filter(Boolean);
+  return puzzles.map(p => ({
+    fen: p.fen,
+    solution: (p.moves || []).map(m => m.san).join(" ")
+  }));
 }
 
 
