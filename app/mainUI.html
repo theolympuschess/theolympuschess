@@ -31370,6 +31370,16 @@ transform: translateY(-50%);
   pointer-events: none;
 }
 
+/* 🟢 LIVE GAME SPECTATOR TURN INDICATOR */
+.mp-live-turn-indicator {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  opacity: 0.9;
+}
+
   </style>
 </head>
 
@@ -73953,8 +73963,13 @@ names.textContent =
     ? `${game.white_name} vs ${game.black_name}`
     : `${game.student_name} vs ${game.bot_name} (BOT)`;
 
+// 🟢 WHOSE TURN INDICATOR
+const turnIndicator = document.createElement('div');
+turnIndicator.className = 'mp-live-turn-indicator';
+
 card.appendChild(boardDiv);
 card.appendChild(names);
+card.appendChild(turnIndicator);
 grid.appendChild(card);
 
 // ♟ CREATE CHESSBOARD **ONCE**
@@ -73968,6 +73983,20 @@ const board = Chessboard(boardDiv, {
 liveBoards[game.id] = board;
 liveLastFen[game.id] = game.fen;
 liveCards[game.id] = card;
+// 🟢 SET INITIAL TURN INDICATOR FROM FEN
+function updateLiveTurnIndicator(fen) {
+  if (!fen || !turnIndicator) return;
+
+  const turn = fen.split(' ')[1];
+
+  if (turn === 'w') {
+    turnIndicator.innerHTML = '⚪ White is thikning...';
+  } else {
+    turnIndicator.innerHTML = '⚫ Black is thinking...';
+  }
+}
+
+updateLiveTurnIndicator(game.fen);
 
 // 🔐 remember initial position
 gridLastFen[game.id] = game.fen
@@ -73993,6 +74022,9 @@ gridLastFen[game.id] = game.fen
       if (liveLastFen[game.id] === newFen) return;
 
       liveLastFen[game.id] = newFen;
+
+      // 🟢 UPDATE WHOSE TURN
+updateLiveTurnIndicator(newFen);
 
       // ✅ SMOOTH MOVE (NO FLASH)
       liveBoards[game.id].position(newFen, true);
