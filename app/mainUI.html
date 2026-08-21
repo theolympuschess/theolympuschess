@@ -79089,135 +79089,574 @@ document.addEventListener("mouseup", () => {
 // 🎯 STUDY ANNOTATION MODAL ENGINE
 // ============================================
 
+// =====================================================
+// 🎯 STUDY + LIVE CLASSROOM ANNOTATION MODAL ENGINE
+// Reuses the SAME annotation modal and annotation map.
+// =====================================================
+
 document.addEventListener("DOMContentLoaded", () => {
 
-  const modal = document.getElementById("studyAnnoModal");
-  const grid = document.getElementById("studyAnnoGrid");
-  const closeBtn = document.getElementById("studyAnnoClose");
+  const modal =
+    document.getElementById("studyAnnoModal");
+
+  const grid =
+    document.getElementById("studyAnnoGrid");
+
+  const closeBtn =
+    document.getElementById("studyAnnoClose");
 
   if (!modal || !grid) return;
 
-  let dragging = false;
-  let offsetX = 0;
-  let offsetY = 0;
 
-  // Build grid safely once
+  // ==========================================
+  // 🧱 BUILD ANNOTATION GRID
+  // ==========================================
+
   grid.innerHTML = "";
 
-Object.keys(studyAnnotations).forEach(key => {
-  const item = document.createElement("div");
- item.className = "study-anno-item " + studyAnnotations[key].class;
-  item.dataset.type = key;
- const data = studyAnnotations[key];
+  Object.keys(studyAnnotations).forEach(key => {
 
-item.innerHTML = `
-  <div class="anno-symbol">${data.symbol}</div>
-  <div class="anno-label">${data.label}</div>
-`;
-  grid.appendChild(item);
-});
+    const item =
+      document.createElement("div");
+
+    item.className =
+      "study-anno-item " +
+      studyAnnotations[key].class;
+
+    item.dataset.type =
+      key;
+
+    const data =
+      studyAnnotations[key];
+
+    item.innerHTML = `
+      <div class="anno-symbol">
+        ${data.symbol}
+      </div>
+
+      <div class="anno-label">
+        ${data.label}
+      </div>
+    `;
+
+    grid.appendChild(item);
+
+  });
+
+
+  // ==========================================
+  // 🎯 OPEN MODAL
+  // ==========================================
 
   function openModal() {
 
-    if (!studyCurrentNode || !studyCurrentNode.move) return;
+    
+
+    // ========================================
+    // 🟢 LIVE CLASSROOM
+    // ========================================
+
+    if (lpLiveAnnoContext) {
+
+      // Live modal does NOT require
+      // lpLiveLastMove anymore.
+      modal.classList.remove("hidden");
+
+
+      // Highlight annotation attached to
+      // the currently selected Live target.
+
+      const target =
+        window.lpLiveCurrentTarget;
+
+
+      document
+        .querySelectorAll(
+          ".study-anno-item"
+        )
+        .forEach(el => {
+
+          el.classList.remove("active");
+
+
+          if (
+            target &&
+            target.targetId &&
+            window.lpLiveAnnotations[
+              target.targetId
+            ] === el.dataset.type
+          ) {
+
+            el.classList.add("active");
+
+          }
+
+        });
+
+      return;
+    }
+
+
+    // ========================================
+    // 🟡 ORIGINAL STUDY BEHAVIOR
+    // ========================================
+
+    if (
+      !studyCurrentNode ||
+      !studyCurrentNode.move
+    ) {
+
+      return;
+
+    }
+
 
     modal.classList.remove("hidden");
 
-    document.querySelectorAll(".study-anno-item")
+
+    document
+      .querySelectorAll(
+        ".study-anno-item"
+      )
       .forEach(el => {
+
         el.classList.remove("active");
-        if (studyCurrentNode.annotation === el.dataset.type) {
+
+
+        if (
+          studyCurrentNode.annotation ===
+          el.dataset.type
+        ) {
+
           el.classList.add("active");
+
         }
+
       });
+
   }
+
+
+  // ==========================================
+  // ❌ CLOSE MODAL
+  // ==========================================
 
   function closeModal() {
+
     modal.classList.add("hidden");
+
+    lpLiveAnnoContext = false;
+
   }
 
-  if (closeBtn) closeBtn.onclick = closeModal;
 
-  // Click annotation
-  grid.addEventListener("click", (e) => {
+  if (closeBtn) {
 
-    const item = e.target.closest(".study-anno-item");
-    if (!item) return;
+    closeBtn.onclick =
+      closeModal;
 
-    const type = item.dataset.type;
+  }
 
-    if (!studyCurrentNode) return;
 
-    // Toggle
-    if (studyCurrentNode.annotation === type) {
-      studyCurrentNode.annotation = null;
-    } else {
-      studyCurrentNode.annotation = type;
+  // ==========================================
+  // 🎯 ANNOTATION BUTTON CLICK
+  // STUDY + LIVE
+  // ==========================================
+
+  grid.addEventListener(
+    "click",
+    (e) => {
+
+      const item =
+        e.target.closest(
+          ".study-anno-item"
+        );
+
+      if (!item) return;
+
+
+      const type =
+        item.dataset.type;
+
+
+      // ========================================
+      // 🟢 LIVE CLASSROOM
+      // ========================================
+
+      if (lpLiveAnnoContext) {
+
+        const target =
+          window.lpLiveCurrentTarget;
+
+
+        // Admin must currently have
+        // a move selected.
+
+        if (
+          !target ||
+          !target.targetId
+        ) {
+
+          console.warn(
+            "❌ LIVE ANNOTATION: no current move target.",
+            target
+          );
+
+          return;
+
+        }
+
+
+        const targetId =
+          target.targetId;
+
+
+        // ======================================
+        // TOGGLE ANNOTATION
+        // ======================================
+
+        if (
+          window.lpLiveAnnotations[
+            targetId
+          ] === type
+        ) {
+
+          delete window.lpLiveAnnotations[
+            targetId
+          ];
+
+        } else {
+
+          window.lpLiveAnnotations[
+            targetId
+          ] = type;
+
+        }
+        // ==========================================
+// 🟢 RENDER IMMEDIATELY ON ADMIN BOARD
+// ==========================================
+
+window.renderLiveMoveAnnotation(
+  target
+);
+
+
+        // ======================================
+        // BROADCAST TO STUDENTS
+        // SAME EXISTING CHANNEL
+        // ======================================
+
+       // ==========================================
+// 📡 BROADCAST THROUGH EXISTING LIVE CHANNEL
+// ==========================================
+
+const liveChannel =
+  window.movesChannel;
+
+if (liveChannel) {
+
+  liveChannel.send({
+
+    type: "broadcast",
+
+    event:
+      "live_move_annotation",
+
+    payload: {
+
+      targetId:
+
+        targetId,
+
+      annotation:
+
+        window.lpLiveAnnotations[
+          targetId
+        ] || null,
+
+      nag:
+
+        window.lpLiveAnnotations[
+          targetId
+        ]
+
+          ? (
+              annotationToNAG[
+                window.lpLiveAnnotations[
+                  targetId
+                ]
+              ] || null
+            )
+
+          : null,
+
+      mode:
+
+        target.mode ||
+        "live",
+
+      moveIndex:
+
+        target.moveIndex ??
+        null,
+
+      from:
+
+        target.from ||
+        null,
+
+      to:
+
+        target.to ||
+        null,
+
+      fen:
+
+        target.fen ||
+        null
+
     }
 
-    renderStudyNotationTree();
-    showStudyMoveMarker(studyCurrentNode);
-    openModal();
   });
 
-  // Keyboard open
-document.addEventListener("keydown", (e) => {
+}
 
-  if (
-    e.target.tagName === "INPUT" ||
-    e.target.tagName === "TEXTAREA"
-  ) return;
 
-  if (e.key === "4") {
+        // ======================================
+        // UPDATE BUTTON HIGHLIGHT
+        // ======================================
 
-    e.preventDefault();
+        document
+          .querySelectorAll(
+            ".study-anno-item"
+          )
+          .forEach(el => {
 
-    if (modal.classList.contains("hidden")) {
+            el.classList.remove(
+              "active"
+            );
+
+
+            if (
+              window.lpLiveAnnotations[
+                targetId
+              ] ===
+              el.dataset.type
+            ) {
+
+              el.classList.add(
+                "active"
+              );
+
+            }
+
+          });
+
+
+        // Keep modal open.
+        return;
+
+      }
+
+
+      // ========================================
+      // 🟡 ORIGINAL STUDY BEHAVIOR
+      // ========================================
+
+      if (!studyCurrentNode) return;
+
+
+      // Toggle annotation.
+
+      if (
+        studyCurrentNode.annotation ===
+        type
+      ) {
+
+        studyCurrentNode.annotation =
+          null;
+
+      } else {
+
+        studyCurrentNode.annotation =
+          type;
+
+      }
+
+
+      renderStudyNotationTree();
+
+
+      showStudyMoveMarker(
+        studyCurrentNode
+      );
+
+
+      // Keep modal open exactly like Study.
       openModal();
-    } else {
-      closeModal();
+
     }
-  }
-});
 
-  // Drag logic
-  // ============================================
-// 🟢 DRAG SYSTEM (FINAL FIX)
-// ============================================
-
-// ============================================
-// 🟢 DRAG SYSTEM (BULLETPROOF)
-// ============================================
-
-let isDragging = false;
+  );
 
 
-modal.addEventListener("mousedown", (e) => {
+  // ==========================================
+  // ⌨️ KEYBOARD — OPEN / CLOSE WITH "4"
+  // ==========================================
 
-  // Only drag when clicking header
-  if (!e.target.closest(".study-anno-header")) return;
+  document.addEventListener(
+    "keydown",
+    (e) => {
 
-  isDragging = true;
+      if (
+        e.target.tagName === "INPUT" ||
+        e.target.tagName === "TEXTAREA"
+      ) {
 
-  const rect = modal.getBoundingClientRect();
-  offsetX = e.clientX - rect.left;
-  offsetY = e.clientY - rect.top;
+        return;
 
-  document.body.style.userSelect = "none";
-});
+      }
 
-document.addEventListener("mousemove", (e) => {
 
-  if (!isDragging) return;
+      if (e.key !== "4") {
 
-  modal.style.left = (e.clientX - offsetX) + "px";
-  modal.style.top = (e.clientY - offsetY) + "px";
-});
+        return;
 
-document.addEventListener("mouseup", () => {
-  isDragging = false;
-  document.body.style.userSelect = "";
-});
+      }
+
+
+      e.preventDefault();
+
+
+      if (
+        modal.classList.contains(
+          "hidden"
+        )
+      ) {
+
+
+        // ====================================
+        // 🟢 DETECT LIVE CLASSROOM
+        // ====================================
+
+        const activeLiveTab =
+          document.querySelector(
+            '.nav-btn.active[data-tab="livePuzzle"]'
+          );
+
+
+        lpLiveAnnoContext =
+          !!(
+            activeLiveTab &&
+            document.body.classList.contains(
+              "admin-view"
+            )
+          );
+
+
+        openModal();
+
+
+      } else {
+
+        closeModal();
+
+      }
+
+    }
+  );
+
+
+  // ==========================================
+  // 🖱️ DRAG MODAL
+  // ==========================================
+
+  let isDragging =
+    false;
+
+  let offsetX =
+    0;
+
+  let offsetY =
+    0;
+
+
+  modal.addEventListener(
+    "mousedown",
+    (e) => {
+
+      if (
+        !e.target.closest(
+          ".study-anno-header"
+        )
+      ) {
+
+        return;
+
+      }
+
+
+      isDragging =
+        true;
+
+
+      const rect =
+        modal.getBoundingClientRect();
+
+
+      offsetX =
+        e.clientX -
+        rect.left;
+
+
+      offsetY =
+        e.clientY -
+        rect.top;
+
+
+      document.body.style.userSelect =
+        "none";
+
+    }
+  );
+
+
+  document.addEventListener(
+    "mousemove",
+    (e) => {
+
+      if (!isDragging) return;
+
+
+      modal.style.left =
+        (
+          e.clientX -
+          offsetX
+        ) + "px";
+
+
+      modal.style.top =
+        (
+          e.clientY -
+          offsetY
+        ) + "px";
+
+    }
+  );
+
+
+  document.addEventListener(
+    "mouseup",
+    () => {
+
+      isDragging =
+        false;
+
+      document.body.style.userSelect =
+        "";
+
+    }
+  );
 
 });
 
@@ -85497,7 +85936,135 @@ setTimeout(render,100);
 // ===============================
 // LIVE PUZZLE NAMESPACE (STEP 2)
 // ===============================
+window.lpLiveAnnotations = {};      
+window.lpLiveLastMove = null;       
+window.lpLiveAnnoContext = false;
+window.lpLiveCurrentTarget = null;
+window.lpLiveAnnotationTargets = {};
 const LivePuzzle = (() => {
+function lpSetLiveAnnotationTarget({
+  targetId,
+  mode = "live",
+  moveIndex = null,
+  from = null,
+  to = null,
+  fen = null
+} = {}) {
+
+  if (!targetId) {
+
+    window.lpLiveCurrentTarget = null;
+
+    return;
+  }
+
+  window.lpLiveCurrentTarget = {
+
+    targetId,
+
+    mode,
+
+    moveIndex,
+
+    from,
+
+    to,
+
+    fen
+
+  };
+}
+// ==========================================
+// ♟ NORMAL / PREVIEW MOVE TARGET
+// ==========================================
+
+function lpSetLivePuzzleMoveTarget(
+  moveIndex,
+  move,
+  fen = null
+) {
+
+  if (
+    typeof moveIndex !== "number" ||
+    !move ||
+    !move.to
+  ) {
+
+    lpLiveCurrentTarget = null;
+
+    return;
+
+  }
+
+  lpSetLiveAnnotationTarget({
+
+    targetId:
+      "puzzle:" +
+      currentIndex +
+      ":move:" +
+      moveIndex,
+
+    mode:
+      "puzzle",
+
+    moveIndex,
+
+    from:
+      move.from || null,
+
+    to:
+      move.to,
+
+    fen
+
+  });
+
+}
+// ==========================================
+// ♟ ANALYSIS / CUSTOM FEN MOVE TARGET
+// ==========================================
+
+function lpSetLiveAnalysisMoveTarget(
+  nodeId,
+  move,
+  fen = null
+) {
+
+  if (
+    !nodeId ||
+    !move ||
+    !move.to
+  ) {
+
+    lpLiveCurrentTarget = null;
+
+    return;
+
+  }
+
+  lpSetLiveAnnotationTarget({
+
+    targetId:
+      "analysis:" +
+      nodeId,
+
+    mode:
+      "analysis",
+
+    moveIndex:
+      null,
+
+    from:
+      move.from || null,
+
+    to:
+      move.to,
+
+    fen
+
+  });
+
+}
 
 
   // ==========================================
@@ -99163,6 +99730,42 @@ function lpSetAnalysisCurrent(nodeId, { broadcast = true, updateBoard = true, an
   }
 
   const node = analysisNodeMap[nodeId];
+  // ==========================================
+// 🎯 LIVE ANNOTATION TARGET
+// Track whichever analysis move the admin
+// is currently viewing.
+// ==========================================
+
+if (node.move) {
+
+  lpSetLiveAnnotationTarget({
+
+    targetId:
+      "analysis:" + node.id,
+
+    mode:
+      "analysis",
+
+    moveIndex:
+      null,
+
+    from:
+      node.move.from,
+
+    to:
+      node.move.to,
+
+    fen:
+      analysisGame.fen()
+
+  });
+
+} else {
+
+  // Root position = no move to annotate
+  window.lpLiveCurrentTarget = null;
+
+}
   if (node.move) {
     lpSoundEngine.play(node.move, analysisGame);
     highlightLastMove(node.move.from, node.move.to, "lpBoard");
@@ -102677,6 +103280,296 @@ function lpTriggerEngineUpdate() {
   );
 
 }
+
+// ==========================================
+// 🏷️ LIVE CLASSROOM MOVE ANNOTATION RENDERING
+// Pure DOM overlay — never touches Study state,
+// never triggers board.position()/animation.
+// ==========================================
+
+function lpFindLiveAnnoSquareEl(square) {
+
+  if (!square) return null;
+
+  const boardEl =
+    document.getElementById("lpBoard");
+
+  if (!boardEl) return null;
+
+  return boardEl.querySelector(
+    '[data-square="' + square + '"]'
+  );
+}
+
+// ==========================================
+// 🏷️ LIVE CLASSROOM MOVE ANNOTATION RENDERING
+// EXACT SAME BUBBLE STYLE AS STUDY
+// ==========================================
+
+// =====================================================
+// 🏷️ LIVE CLASSROOM MOVE ANNOTATION RENDERER
+// Target-based renderer.
+// Works for:
+// • Normal Live Puzzle moves
+// • Wrong moves
+// • PGN / Preview moves
+// • Analysis
+// • Shared Analysis
+// • Custom FEN
+// • Analysis branches
+// =====================================================
+
+window.renderLiveMoveAnnotation = function(target) {
+
+  // ==========================================
+  // VALID TARGET
+  // ==========================================
+
+  if (
+    !target ||
+    !target.targetId ||
+    !target.to
+  ) {
+    return;
+  }
+
+
+  const targetId =
+    target.targetId;
+
+
+  // ==========================================
+  // REMOVE EXISTING BUBBLE FOR THIS TARGET
+  // ==========================================
+
+  document
+    .querySelectorAll(
+      ".lp-live-anno-marker"
+    )
+    .forEach(marker => {
+
+      if (
+        marker.dataset.targetId ===
+        targetId
+      ) {
+
+        marker.remove();
+
+      }
+
+    });
+
+
+  // ==========================================
+  // GET ANNOTATION
+  // ==========================================
+
+  const annotation =
+    window.lpLiveAnnotations[
+      targetId
+    ];
+
+
+  // Nothing attached to this move.
+  if (!annotation) {
+    return;
+  }
+
+
+  // ==========================================
+  // GET SAME ANNOTATION DATA USED BY STUDY
+  // ==========================================
+
+  const anno =
+    typeof studyAnnotations !== "undefined"
+      ? studyAnnotations[annotation]
+      : null;
+
+
+  if (!anno) {
+    return;
+  }
+
+
+  // ==========================================
+  // FIND THE DESTINATION SQUARE
+  // ==========================================
+
+  const squareEl =
+    lpFindLiveAnnoSquareEl(
+      target.to
+    );
+
+
+  if (!squareEl) {
+
+    console.warn(
+      "❌ LIVE ANNO: square not found:",
+      target.to
+    );
+
+    return;
+  }
+
+
+  // ==========================================
+  // CREATE BUBBLE
+  // ==========================================
+
+  const marker =
+    document.createElement("div");
+
+
+  marker.className =
+    "lp-live-anno-marker " +
+    anno.class;
+
+
+  marker.dataset.targetId =
+    targetId;
+
+
+  marker.textContent =
+    anno.symbol;
+
+
+  // ==========================================
+  // GET EXACT SAME NAG COLOR AS STUDY
+  // ==========================================
+
+  const temp =
+    document.createElement("span");
+
+
+  temp.className =
+    anno.class;
+
+
+  document.body.appendChild(
+    temp
+  );
+
+
+  const nagColor =
+    getComputedStyle(
+      temp
+    ).color;
+
+
+  document.body.removeChild(
+    temp
+  );
+
+
+  // ==========================================
+  // EXACT STUDY-STYLE BUBBLE
+  // ==========================================
+
+  marker.style.position =
+    "absolute";
+
+  marker.style.top =
+    "0";
+
+  marker.style.right =
+    "0";
+
+  marker.style.transform =
+    "translate(40%, -40%)";
+
+  marker.style.width =
+    "36px";
+
+  marker.style.height =
+    "36px";
+
+  marker.style.borderRadius =
+    "50%";
+
+  marker.style.background =
+    nagColor;
+
+  marker.style.color =
+    "#ffffff";
+
+  marker.style.fontWeight =
+    "900";
+
+  marker.style.fontSize =
+    "22px";
+
+  marker.style.lineHeight =
+    "34px";
+
+  marker.style.display =
+    "flex";
+
+  marker.style.alignItems =
+    "center";
+
+  marker.style.justifyContent =
+    "center";
+
+  marker.style.textAlign =
+    "center";
+
+  marker.style.pointerEvents =
+    "none";
+
+  marker.style.boxShadow =
+    "0 0 3px rgba(0,0,0,0.6)";
+
+  marker.style.zIndex =
+    "999";
+
+  marker.style.boxSizing =
+    "border-box";
+
+
+  // ==========================================
+  // ATTACH TO THE LIVE BOARD SQUARE
+  // ==========================================
+
+  squareEl.style.position =
+    "relative";
+
+
+  squareEl.appendChild(
+    marker
+  );
+
+};
+
+// ==========================================
+// 🧹 CLEAR LIVE ANNOTATION BUBBLES
+// Whenever the displayed move changes,
+// remove ALL bubbles from the board.
+//
+// This applies to:
+// • Admin board
+// • Student board
+// • Normal puzzle
+// • Analysis
+// • Shared Analysis
+// • Custom FEN
+// ==========================================
+
+function reapplyAllLiveAnnotations() {
+
+  document
+    .querySelectorAll(
+      ".lp-live-anno-marker"
+    )
+    .forEach(
+      el => el.remove()
+    );
+
+}
+
+document.addEventListener(
+  "lpPositionChanged",
+  reapplyAllLiveAnnotations
+);
 
 function updateBoardCoordinates() {
 
@@ -106869,6 +107762,17 @@ if (
 
   // ✅ CORRECT MOVE
   moveIndex++; // 🔥 ONLY THIS (no board.position)
+    // 🏷️ LIVE ANNOTATION TARGET (isolated — does not affect scoring/moves)
+  lpLiveLastMove = {
+    moveIndex: moveIndex - 1,
+    from: move.from,
+    to: move.to,
+    san: move.san
+  };
+  console.log(
+  "✅ LIVE LAST MOVE CAPTURED:",
+  lpLiveLastMove
+);
   // 🔥 BROADCAST MOVE (LIVE TO ADMIN + STUDENTS)
 // 🔥 ADD OWN MOVE LOCALLY (CRITICAL FIX)
 if (move.san) {
@@ -106890,10 +107794,30 @@ updateScore(currentUserId, pointPerMove);
     event: "move",
     payload: {
   user_id: currentUserId,
-  move: "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" + move.san + "</span>",
-  score: playerScores[currentUserId],
+
+  move:
+    "<span style='display:inline-block;padding:2px 8px;border-radius:7px;background:#4caf50;color:#fff;font-weight:600;font-size:14px'>" +
+    move.san +
+    "</span>",
+
+  score:
+    playerScores[currentUserId],
+
   pointPerMove,
-  negativePoint
+
+  negativePoint,
+
+  // 🏷️ LIVE ANNOTATION TARGET
+  // Sent only as additional metadata.
+  // Existing move pipeline remains unchanged.
+  annoMoveIndex:
+    moveIndex - 1,
+
+  annoFrom:
+    move.from,
+
+  annoTo:
+    move.to
 }
   });
 }
@@ -108739,7 +109663,8 @@ if (createdForBar && roomInvites?.length) {
         movesChannel
       );
 
-      movesChannel = null;
+     movesChannel = null;
+window.movesChannel = null;
 
     }
 
@@ -108846,6 +109771,13 @@ solvedPuzzles = {};
 
   // 🔥 reset solved state
   moveIndex = 0;
+
+  // 🏷️ RESET LIVE ANNOTATIONS (isolated, additive)
+  lpLiveAnnotations = {};
+  lpLiveLastMove = null;
+  document
+    .querySelectorAll(".lp-live-anno-marker")
+    .forEach(el => el.remove());
 
   // 🔥 reset timer
   clearInterval(timerInterval);
@@ -109064,6 +109996,13 @@ function listenRoom() {
         setInitialOrientation();
         studentMoves = {}; 
 
+        // 🏷️ RESET LIVE ANNOTATIONS (isolated, additive)
+        lpLiveAnnotations = {};
+        lpLiveLastMove = null;
+        document
+          .querySelectorAll(".lp-live-anno-marker")
+          .forEach(el => el.remove());
+
         // ==========================================
 // 📢 STUDENT — NEW ASK PUZZLE RECEIVED
 // ==========================================
@@ -109189,10 +110128,117 @@ await loadStudents();
 if (movesChannel) {
   supabase.removeChannel(movesChannel);
 }
-  movesChannel = supabase.channel("lp-moves-" + roomCode)
+  window.movesChannel = movesChannel = supabase.channel("lp-moves-" + roomCode)
     .on("broadcast", { event: "*" }, async (payload) => {
      // 🔥 EXITED = IGNORE EVERYTHING
     if (lpExitedRoom) return;
+
+          // =================================================
+      // 🏷️ LIVE MOVE ANNOTATION (isolated — reuses Study engine)
+      // =================================================
+     // =================================================
+// 🏷️ LIVE MOVE ANNOTATION
+// Same movesChannel — target based.
+// =================================================
+
+if (
+  payload.event ===
+  "live_move_annotation"
+) {
+
+  const data =
+    payload.payload || {};
+
+
+  const targetId =
+    data.targetId;
+
+
+  if (!targetId) {
+    return;
+  }
+
+
+  // ==========================================
+  // STORE ANNOTATION
+  // ==========================================
+
+  if (data.annotation) {
+
+    window.lpLiveAnnotations[
+      targetId
+    ] = data.annotation;
+
+  } else {
+
+    delete window.lpLiveAnnotations[
+      targetId
+    ];
+
+  }
+
+
+  // ==========================================
+  // STORE TARGET INFORMATION
+  // ==========================================
+
+  if (
+    data.to
+  ) {
+
+    window.lpLiveAnnotationTargets[
+      targetId
+    ] = {
+
+      targetId,
+
+      mode:
+        data.mode ||
+        "live",
+
+      moveIndex:
+        data.moveIndex ??
+        null,
+
+      from:
+        data.from ||
+        null,
+
+      to:
+        data.to,
+
+      fen:
+        data.fen ||
+        null
+
+    };
+
+  }
+
+
+  // ==========================================
+  // DRAW ON STUDENT'S LIVE BOARD
+  // ==========================================
+
+  const target =
+    window.lpLiveAnnotationTargets[
+      targetId
+    ];
+
+
+  if (target) {
+
+    window.renderLiveMoveAnnotation(
+      target
+    );
+
+  }
+
+
+  return;
+}
+
+      
 
       // =================================================
       // 🟢🔴 STUDENT PRESENCE HEARTBEAT (admin-only, local state)
@@ -111818,7 +112864,11 @@ negativePoint,
 
   allowStudentAnalysisView,
 
-lpPieceFilterMode
+lpPieceFilterMode,
+
+lpLiveAnnotations,
+
+lpLiveLastMove
 }
 
   });
@@ -111905,6 +112955,13 @@ Object.assign(
   data.lpPieceFilterMode || "all";
 
 refreshLivePuzzleFilterUI();
+
+  // 🏷️ LIVE ANNOTATION STATE RESTORE (additive, isolated)
+  lpLiveAnnotations =
+    data.lpLiveAnnotations || {};
+
+  lpLiveLastMove =
+    data.lpLiveLastMove || null;
 
   timeLimit =
     data.timeLimit || 0;
@@ -112771,7 +113828,16 @@ if (payload.event === "reset_moves") {
       // 🔥 MOVE EVENT
       if (payload.event === "move") {
 
-        const { user_id, move, score, pointPerMove: ppm, negativePoint: np } = payload.payload;
+        const {
+          user_id,
+          move,
+          score,
+          pointPerMove: ppm,
+          negativePoint: np,
+          annoMoveIndex,
+          annoFrom,
+          annoTo
+        } = payload.payload;
 
         const isMyMove = String(user_id) === String(currentUserId);
 
@@ -112782,6 +113848,16 @@ if (payload.event === "reset_moves") {
         // 🔥 SCORE SYNC
         if (typeof score === "number") {
           playerScores[user_id] = score;
+        }
+
+        // 🏷️ LIVE ANNOTATION TARGET TRACKING (isolated, additive)
+        if (typeof annoMoveIndex === "number" && annoTo) {
+          lpLiveLastMove = {
+            moveIndex: annoMoveIndex,
+            from: annoFrom || null,
+            to: annoTo,
+            san: null
+          };
         }
 
         // 🔥 MOVE VISIBILITY
@@ -113066,6 +114142,7 @@ const wasAdmin = isAdmin;
       );
 
       movesChannel = null;
+window.movesChannel = null;
       // ================= HARD RESET BOARD =================
 game.reset();
 
@@ -128136,7 +129213,6 @@ style="
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
