@@ -79379,20 +79379,242 @@ function updateViewerLabels(totalMoves) {
 
 
 /* =====================================================
-   🎞️ PGN VIEWER → GIF EXPORT ENGINE
-   FULLY ISOLATED
+   🏹 PGN EXPORT MOVE ARROW
+   Navy-blue arrow showing the move just played
 ===================================================== */
 
-/* =====================================================
-   🎞️ PGN VIEWER → GIF EXPORT
-   FULLY ISOLATED
+function drawPGNExportMoveArrow(
+  ctx,
+  move,
+  square,
+  boardTop
+) {
 
-   IMPORTANT:
-   This uses the moves already parsed by the
-   PGN Viewer.
+  if (
+    !move ||
+    !move.from ||
+    !move.to
+  ) {
+    return;
+  }
 
-   It does NOT call load_pgn() again.
-===================================================== */
+
+  /* ==========================================
+     CONVERT CHESS SQUARE → CANVAS POSITION
+  ========================================== */
+
+  function squarePosition(
+    squareName
+  ) {
+
+    const file =
+      squareName.charCodeAt(0) -
+      97;
+
+    const rank =
+      8 -
+      parseInt(
+        squareName[1],
+        10
+      );
+
+
+    return {
+
+      x:
+        file * square +
+        square / 2,
+
+      y:
+        boardTop +
+        rank * square +
+        square / 2
+
+    };
+  }
+
+
+  const from =
+    squarePosition(
+      move.from
+    );
+
+
+  const to =
+    squarePosition(
+      move.to
+    );
+
+
+  /* ==========================================
+     ARROW GEOMETRY
+  ========================================== */
+
+  const dx =
+    to.x -
+    from.x;
+
+
+  const dy =
+    to.y -
+    from.y;
+
+
+  const length =
+    Math.sqrt(
+      dx * dx +
+      dy * dy
+    );
+
+
+  if (
+    length < 1
+  ) {
+    return;
+  }
+
+
+  const ux =
+    dx / length;
+
+
+  const uy =
+    dy / length;
+
+
+  /* ==========================================
+     ARROW SIZE
+  ========================================== */
+
+  const lineWidth =
+    Math.max(
+      6,
+      square * 0.08
+    );
+
+
+  const headLength =
+    square * 0.28;
+
+
+  const headWidth =
+    square * 0.22;
+
+
+  /* ==========================================
+     SHORTEN LINE SO ARROWHEAD SITS
+     INSIDE THE DESTINATION SQUARE
+  ========================================== */
+
+  const arrowEndX =
+    to.x -
+    ux *
+    (square * 0.13);
+
+
+  const arrowEndY =
+    to.y -
+    uy *
+    (square * 0.13);
+
+
+  /* ==========================================
+     NAVY BLUE
+  ========================================== */
+
+  ctx.save();
+
+
+ctx.strokeStyle =
+  "#315A8A";
+
+ctx.fillStyle =
+  "#315A8A";
+
+
+  ctx.lineWidth =
+    lineWidth;
+
+
+  ctx.lineCap =
+    "round";
+
+
+  ctx.lineJoin =
+    "round";
+
+
+  /* ==========================================
+     MAIN ARROW LINE
+  ========================================== */
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    from.x,
+    from.y
+  );
+
+  ctx.lineTo(
+    arrowEndX,
+    arrowEndY
+  );
+
+  ctx.stroke();
+
+
+  /* ==========================================
+     ARROW HEAD
+  ========================================== */
+
+  const leftX =
+    arrowEndX -
+    ux * headLength +
+    (-uy) * headWidth;
+
+
+  const leftY =
+    arrowEndY -
+    uy * headLength +
+    ux * headWidth;
+
+
+  const rightX =
+    arrowEndX -
+    ux * headLength -
+    (-uy) * headWidth;
+
+
+  const rightY =
+    arrowEndY -
+    uy * headLength -
+    ux * headWidth;
+
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    to.x,
+    to.y
+  );
+
+  ctx.lineTo(
+    leftX,
+    leftY
+  );
+
+  ctx.lineTo(
+    rightX,
+    rightY
+  );
+
+  ctx.closePath();
+
+  ctx.fill();
+
+
+  ctx.restore();
+}
 
 /* =====================================================
    🎞️ PGN VIEWER → GIF EXPORT
@@ -80083,19 +80305,17 @@ const gif =
       /* ========================================
          ⏱️ GIF TIMING
          
-         EXACTLY 1.5 SECONDS PER FRAME
+         EXACTLY 2 SECONDS PER FRAME
       ======================================== */
 
-      const START_DELAY =
-        1500;
+const START_DELAY =
+  3000;
 
+const MOVE_DELAY =
+  3000;
 
-      const MOVE_DELAY =
-        1500;
-
-
-      const FINAL_DELAY =
-        1500;
+const FINAL_DELAY =
+  3000;
 
 
       /* ========================================
@@ -80120,57 +80340,110 @@ const gif =
 
 
       /* ========================================
-         PLAY REMAINING MOVES
-         
-         1.5 SECONDS BETWEEN EACH MOVE.
-      ======================================== */
+   PLAY REMAINING MOVES
 
-      for (
-        let i = currentMove;
-        i < fullHistory.length;
-        i++
-      ) {
+   🏹 Each move gets a navy-blue arrow.
+   ⏱️ Each move stays visible for 2 seconds.
+======================================== */
 
-        const move =
-          fullHistory[i];
+for (
+  let i = currentMove;
+  i < fullHistory.length;
+  i++
+) {
 
-
-        try {
-
-          gifGame.move(
-            move
-          );
-
-        } catch (err) {
-
-          console.error(
-            "GIF move error:",
-            move,
-            err
-          );
-
-          throw new Error(
-            `GIF could not play move ${i + 1}.`
-          );
-        }
+  const move =
+    fullHistory[i];
 
 
-        drawFrame(
-          gifGame
-        );
+  let playedMove;
 
 
-        gif.addFrame(
-          ctx,
-          {
-            copy:
-              true,
+  try {
 
-            delay:
-              MOVE_DELAY
-          }
-        );
-      }
+    /*
+     * chess.js returns the actual move object:
+     *
+     * {
+     *   from: "e2",
+     *   to: "e4",
+     *   ...
+     * }
+     *
+     * We keep it so the export arrow knows
+     * exactly where the move started and ended.
+     */
+
+    playedMove =
+      gifGame.move(
+        move
+      );
+
+  } catch (err) {
+
+    console.error(
+      "GIF move error:",
+      move,
+      err
+    );
+
+    throw new Error(
+      `GIF could not play move ${i + 1}.`
+    );
+  }
+
+
+  /* ========================================
+     DRAW NEW CHESS POSITION
+  ======================================== */
+
+  drawFrame(
+    gifGame
+  );
+
+
+  /* ========================================
+     🏹 DRAW NAVY-BLUE MOVE ARROW
+
+     IMPORTANT:
+     drawFrame() draws the board/pieces first.
+
+     We draw the arrow AFTER it so the arrow
+     appears on top of the board and pieces.
+  ======================================== */
+
+  drawPGNExportMoveArrow(
+
+    ctx,
+
+    playedMove,
+
+    SIZE / 8,
+
+    HEADER_HEIGHT
+
+  );
+
+
+  /* ========================================
+     ADD THIS FRAME TO GIF
+
+     MOVE_DELAY is already 2000.
+     Therefore this position + arrow
+     remains visible for exactly 2 seconds.
+  ======================================== */
+
+  gif.addFrame(
+    ctx,
+    {
+      copy:
+        true,
+
+      delay:
+        MOVE_DELAY
+    }
+  );
+}
 
 
       /* ========================================
@@ -80534,6 +80807,22 @@ window.downloadPGNViewerMP4 =
       );
 
 
+    /* ========================================
+       🎵 BACKGROUND MUSIC TOGGLE
+    ======================================== */
+
+    const musicToggle =
+      document.getElementById(
+        "pgnViewerMp4MusicToggle"
+      );
+
+
+    const includeMusic =
+      musicToggle
+        ? musicToggle.checked
+        : true;
+
+
     /* ==========================================
        BASIC CHECKS
     ========================================== */
@@ -80663,18 +80952,22 @@ const codecSupport =
          MEDIABUNNY CLASSES
       ======================================== */
 
-      const {
+  const {
 
-        Output,
+  Output,
 
-        Mp4OutputFormat,
+  Mp4OutputFormat,
 
-        BufferTarget,
+  BufferTarget,
 
-        CanvasSource
+  CanvasSource,
 
-      } =
-        Mediabunny;
+  AudioBufferSource,
+
+  Quality
+
+} =
+  Mediabunny;
 
 
 /* ========================================
@@ -81068,6 +81361,328 @@ if (!ctx) {
         }
       }
 
+/* ========================================
+   🔊 MP4 AUDIO SETUP
+
+   Uses the SAME sound files as your
+   normal chess sound system.
+
+   Sound timing:
+   Move 1 → 3 sec
+   Move 2 → 6 sec
+   Move 3 → 9 sec
+   etc.
+
+   The sounds are EMBEDDED into the MP4.
+======================================== */
+
+const audioContext =
+  new (
+    window.AudioContext ||
+    window.webkitAudioContext
+  )();
+
+
+/* ========================================
+   LOAD SOUND FILE
+======================================== */
+
+async function loadExportSound(
+  path
+) {
+
+  const response =
+    await fetch(
+      path
+    );
+
+
+  if (!response.ok) {
+
+    throw new Error(
+      `Could not load sound: ${path}`
+    );
+  }
+
+
+  const arrayBuffer =
+    await response.arrayBuffer();
+
+
+  return await audioContext.decodeAudioData(
+    arrayBuffer
+  );
+}
+
+
+/* ========================================
+   LOAD ALL CHESS SOUNDS
+======================================== */
+
+const exportSounds = {
+
+  move:
+    await loadExportSound(
+      "sounds/move.mp3"
+    ),
+
+  capture:
+    await loadExportSound(
+      "sounds/capture.mp3"
+    ),
+
+  castle:
+    await loadExportSound(
+      "sounds/castle.mp3"
+    ),
+
+  check:
+    await loadExportSound(
+      "sounds/check.mp3"
+    ),
+      /* 🎵 BACKGROUND MUSIC */
+  music:
+    await loadExportSound(
+      "sounds/sound_track_6.mp3"
+    )
+
+};
+
+
+
+/* ========================================
+   ⏱️ MP4 FRAME TIMING
+   3 seconds per position
+======================================== */
+
+const FRAME_DURATION =
+  3;
+
+
+
+/* ========================================
+   TOTAL VIDEO DURATION
+
+   Starting position
+   +
+   every remaining move
+   +
+   final position
+======================================== */
+
+const totalPositions =
+  1 +
+  (fullHistory.length - currentMove) +
+  1;
+
+
+const totalDuration =
+  totalPositions *
+  FRAME_DURATION;
+
+  
+
+
+/* ========================================
+   AUDIO BUFFER
+
+   48 kHz stereo
+======================================== */
+
+const AUDIO_SAMPLE_RATE =
+  48000;
+
+
+const audioBuffer =
+  audioContext.createBuffer(
+
+    2,
+
+    Math.ceil(
+      totalDuration *
+      AUDIO_SAMPLE_RATE
+    ),
+
+    AUDIO_SAMPLE_RATE
+
+  );
+
+
+/* ========================================
+   HELPER: ADD SOUND TO AUDIO TIMELINE
+======================================== */
+
+/* ========================================
+   HELPER: ADD SOUND TO AUDIO TIMELINE
+
+   volume:
+   1.00 = normal sound
+   0.06 = very light background music
+======================================== */
+
+function addSoundToTimeline(
+  sourceBuffer,
+  startTime,
+  volume = 1
+) {
+
+  if (
+    !sourceBuffer
+  ) {
+    return;
+  }
+
+
+  const startSample =
+    Math.floor(
+      startTime *
+      AUDIO_SAMPLE_RATE
+    );
+
+
+  const channels =
+    Math.min(
+      2,
+      sourceBuffer.numberOfChannels
+    );
+
+
+  const availableSamples =
+    audioBuffer.length -
+    startSample;
+
+
+  if (
+    availableSamples <= 0
+  ) {
+    return;
+  }
+
+
+  const samplesToCopy =
+    Math.min(
+      sourceBuffer.length,
+      availableSamples
+    );
+
+
+  /* ========================================
+     COPY AUDIO CHANNELS
+  ======================================== */
+
+  for (
+    let channel = 0;
+    channel < channels;
+    channel++
+  ) {
+
+    const sourceData =
+      sourceBuffer.getChannelData(
+        channel
+      );
+
+
+    const destinationData =
+      audioBuffer.getChannelData(
+        channel
+      );
+
+
+    for (
+      let i = 0;
+      i < samplesToCopy;
+      i++
+    ) {
+
+      destinationData[
+        startSample + i
+      ] +=
+        sourceData[i] *
+        volume;
+    }
+  }
+
+
+  /* ========================================
+     MONO → BOTH CHANNELS
+  ======================================== */
+
+  if (
+    sourceBuffer.numberOfChannels === 1
+  ) {
+
+    const sourceData =
+      sourceBuffer.getChannelData(
+        0
+      );
+
+
+    const left =
+      audioBuffer.getChannelData(
+        0
+      );
+
+
+    const right =
+      audioBuffer.getChannelData(
+        1
+      );
+
+
+    for (
+      let i = 0;
+      i < samplesToCopy;
+      i++
+    ) {
+
+      right[
+        startSample + i
+      ] +=
+        sourceData[i] *
+        volume;
+    }
+  }
+}
+/* ========================================
+   🎵 BACKGROUND MUSIC
+
+   ONLY controlled by the Music checkbox.
+
+   0.06 = 6% volume.
+======================================== */
+
+if (
+  includeMusic
+) {
+
+  const MUSIC_VOLUME =
+    0.04;
+
+
+  let musicTime =
+    0;
+
+
+  while (
+    musicTime <
+    totalDuration
+  ) {
+
+    addSoundToTimeline(
+
+      exportSounds.music,
+
+      musicTime,
+
+      MUSIC_VOLUME
+
+    );
+
+
+    musicTime +=
+      exportSounds.music.duration;
+  }
+}
 
       /* ========================================
          MEDIABUNNY OUTPUT
@@ -81088,6 +81703,30 @@ if (!ctx) {
             new BufferTarget()
 
         });
+        /* ========================================
+   🔊 CREATE MP4 AUDIO TRACK
+======================================== */
+
+const audioSource =
+  new AudioBufferSource({
+
+    codec:
+      "aac",
+
+    quality:
+      new Quality({
+
+        bitrate:
+          128000
+
+      })
+
+  });
+
+
+output.addAudioTrack(
+  audioSource
+);
 
 
       /* ========================================
@@ -81150,8 +81789,7 @@ if (!ctx) {
          1.5 seconds per position.
       ======================================== */
 
-      const FRAME_DURATION =
-        1.5;
+     
 
 
       let timestamp =
@@ -81181,37 +81819,151 @@ if (!ctx) {
 
 
       /* ========================================
-         PLAY REMAINING MOVES
-      ======================================== */
+   PLAY REMAINING MOVES
 
-      for (
-        let i = currentMove;
-        i < fullHistory.length;
-        i++
-      ) {
+   🏹 Each move gets a navy-blue arrow.
+   ⏱️ Each move stays visible for 2 seconds.
+======================================== */
 
-        game.move(
-          fullHistory[i]
-        );
+for (
+  let i = currentMove;
+  i < fullHistory.length;
+  i++
+) {
+
+  /* ========================================
+     PLAY MOVE
+
+     chess.js returns the actual move object,
+     which gives us:
+
+     from
+     to
+     piece
+     captured
+     etc.
+  ======================================== */
+
+  const playedMove =
+    game.move(
+      fullHistory[i]
+    );
+    /* ========================================
+   🔊 SELECT SOUND FOR THIS MOVE
+======================================== */
+
+let moveSound =
+  exportSounds.move;
 
 
-        drawFrame(
-          game
-        );
+/* ========================================
+   CASTLING
+======================================== */
+
+if (
+  playedMove.flags &&
+  (
+    playedMove.flags.includes("k") ||
+    playedMove.flags.includes("q")
+  )
+) {
+
+  moveSound =
+    exportSounds.castle;
+}
 
 
-        await videoSource.add(
+/* ========================================
+   CAPTURE
+======================================== */
 
-          timestamp,
+else if (
+  playedMove.captured
+) {
 
-          FRAME_DURATION
+  moveSound =
+    exportSounds.capture;
+}
 
-        );
+
+/* ========================================
+   CHECK / CHECKMATE
+======================================== */
+
+else if (
+  playedMove.san &&
+  (
+    playedMove.san.includes("+") ||
+    playedMove.san.includes("#")
+  )
+) {
+
+  moveSound =
+    exportSounds.check;
+}
 
 
-        timestamp +=
-          FRAME_DURATION;
-      }
+/* ========================================
+   🔊 PUT SOUND AT EXACT MOVE TIME
+======================================== */
+
+addSoundToTimeline(
+
+  moveSound,
+
+  timestamp
+
+);
+
+
+  /* ========================================
+     DRAW NEW POSITION
+  ======================================== */
+
+  drawFrame(
+    game
+  );
+
+
+  /* ========================================
+     🏹 DRAW NAVY-BLUE MOVE ARROW
+
+     IMPORTANT:
+     Arrow is drawn AFTER the pieces,
+     so it appears on top of the board.
+  ======================================== */
+
+  drawPGNExportMoveArrow(
+
+    ctx,
+
+    playedMove,
+
+    SIZE / 8,
+
+    HEADER_HEIGHT
+
+  );
+
+
+  /* ========================================
+     ADD FRAME TO MP4
+
+     FRAME_DURATION = 2 seconds.
+  ======================================== */
+
+  await videoSource.add(
+
+    timestamp,
+
+    FRAME_DURATION
+
+  );
+
+
+  timestamp +=
+    FRAME_DURATION;
+}
 
 
       /* ========================================
@@ -81243,6 +81995,16 @@ if (!ctx) {
         button.textContent =
           "⏳ Finalizing MP4...";
       }
+      /* ========================================
+   🔊 ADD COMPLETE AUDIO TIMELINE
+======================================== */
+
+await audioSource.add(
+  audioBuffer
+);
+
+
+audioSource.close();
 
 
       await output.finalize();
@@ -81376,7 +82138,7 @@ if (!ctx) {
       ) {
 
         showJoinBanner(
-          "📱 WhatsApp Video Downloaded Successfully",
+          "📱 Video Downloaded Successfully",
           false
         );
       }
@@ -127885,13 +128647,44 @@ document.addEventListener("DOMContentLoaded", startApp);
       justify-content:center;
       gap:10px;
     ">
-    <button
-  id="pgnViewerMp4Btn"
-  onclick="downloadPGNViewerMP4()"
-  style="background:#25D366;color:white;"
->
-  📱 WhatsApp Video
-</button>
+<div style="
+  display:flex;
+  align-items:center;
+  gap:10px;
+">
+
+  <button 
+    id="pgnViewerMp4Btn" 
+    onclick="downloadPGNViewerMP4()" 
+    style="
+      background:#25D366;
+      color:white;
+    " 
+  > 
+    📱 Video 
+  </button>
+
+
+  <label style="
+    display:flex;
+    align-items:center;
+    gap:5px;
+    cursor:pointer;
+    font-size:14px;
+    user-select:none;
+  ">
+
+    <input
+      type="checkbox"
+      id="pgnViewerMp4MusicToggle"
+      checked
+    >
+
+    🎵 Music
+
+  </label>
+
+</div>
 
       <!-- GIF -->
       <button
