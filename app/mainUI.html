@@ -62359,37 +62359,65 @@ window.exitBF = function () {
 
 // ---------- ROUND ----------
 function nextBFRound() {
+
   bfBoard.innerHTML = "";
   bfUserAnswer = 0;
   bfAnswerEl.textContent = "0";
   bfPieces = [];
 
+  // Hide question during the 5-second memory flash
+  bfQuestionEl.textContent = "";
+
   const pieceCount = 8 + Math.floor(Math.random() * 8);
 
   while (bfPieces.length < pieceCount) {
+
     const x = Math.floor(Math.random() * 8);
     const y = Math.floor(Math.random() * 8);
+
     if (bfPieces.some(p => p.x === x && p.y === y)) continue;
 
-    const piece = BF_PIECES[Math.floor(Math.random() * BF_PIECES.length)];
-    bfPieces.push({ ...piece, x, y });
+    const piece =
+      BF_PIECES[Math.floor(Math.random() * BF_PIECES.length)];
+
+    bfPieces.push({
+      ...piece,
+      x,
+      y
+    });
   }
 
-  const q = BF_QUESTIONS[Math.floor(Math.random() * BF_QUESTIONS.length)];
+  const q =
+    BF_QUESTIONS[
+      Math.floor(Math.random() * BF_QUESTIONS.length)
+    ];
+
+  // Set the question internally
   q();
 
- drawBF(true);
+  // Save the question before hiding it
+  const currentQuestion = bfQuestionEl.textContent;
 
-setTimeout(() => {
+  // Hide question while board is visible
+  bfQuestionEl.textContent = "";
 
-  drawBF(false);
+  // Show board
+  drawBF(true);
 
-  // 🔊 Ask the question AFTER board disappears
-  if (typeof coachSay === "function") {
-    coachSay(bfQuestionEl.textContent);
-  }
+  setTimeout(() => {
 
-}, BF_FLASH_TIME);
+    // Hide board
+    drawBF(false);
+
+    // 👇 SHOW QUESTION AFTER 5 SECONDS
+    bfQuestionEl.textContent = currentQuestion;
+
+    // 🔊 Ask the question after board disappears
+    if (typeof coachSay === "function") {
+      coachSay(currentQuestion);
+    }
+
+  }, BF_FLASH_TIME);
 }
 
 // ---------- DRAW ----------
