@@ -37438,6 +37438,7 @@ if (typeof trackActivity === "function" && newScore > 0) {
     "knightescape",
     "knightmonster",
     "knightfog",
+     "knightdefense",
    
     "knightlava",
     "puzzlebattle",
@@ -61108,291 +61109,2167 @@ function showKFQGameOver(reason) {
 
 
 
-// ================================
-// 👑 KING DEFENSE (FULLY ISOLATED)
-// ================================
+// ============================================================
+// 👑 KING DEFENSE — ARCADE EDITION
+// FULLY ISOLATED
+// ============================================================
 
-let kndKnight, kndKing;
+let kndKnight = null;
+let kndKing = null;
 let kndMonsters = [];
+
 let kndMode = "easy";
+let kndTotalMonsters = 0;
+
+let kndTurnCounter = 0;
+let kndMoveCount = 0;
+
+let kndCombo = 0;
+let kndBestCombo = 0;
+
+let kndAnimating = false;
+let kndGameFinished = false;
+
 const KND_SIZE = 10;
 
 
-const kndBoard = document.getElementById("kndBoard");
-const kndLeftEl = document.getElementById("kndLeft");
+// ============================================================
+// DOM
+// ============================================================
 
-// ================================
-// START GAME
-// ================================
-window.startKND = function (mode) {
-  kndMode = mode;
-  playKNDStartSound(); // 🔊 GAME START SOUND
+const kndBoard =
+  document.getElementById("kndBoard");
 
-  document.getElementById("kndMenu").classList.add("hidden");
-  document.getElementById("kndGame").classList.remove("hidden");
+const kndLeftEl =
+  document.getElementById("kndLeft");
 
-  kndKing   = { x: 4, y: 0 };
-  kndKnight = { x: 5, y: 4 };
 
- const count =
-  mode === "easy"   ? 3:
-  mode === "medium" ? 4:
-                      5;//hard
+// ============================================================
+// 🎨 KND DYNAMIC HUD
+// ============================================================
+
+function createKNDHUD() {
+
+  const game =
+    document.getElementById("kndGame");
+
+  if (!game) return;
+
+  let hud =
+    document.getElementById("kndDynamicHUD");
+
+  if (hud) {
+    hud.remove();
+  }
+
+  hud = document.createElement("div");
+
+  hud.id = "kndDynamicHUD";
+
+  hud.innerHTML = `
+    <div class="knd-hud-row">
+
+      <div class="knd-hud-card">
+        <span class="knd-hud-label">👑 KING</span>
+        <strong id="kndDangerText">SAFE</strong>
+      </div>
+
+      <div class="knd-hud-card">
+        <span class="knd-hud-label">⚡ COMBO</span>
+        <strong id="kndComboText">x0</strong>
+      </div>
+
+      <div class="knd-hud-card">
+        <span class="knd-hud-label">♞ MOVES</span>
+        <strong id="kndMovesText">0</strong>
+      </div>
+
+      <div class="knd-hud-card">
+        <span class="knd-hud-label">👹 LEFT</span>
+        <strong id="kndMonsterText">0</strong>
+      </div>
+
+    </div>
+  `;
+
+  game.insertBefore(
+    hud,
+    game.firstChild
+  );
+
+
+  // ========================================================
+  // 🎨 DYNAMIC CSS
+  // ========================================================
+
+  if (
+    !document.getElementById(
+      "kndArcadeStyles"
+    )
+  ) {
+
+    const style =
+      document.createElement("style");
+
+    style.id =
+      "kndArcadeStyles";
+
+    style.textContent = `
+
+      #kndDynamicHUD {
+        width: 100%;
+        margin: 0 auto 12px;
+        pointer-events: none;
+      }
+
+      .knd-hud-row {
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .knd-hud-card {
+        min-width: 78px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        background: rgba(20,20,30,.82);
+        border: 1px solid rgba(255,255,255,.12);
+        box-shadow: 0 4px 12px rgba(0,0,0,.22);
+        text-align: center;
+        transition:
+          transform .18s ease,
+          border-color .18s ease,
+          box-shadow .18s ease;
+      }
+
+      .knd-hud-label {
+        display: block;
+        font-size: 10px;
+        opacity: .72;
+        margin-bottom: 2px;
+      }
+
+      .knd-hud-card strong {
+        display: block;
+        font-size: 14px;
+        line-height: 1.1;
+      }
+
+      #kndDangerText {
+        color: #7CFC00;
+      }
+
+      #kndComboText {
+        color: #FFD54A;
+      }
+
+      .knd-danger-warning {
+        border-color: #FFD54A !important;
+        box-shadow:
+          0 0 12px rgba(255,213,74,.28);
+        animation:
+          kndHudPulse .8s infinite;
+      }
+
+      .knd-danger-critical {
+        border-color: #ff5252 !important;
+        box-shadow:
+          0 0 18px rgba(255,82,82,.38);
+        animation:
+          kndHudPulse .55s infinite;
+      }
+
+      @keyframes kndHudPulse {
+
+        0%,100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.045);
+        }
+
+      }
+
+
+      /* =====================================================
+         BOARD
+         ===================================================== */
+
+      #kndBoard {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .knd-square {
+        position: relative;
+        user-select: none;
+        -webkit-user-select: none;
+
+        transition:
+          transform .12s ease,
+          filter .12s ease,
+          box-shadow .12s ease;
+      }
+
+
+      /* =====================================================
+         DANGER SQUARE
+         ===================================================== */
+
+      .knd-square.knd-danger-square {
+        box-shadow:
+          inset 0 0 0 3px
+          rgba(255,60,60,.55);
+      }
+
+
+      /* =====================================================
+         MONSTER
+         ===================================================== */
+
+      .knd-square.monster {
+        animation:
+          kndMonsterIdle
+          1.8s
+          ease-in-out
+          infinite;
+      }
+
+      @keyframes kndMonsterIdle {
+
+        0%,100% {
+          transform: translateY(0);
+        }
+
+        50% {
+          transform: translateY(-2px);
+        }
+
+      }
+
+
+      /* =====================================================
+         KING SCARED
+         ===================================================== */
+
+      .knd-square.king.knd-scared {
+        animation:
+          kndKingScared
+          .55s
+          infinite;
+      }
+
+      @keyframes kndKingScared {
+
+        0%,100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.12);
+        }
+
+      }
+
+
+      /* =====================================================
+         CAPTURE BURST
+         ===================================================== */
+
+      .knd-capture-burst {
+        position: fixed;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        pointer-events: none;
+
+        background: #FFD54A;
+
+        box-shadow:
+          0 0 8px #FFD54A,
+          0 0 18px #FF8C00;
+
+        animation:
+          kndBurst
+          .42s
+          ease-out
+          forwards;
+
+        z-index: 999999;
+      }
+
+      @keyframes kndBurst {
+
+        0% {
+          opacity: 1;
+          transform: scale(.3);
+        }
+
+        100% {
+          opacity: 0;
+          transform: scale(6);
+        }
+
+      }
+
+
+      /* =====================================================
+         COMBO
+         ===================================================== */
+
+      .knd-combo-popup {
+        position: fixed;
+
+        z-index: 999999;
+
+        pointer-events: none;
+
+        font-weight: 900;
+
+        font-size: 25px;
+
+        color: #FFD54A;
+
+        text-shadow:
+          0 2px 5px rgba(0,0,0,.5),
+          0 0 14px rgba(255,213,74,.65);
+
+        animation:
+          kndComboFloat
+          .8s
+          ease-out
+          forwards;
+      }
+
+      @keyframes kndComboFloat {
+
+        0% {
+          opacity: 0;
+
+          transform:
+            translate(-50%,15px)
+            scale(.7);
+        }
+
+        20% {
+          opacity: 1;
+
+          transform:
+            translate(-50%,0)
+            scale(1.1);
+        }
+
+        100% {
+          opacity: 0;
+
+          transform:
+            translate(-50%,-65px)
+            scale(1);
+        }
+
+      }
+
+
+      /* =====================================================
+         DANGER FLASH
+         ===================================================== */
+
+      .knd-danger-flash {
+        animation:
+          kndDangerFlash
+          .32s
+          ease;
+      }
+
+      @keyframes kndDangerFlash {
+
+        0%,100% {
+          filter: brightness(1);
+        }
+
+        50% {
+          filter:
+            brightness(1.5)
+            saturate(1.5);
+        }
+
+      }
+
+
+      /* =====================================================
+         FINAL MONSTER
+         ===================================================== */
+
+      #kndBoard.knd-final-monster {
+
+        box-shadow:
+          inset 0 0 0 3px
+          rgba(255,70,70,.35),
+
+          0 0 25px
+          rgba(255,70,70,.18);
+
+        animation:
+          kndFinalPulse
+          1.2s
+          infinite;
+      }
+
+      @keyframes kndFinalPulse {
+
+        0%,100% {
+
+          box-shadow:
+            inset 0 0 0 3px
+            rgba(255,70,70,.25),
+
+            0 0 15px
+            rgba(255,70,70,.12);
+
+        }
+
+        50% {
+
+          box-shadow:
+            inset 0 0 0 3px
+            rgba(255,70,70,.65),
+
+            0 0 28px
+            rgba(255,70,70,.28);
+
+        }
+
+      }
+
+
+      /* =====================================================
+         VICTORY
+         ===================================================== */
+
+      .knd-victory-flash {
+        animation:
+          kndVictoryFlash
+          .8s
+          ease;
+      }
+
+      @keyframes kndVictoryFlash {
+
+        0% {
+          filter: brightness(1);
+        }
+
+        35% {
+          filter:
+            brightness(1.8)
+            saturate(1.5);
+        }
+
+        100% {
+          filter: brightness(1);
+        }
+
+      }
+
+
+      /* =====================================================
+         KING DEFEAT
+         ===================================================== */
+
+      .knd-king-defeated {
+        animation:
+          kndKingDefeated
+          .6s
+          ease
+          forwards;
+      }
+
+      @keyframes kndKingDefeated {
+
+        0% {
+          transform: scale(1);
+          filter: brightness(1);
+        }
+
+        45% {
+          transform: scale(1.25);
+          filter:
+            brightness(1.8)
+            saturate(1.8);
+        }
+
+        100% {
+          transform: scale(.8);
+          filter:
+            grayscale(1)
+            brightness(.6);
+        }
+
+      }
+
+    `;
+
+    document.head.appendChild(
+      style
+    );
+  }
+}
+
+
+// ============================================================
+// 🔊 SAFE SOUND
+// ============================================================
+
+function kndPlaySound(
+  src,
+  volume = 0.5
+) {
+
+  try {
+
+    const audio =
+      new Audio(src);
+
+    audio.volume =
+      volume;
+
+    audio.play().catch(
+      () => {}
+    );
+
+  } catch (e) {
+
+    console.warn(
+      "KND sound failed:",
+      src
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// 🔊 KNIGHT MOVE
+// ============================================================
+
+function playKNDKnightMoveSound() {
+
+  kndPlaySound(
+    "./sounds/alert.mp3",
+    0.1
+  );
+
+}
+
+
+// ============================================================
+// 🔊 START
+// ============================================================
+
+function playKNDStartSound() {
+
+  kndPlaySound(
+    "./sounds/puzzle-rush-start.mp3",
+    0.6
+  );
+
+}
+
+
+// ============================================================
+// 🔊 CAPTURE
+// ============================================================
+
+function playKNDCaptureSound() {
+
+  kndPlaySound(
+    "./sounds/alert.mp3",
+    0.18
+  );
+
+}
+
+
+// ============================================================
+// 🔊 DANGER
+// ============================================================
+
+function playKNDDangerSound() {
+
+  kndPlaySound(
+    "./sounds/alert.mp3",
+    0.12
+  );
+
+}
+
+
+// ============================================================
+// 🔊 VICTORY
+// ============================================================
+
+function playKNDVictorySound() {
+
+  try {
+
+    if (
+      typeof playKNDCompleteSound ===
+      "function"
+    ) {
+
+      playKNDCompleteSound();
+
+      return;
+    }
+
+  } catch (e) {}
+
+  kndPlaySound(
+    "./sounds/puzzle-rush-start.mp3",
+    0.45
+  );
+
+}
+
+
+// ============================================================
+// 🏁 START GAME
+// ============================================================
+
+window.startKND =
+function(mode) {
+
+  kndMode =
+    mode || "easy";
+
+  kndTurnCounter = 0;
+
+  kndMoveCount = 0;
+
+  kndCombo = 0;
+
+  kndBestCombo = 0;
+
+  kndAnimating = false;
+
+  kndGameFinished = false;
+
+
+  playKNDStartSound();
+
+
+  const menu =
+    document.getElementById(
+      "kndMenu"
+    );
+
+  const game =
+    document.getElementById(
+      "kndGame"
+    );
+
+
+  if (menu) {
+    menu.classList.add(
+      "hidden"
+    );
+  }
+
+  if (game) {
+    game.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  // ========================================================
+  // 👑 KING
+  // ========================================================
+
+  kndKing = {
+    x: 4,
+    y: 0
+  };
+
+
+  // ========================================================
+  // 🐴 KNIGHT
+  // ========================================================
+
+  kndKnight = {
+    x: 5,
+    y: 4
+  };
+
+
+  // ========================================================
+  // 👹 MONSTER COUNT
+  // ========================================================
+
+  const count =
+    kndMode === "easy"
+      ? 3
+      : kndMode === "medium"
+        ? 4
+        : 5;
+
+
+  kndTotalMonsters =
+    count;
 
 
   kndMonsters = [];
 
-  // 👹 SPAWN LOGIC (PASTE HERE)
-  const usedX = new Set();
-  while (kndMonsters.length < count) {
-    const x = Math.floor(Math.random() * KND_SIZE);
-    if (usedX.has(x)) continue;
+
+  // ========================================================
+  // 👹 SPAWN
+  // ========================================================
+
+  const usedX =
+    new Set();
+
+
+  while (
+    kndMonsters.length <
+    count
+  ) {
+
+    const x =
+      Math.floor(
+        Math.random() *
+        KND_SIZE
+      );
+
+
+    if (
+      usedX.has(x)
+    ) {
+
+      continue;
+    }
+
+
     usedX.add(x);
-    kndMonsters.push({ x, y: KND_SIZE - 1 });
+
+
+    kndMonsters.push({
+      x,
+      y: KND_SIZE - 1
+    });
+
   }
 
-  kndLeftEl.textContent = kndMonsters.length;
+
+  // ========================================================
+  // HUD
+  // ========================================================
+
+  createKNDHUD();
+
+  updateKNDHUD();
+
+
+  // ========================================================
+  // BOARD
+  // ========================================================
+
   drawKNDBoard();
+
 };
 
-// ================================
-// 🔊 KND – Knight Move Sound
-// ================================
-function playKNDKnightMoveSound() {
-  try {
-    const audio = new Audio("./sounds/alert.mp3");
-    audio.volume = 0.1;
-    audio.play();
-  } catch (e) {
-    console.warn("🔇 alert.mp3 could not play", e);
+
+// ============================================================
+// 🚪 EXIT
+// ============================================================
+
+window.exitKND =
+function() {
+
+  kndGameFinished =
+    true;
+
+  kndAnimating =
+    false;
+
+
+  const game =
+    document.getElementById(
+      "kndGame"
+    );
+
+  const menu =
+    document.getElementById(
+      "kndMenu"
+    );
+
+
+  if (game) {
+
+    game.classList.add(
+      "hidden"
+    );
+
   }
-}
 
-function playKNDStartSound() {
-  try {
-    const audio = new Audio("./sounds/puzzle-rush-start.mp3");
-    audio.volume = 0.6;
-    audio.play();
-  } catch (e) {
-    console.warn("🔇 puzzle-rush-start.mp3 could not play");
+
+  if (menu) {
+
+    menu.classList.remove(
+      "hidden"
+    );
+
   }
-}
 
-
-
-
-// ================================
-// EXIT
-// ================================
-window.exitKND = function () {
-  document.getElementById("kndGame").classList.add("hidden");
-  document.getElementById("kndMenu").classList.remove("hidden");
 };
 
-// ================================
-// MONSTER MOVEMENT (SAFE & CLEAN)
-// ================================
-function moveKNDMonstersTowardKing() {
-  const occupied = new Set(
-    kndMonsters.map(m => `${m.x},${m.y}`)
+
+// ============================================================
+// 🧠 KING DANGER
+// ============================================================
+
+function getKNDDangerLevel() {
+
+  if (
+    !kndKing ||
+    !kndMonsters.length
+  ) {
+
+    return {
+      level: "safe",
+      text: "SAFE",
+      emoji: "👑"
+    };
+
+  }
+
+
+  let nearest =
+    Infinity;
+
+
+  for (
+    const m of kndMonsters
+  ) {
+
+    const d =
+      Math.abs(
+        m.x -
+        kndKing.x
+      ) +
+
+      Math.abs(
+        m.y -
+        kndKing.y
+      );
+
+
+    nearest =
+      Math.min(
+        nearest,
+        d
+      );
+
+  }
+
+
+  if (
+    nearest <= 2
+  ) {
+
+    return {
+      level: "critical",
+      text: "DANGER!",
+      emoji: "😱"
+    };
+
+  }
+
+
+  if (
+    nearest <= 4
+  ) {
+
+    return {
+      level: "warning",
+      text: "WATCH OUT!",
+      emoji: "⚠️"
+    };
+
+  }
+
+
+  return {
+    level: "safe",
+    text: "SAFE",
+    emoji: "😎"
+  };
+
+}
+
+
+// ============================================================
+// 📊 HUD UPDATE
+// ============================================================
+
+function updateKNDHUD() {
+
+  const dangerEl =
+    document.getElementById(
+      "kndDangerText"
+    );
+
+  const comboEl =
+    document.getElementById(
+      "kndComboText"
+    );
+
+  const movesEl =
+    document.getElementById(
+      "kndMovesText"
+    );
+
+  const monsterEl =
+    document.getElementById(
+      "kndMonsterText"
+    );
+
+
+  const danger =
+    getKNDDangerLevel();
+
+
+  if (dangerEl) {
+
+    dangerEl.textContent =
+      `${danger.emoji} ${danger.text}`;
+
+    dangerEl.style.color =
+      danger.level ===
+      "critical"
+        ? "#ff5252"
+        : danger.level ===
+          "warning"
+            ? "#FFD54A"
+            : "#7CFC00";
+
+  }
+
+
+  if (comboEl) {
+
+    comboEl.textContent =
+      `x${kndCombo}`;
+
+  }
+
+
+  if (movesEl) {
+
+    movesEl.textContent =
+      String(
+        kndMoveCount
+      );
+
+  }
+
+
+  if (monsterEl) {
+
+    monsterEl.textContent =
+      String(
+        kndMonsters.length
+      );
+
+  }
+
+
+  if (kndLeftEl) {
+
+    kndLeftEl.textContent =
+      String(
+        kndMonsters.length
+      );
+
+  }
+
+
+  const cards =
+    document.querySelectorAll(
+      "#kndDynamicHUD .knd-hud-card"
+    );
+
+
+  cards.forEach(
+    card => {
+
+      card.classList.remove(
+        "knd-danger-warning",
+        "knd-danger-critical"
+      );
+
+    }
   );
 
-  for (const m of kndMonsters) {
-    occupied.delete(`${m.x},${m.y}`);
 
-    let best = null;
-    let bestScore = Infinity;
+  if (
+    cards.length &&
+    danger.level ===
+    "warning"
+  ) {
 
-    // 🧠 KING-LIKE MOVEMENT (8 DIRECTIONS)
+    cards[0].classList.add(
+      "knd-danger-warning"
+    );
+
+  }
+
+
+  if (
+    cards.length &&
+    danger.level ===
+    "critical"
+  ) {
+
+    cards[0].classList.add(
+      "knd-danger-critical"
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// ⚡ COMBO POPUP
+// ============================================================
+
+function showKNDCombo() {
+
+  if (
+    kndCombo < 2
+  ) {
+
+    return;
+  }
+
+
+  const popup =
+    document.createElement(
+      "div"
+    );
+
+
+  popup.className =
+    "knd-combo-popup";
+
+
+  popup.textContent =
+    kndCombo >= 4
+      ? `🔥 COMBO x${kndCombo}!`
+      : `⚡ COMBO x${kndCombo}!`;
+
+
+  popup.style.left =
+    "50%";
+
+  popup.style.top =
+    "42%";
+
+
+  document.body.appendChild(
+    popup
+  );
+
+
+  setTimeout(
+    () => {
+
+      popup.remove();
+
+    },
+    850
+  );
+
+}
+
+
+// ============================================================
+// 💥 CAPTURE BURST
+// ============================================================
+
+function createKNDCaptureBurst(
+  x,
+  y
+) {
+
+  if (!kndBoard) {
+    return;
+  }
+
+
+  const squares =
+    kndBoard.querySelectorAll(
+      ".knd-square"
+    );
+
+
+  const index =
+    (KND_SIZE - 1 - y) *
+      KND_SIZE +
+    x;
+
+
+  const square =
+    squares[index];
+
+
+  if (!square) {
+    return;
+  }
+
+
+  const rect =
+    square.getBoundingClientRect();
+
+
+  const burst =
+    document.createElement(
+      "div"
+    );
+
+
+  burst.className =
+    "knd-capture-burst";
+
+
+  burst.style.left =
+    `${rect.left + rect.width / 2}px`;
+
+
+  burst.style.top =
+    `${rect.top + rect.height / 2}px`;
+
+
+  document.body.appendChild(
+    burst
+  );
+
+
+  setTimeout(
+    () => {
+
+      burst.remove();
+
+    },
+    500
+  );
+
+}
+
+
+// ============================================================
+// 👑 KING REACTION
+// ============================================================
+
+function updateKNDKingReaction() {
+
+  if (
+    !kndBoard ||
+    !kndKing
+  ) {
+
+    return;
+  }
+
+
+  const danger =
+    getKNDDangerLevel();
+
+
+  const squares =
+    kndBoard.querySelectorAll(
+      ".knd-square"
+    );
+
+
+  const index =
+    (KND_SIZE - 1 - kndKing.y) *
+      KND_SIZE +
+    kndKing.x;
+
+
+  const kingSquare =
+    squares[index];
+
+
+  if (!kingSquare) {
+    return;
+  }
+
+
+  kingSquare.classList.remove(
+    "knd-scared",
+    "knd-danger-square"
+  );
+
+
+  // Normal
+  kingSquare.textContent =
+    "👑";
+
+
+  if (
+    danger.level ===
+    "warning"
+  ) {
+
+    kingSquare.textContent =
+      " 👑";
+
+  }
+
+
+  if (
+    danger.level ===
+    "critical"
+  ) {
+
+    kingSquare.textContent =
+      " 👑";
+
+
+    kingSquare.classList.add(
+      "knd-scared"
+    );
+
+
+    kndMonsters.forEach(
+      m => {
+
+        const d =
+          Math.abs(
+            m.x -
+            kndKing.x
+          ) +
+
+          Math.abs(
+            m.y -
+            kndKing.y
+          );
+
+
+        if (
+          d <= 2
+        ) {
+
+          const monsterIndex =
+            (KND_SIZE - 1 - m.y) *
+              KND_SIZE +
+            m.x;
+
+
+          if (
+            squares[
+              monsterIndex
+            ]
+          ) {
+
+            squares[
+              monsterIndex
+            ].classList.add(
+              "knd-danger-square"
+            );
+
+          }
+
+        }
+
+      }
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// 👹 MONSTER MOVEMENT
+//
+// IMPORTANT:
+// - Easy: monsters move every 3 Knight moves
+// - Medium/Hard: monsters move every 2 Knight moves
+// - Monsters CANNOT capture the Knight
+// - Monsters CAN capture the King
+// ============================================================
+
+// ============================================================
+// 👹 MONSTER MOVEMENT
+// ALWAYS MOVES TOWARD THE KING
+//
+// Easy   = monsters move every 3 Knight moves
+// Medium = monsters move every 2 Knight moves
+// Hard   = monsters move every 2 Knight moves
+//
+// Monster CAN capture King.
+// Monster CANNOT capture Knight.
+// ============================================================
+
+function moveKNDMonstersTowardKing() {
+
+  const monsterMoveEvery =
+    kndMode === "easy"
+      ? 3
+      : 2;
+
+
+  // ========================================================
+  // ⏱️ MONSTER MOVEMENT TIMER
+  // ========================================================
+
+  kndTurnCounter++;
+
+
+  if (
+    kndTurnCounter <
+    monsterMoveEvery
+  ) {
+
+    return false;
+
+  }
+
+
+  kndTurnCounter = 0;
+
+
+  // ========================================================
+  // 👹 MOVE EACH MONSTER
+  // ========================================================
+
+  for (
+    const m of kndMonsters
+  ) {
+
+    let bestMove = null;
+
+    let bestDistance =
+      Infinity;
+
+
     const directions = [
-      [-1,-1],[0,-1],[1,-1],
-      [-1, 0],       [1, 0],
-      [-1, 1],[0, 1],[1, 1],
+
+      [-1, -1],
+      [ 0, -1],
+      [ 1, -1],
+
+      [-1,  0],
+      [ 1,  0],
+
+      [-1,  1],
+      [ 0,  1],
+      [ 1,  1]
+
     ];
 
-    for (const [dx, dy] of directions) {
-      const nx = m.x + dx;
-      const ny = m.y + dy;
+
+    // ======================================================
+    // 🧠 FIND THE CLOSEST LEGAL SQUARE TO KING
+    // ======================================================
+
+    for (
+      const [dx, dy]
+      of directions
+    ) {
+
+      const nx =
+        m.x + dx;
+
+      const ny =
+        m.y + dy;
+
+
+      // ----------------------------------------------------
+      // BOARD LIMIT
+      // ----------------------------------------------------
 
       if (
-        nx < 0 || nx >= KND_SIZE ||
-        ny < 0 || ny >= KND_SIZE
-      ) continue;
+        nx < 0 ||
+        nx >= KND_SIZE ||
+        ny < 0 ||
+        ny >= KND_SIZE
+      ) {
 
-      // 🚫 cannot land on knight
-      if (nx === kndKnight.x && ny === kndKnight.y) continue;
+        continue;
 
-      // 🚫 cannot stack monsters
-      if (occupied.has(`${nx},${ny}`)) continue;
-
-      // 🎯 distance to king
-      const distToKing =
-        Math.abs(nx - kndKing.x) +
-        Math.abs(ny - kndKing.y);
-
-      // 🧱 density penalty (prevents stacking lines)
-      let densityPenalty = 0;
-      for (const o of occupied) {
-        const [ox, oy] = o.split(",").map(Number);
-        const d = Math.abs(nx - ox) + Math.abs(ny - oy);
-        if (d === 1) densityPenalty += 8;
-        if (d === 2) densityPenalty += 4;
       }
 
-      // 🧠 FINAL SCORE
-      const score = distToKing * 20 + densityPenalty;
 
-      if (score < bestScore) {
-        bestScore = score;
-        best = { x: nx, y: ny };
+      // ----------------------------------------------------
+      // 🚫 MONSTER CANNOT CAPTURE KNIGHT
+      // ----------------------------------------------------
+
+      if (
+        nx === kndKnight.x &&
+        ny === kndKnight.y
+      ) {
+
+        continue;
+
       }
-    }
 
-    // 🚑 ABSOLUTE FAILSAFE (NEVER FREEZE)
-    if (!best) {
-      for (const [dx, dy] of directions) {
-        const nx = m.x + dx;
-        const ny = m.y + dy;
-        if (
-          nx >= 0 && nx < KND_SIZE &&
-          ny >= 0 && ny < KND_SIZE &&
-          !(nx === kndKnight.x && ny === kndKnight.y) &&
-          !occupied.has(`${nx},${ny}`)
-        ) {
-          best = { x: nx, y: ny };
-          break;
-        }
+
+      // ----------------------------------------------------
+      // 🚫 DON'T STACK MONSTERS
+      // ----------------------------------------------------
+
+      const occupiedByAnotherMonster =
+        kndMonsters.some(
+          other =>
+            other !== m &&
+            other.x === nx &&
+            other.y === ny
+        );
+
+
+      if (
+        occupiedByAnotherMonster
+      ) {
+
+        continue;
+
       }
+
+
+      // ----------------------------------------------------
+      // 👑 DISTANCE TO KING
+      // ----------------------------------------------------
+
+      const distanceToKing =
+        Math.abs(
+          nx - kndKing.x
+        ) +
+        Math.abs(
+          ny - kndKing.y
+        );
+
+
+      // ----------------------------------------------------
+      // 👑 KING SQUARE
+      //
+      // If the monster can directly enter the King square,
+      // that is ALWAYS the best possible move.
+      // ----------------------------------------------------
+
+      if (
+        nx === kndKing.x &&
+        ny === kndKing.y
+      ) {
+
+        bestMove = {
+          x: nx,
+          y: ny
+        };
+
+        bestDistance = -1;
+
+        break;
+
+      }
+
+
+      // ----------------------------------------------------
+      // 🎯 ALWAYS PREFER CLOSER SQUARE
+      // ----------------------------------------------------
+
+      if (
+        distanceToKing <
+        bestDistance
+      ) {
+
+        bestDistance =
+          distanceToKing;
+
+        bestMove = {
+          x: nx,
+          y: ny
+        };
+
+      }
+
     }
 
-    if (best) {
-      m.x = best.x;
-      m.y = best.y;
+
+    // ======================================================
+    // 🚑 FAILSAFE
+    // ======================================================
+
+    if (!bestMove) {
+
+      continue;
+
     }
 
-    occupied.add(`${m.x},${m.y}`);
 
-    // 👑 KING KILLED (ANY DIRECTION)
-    if (m.x === kndKing.x && m.y === kndKing.y) {
-      showKNDModal("Defeat!", "👑 The King was slain!");
-      return;
+    // ======================================================
+    // 👹 MOVE MONSTER
+    // ======================================================
+
+    m.x =
+      bestMove.x;
+
+    m.y =
+      bestMove.y;
+
+
+    // ======================================================
+    // 👑 KING CAPTURED
+    // ======================================================
+
+    if (
+      m.x === kndKing.x &&
+      m.y === kndKing.y
+    ) {
+
+      kndGameFinished =
+        true;
+
+      kndAnimating =
+        false;
+
+
+      // -----------------------------------------------
+      // Visual defeat flash
+      // -----------------------------------------------
+
+      if (kndBoard) {
+
+        kndBoard.classList.remove(
+          "knd-danger-flash"
+        );
+
+        void kndBoard.offsetWidth;
+
+        kndBoard.classList.add(
+          "knd-danger-flash"
+        );
+
+      }
+
+
+      updateKNDHUD();
+
+
+      // -----------------------------------------------
+      // Show defeat after tiny visual delay
+      // -----------------------------------------------
+
+      setTimeout(
+        () => {
+
+          if (
+            kndGameFinished
+          ) {
+
+            showKNDModal(
+              "Defeat!",
+              "👑 The King was slain!"
+            );
+
+          }
+
+        },
+        180
+      );
+
+
+      return true;
+
     }
+
   }
+
+
+  return false;
+
 }
 
 
+// ============================================================
+// 🐴 KNIGHT CLICK
+// ============================================================
 
+function handleKNDClick(
+  x,
+  y
+) {
 
+  // =========================================
+  // GAME LOCK
+  // =========================================
 
+  if (
+    kndAnimating ||
+    kndGameFinished
+  ) {
 
-
-
-
-// ================================
-// CLICK HANDLER
-// ================================
-function handleKNDClick(x, y) {
-  const dx = Math.abs(x - kndKnight.x);
-  const dy = Math.abs(y - kndKnight.y);
-
-  // knight legality
-  if (!((dx === 2 && dy === 1) || (dx === 1 && dy === 2))) return;
-
-  // move knight
-  kndKnight = { x, y };
-
-  // 🔊 play move sound
-playKNDKnightMoveSound();
-
-  // 🗡️ kill monster
-  const hitIndex = kndMonsters.findIndex(
-    m => m.x === x && m.y === y
-  );
-  if (hitIndex !== -1) {
-    kndMonsters.splice(hitIndex, 1);
-    kndLeftEl.textContent = kndMonsters.length;
-
-    if (kndMonsters.length === 0) {
-      // 🏆 SAVE BEST SCORE (King Defense)
-  saveMiniGameScore("knightdefense", kndTotalMonsters);
-  showKNDModal("Victory!", "🎉 All monsters defeated!");
-  return;
-}
+    return;
 
   }
 
-  // monsters move AFTER knight
-  moveKNDMonstersTowardKing();
-  drawKNDBoard();
-}
 
-// ================================
-// DRAW BOARD (RANK SAFE)
-// ================================
-function drawKNDBoard() {
-  kndBoard.innerHTML = "";
+  // =========================================
+  // KNIGHT MOVE
+  // =========================================
 
-  for (let y = KND_SIZE - 1; y >= 0; y--) {
-    for (let x = 0; x < KND_SIZE; x++) {
-      const sq = document.createElement("div");
-      sq.className = "knd-square";
-      sq.classList.add((x + y) % 2 === 0 ? "light" : "dark");
-      sq.onclick = () => handleKNDClick(x, y);
+  const dx =
+    Math.abs(
+      x -
+      kndKnight.x
+    );
 
-      if (kndKing.x === x && kndKing.y === y) {
-        sq.textContent = "👑";
-        sq.classList.add("king");
-      }
-      else if (kndKnight.x === x && kndKnight.y === y) {
-        sq.textContent = "🐴";
-        sq.classList.add("knight");
-      }
-      else {
-        const m = kndMonsters.find(mm => mm.x === x && mm.y === y);
-        if (m) {
-          sq.textContent = "👹";
-          sq.classList.add("monster");
-        }
-      }
 
-      kndBoard.appendChild(sq);
-    }
+  const dy =
+    Math.abs(
+      y -
+      kndKnight.y
+    );
+
+
+  if (
+    !(
+      (dx === 2 && dy === 1) ||
+      (dx === 1 && dy === 2)
+    )
+  ) {
+
+    return;
+
   }
-}
 
 
-
-// ================================
-// GAME OVER
-// ================================
-function showKNDGameOver(msg) {
-  showKNDModal("Game Over", msg);
-  
-
-}
+  kndAnimating =
+    true;
 
 
+  // =========================================
+  // MOVE KNIGHT
+  // =========================================
 
-
-function showKNDModal(title, message) {
-  playKNDCompleteSound(); // 🔊 GAME END SOUND
-
-  const modal = document.getElementById("floatingModal");
-  const titleEl = document.getElementById("modalTitle");
-  const bodyEl = document.getElementById("modalBody");
-  const okBtn = document.getElementById("modalOkBtn");
-
-  titleEl.textContent = title;
-  bodyEl.textContent = message;
-
-  modal.classList.remove("hidden");
-
-  okBtn.onclick = () => {
-    modal.classList.add("hidden");
-    exitKND();
+  kndKnight = {
+    x,
+    y
   };
+
+
+  kndMoveCount++;
+
+
+  playKNDKnightMoveSound();
+
+
+  // =========================================
+  // CHECK MONSTER CAPTURE
+  // =========================================
+
+  const hitIndex =
+    kndMonsters.findIndex(
+      m =>
+        m.x === x &&
+        m.y === y
+    );
+
+
+  if (
+    hitIndex !== -1
+  ) {
+
+    kndCombo++;
+
+
+    kndBestCombo =
+      Math.max(
+        kndBestCombo,
+        kndCombo
+      );
+
+
+    const captured =
+      kndMonsters[
+        hitIndex
+      ];
+
+
+    kndMonsters.splice(
+      hitIndex,
+      1
+    );
+
+
+    if (kndLeftEl) {
+
+      kndLeftEl.textContent =
+        String(
+          kndMonsters.length
+        );
+
+    }
+
+
+    playKNDCaptureSound();
+
+
+    createKNDCaptureBurst(
+      captured.x,
+      captured.y
+    );
+
+
+    showKNDCombo();
+
+
+    // =======================================
+    // 🏆 LAST MONSTER CAPTURED
+    // =======================================
+
+    if (
+      kndMonsters.length ===
+      0
+    ) {
+
+      kndGameFinished =
+        true;
+
+
+      kndAnimating =
+        false;
+
+
+      updateKNDHUD();
+
+
+      if (kndBoard) {
+
+        kndBoard.classList.remove(
+          "knd-final-monster"
+        );
+
+
+        kndBoard.classList.add(
+          "knd-victory-flash"
+        );
+
+      }
+
+
+      setTimeout(
+        () => {
+
+          playKNDVictorySound();
+
+
+          // =================================
+          // EXISTING SCORE SYSTEM
+          // =================================
+
+          saveMiniGameScore(
+            "knightdefense",
+            kndTotalMonsters
+          );
+
+
+          showKNDModal(
+            "🏆 King Saved!",
+            kndBestCombo >= 3
+              ? `🎉 Amazing! You defeated all ${kndTotalMonsters} monsters with a ${kndBestCombo}× combo!`
+              : `🎉 All ${kndTotalMonsters} monsters defeated! The King is safe!`
+          );
+
+        },
+        350
+      );
+
+
+      return;
+
+    }
+
+  }
+  else {
+
+    // =======================================
+    // MISSED CAPTURE = COMBO RESET
+    // =======================================
+
+    kndCombo =
+      0;
+
+  }
+
+
+  updateKNDHUD();
+
+
+  // =========================================
+  // 👹 MONSTERS MOVE
+  // =========================================
+
+  const monstersMoved =
+    moveKNDMonstersTowardKing();
+
+
+  // =========================================
+  // 👑 KING WAS CAPTURED
+  // =========================================
+
+  if (
+    monstersMoved === true
+  ) {
+
+    drawKNDBoard();
+
+    kndAnimating =
+      false;
+
+    return;
+
+  }
+
+
+  // =========================================
+  // DRAW UPDATED BOARD
+  // =========================================
+
+  drawKNDBoard();
+
+
+  // =========================================
+  // DANGER SOUND
+  // =========================================
+
+  const danger =
+    getKNDDangerLevel();
+
+
+  if (
+    danger.level ===
+    "critical"
+  ) {
+
+    playKNDDangerSound();
+
+  }
+
+
+  updateKNDHUD();
+
+
+  // =========================================
+  // 🔥 LAST MONSTER MODE
+  // =========================================
+
+  if (
+    kndMonsters.length ===
+    1
+  ) {
+
+    if (kndBoard) {
+
+      kndBoard.classList.add(
+        "knd-final-monster"
+      );
+
+    }
+
+  }
+  else {
+
+    if (kndBoard) {
+
+      kndBoard.classList.remove(
+        "knd-final-monster"
+      );
+
+    }
+
+  }
+
+
+  // =========================================
+  // RELEASE INPUT
+  // =========================================
+
+  setTimeout(
+    () => {
+
+      if (
+        !kndGameFinished
+      ) {
+
+        kndAnimating =
+          false;
+
+      }
+
+    },
+    130
+  );
+
 }
 
+
+// ============================================================
+// 🎨 DRAW BOARD
+// ============================================================
+
+function drawKNDBoard() {
+
+  if (!kndBoard) {
+    return;
+  }
+
+
+  kndBoard.innerHTML =
+    "";
+
+
+  for (
+    let y = KND_SIZE - 1;
+    y >= 0;
+    y--
+  ) {
+
+    for (
+      let x = 0;
+      x < KND_SIZE;
+      x++
+    ) {
+
+      const sq =
+        document.createElement(
+          "div"
+        );
+
+
+      sq.className =
+        "knd-square";
+
+
+      sq.classList.add(
+        (x + y) % 2 === 0
+          ? "light"
+          : "dark"
+      );
+
+
+      // =======================================
+      // CLICK
+      // =======================================
+
+      sq.onclick =
+        () => {
+
+          handleKNDClick(
+            x,
+            y
+          );
+
+        };
+
+
+      // =======================================
+      // KING
+      // =======================================
+
+      if (
+        kndKing &&
+        kndKing.x === x &&
+        kndKing.y === y
+      ) {
+
+        sq.textContent =
+          "👑";
+
+        sq.classList.add(
+          "king"
+        );
+
+      }
+
+
+      // =======================================
+      // KNIGHT
+      // =======================================
+
+      else if (
+        kndKnight &&
+        kndKnight.x === x &&
+        kndKnight.y === y
+      ) {
+
+        sq.textContent =
+          "🐴";
+
+        sq.classList.add(
+          "knight"
+        );
+
+      }
+
+
+      // =======================================
+      // MONSTER
+      // =======================================
+
+      else {
+
+        const m =
+          kndMonsters.find(
+            mm =>
+              mm.x === x &&
+              mm.y === y
+          );
+
+
+        if (m) {
+
+          sq.textContent =
+            "👹";
+
+          sq.classList.add(
+            "monster"
+          );
+
+        }
+
+      }
+
+
+      kndBoard.appendChild(
+        sq
+      );
+
+    }
+
+  }
+
+
+  updateKNDKingReaction();
+
+  updateKNDHUD();
+
+}
+
+
+// ============================================================
+// 🏆 GAME OVER
+// ============================================================
+
+function showKNDGameOver(
+  msg
+) {
+
+  showKNDModal(
+    "Game Over",
+    msg
+  );
+
+}
+
+
+// ============================================================
+// 🏆 MODAL
+// ============================================================
+
+function showKNDModal(
+  title,
+  message
+) {
+
+  // =========================================
+  // 🔊 COMPLETION SOUND
+  // =========================================
+
+  try {
+
+    if (
+      typeof playKNDCompleteSound ===
+      "function"
+    ) {
+
+      playKNDCompleteSound();
+
+    }
+
+  } catch (e) {}
+
+
+  const modal =
+    document.getElementById(
+      "floatingModal"
+    );
+
+  const titleEl =
+    document.getElementById(
+      "modalTitle"
+    );
+
+  const bodyEl =
+    document.getElementById(
+      "modalBody"
+    );
+
+  const okBtn =
+    document.getElementById(
+      "modalOkBtn"
+    );
+
+
+  if (!modal) {
+    return;
+  }
+
+
+  if (titleEl) {
+
+    titleEl.textContent =
+      title;
+
+  }
+
+
+  if (bodyEl) {
+
+    bodyEl.textContent =
+      message;
+
+  }
+
+
+  modal.classList.remove(
+    "hidden"
+  );
+
+
+  if (okBtn) {
+
+    okBtn.onclick =
+      () => {
+
+        modal.classList.add(
+          "hidden"
+        );
+
+        exitKND();
+
+      };
+
+  }
+
+}
 
 
 
