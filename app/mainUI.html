@@ -7,6 +7,7 @@
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
 
   <script>
 (function(){
@@ -37347,6 +37348,7 @@ Submit solution</button>
 
 <script defer src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.11.0/chess.min.js"></script>
+
 
 
   <script type="module">
@@ -80500,8 +80502,918 @@ document.addEventListener(
   }
 );
 
+/* =====================================================
+   📱 PGN VIEWER → DIRECT MP4 EXPORT
+   =====================================================
+
+   Uses Mediabunny + WebCodecs.
+
+   IMPORTANT:
+
+   This does NOT modify the existing GIF exporter.
+
+   The MP4 is generated directly from a canvas.
+
+   Same:
+   ✅ FEN
+   ✅ current move
+   ✅ chapter
+   ✅ study title
+   ✅ Olympus header
+   ✅ chess pieces
+   ✅ 1.5 sec per move
+
+===================================================== */
+
+window.downloadPGNViewerMP4 =
+  async function() {
+
+    const button =
+      document.getElementById(
+        "pgnViewerMp4Btn"
+      );
 
 
+    /* ==========================================
+       BASIC CHECKS
+    ========================================== */
+
+    if (
+      !PGN_VIEWER.game ||
+      !Array.isArray(
+        PGN_VIEWER.moveHistory
+      ) ||
+      !PGN_VIEWER.moveHistory.length
+    ) {
+
+      alert(
+        "No active PGN is loaded."
+      );
+
+      return;
+    }
+
+
+    if (
+      typeof Mediabunny ===
+      "undefined"
+    ) {
+
+      alert(
+        "MP4 engine is not loaded. Please refresh the page."
+      );
+
+      return;
+    }
+
+
+    /* ==========================================
+       CHECK H.264 SUPPORT
+    ========================================== */
+
+    if (
+      typeof VideoEncoder ===
+      "undefined"
+    ) {
+
+      alert(
+        "Your browser does not support MP4 video encoding."
+      );
+
+      return;
+    }
+    /* ==========================================
+   CANVAS DIMENSIONS
+
+   ✅ Defined here (early) so both the codec
+   support check below AND the actual canvas
+   creation later use the exact same values.
+========================================== */
+
+const SIZE =
+  600;
+
+const HEADER_HEIGHT =
+  90;
+
+const VIDEO_WIDTH =
+  Math.ceil(SIZE / 16) * 16;      // 600 → 608
+
+const VIDEO_HEIGHT =
+  Math.ceil((SIZE + HEADER_HEIGHT) / 16) * 16;   // 690 → 704
+
+
+const codecSupport =
+  await VideoEncoder.isConfigSupported({
+
+    codec:
+      "avc1.42E028",   // ✅ was "avc1.42E01E" (Level 3.0, 1620 MB cap)
+                        // now Level 4.0 (28 hex), 8192 MB cap — fits 608×704 (1672 MB)
+
+    width:
+      VIDEO_WIDTH,
+
+    height:
+      VIDEO_HEIGHT,
+
+    bitrate:
+      2_000_000,
+
+    framerate:
+      1
+
+  }).catch(
+    () => null
+  );
+
+
+    if (
+      !codecSupport ||
+      !codecSupport.supported
+    ) {
+
+      alert(
+        "H.264 MP4 encoding is not supported by this browser."
+      );
+
+      return;
+    }
+
+
+    /* ==========================================
+       BUTTON
+    ========================================== */
+
+    if (button) {
+
+      button.disabled =
+        true;
+
+      button.dataset.oldText =
+        button.textContent;
+
+      button.textContent =
+        "⏳ Creating MP4...";
+    }
+
+
+    try {
+
+      /* ========================================
+         MEDIABUNNY CLASSES
+      ======================================== */
+
+      const {
+
+        Output,
+
+        Mp4OutputFormat,
+
+        BufferTarget,
+
+        CanvasSource
+
+      } =
+        Mediabunny;
+
+
+/* ========================================
+   CANVAS
+======================================== */
+
+const canvas =
+  document.createElement(
+    "canvas"
+  );
+
+
+canvas.width =
+  VIDEO_WIDTH;
+
+
+canvas.height =
+  VIDEO_HEIGHT;
+
+
+const ctx =
+  canvas.getContext(
+    "2d"
+  );
+
+
+if (!ctx) {
+
+  throw new Error(
+    "Unable to create MP4 canvas."
+  );
+}
+
+
+      /* ========================================
+         STUDY / CHAPTER
+      ======================================== */
+
+      const studyTitle =
+        PGN_VIEWER.studyTitle ||
+        "Untitled Study";
+
+
+      const chapterName =
+        PGN_VIEWER.currentChapterName ||
+        `Chapter ${PGN_VIEWER.currentPuzzle + 1}`;
+
+
+      /* ========================================
+         STARTING FEN
+      ======================================== */
+
+      const startFen =
+        PGN_VIEWER.startFen ||
+        new Chess().fen();
+
+
+      /* ========================================
+         MOVE HISTORY
+      ======================================== */
+
+      const fullHistory =
+        PGN_VIEWER.moveHistory.slice();
+
+
+      const currentMove =
+        Math.max(
+          0,
+          Math.min(
+            PGN_VIEWER.currentMove,
+            fullHistory.length
+          )
+        );
+
+
+      /* ========================================
+         CREATE GAME
+      ======================================== */
+
+      const game =
+        new Chess();
+
+
+      game.load(
+        startFen
+      );
+
+
+      /* ========================================
+         REBUILD CURRENT POSITION
+      ======================================== */
+
+      for (
+        let i = 0;
+        i < currentMove;
+        i++
+      ) {
+
+        game.move(
+          fullHistory[i]
+        );
+      }
+
+
+      /* ========================================
+         PIECES
+
+         SAME PIECE THEME AS EXISTING GIF
+      ======================================== */
+
+      const pieceTheme =
+        getPieceThemePath(
+          currentPieceTheme
+        );
+
+
+      const pieceCodes = [
+
+        "wK",
+        "wQ",
+        "wR",
+        "wB",
+        "wN",
+        "wP",
+
+        "bK",
+        "bQ",
+        "bR",
+        "bB",
+        "bN",
+        "bP"
+
+      ];
+
+
+      const pieceImages =
+        {};
+
+
+      /* ========================================
+         LOAD PIECES
+      ======================================== */
+
+      for (
+        const code of pieceCodes
+      ) {
+
+        const path =
+          pieceTheme.replace(
+            "{piece}",
+            code
+          );
+
+
+        const response =
+          await fetch(
+            path
+          );
+
+
+        if (!response.ok) {
+
+          throw new Error(
+            `Unable to load piece ${code}.`
+          );
+        }
+
+
+        const blob =
+          await response.blob();
+
+
+        const url =
+          URL.createObjectURL(
+            blob
+          );
+
+
+        const image =
+          new Image();
+
+
+        await new Promise(
+          (
+            resolve,
+            reject
+          ) => {
+
+            image.onload =
+              resolve;
+
+            image.onerror =
+              reject;
+
+            image.src =
+              url;
+          }
+        );
+
+
+        pieceImages[code] = {
+
+          image:
+            image,
+
+          url:
+            url
+        };
+      }
+
+
+      /* ========================================
+         DRAW FRAME
+
+         Same visual structure as GIF.
+      ======================================== */
+
+      function drawFrame(
+        chessGame
+      ) {
+
+        /* --------------------------------------
+           BACKGROUND
+        -------------------------------------- */
+
+        ctx.clearRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+
+        ctx.fillStyle =
+          "#1c1f35";
+
+
+        ctx.fillRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+
+        /* --------------------------------------
+           HEADER
+        -------------------------------------- */
+
+        ctx.textAlign =
+          "center";
+
+
+        ctx.textBaseline =
+          "alphabetic";
+
+
+        ctx.fillStyle =
+          "#f5c542";
+
+
+        ctx.font =
+          "bold 24px Arial";
+
+
+        ctx.fillText(
+          "The Olympus Chess Academy",
+          SIZE / 2,
+          25
+        );
+
+
+        ctx.fillStyle =
+          "#ffffff";
+
+
+        ctx.font =
+          "bold 22px Arial";
+
+
+        ctx.fillText(
+          studyTitle,
+          SIZE / 2,
+          52
+        );
+
+
+        ctx.fillStyle =
+          "#d1d5db";
+
+
+        ctx.font =
+          "bold 17px Arial";
+
+
+        ctx.fillText(
+          chapterName,
+          SIZE / 2,
+          76
+        );
+
+
+        /* --------------------------------------
+           BOARD
+        -------------------------------------- */
+
+        const square =
+          SIZE / 8;
+
+
+        const board =
+          chessGame.board();
+
+
+        for (
+          let rank = 0;
+          rank < 8;
+          rank++
+        ) {
+
+          for (
+            let file = 0;
+            file < 8;
+            file++
+          ) {
+
+            const light =
+              (rank + file) % 2 === 0;
+
+
+            ctx.fillStyle =
+              light
+                ? "#f0d9b5"
+                : "#b58863";
+
+
+            ctx.fillRect(
+
+              file * square,
+
+              HEADER_HEIGHT +
+                rank * square,
+
+              square,
+
+              square
+
+            );
+
+
+            const piece =
+              board[rank][file];
+
+
+            if (!piece) {
+
+              continue;
+            }
+
+
+            const code =
+              piece.color +
+              piece.type.toUpperCase();
+
+
+            const cached =
+              pieceImages[code];
+
+
+            if (
+              cached &&
+              cached.image
+            ) {
+
+              ctx.drawImage(
+
+                cached.image,
+
+                file * square,
+
+                HEADER_HEIGHT +
+                  rank * square,
+
+                square,
+
+                square
+
+              );
+            }
+          }
+        }
+      }
+
+
+      /* ========================================
+         MEDIABUNNY OUTPUT
+      ======================================== */
+
+      const output =
+        new Output({
+
+          format:
+            new Mp4OutputFormat({
+
+              fastStart:
+                "in-memory"
+
+            }),
+
+          target:
+            new BufferTarget()
+
+        });
+
+
+      /* ========================================
+         VIDEO SOURCE
+
+         ✅ FIX: `bitrate` must be a plain number
+         (or a Quality instance), passed directly —
+         not wrapped in a `quality` key. The old
+         `quality: new Quality({...})` shape doesn't
+         match Mediabunny's VideoEncodingConfig and
+         would leave the encoder without a real bitrate.
+      ======================================== */
+
+      const videoSource =
+        new CanvasSource(
+
+          canvas,
+
+          {
+
+            codec:
+              "avc",
+
+            bitrate:
+              2_000_000
+
+          }
+
+        );
+
+
+      /* ========================================
+         ✅ FIX: no `frameRate` hint here.
+
+         `frameRate` tells Mediabunny to SNAP all
+         timestamps/durations of this track to that
+         rate. We're feeding 1.5s-long frames — an
+         effective ~0.667 fps — so passing
+         `frameRate: 1` would round our 1.5s spacing
+         down to 1-second increments and silently
+         wreck the "1.5 sec per move" timing.
+         Leaving it unset means our explicit
+         timestamps are used exactly as given.
+      ======================================== */
+
+   output.addVideoTrack(
+  videoSource,
+  {
+    frameRate: 2 / 3
+  }
+);
+
+
+      await output.start();
+
+
+      /* ========================================
+         ⏱️ EXACT TIMING
+
+         1.5 seconds per position.
+      ======================================== */
+
+      const FRAME_DURATION =
+        1.5;
+
+
+      let timestamp =
+        0;
+
+
+      /* ========================================
+         STARTING POSITION
+      ======================================== */
+
+      drawFrame(
+        game
+      );
+
+
+      await videoSource.add(
+
+        timestamp,
+
+        FRAME_DURATION
+
+      );
+
+
+      timestamp +=
+        FRAME_DURATION;
+
+
+      /* ========================================
+         PLAY REMAINING MOVES
+      ======================================== */
+
+      for (
+        let i = currentMove;
+        i < fullHistory.length;
+        i++
+      ) {
+
+        game.move(
+          fullHistory[i]
+        );
+
+
+        drawFrame(
+          game
+        );
+
+
+        await videoSource.add(
+
+          timestamp,
+
+          FRAME_DURATION
+
+        );
+
+
+        timestamp +=
+          FRAME_DURATION;
+      }
+
+
+      /* ========================================
+         FINAL POSITION
+
+         Same final hold as GIF.
+      ======================================== */
+
+      drawFrame(
+        game
+      );
+
+
+      await videoSource.add(
+
+        timestamp,
+
+        FRAME_DURATION
+
+      );
+
+
+      /* ========================================
+         FINALIZE MP4
+      ======================================== */
+
+      if (button) {
+
+        button.textContent =
+          "⏳ Finalizing MP4...";
+      }
+
+
+      await output.finalize();
+
+
+      const buffer =
+        output.target.buffer;
+
+
+      if (!buffer) {
+
+        throw new Error(
+          "MP4 output is empty."
+        );
+      }
+
+
+      /* ========================================
+         CREATE FILE
+      ======================================== */
+
+      const mp4Blob =
+        new Blob(
+
+          [
+            buffer
+          ],
+
+          {
+            type:
+              "video/mp4"
+          }
+
+        );
+
+
+      const safeStudy =
+        studyTitle
+          .replace(
+            /[\\/:*?"<>|]+/g,
+            "_"
+          )
+          .trim();
+
+
+      const safeChapter =
+        chapterName
+          .replace(
+            /[\\/:*?"<>|]+/g,
+            "_"
+          )
+          .trim();
+
+
+      const filename =
+        `${safeStudy} - ${safeChapter}.mp4`;
+
+
+      const url =
+        URL.createObjectURL(
+          mp4Blob
+        );
+
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+
+      link.href =
+        url;
+
+
+      link.download =
+        filename;
+
+
+      document.body.appendChild(
+        link
+      );
+
+
+      link.click();
+
+
+      link.remove();
+
+
+      setTimeout(
+        () => {
+
+          URL.revokeObjectURL(
+            url
+          );
+
+        },
+        3000
+      );
+
+
+      /* ========================================
+         CLEAN PIECE URLs
+      ======================================== */
+
+      Object.values(
+        pieceImages
+      ).forEach(
+        data => {
+
+          if (
+            data &&
+            data.url
+          ) {
+
+            URL.revokeObjectURL(
+              data.url
+            );
+          }
+        }
+      );
+
+
+      /* ========================================
+         SUCCESS
+      ======================================== */
+
+      if (
+        typeof showJoinBanner ===
+        "function"
+      ) {
+
+        showJoinBanner(
+          "📱 WhatsApp Video Downloaded Successfully",
+          false
+        );
+      }
+
+
+      console.log(
+        "✅ MP4 created:",
+        filename
+      );
+
+
+    } catch (err) {
+
+      console.error(
+        "❌ MP4 generation failed:",
+        err
+      );
+
+
+      alert(
+        "Failed to create WhatsApp MP4. Check the browser console for details."
+      );
+
+
+    } finally {
+
+      if (button) {
+
+        button.disabled =
+          false;
+
+        button.textContent =
+          button.dataset.oldText ||
+          "📱 WhatsApp Video";
+      }
+    }
+  };
 
 /* =====================================
    STUDENT PUZZLE GRID VIEWER
@@ -126973,6 +127885,13 @@ document.addEventListener("DOMContentLoaded", startApp);
       justify-content:center;
       gap:10px;
     ">
+    <button
+  id="pgnViewerMp4Btn"
+  onclick="downloadPGNViewerMP4()"
+  style="background:#25D366;color:white;"
+>
+  📱 WhatsApp Video
+</button>
 
       <!-- GIF -->
       <button
@@ -132864,6 +133783,9 @@ style="
      ISOLATED DEPENDENCY
 ========================================= -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script src="./mediabunny.min.cjs"></script>
+
+
 
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
