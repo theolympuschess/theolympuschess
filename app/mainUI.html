@@ -78652,18 +78652,51 @@ function launchSparkleRain(emoji) {
 
 /* ============================================
    PGN VIEWER SYSTEM (FULLY ISOLATED)
+   + LOOPING GIF EXPORT
 ============================================ */
 
 const PGN_VIEWER = {
+
   puzzles: [],
+
   currentPuzzle: 0,
+
   currentMove: 0,
+
+  totalMoves: 0,
+
   board: null,
-  game: null
+
+  game: null,
+
+  /*
+   * 🔥 Already-parsed moves for the active chapter.
+   * GIF exporter will use these directly.
+   */
+  moveHistory: [],
+
+  /*
+   * 🔥 Original starting FEN of active chapter.
+   */
+  startFen: null,
+
+  studyTitle: "",
+
+  chapterNames: [],
+
+  currentChapterName: ""
 };
 
 
-// 🔥 OPEN VIEWER
+/* ============================================
+   🔥 OPEN VIEWER
+============================================ */
+
+/* ============================================
+   🔥 OPEN PGN VIEWER
+   FIXED FOR OLYMPUS STUDY PGN STRUCTURE
+============================================ */
+
 window.openPGNViewer = async function(pgnId) {
 
   const { data, error } = await supabase
@@ -78673,154 +78706,1799 @@ window.openPGNViewer = async function(pgnId) {
     .single();
 
   if (error || !data) {
+
+    console.error(
+      "PGN Viewer load error:",
+      error
+    );
+
     alert("Failed to load PGN");
+
     return;
   }
 
-  document.getElementById("pgnViewerTitle").textContent = data.title;
 
-  // SPLIT BULK PGN INTO MULTIPLE GAMES
-  const games = data.pgn
-    .split(/\n\s*\n(?=\[Event|\[FEN)/g)
-    .filter(g => g.trim().length > 0);
+  /* ==========================================
+     STORE STUDY TITLE
+  ========================================== */
 
-  PGN_VIEWER.puzzles = games;
+  PGN_VIEWER.studyTitle =
+    data.title || "Untitled Study";
+
+
+  document.getElementById(
+    "pgnViewerTitle"
+  ).textContent =
+    PGN_VIEWER.studyTitle;
+
+
+  /* ==========================================
+     GET COMPLETE LIBRARY PGN
+  ========================================== */
+
+  const fullPgn =
+    String(data.pgn || "").trim();
+
+
+  if (!fullPgn) {
+
+    alert("This PGN is empty.");
+
+    return;
+  }
+
+
+  /* ==========================================
+     🔥 OLYMPUS STUDY CHAPTER SPLIT
+     
+     Your Study system stores chapters as:
+
+     [ChapterName "Chapter 1"]
+     ...
+     
+     [ChapterName "Chapter 2"]
+     ...
+
+     So we MUST split using ChapterName.
+  ========================================== */
+
+  const chapterMatches = [
+    ...fullPgn.matchAll(
+      /\[ChapterName\s+"([^"]*)"\]/gi
+    )
+  ];
+
+
+  PGN_VIEWER.puzzles = [];
+
+
+  /* ==========================================
+     CASE 1:
+     STUDY PGN WITH CHAPTERS
+  ========================================== */
+
+  if (chapterMatches.length > 0) {
+
+    for (
+      let i = 0;
+      i < chapterMatches.length;
+      i++
+    ) {
+
+      const start =
+        chapterMatches[i].index;
+
+
+      const end =
+        i + 1 < chapterMatches.length
+          ? chapterMatches[i + 1].index
+          : fullPgn.length;
+
+
+      /*
+       * IMPORTANT:
+       * Include the ChapterName header itself.
+       */
+      const chapterPgn =
+        fullPgn
+          .slice(start, end)
+          .trim();
+
+
+      if (chapterPgn) {
+
+        PGN_VIEWER.puzzles.push(
+          chapterPgn
+        );
+      }
+    }
+  }
+
+
+  /* ==========================================
+     CASE 2:
+     NORMAL SINGLE PGN
+  ========================================== */
+
+  if (!PGN_VIEWER.puzzles.length) {
+
+    PGN_VIEWER.puzzles = [
+      fullPgn
+    ];
+  }
+
+
+  /* ==========================================
+     RESET VIEWER
+  ========================================== */
+
   PGN_VIEWER.currentPuzzle = 0;
 
-  document.getElementById("pgnViewerOverlay").style.display = "flex";
+  PGN_VIEWER.currentMove = 0;
+
+  PGN_VIEWER.totalMoves = 0;
+
+  PGN_VIEWER.currentChapterName =
+    "";
+
+
+  /* ==========================================
+     SHOW MODAL
+  ========================================== */
+
+  const overlay =
+    document.getElementById(
+      "pgnViewerOverlay"
+    );
+
+
+  if (!overlay) {
+
+    console.error(
+      "pgnViewerOverlay not found."
+    );
+
+    return;
+  }
+
+
+  overlay.style.display =
+    "flex";
+
+
+  /* ==========================================
+     LOAD FIRST CHAPTER
+  ========================================== */
 
   loadViewerPuzzle(0);
 };
 
 
-// LOAD SINGLE PUZZLE
+/* ============================================
+   🔥 LOAD SINGLE PUZZLE
+============================================ */
+
+/* ============================================
+   🔥 LOAD SINGLE PGN / CHAPTER
+   FIXED FEN + CHAPTER SUPPORT
+============================================ */
+
 function loadViewerPuzzle(index) {
 
-  const raw = PGN_VIEWER.puzzles[index];
+  const raw =
+    PGN_VIEWER.puzzles[index];
 
-  const game = new Chess();
 
-  // ✅ Load PGN properly (supports FEN puzzles)
-  game.load_pgn(raw);
+  if (!raw) {
 
-  // 🔥 Detect starting position (very important)
-  const startFen = game.history().length === 0
-    ? game.fen()
-    : game.fen();
+    console.error(
+      "PGN Viewer: no PGN found for index",
+      index
+    );
 
-  // Now extract moves
-  const moves = game.history();
+    return;
+  }
 
-  // Reset game to starting position from PGN
-  game.load_pgn(raw);
 
-  PGN_VIEWER.game = new Chess();
+  /* ==========================================
+     EXTRACT CHAPTER NAME
+  ========================================== */
 
-  // 🔥 If PGN contains FEN tag, chess.js auto loads it
-  PGN_VIEWER.game.load_pgn(raw);
+  const chapterMatch =
+    raw.match(
+      /\[ChapterName\s+"([^"]*)"\]/i
+    );
+
+
+  PGN_VIEWER.currentChapterName =
+    chapterMatch &&
+    chapterMatch[1]
+      ? chapterMatch[1].trim()
+      : `Chapter ${index + 1}`;
+
+
+  /* ==========================================
+     EXTRACT FEN
+  ========================================== */
+
+  const fenMatch =
+    raw.match(
+      /\[FEN\s+"([^"]+)"\]/i
+    );
+
+
+  const startFen =
+    fenMatch
+      ? fenMatch[1].trim()
+      : null;
+
+
+  /* ==========================================
+     CREATE TEMP GAME
+  ========================================== */
+
+  const tempGame =
+    new Chess();
+
+
+  /*
+   * IMPORTANT:
+   * Do NOT use the previous sloppy
+   * load_pgn() logic here.
+   *
+   * Your existing application already
+   * successfully uses:
+   *
+   * tempGame.load_pgn(pgn)
+   */
+
+  let loaded = false;
+
+
+  try {
+
+    loaded =
+      tempGame.load_pgn(raw);
+
+  } catch (err) {
+
+    console.error(
+      "PGN Viewer load_pgn error:",
+      err
+    );
+
+    loaded = false;
+  }
+
+
+  if (!loaded) {
+
+    /*
+     * Some chess.js versions return
+     * undefined even when PGN loads.
+     *
+     * So verify whether moves or FEN
+     * were actually loaded.
+     */
+
+    const hasMoves =
+      tempGame.history().length > 0;
+
+
+    const hasCustomPosition =
+      startFen !== null;
+
+
+    if (
+      !hasMoves &&
+      !hasCustomPosition
+    ) {
+
+      console.error(
+        "PGN Viewer could not parse:",
+        raw
+      );
+
+      alert(
+        "This PGN could not be loaded."
+      );
+
+      return;
+    }
+  }
+
+
+  /* ==========================================
+     EXTRACT COMPLETE MOVE HISTORY
+  ========================================== */
+
+const moves =
+  tempGame.history();
+
+
+/* ==========================================
+   🔥 STORE PARSED MOVE LIST
+   GIF EXPORTER WILL REUSE THIS
+========================================== */
+
+PGN_VIEWER.moveHistory =
+  moves.slice();
+
+
+/* ==========================================
+   🔥 STORE ORIGINAL STARTING FEN
+========================================== */
+
+PGN_VIEWER.startFen =
+  startFen ||
+  new Chess().fen();
+
+
+PGN_VIEWER.totalMoves =
+  moves.length;
+
+
+  /* ==========================================
+     CREATE FRESH VIEWER GAME
+  ========================================== */
+
+  PGN_VIEWER.game =
+    new Chess();
+
+
+  /*
+   * Load the ORIGINAL starting position.
+   *
+   * This is critical for Study chapters
+   * created from a custom FEN.
+   */
+
+  if (startFen) {
+
+    try {
+
+      PGN_VIEWER.game.load(
+        startFen
+      );
+
+    } catch (err) {
+
+      console.error(
+        "PGN Viewer FEN error:",
+        err
+      );
+
+      alert(
+        "The starting FEN of this PGN is invalid."
+      );
+
+      return;
+    }
+
+  } else {
+
+    PGN_VIEWER.game.reset();
+  }
+
+
+  /* ==========================================
+     START AT MOVE ZERO
+  ========================================== */
 
   PGN_VIEWER.currentMove = 0;
 
-  // Reset back to initial position
-  while (PGN_VIEWER.game.history().length > 0) {
-    PGN_VIEWER.game.undo();
+
+  /* ==========================================
+     DESTROY PREVIOUS VIEWER BOARD
+  ========================================== */
+
+  const boardEl =
+    document.getElementById(
+      "pgnViewerBoard"
+    );
+
+
+  if (!boardEl) {
+
+    console.error(
+      "pgnViewerBoard not found."
+    );
+
+    return;
   }
 
-  // INIT BOARD
-  const boardEl = document.getElementById("pgnViewerBoard");
+
+  try {
+
+    if (PGN_VIEWER.board) {
+
+      PGN_VIEWER.board.destroy();
+
+      PGN_VIEWER.board = null;
+    }
+
+  } catch (err) {
+
+    console.warn(
+      "PGN Viewer board cleanup:",
+      err
+    );
+  }
+
+
   boardEl.innerHTML = "";
 
-  PGN_VIEWER.board = Chessboard(boardEl, {
-    position: PGN_VIEWER.game.fen(),
-    draggable: false,
-    showNotation: true,
-    pieceTheme: getPieceThemePath(currentPieceTheme)
-  });
 
-  PGN_VIEWER.totalMoves = moves.length;
+  /* ==========================================
+     CREATE FRESH CHESSBOARD
+  ========================================== */
 
-  updateViewerLabels(moves.length);
+  PGN_VIEWER.board =
+    Chessboard(
+      boardEl,
+      {
+
+        position:
+          PGN_VIEWER.game.fen(),
+
+        draggable:
+          false,
+
+        showNotation:
+          true,
+
+        pieceTheme:
+          getPieceThemePath(
+            currentPieceTheme
+          )
+      }
+    );
+
+
+  /* ==========================================
+     UPDATE LABELS
+  ========================================== */
+
+  updateViewerLabels(
+    moves.length
+  );
+
+
+  console.log(
+    "✅ PGN Viewer loaded:",
+    {
+      chapter:
+        PGN_VIEWER.currentChapterName,
+
+      startingFen:
+        PGN_VIEWER.game.fen(),
+
+      moves:
+        moves.length
+    }
+  );
 }
 
-// MOVE NAVIGATION
+
+/* ============================================
+   🔥 NEXT MOVE
+============================================ */
+
 window.viewerNextMove = function() {
 
   if (!PGN_VIEWER.game) return;
 
-  const moves = PGN_VIEWER.puzzles[PGN_VIEWER.currentPuzzle];
 
-  const tempGame = new Chess();
-  tempGame.load_pgn(moves);
+  const raw =
+    PGN_VIEWER.puzzles[
+      PGN_VIEWER.currentPuzzle
+    ];
 
-  const history = tempGame.history();
+  if (!raw) return;
 
-  if (PGN_VIEWER.currentMove >= history.length) return;
 
-  PGN_VIEWER.game.move(history[PGN_VIEWER.currentMove]);
+  const tempGame =
+    new Chess();
+
+
+  try {
+
+    tempGame.load_pgn(
+      raw,
+      { sloppy: true }
+    );
+
+  } catch (err) {
+
+    console.error(err);
+
+    return;
+  }
+
+
+  const history =
+    tempGame.history();
+
+
+  if (
+    PGN_VIEWER.currentMove >=
+    history.length
+  ) {
+
+    return;
+  }
+
+
+  const move =
+    history[
+      PGN_VIEWER.currentMove
+    ];
+
+
+  try {
+
+    PGN_VIEWER.game.move(move);
+
+  } catch (err) {
+
+    console.error(
+      "Viewer move error:",
+      err
+    );
+
+    return;
+  }
+
+
   PGN_VIEWER.currentMove++;
 
-  PGN_VIEWER.board.position(PGN_VIEWER.game.fen());
 
-  updateViewerLabels(history.length);
+  PGN_VIEWER.board.position(
+    PGN_VIEWER.game.fen()
+  );
+
+
+  updateViewerLabels(
+    history.length
+  );
 };
+
+
+/* ============================================
+   🔥 PREVIOUS MOVE
+============================================ */
 
 window.viewerPrevMove = function() {
 
   if (!PGN_VIEWER.game) return;
-  if (PGN_VIEWER.currentMove <= 0) return;
+
+
+  if (
+    PGN_VIEWER.currentMove <= 0
+  ) {
+
+    return;
+  }
+
 
   PGN_VIEWER.game.undo();
+
   PGN_VIEWER.currentMove--;
 
-  PGN_VIEWER.board.position(PGN_VIEWER.game.fen());
 
-  updateViewerLabels(PGN_VIEWER.totalMoves || 0);
+  PGN_VIEWER.board.position(
+    PGN_VIEWER.game.fen()
+  );
+
+
+  updateViewerLabels(
+    PGN_VIEWER.totalMoves || 0
+  );
 };
 
 
-// PUZZLE NAVIGATION
+/* ============================================
+   🔥 NEXT PUZZLE
+============================================ */
+
 window.viewerNextPuzzle = function() {
-  if (PGN_VIEWER.currentPuzzle >= PGN_VIEWER.puzzles.length - 1) return;
+
+  if (
+    PGN_VIEWER.currentPuzzle >=
+    PGN_VIEWER.puzzles.length - 1
+  ) {
+
+    return;
+  }
+
 
   PGN_VIEWER.currentPuzzle++;
-  loadViewerPuzzle(PGN_VIEWER.currentPuzzle);
+
+
+  loadViewerPuzzle(
+    PGN_VIEWER.currentPuzzle
+  );
 };
+
+
+/* ============================================
+   🔥 PREVIOUS PUZZLE
+============================================ */
 
 window.viewerPrevPuzzle = function() {
-  if (PGN_VIEWER.currentPuzzle <= 0) return;
+
+  if (
+    PGN_VIEWER.currentPuzzle <= 0
+  ) {
+
+    return;
+  }
+
 
   PGN_VIEWER.currentPuzzle--;
-  loadViewerPuzzle(PGN_VIEWER.currentPuzzle);
+
+
+  loadViewerPuzzle(
+    PGN_VIEWER.currentPuzzle
+  );
 };
 
 
-// LABEL UPDATE
+/* ============================================
+   🔥 LABEL UPDATE
+============================================ */
+
 function updateViewerLabels(totalMoves) {
 
-  document.getElementById("viewerMoveLabel")
-    .textContent = `${PGN_VIEWER.currentMove} / ${totalMoves}`;
+  const moveLabel =
+    document.getElementById(
+      "viewerMoveLabel"
+    );
 
-  document.getElementById("viewerPuzzleLabel")
-    .textContent = `${PGN_VIEWER.currentPuzzle + 1} / ${PGN_VIEWER.puzzles.length}`;
+  const puzzleLabel =
+    document.getElementById(
+      "viewerPuzzleLabel"
+    );
+
+
+  if (moveLabel) {
+
+    moveLabel.textContent =
+      `${PGN_VIEWER.currentMove} / ${totalMoves}`;
+  }
+
+
+  if (puzzleLabel) {
+
+    puzzleLabel.textContent =
+      `${PGN_VIEWER.currentPuzzle + 1} / ${PGN_VIEWER.puzzles.length}`;
+  }
 }
 
 
-// CLOSE
+/* =====================================================
+   🎞️ PGN VIEWER → GIF EXPORT ENGINE
+   FULLY ISOLATED
+===================================================== */
+
+/* =====================================================
+   🎞️ PGN VIEWER → GIF EXPORT
+   FULLY ISOLATED
+
+   IMPORTANT:
+   This uses the moves already parsed by the
+   PGN Viewer.
+
+   It does NOT call load_pgn() again.
+===================================================== */
+
+/* =====================================================
+   🎞️ PGN VIEWER → GIF EXPORT
+   FULLY ISOLATED
+   EXACT CURRENT APP PIECES
+   1.5 SECOND MOVE INTERVAL
+===================================================== */
+
+window.downloadPGNViewerGIF =
+  async function() {
+
+    const button =
+      document.getElementById(
+        "pgnViewerGifBtn"
+      );
+
+
+    /* ==========================================
+       BASIC VALIDATION
+    ========================================== */
+
+    if (
+      !PGN_VIEWER.game ||
+      !Array.isArray(
+        PGN_VIEWER.moveHistory
+      )
+    ) {
+
+      alert(
+        "No active PGN is loaded."
+      );
+
+      return;
+    }
+
+
+    if (
+      typeof GIF === "undefined"
+    ) {
+
+      alert(
+        "GIF engine is not loaded yet. Please refresh the page and try again."
+      );
+
+      return;
+    }
+
+
+    /* ==========================================
+       DISABLE GIF BUTTON
+    ========================================== */
+
+    if (button) {
+
+      button.disabled = true;
+
+      button.dataset.oldText =
+        button.textContent;
+
+      button.textContent =
+        "⏳ Creating...";
+    }
+
+
+    /*
+     * These URLs are created during GIF
+     * generation and must be cleaned up.
+     */
+    let workerURL = null;
+
+    const gifPieceImages = {};
+
+
+    try {
+
+      /* ========================================
+         STUDY TITLE
+      ======================================== */
+
+      const studyTitle =
+        PGN_VIEWER.studyTitle ||
+        "Untitled Study";
+
+
+      /* ========================================
+         CHAPTER TITLE
+      ======================================== */
+
+      const chapterName =
+        PGN_VIEWER.currentChapterName ||
+        `Chapter ${PGN_VIEWER.currentPuzzle + 1}`;
+
+
+      /* ========================================
+         GET ALREADY-PARSED MOVES
+      ======================================== */
+
+      const fullHistory =
+        PGN_VIEWER.moveHistory.slice();
+
+
+      if (!fullHistory.length) {
+
+        alert(
+          "The active PGN contains no moves to animate."
+        );
+
+        return;
+      }
+
+
+      /* ========================================
+         ORIGINAL STARTING FEN
+      ======================================== */
+
+      const startFen =
+        PGN_VIEWER.startFen ||
+        new Chess().fen();
+
+
+      /* ========================================
+         CURRENT VIEWER MOVE
+         
+         Example:
+
+         Viewer = 7 / 20
+
+         GIF starts from position 7
+         and plays:
+
+         8 → 9 → 10 → ... → 20
+      ======================================== */
+
+      const currentMove =
+        Math.max(
+          0,
+          Math.min(
+            PGN_VIEWER.currentMove,
+            fullHistory.length
+          )
+        );
+
+
+      /* ========================================
+         CREATE SEPARATE GIF GAME
+         
+         IMPORTANT:
+         This never modifies the visible
+         PGN Viewer game.
+      ======================================== */
+
+      const gifGame =
+        new Chess();
+
+
+      try {
+
+        gifGame.load(
+          startFen
+        );
+
+      } catch (err) {
+
+        console.error(
+          "GIF starting FEN error:",
+          err
+        );
+
+        throw new Error(
+          "The starting FEN of this chapter is invalid."
+        );
+      }
+
+
+      /* ========================================
+         REBUILD CURRENT VIEWER POSITION
+      ======================================== */
+
+      for (
+        let i = 0;
+        i < currentMove;
+        i++
+      ) {
+
+        const move =
+          fullHistory[i];
+
+
+        try {
+
+          gifGame.move(
+            move
+          );
+
+        } catch (err) {
+
+          console.error(
+            "GIF reconstruction failed:",
+            move,
+            err
+          );
+
+          throw new Error(
+            `Could not reconstruct move ${i + 1}.`
+          );
+        }
+      }
+
+
+      /* ========================================
+         CANVAS
+      ======================================== */
+
+      const SIZE =
+        600;
+
+
+      const HEADER_HEIGHT =
+        90;
+
+
+      const CANVAS_HEIGHT =
+        SIZE +
+        HEADER_HEIGHT;
+
+
+      const canvas =
+        document.createElement(
+          "canvas"
+        );
+
+
+      canvas.width =
+        SIZE;
+
+
+      canvas.height =
+        CANVAS_HEIGHT;
+
+
+      const ctx =
+        canvas.getContext(
+          "2d"
+        );
+
+
+      if (!ctx) {
+
+        throw new Error(
+          "Unable to create GIF canvas."
+        );
+      }
+
+
+      /* ========================================
+         🔥 LOAD EXACT CURRENT APP PIECES
+         
+         Uses the same:
+         
+         getPieceThemePath(
+           currentPieceTheme
+         )
+
+         as your normal chessboards.
+         
+         We fetch each piece and convert it
+         to a local Blob URL so the GIF canvas
+         is NOT tainted by cross-origin data.
+      ======================================== */
+
+      const gifPieceTheme =
+        getPieceThemePath(
+          currentPieceTheme
+        );
+
+
+      const gifPieceCodes = [
+
+        "wK",
+        "wQ",
+        "wR",
+        "wB",
+        "wN",
+        "wP",
+
+        "bK",
+        "bQ",
+        "bR",
+        "bB",
+        "bN",
+        "bP"
+      ];
+
+
+      /* ========================================
+         PRELOAD ALL 12 PIECES
+      ======================================== */
+
+      for (
+        const pieceCode
+        of gifPieceCodes
+      ) {
+
+        const piecePath =
+          gifPieceTheme.replace(
+            "{piece}",
+            pieceCode
+          );
+
+
+        const response =
+          await fetch(
+            piecePath
+          );
+
+
+        if (!response.ok) {
+
+          throw new Error(
+            `Unable to load chess piece ${pieceCode}.`
+          );
+        }
+
+
+        const blob =
+          await response.blob();
+
+
+        const localURL =
+          URL.createObjectURL(
+            blob
+          );
+
+
+        const img =
+          new Image();
+
+
+        await new Promise(
+          (resolve, reject) => {
+
+            img.onload =
+              resolve;
+
+
+            img.onerror =
+              () => {
+
+                reject(
+                  new Error(
+                    `Unable to decode chess piece ${pieceCode}.`
+                  )
+                );
+              };
+
+
+            /*
+             * IMPORTANT:
+             *
+             * The image now points to a local
+             * Blob URL instead of the original
+             * cross-origin URL.
+             */
+
+            img.src =
+              localURL;
+          }
+        );
+
+
+        gifPieceImages[
+          pieceCode
+        ] = {
+
+          image:
+            img,
+
+          url:
+            localURL
+        };
+      }
+
+
+      /* ========================================
+         🔥 DRAW GIF FRAME
+      ======================================== */
+
+      function drawFrame(
+        chessPosition
+      ) {
+
+        /* ======================================
+           CLEAR CANVAS
+        ====================================== */
+
+        ctx.clearRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+
+        /* ======================================
+           BACKGROUND
+        ====================================== */
+
+        ctx.fillStyle =
+          "#1c1f35";
+
+
+        ctx.fillRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+
+        /* ======================================
+           STUDY TITLE
+        ====================================== */
+
+/* ======================================
+   🏛️ OLYMPUS CHESS ACADEMY
+====================================== */
+
+ctx.textAlign =
+  "center";
+
+ctx.textBaseline =
+  "alphabetic";
+
+
+/* ======================================
+   ACADEMY NAME
+====================================== */
+
+ctx.fillStyle =
+  "#f5c542";
+
+ctx.font =
+  "bold 24px Arial";
+
+ctx.fillText(
+  "The Olympus Chess Academy",
+  SIZE / 2,
+  25
+);
+
+
+/* ======================================
+   STUDY TITLE
+====================================== */
+
+ctx.fillStyle =
+  "#ffffff";
+
+ctx.font =
+  "bold 22px Arial";
+
+ctx.fillText(
+  studyTitle,
+  SIZE / 2,
+  52
+);
+
+
+/* ======================================
+   CHAPTER NAME
+====================================== */
+
+ctx.fillStyle =
+  "#d1d5db";
+
+ctx.font =
+  "bold 17px Arial";
+
+ctx.fillText(
+  chapterName,
+  SIZE / 2,
+  76
+);
+
+
+        /* ======================================
+           BOARD
+        ====================================== */
+
+        const boardSize =
+          SIZE;
+
+
+        const boardTop =
+          HEADER_HEIGHT;
+
+
+        const square =
+          boardSize / 8;
+
+
+        /* ======================================
+           BOARD SQUARES
+        ====================================== */
+
+        for (
+          let rank = 0;
+          rank < 8;
+          rank++
+        ) {
+
+          for (
+            let file = 0;
+            file < 8;
+            file++
+          ) {
+
+            const light =
+              (rank + file) % 2 === 0;
+
+
+            ctx.fillStyle =
+              light
+                ? "#f0d9b5"
+                : "#b58863";
+
+
+            ctx.fillRect(
+              file * square,
+
+              boardTop +
+                rank * square,
+
+              square,
+
+              square
+            );
+          }
+        }
+
+
+        /* ======================================
+           🔥 DRAW EXACT APP PIECES
+        ====================================== */
+
+        const boardState =
+          chessPosition.board();
+
+
+        for (
+          let rank = 0;
+          rank < 8;
+          rank++
+        ) {
+
+          for (
+            let file = 0;
+            file < 8;
+            file++
+          ) {
+
+            const piece =
+              boardState[rank][file];
+
+
+            if (!piece) {
+
+              continue;
+            }
+
+
+            /*
+             * chess.js:
+             *
+             * w + K = wK
+             * w + Q = wQ
+             * b + N = bN
+             */
+
+            const pieceCode =
+              piece.color +
+              piece.type.toUpperCase();
+
+
+            const cached =
+              gifPieceImages[
+                pieceCode
+              ];
+
+
+            if (
+              !cached ||
+              !cached.image
+            ) {
+
+              continue;
+            }
+
+
+            ctx.drawImage(
+
+              cached.image,
+
+              file * square,
+
+              boardTop +
+                rank * square,
+
+              square,
+
+              square
+            );
+          }
+        }
+      }
+
+
+      /* ========================================
+         🔥 LOAD GIF WORKER AS LOCAL BLOB
+      ======================================== */
+
+      const workerResponse =
+        await fetch(
+          "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js"
+        );
+
+
+      if (!workerResponse.ok) {
+
+        throw new Error(
+          "Unable to download GIF worker."
+        );
+      }
+
+
+      const workerSource =
+        await workerResponse.text();
+
+
+      const workerBlob =
+        new Blob(
+          [
+            workerSource
+          ],
+          {
+            type:
+              "application/javascript"
+          }
+        );
+
+
+      workerURL =
+        URL.createObjectURL(
+          workerBlob
+        );
+
+
+      /* ========================================
+         🔥 CREATE GIF ENCODER
+      ======================================== */
+
+const gif =
+  new GIF({
+
+    workers:
+      2,
+
+    // Lower number = better GIF quality / more colors.
+    // 10 is a good balance for WhatsApp.
+    quality:
+      10,
+
+    width:
+      SIZE,
+
+    height:
+      CANVAS_HEIGHT,
+
+    // Keep infinite looping.
+    repeat:
+      0,
+
+    workerScript:
+      workerURL
+  });
+
+
+      /* ========================================
+         ⏱️ GIF TIMING
+         
+         EXACTLY 1.5 SECONDS PER FRAME
+      ======================================== */
+
+      const START_DELAY =
+        1500;
+
+
+      const MOVE_DELAY =
+        1500;
+
+
+      const FINAL_DELAY =
+        1500;
+
+
+      /* ========================================
+         STARTING POSITION
+      ======================================== */
+
+      drawFrame(
+        gifGame
+      );
+
+
+      gif.addFrame(
+        ctx,
+        {
+          copy:
+            true,
+
+          delay:
+            START_DELAY
+        }
+      );
+
+
+      /* ========================================
+         PLAY REMAINING MOVES
+         
+         1.5 SECONDS BETWEEN EACH MOVE.
+      ======================================== */
+
+      for (
+        let i = currentMove;
+        i < fullHistory.length;
+        i++
+      ) {
+
+        const move =
+          fullHistory[i];
+
+
+        try {
+
+          gifGame.move(
+            move
+          );
+
+        } catch (err) {
+
+          console.error(
+            "GIF move error:",
+            move,
+            err
+          );
+
+          throw new Error(
+            `GIF could not play move ${i + 1}.`
+          );
+        }
+
+
+        drawFrame(
+          gifGame
+        );
+
+
+        gif.addFrame(
+          ctx,
+          {
+            copy:
+              true,
+
+            delay:
+              MOVE_DELAY
+          }
+        );
+      }
+
+
+      /* ========================================
+         FINAL POSITION
+      ======================================== */
+
+      drawFrame(
+        gifGame
+      );
+
+
+      gif.addFrame(
+        ctx,
+        {
+          copy:
+            true,
+
+          delay:
+            FINAL_DELAY
+        }
+      );
+
+
+      /* ========================================
+         RENDER GIF
+      ======================================== */
+
+      const gifBlob =
+        await new Promise(
+          (resolve, reject) => {
+
+            gif.on(
+              "finished",
+              blob => {
+
+                resolve(
+                  blob
+                );
+              }
+            );
+
+
+            gif.on(
+              "abort",
+              () => {
+
+                reject(
+                  new Error(
+                    "GIF generation was aborted."
+                  )
+                );
+              }
+            );
+
+
+            gif.render();
+          }
+        );
+
+
+      /* ========================================
+         CLEAN WORKER
+      ======================================== */
+
+      if (workerURL) {
+
+        URL.revokeObjectURL(
+          workerURL
+        );
+
+        workerURL =
+          null;
+      }
+
+
+      /* ========================================
+         CLEAN PIECE BLOB URLS
+      ======================================== */
+
+      Object.values(
+        gifPieceImages
+      ).forEach(
+        pieceData => {
+
+          if (
+            pieceData &&
+            pieceData.url
+          ) {
+
+            URL.revokeObjectURL(
+              pieceData.url
+            );
+          }
+        }
+      );
+
+
+      /* ========================================
+         DOWNLOAD FILE
+      ======================================== */
+
+      const safeStudy =
+        studyTitle
+          .replace(
+            /[\\/:*?"<>|]+/g,
+            "_"
+          )
+          .trim();
+
+
+      const safeChapter =
+        chapterName
+          .replace(
+            /[\\/:*?"<>|]+/g,
+            "_"
+          )
+          .trim();
+
+
+      const filename =
+        `${safeStudy} - ${safeChapter}.gif`;
+
+
+      const url =
+        URL.createObjectURL(
+          gifBlob
+        );
+
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+
+      link.href =
+        url;
+
+
+      link.download =
+        filename;
+
+
+      document.body.appendChild(
+        link
+      );
+
+
+      link.click();
+
+
+      link.remove();
+
+      /* ========================================
+   🎉 GIF DOWNLOAD SUCCESS BANNER
+======================================== */
+
+if (
+  typeof showJoinBanner === "function"
+) {
+
+  showJoinBanner(
+    "🎞️ GIF Downloaded Successfully", false
+  );
+}
+
+
+      setTimeout(
+        () => {
+
+          URL.revokeObjectURL(
+            url
+          );
+
+        },
+        1000
+      );
+
+
+      console.log(
+        "✅ PGN GIF created:",
+        filename
+      );
+
+
+    } catch (err) {
+
+      /* ========================================
+         CLEANUP ON ERROR
+      ======================================== */
+
+      if (workerURL) {
+
+        URL.revokeObjectURL(
+          workerURL
+        );
+
+        workerURL =
+          null;
+      }
+
+
+      Object.values(
+        gifPieceImages
+      ).forEach(
+        pieceData => {
+
+          if (
+            pieceData &&
+            pieceData.url
+          ) {
+
+            URL.revokeObjectURL(
+              pieceData.url
+            );
+          }
+        }
+      );
+
+
+      console.error(
+        "❌ PGN GIF generation failed:",
+        err
+      );
+
+
+      alert(
+        "Failed to create GIF. Check the browser console for details."
+      );
+
+
+    } finally {
+
+      if (button) {
+
+        button.disabled =
+          false;
+
+
+        button.textContent =
+          button.dataset.oldText ||
+          "🎞️ GIF";
+      }
+    }
+  };
+
+
+/* ============================================
+   🔥 CLOSE VIEWER
+============================================ */
+
 window.closePGNViewer = function() {
-  document.getElementById("pgnViewerOverlay").style.display = "none";
+
+  /*
+   * Stop displaying viewer.
+   */
+  const overlay =
+    document.getElementById(
+      "pgnViewerOverlay"
+    );
+
+
+  if (overlay) {
+
+    overlay.style.display =
+      "none";
+  }
+
+
+  /*
+   * Destroy ONLY the PGN viewer board.
+   */
+  try {
+
+    if (PGN_VIEWER.board) {
+
+      PGN_VIEWER.board.destroy();
+
+      PGN_VIEWER.board = null;
+    }
+
+  } catch (err) {
+
+    console.warn(
+      "PGN Viewer close cleanup:",
+      err
+    );
+  }
+
+
+  /*
+   * Reset isolated state.
+   */
+  PGN_VIEWER.game = null;
+
+  PGN_VIEWER.currentMove = 0;
+
+  PGN_VIEWER.totalMoves = 0;
+
+  PGN_VIEWER.currentChapterName = "";
 };
 
 
+/* ============================================
+   🔥 EXISTING ASSIGNMENT BUTTON HANDLER
+============================================ */
+
+document.addEventListener(
+  "click",
+  function(e) {
+
+    if (
+      e.target.classList.contains(
+        "view-puzzles-btn"
+      )
+    ) {
+
+      const id =
+        e.target.dataset.assignmentId;
 
 
-document.addEventListener("click", function (e) {
+      if (id) {
 
-  if (e.target.classList.contains("view-puzzles-btn")) {
-    const id = e.target.dataset.assignmentId;
-    viewStudentAssignmentPuzzles(id);
+        viewStudentAssignmentPuzzles(
+          id
+        );
+      }
+    }
   }
-
-});
+);
 
 
 
@@ -125251,32 +126929,83 @@ document.addEventListener("DOMContentLoaded", startApp);
 
     <h3 id="pgnViewerTitle">PGN Viewer</h3>
 
-    <div id="pgnViewerBoard" style="width:420px; margin:15px auto;"></div>
+    <div id="pgnViewerBoard"
+         style="width:420px; margin:15px auto;">
+    </div>
 
     <div style="margin-top:10px;">
       <button onclick="viewerPrevMove()">⏮ Move</button>
-      <span id="viewerMoveLabel">0 / 0</span>
-      <button onclick="viewerNextMove()">Move ⏭</button>
+
+      <span id="viewerMoveLabel">
+        0 / 0
+      </span>
+
+      <button onclick="viewerNextMove()">
+        Move ⏭
+      </button>
     </div>
 
-    <hr style="margin:20px 0; opacity:.3;">
+    <hr style="
+      margin:20px 0;
+      opacity:.3;
+    ">
 
     <div>
-      <button onclick="viewerPrevPuzzle()">⬅ Puzzle</button>
-      <span id="viewerPuzzleLabel">1 / 1</span>
-      <button onclick="viewerNextPuzzle()">Puzzle ➡</button>
+      <button onclick="viewerPrevPuzzle()">
+        ⬅ Puzzle
+      </button>
+
+      <span id="viewerPuzzleLabel">
+        1 / 1
+      </span>
+
+      <button onclick="viewerNextPuzzle()">
+        Puzzle ➡
+      </button>
     </div>
 
-    <div style="margin-top:20px;">
-      <button onclick="closePGNViewer()" style="
-        background:#ff4d4d;
-        padding:8px 18px;
-        border:none;
-        border-radius:8px;
-        color:white;
-      ">
+    <!-- =====================================
+         PGN VIEWER ACTION BUTTONS
+    ====================================== -->
+    <div style="
+      margin-top:20px;
+      display:flex;
+      justify-content:center;
+      gap:10px;
+    ">
+
+      <!-- GIF -->
+      <button
+        id="pgnViewerGifBtn"
+        onclick="downloadPGNViewerGIF()"
+        style="
+          background:#f59e0b;
+          padding:8px 18px;
+          border:none;
+          border-radius:8px;
+          color:white;
+          font-weight:700;
+          cursor:pointer;
+        "
+      >
+        🎞️ GIF
+      </button>
+
+      <!-- CLOSE -->
+      <button
+        onclick="closePGNViewer()"
+        style="
+          background:#ff4d4d;
+          padding:8px 18px;
+          border:none;
+          border-radius:8px;
+          color:white;
+          cursor:pointer;
+        "
+      >
         Close
       </button>
+
     </div>
 
   </div>
@@ -131130,6 +132859,11 @@ style="
 
 })();
 </script>
+<!-- =========================================
+     PGN VIEWER GIF ENGINE
+     ISOLATED DEPENDENCY
+========================================= -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 
 </body>
 <img id="academyLogo" src="favicons.png" style="display:none;" />
