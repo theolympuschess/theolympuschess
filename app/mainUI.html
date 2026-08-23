@@ -47038,7 +47038,7 @@ function renderPGNLibrary(pgNs) {
 
           <button class="btn-small view-btn"
             onclick="openPGNViewer(${pgn.id})">
-            👁 View
+            MP4 / GIF
           </button>
 
           <button class="btn-small delete-btn-lib"
@@ -78657,6 +78657,12 @@ function launchSparkleRain(emoji) {
    + LOOPING GIF EXPORT
 ============================================ */
 
+/* ============================================
+   PGN VIEWER SYSTEM (FULLY ISOLATED)
+   + LOOPING GIF EXPORT
+   + STUDY ANNOTATION DISPLAY
+============================================ */
+
 const PGN_VIEWER = {
 
   puzzles: [],
@@ -78676,6 +78682,26 @@ const PGN_VIEWER = {
    * GIF exporter will use these directly.
    */
   moveHistory: [],
+
+  /*
+   * 🎯 Annotation attached to each mainline move.
+   *
+   * Example:
+   *
+   * annotationHistory[0] = "good"
+   * annotationHistory[1] = null
+   * annotationHistory[2] = "brilliant"
+   * annotationHistory[3] = "blunder"
+   */
+  annotationHistory: [],
+
+  /*
+   * 🎯 Actual move objects.
+   *
+   * Used only by the PGN Viewer annotation marker
+   * so we know the exact destination square.
+   */
+  moveObjectHistory: [],
 
   /*
    * 🔥 Original starting FEN of active chapter.
@@ -79013,9 +79039,42 @@ function loadViewerPuzzle(index) {
   /* ==========================================
      EXTRACT COMPLETE MOVE HISTORY
   ========================================== */
+/* ==========================================
+   EXTRACT COMPLETE MOVE HISTORY
+========================================== */
+
+/*
+ * 🔥 IMPORTANT:
+ *
+ * Use VERBOSE history here.
+ *
+ * This gives us BOTH:
+ *
+ *   move.san
+ *   move.from
+ *   move.to
+ *
+ * We need move.to so the annotation can be
+ * placed on the exact destination square.
+ */
+
+const verboseMoves =
+  tempGame.history({
+    verbose: true
+  });
+
+
+/*
+ * Normal SAN move list.
+ *
+ * Keep this exactly compatible with the
+ * existing PGN Viewer / GIF / MP4 systems.
+ */
 
 const moves =
-  tempGame.history();
+  verboseMoves.map(
+    move => move.san
+  );
 
 
 /* ==========================================
@@ -79026,6 +79085,246 @@ const moves =
 PGN_VIEWER.moveHistory =
   moves.slice();
 
+
+/* ==========================================
+   🎯 STORE ACTUAL MOVE OBJECTS
+========================================== */
+
+PGN_VIEWER.moveObjectHistory =
+  verboseMoves.map(
+    move => ({
+      ...move
+    })
+  );
+
+
+console.log(
+  "🎯 PGN Viewer move objects:",
+  PGN_VIEWER.moveObjectHistory
+);
+/* ==========================================
+   🎯 EXTRACT STUDY NAG ANNOTATIONS
+
+   Reuses the EXISTING Study annotation engine.
+
+   PGN:
+   $1  = !
+   $2  = ?
+   $3  = !!
+   $4  = ??
+   $5  = !?
+   $6  = ?!
+   $10 = =
+   $13 = ∞
+   $14 = ⩲
+   $15 = ⩱
+   $16 = ±
+   $17 = ∓
+   $18 = +−
+   $19 = −+
+   $22 = □
+   $23 = ⭘
+
+   These are converted using the existing:
+   nagToAnnotation
+   studyAnnotations
+========================================== */
+
+function extractPGNViewerAnnotations(
+  pgn,
+  moveCount
+) {
+
+  const annotations =
+    new Array(
+      moveCount
+    ).fill(null);
+
+
+  /*
+   * Remove PGN headers.
+   *
+   * Example:
+   *
+   * [ChapterName "Chapter 1"]
+   * [FEN "..."]
+   *
+   * These are not moves.
+   */
+
+  let mainline =
+    String(pgn || "")
+      .replace(
+        /\[[^\]]*\]/g,
+        " "
+      );
+
+
+  /*
+   * Remove comments.
+   *
+   * Example:
+   *
+   * {This is a comment}
+   */
+
+  mainline =
+    mainline.replace(
+      /\{[^}]*\}/g,
+      " "
+    );
+
+
+  /*
+   * Remove semicolon comments.
+   */
+
+  mainline =
+    mainline.replace(
+      /;[^\r\n]*/g,
+      " "
+    );
+
+
+  /*
+   * Remove PGN variations.
+   *
+   * This removes:
+   *
+   * (1... c5 2. Nf3)
+   *
+   * while keeping the MAINLINE.
+   */
+
+  let previousLength;
+
+  do {
+
+    previousLength =
+      mainline.length;
+
+    mainline =
+      mainline.replace(
+        /\([^()]*\)/g,
+        " "
+      );
+
+  } while (
+    mainline.length !==
+    previousLength
+  );
+
+
+  /*
+   * Tokenize:
+   *
+   * - move numbers
+   * - NAGs
+   * - SAN moves
+   */
+
+  const tokens =
+    mainline.match(
+      /\$\d+|\d+\.(?:\.\.)?|O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?/g
+    ) || [];
+
+
+  let moveIndex =
+    -1;
+
+
+  tokens.forEach(
+    token => {
+
+      /*
+       * Ignore:
+       *
+       * 1.
+       * 1...
+       * 2.
+       * etc.
+       */
+
+      if (
+        /^\d+\.(?:\.\.)?$/.test(
+          token
+        )
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+       * 🎯 NAG FOUND
+       */
+
+      if (
+        token.startsWith("$")
+      ) {
+
+        const annotation =
+          typeof nagToAnnotation !==
+            "undefined"
+            ? (
+                nagToAnnotation[token] ||
+                null
+              )
+            : null;
+
+
+        /*
+         * Attach NAG to the move
+         * immediately before it.
+         */
+
+        if (
+          moveIndex >= 0 &&
+          moveIndex < moveCount
+        ) {
+
+          annotations[
+            moveIndex
+          ] =
+            annotation;
+
+        }
+
+        return;
+      }
+
+
+      /*
+       * 🎯 NORMAL CHESS MOVE
+       */
+
+      moveIndex++;
+
+    }
+  );
+
+
+  return annotations;
+
+}
+
+
+/*
+ * 🔥 Store annotations for this chapter.
+ */
+
+PGN_VIEWER.annotationHistory =
+  extractPGNViewerAnnotations(
+    raw,
+    moves.length
+  );
+
+
+console.log(
+  "🎯 PGN Viewer annotations:",
+  PGN_VIEWER.annotationHistory
+);
 
 /* ==========================================
    🔥 STORE ORIGINAL STARTING FEN
@@ -79088,6 +79387,12 @@ PGN_VIEWER.totalMoves =
   ========================================== */
 
   PGN_VIEWER.currentMove = 0;
+
+  /* ==========================================
+   🎯 CLEAR PREVIOUS ANNOTATION MARKER
+========================================== */
+
+clearPGNViewerAnnotationMarker();
 
 
   /* ==========================================
@@ -79156,6 +79461,22 @@ PGN_VIEWER.totalMoves =
       }
     );
 
+    /* ==========================================
+   🎯 ANNOTATION OVERLAY POSITIONING
+========================================== */
+
+if (
+  getComputedStyle(
+    boardEl
+  ).position ===
+  "static"
+) {
+
+  boardEl.style.position =
+    "relative";
+
+}
+
 
   /* ==========================================
      UPDATE LABELS
@@ -79179,6 +79500,465 @@ PGN_VIEWER.totalMoves =
         moves.length
     }
   );
+}
+
+/* =====================================================
+   🎯 PGN VIEWER STUDY-STYLE ANNOTATION MARKER
+
+   Displays the SAME annotation symbol used by Study
+   directly beside the destination square of the
+   currently played move.
+
+   Examples:
+
+   e4  !
+   Nf3 !!
+   Qh5 ??
+   Bb5 ?!
+
+   Fully isolated from Study.
+===================================================== */
+
+function clearPGNViewerAnnotationMarker() {
+
+  const boardEl =
+    document.getElementById(
+      "pgnViewerBoard"
+    );
+
+
+  if (!boardEl) return;
+
+
+  const existing =
+    boardEl.querySelector(
+      ".pgn-viewer-annotation-marker"
+    );
+
+
+  if (existing) {
+
+    existing.remove();
+
+  }
+
+}
+
+
+/* =====================================================
+   🎯 PGN VIEWER — STUDY STYLE ANNOTATION BADGE
+
+   Matches the Study board appearance:
+
+   • Circular blue/cyan badge
+   • Annotation symbol inside
+   • Upper-right of destination square
+   • Slightly overlaps the piece
+   • Same annotation symbols from studyAnnotations
+===================================================== */
+
+function showPGNViewerAnnotationMarker(
+  moveIndex
+) {
+
+  /* ==========================================
+     REMOVE PREVIOUS MARKER
+  ========================================== */
+
+  clearPGNViewerAnnotationMarker();
+
+
+  /* ==========================================
+     VALIDATE
+  ========================================== */
+
+  if (
+    moveIndex < 0
+  ) {
+
+    return;
+
+  }
+
+
+  if (
+    !Array.isArray(
+      PGN_VIEWER.annotationHistory
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     GET ANNOTATION
+  ========================================== */
+
+  const annotation =
+    PGN_VIEWER.annotationHistory[
+      moveIndex
+    ];
+
+
+  if (!annotation) {
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     SAME STUDY ANNOTATION MAP
+  ========================================== */
+
+  if (
+    typeof studyAnnotations ===
+    "undefined"
+  ) {
+
+    console.warn(
+      "⚠️ studyAnnotations unavailable."
+    );
+
+    return;
+
+  }
+
+
+  const annotationData =
+    studyAnnotations[
+      annotation
+    ];
+
+
+  if (!annotationData) {
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     GET ACTUAL MOVE
+  ========================================== */
+
+  const move =
+    PGN_VIEWER.moveObjectHistory[
+      moveIndex
+    ];
+
+
+  if (
+    !move ||
+    !move.to
+  ) {
+
+    console.warn(
+      "⚠️ No move object for annotation:",
+      moveIndex
+    );
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     GET PGN VIEWER BOARD
+  ========================================== */
+
+  const boardEl =
+    document.getElementById(
+      "pgnViewerBoard"
+    );
+
+
+  if (!boardEl) {
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     FIND DESTINATION SQUARE
+
+     Chessboard.js square:
+     data-square="e4"
+  ========================================== */
+
+  const targetSquare =
+    boardEl.querySelector(
+      `[data-square="${move.to}"]`
+    );
+
+
+  if (!targetSquare) {
+
+    console.warn(
+      "⚠️ PGN Viewer square not found:",
+      move.to
+    );
+
+    return;
+
+  }
+
+
+  /* ==========================================
+     GET POSITIONS
+  ========================================== */
+
+  const boardRect =
+    boardEl.getBoundingClientRect();
+
+
+  const squareRect =
+    targetSquare.getBoundingClientRect();
+
+
+  /* ==========================================
+     CREATE BADGE
+  ========================================== */
+
+  const badge =
+    document.createElement(
+      "div"
+    );
+
+
+  badge.className =
+    "pgn-viewer-annotation-marker";
+
+
+  badge.textContent =
+    annotationData.symbol;
+
+
+  badge.title =
+    annotationData.label;
+
+
+  /* ==========================================
+     🔵 STUDY-STYLE BADGE
+
+     This is the important visual part.
+  ========================================== */
+
+  const badgeSize =
+    Math.max(
+      25,
+      squareRect.width * 0.34
+    );
+
+
+  badge.style.position =
+    "absolute";
+
+
+  /*
+   * Upper-right corner of destination
+   * square.
+   *
+   * The badge overlaps the square,
+   * exactly like your Study screenshot.
+   */
+
+  badge.style.left =
+    (
+      squareRect.right -
+      boardRect.left -
+      badgeSize * 0.48
+    ) + "px";
+
+
+  badge.style.top =
+    (
+      squareRect.top -
+      boardRect.top -
+      badgeSize * 0.12
+    ) + "px";
+
+
+  badge.style.width =
+    badgeSize + "px";
+
+
+  badge.style.height =
+    badgeSize + "px";
+
+
+  /* ==========================================
+     🔵 BLUE / CYAN CIRCLE
+  ========================================== */
+
+
+
+
+  badge.style.borderRadius =
+    "50%";
+
+    /* ==========================================
+   🎨 USE EXACT STUDY SYMBOL COLOR
+
+   IMPORTANT:
+   The Study colors are applied to
+   .anno-symbol, NOT the outer
+   .study-anno-item.
+
+   So we read the actual rendered
+   Study annotation symbol color.
+========================================== */
+
+const studyAnnotationSymbol =
+  document.querySelector(
+    `.study-anno-item[data-type="${annotation}"] .anno-symbol`
+  );
+
+
+if (studyAnnotationSymbol) {
+
+  const studySymbolStyle =
+    getComputedStyle(
+      studyAnnotationSymbol
+    );
+
+
+  /*
+   * 🎯 EXACT SAME COLOR AS STUDY
+   */
+
+  badge.style.background =
+    studySymbolStyle.color;
+
+
+}
+else {
+
+  /*
+   * Safe fallback only if the Study
+   * annotation element is unavailable.
+   */
+
+  badge.style.background =
+    "#19c8e8";
+
+}
+
+
+  badge.style.display =
+    "flex";
+
+
+  badge.style.alignItems =
+    "center";
+
+
+  badge.style.justifyContent =
+    "center";
+
+
+  /* ==========================================
+     SYMBOL
+  ========================================== */
+
+  badge.style.color =
+    "#ffffff";
+
+
+  badge.style.fontFamily =
+    "Arial, sans-serif";
+
+
+  badge.style.fontSize =
+    Math.max(
+      13,
+      squareRect.width * 0.20
+    ) + "px";
+
+
+  badge.style.fontWeight =
+    "900";
+
+
+  badge.style.lineHeight =
+    "1";
+
+
+  badge.style.textAlign =
+    "center";
+
+
+  /* ==========================================
+     DEPTH / STUDY LOOK
+  ========================================== */
+
+  badge.style.boxShadow =
+    "0 2px 6px rgba(0,0,0,.45)";
+
+
+  badge.style.border =
+    "2px solid rgba(255,255,255,.18)";
+
+
+  /* ==========================================
+     IMPORTANT
+
+     Keep badge above pieces.
+  ========================================== */
+
+  badge.style.zIndex =
+    "99999";
+
+
+  badge.style.pointerEvents =
+    "none";
+
+
+  badge.style.userSelect =
+    "none";
+
+
+  /* ==========================================
+     BOARD MUST BE POSITIONING CONTAINER
+  ========================================== */
+
+  if (
+    getComputedStyle(
+      boardEl
+    ).position ===
+    "static"
+  ) {
+
+    boardEl.style.position =
+      "relative";
+
+  }
+
+
+  /* ==========================================
+     ADD BADGE
+  ========================================== */
+
+  boardEl.appendChild(
+    badge
+  );
+
+
+  console.log(
+    "🎯 PGN Study-style annotation:",
+    {
+      moveIndex,
+      move: move.san,
+      square: move.to,
+      annotation,
+      symbol:
+        annotationData.symbol
+    }
+  );
+
 }
 
 
@@ -79255,9 +80035,27 @@ window.viewerNextMove = function() {
   PGN_VIEWER.currentMove++;
 
 
-  PGN_VIEWER.board.position(
-    PGN_VIEWER.game.fen()
-  );
+PGN_VIEWER.board.position(
+  PGN_VIEWER.game.fen()
+);
+
+
+/* ==========================================
+   🎯 SHOW ANNOTATION FOR JUST-PLAYED MOVE
+
+   Wait one browser frame so Chessboard.js
+   has finished rendering the new position.
+========================================== */
+
+requestAnimationFrame(
+  () => {
+
+    showPGNViewerAnnotationMarker(
+      PGN_VIEWER.currentMove - 1
+    );
+
+  }
+);
 
 
   updateViewerLabels(
@@ -79283,19 +80081,37 @@ window.viewerPrevMove = function() {
   }
 
 
-  PGN_VIEWER.game.undo();
+PGN_VIEWER.game.undo();
 
-  PGN_VIEWER.currentMove--;
-
-
-  PGN_VIEWER.board.position(
-    PGN_VIEWER.game.fen()
-  );
+PGN_VIEWER.currentMove--;
 
 
-  updateViewerLabels(
-    PGN_VIEWER.totalMoves || 0
-  );
+PGN_VIEWER.board.position(
+  PGN_VIEWER.game.fen()
+);
+
+
+/* ==========================================
+   🎯 UPDATE STUDY-STYLE ANNOTATION
+
+   Wait for Chessboard.js to finish
+   rendering the position.
+========================================== */
+
+requestAnimationFrame(
+  () => {
+
+    showPGNViewerAnnotationMarker(
+      PGN_VIEWER.currentMove - 1
+    );
+
+  }
+);
+
+
+updateViewerLabels(
+  PGN_VIEWER.totalMoves || 0
+);
 };
 
 
@@ -79397,6 +80213,8 @@ function drawPGNExportMoveArrow(
   ) {
     return;
   }
+
+  
 
 
   /* ==========================================
@@ -79615,6 +80433,276 @@ ctx.fillStyle =
 
   ctx.restore();
 }
+
+/* =====================================================
+   🎯 PGN VIEWER → GIF / MP4 ANNOTATION BADGE
+
+   GLOBAL VERSION
+
+   Reuses the SAME annotation symbols and colors
+   from the Study system.
+
+   Examples:
+
+   !   !!   ?   ??   ?!   !?
+   =   ∞   ⩲   ⩱   ±   ∓
+   +−  −+  □   ⭘
+===================================================== */
+
+window.drawPGNExportAnnotation =
+  function(
+    ctx,
+    annotation,
+    move,
+    square,
+    boardTop
+  ) {
+
+    /* ==========================================
+       BASIC VALIDATION
+    ========================================== */
+
+    if (
+      !ctx ||
+      !annotation ||
+      !move ||
+      !move.to
+    ) {
+
+      return;
+
+    }
+
+
+    /* ==========================================
+       EXISTING STUDY ANNOTATION MAP
+    ========================================== */
+
+    if (
+      typeof studyAnnotations ===
+      "undefined"
+    ) {
+
+      console.warn(
+        "⚠️ studyAnnotations unavailable."
+      );
+
+      return;
+
+    }
+
+
+    const annotationData =
+      studyAnnotations[
+        annotation
+      ];
+
+
+    if (!annotationData) {
+
+      return;
+
+    }
+
+
+    /* ==========================================
+       DESTINATION SQUARE
+    ========================================== */
+
+    const file =
+      move.to.charCodeAt(0) -
+      97;
+
+
+    const rank =
+      8 -
+      parseInt(
+        move.to[1],
+        10
+      );
+
+
+    if (
+      file < 0 ||
+      file > 7 ||
+      rank < 0 ||
+      rank > 7
+    ) {
+
+      return;
+
+    }
+
+
+    const squareX =
+      file *
+      square;
+
+
+    const squareY =
+      boardTop +
+      rank *
+      square;
+
+
+    /* ==========================================
+       🔵 BADGE SIZE
+
+       Same small size you selected
+       for the PGN Viewer.
+    ========================================== */
+
+    const badgeSize =
+      Math.max(
+        28,
+        square * 0.38
+      );
+
+
+    /* ==========================================
+       🔵 BADGE POSITION
+
+       Upper-right of destination square.
+    ========================================== */
+
+    const centerX =
+      squareX +
+      square -
+      badgeSize * 0.48;
+
+
+    const centerY =
+      squareY +
+      badgeSize * 0.38;
+
+
+    /* ==========================================
+       🎨 GET EXACT STUDY SYMBOL COLOR
+
+       The Study notation uses the color
+       of .anno-symbol.
+
+       We copy that exact color.
+    ========================================== */
+
+    let badgeColor =
+      "#19c8e8";
+
+
+    const studySymbol =
+      document.querySelector(
+        `.study-anno-item[data-type="${annotation}"] .anno-symbol`
+      );
+
+
+    if (studySymbol) {
+
+      const computedStyle =
+        getComputedStyle(
+          studySymbol
+        );
+
+
+      if (
+        computedStyle.color &&
+        computedStyle.color !==
+          "rgba(0, 0, 0, 0)"
+      ) {
+
+        badgeColor =
+          computedStyle.color;
+
+      }
+
+    }
+
+
+    /* ==========================================
+       DRAW
+    ========================================== */
+
+    ctx.save();
+
+
+    /* ==========================================
+       CIRCLE
+    ========================================== */
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+      centerX,
+      centerY,
+      badgeSize / 2,
+      0,
+      Math.PI * 2
+    );
+
+
+    ctx.fillStyle =
+      badgeColor;
+
+
+    ctx.fill();
+
+
+    /* ==========================================
+       BORDER
+    ========================================== */
+
+    ctx.lineWidth =
+      2;
+
+
+    ctx.strokeStyle =
+      "rgba(255,255,255,0.18)";
+
+
+    ctx.stroke();
+
+
+    /* ==========================================
+       SYMBOL
+    ========================================== */
+
+    ctx.fillStyle =
+      "#ffffff";
+
+
+    ctx.font =
+      `900 ${Math.max(
+        13,
+        square * 0.20
+      )}px Arial`;
+
+
+    ctx.textAlign =
+      "center";
+
+
+    ctx.textBaseline =
+      "middle";
+
+
+    ctx.fillText(
+      annotationData.symbol,
+      centerX,
+      centerY
+    );
+
+
+    ctx.restore();
+
+
+    console.log(
+      "🎯 Export annotation:",
+      annotationData.symbol,
+      annotation,
+      move.to
+    );
+
+  };
 
 /* =====================================================
    🎞️ PGN VIEWER → GIF EXPORT
@@ -80424,6 +81512,18 @@ for (
 
   );
 
+  /* ========================================
+   🎯 STUDY ANNOTATION
+======================================== */
+
+window.drawPGNExportAnnotation(
+  ctx,
+  PGN_VIEWER.annotationHistory[i],
+  playedMove,
+  SIZE / 8,
+  HEADER_HEIGHT
+);
+
 
   /* ========================================
      ADD THIS FRAME TO GIF
@@ -80737,13 +81837,24 @@ window.closePGNViewer = function() {
   /*
    * Reset isolated state.
    */
-  PGN_VIEWER.game = null;
+/* ==========================================
+   🎯 CLEAR PGN VIEWER ANNOTATION MARKER
+========================================== */
 
-  PGN_VIEWER.currentMove = 0;
+clearPGNViewerAnnotationMarker();
 
-  PGN_VIEWER.totalMoves = 0;
 
-  PGN_VIEWER.currentChapterName = "";
+PGN_VIEWER.game = null;
+
+PGN_VIEWER.currentMove = 0;
+
+PGN_VIEWER.totalMoves = 0;
+
+PGN_VIEWER.currentChapterName = "";
+
+PGN_VIEWER.annotationHistory = [];
+
+PGN_VIEWER.moveObjectHistory = [];
 };
 
 
@@ -81944,6 +83055,18 @@ addSoundToTimeline(
     HEADER_HEIGHT
 
   );
+
+  /* ========================================
+   🎯 STUDY ANNOTATION
+======================================== */
+
+window.drawPGNExportAnnotation(
+  ctx,
+  PGN_VIEWER.annotationHistory[i],
+  playedMove,
+  SIZE / 8,
+  HEADER_HEIGHT
+);
 
 
   /* ========================================
@@ -128657,7 +129780,7 @@ document.addEventListener("DOMContentLoaded", startApp);
     id="pgnViewerMp4Btn" 
     onclick="downloadPGNViewerMP4()" 
     style="
-      background:#25D366;
+      background: #1EAD52;
       color:white;
     " 
   > 
@@ -128691,7 +129814,7 @@ document.addEventListener("DOMContentLoaded", startApp);
         id="pgnViewerGifBtn"
         onclick="downloadPGNViewerGIF()"
         style="
-          background:#f59e0b;
+          background: #E08A08;
           padding:8px 18px;
           border:none;
           border-radius:8px;
@@ -128700,7 +129823,7 @@ document.addEventListener("DOMContentLoaded", startApp);
           cursor:pointer;
         "
       >
-        🎞️ GIF
+        📸 GIF
       </button>
 
       <!-- CLOSE -->
