@@ -80703,7 +80703,45 @@ window.drawPGNExportAnnotation =
     );
 
   };
+/* ==========================================
+   🏛️ DRAW ACADEMY LOGO ON EXPORT
+========================================== */
 
+function drawPGNExportAcademyLogo(
+  ctx
+) {
+
+  const logo =
+    document.getElementById(
+      "academyLogo"
+    );
+
+  if (
+    !logo ||
+    !logo.complete ||
+    !logo.naturalWidth
+  ) {
+
+    return;
+
+  }
+
+
+  const logoSize = 38;
+
+  const x = 10;
+  const y = 8;
+
+
+  ctx.drawImage(
+    logo,
+    x,
+    y,
+    logoSize,
+    logoSize
+  );
+
+}
 /* =====================================================
    🎞️ PGN VIEWER → GIF EXPORT
    FULLY ISOLATED
@@ -81135,7 +81173,13 @@ ctx.textAlign =
 
 ctx.textBaseline =
   "alphabetic";
+/* ==========================================
+   🏛️ ACADEMY LOGO
+========================================== */
 
+drawPGNExportAcademyLogo(
+  ctx
+);
 
 /* ======================================
    ACADEMY NAME
@@ -81145,7 +81189,7 @@ ctx.fillStyle =
   "#f5c542";
 
 ctx.font =
-  "bold 24px Arial";
+  "bold 30px Arial";
 
 ctx.fillText(
   "The Olympus Chess Academy",
@@ -82335,13 +82379,21 @@ if (!ctx) {
         ctx.textBaseline =
           "alphabetic";
 
+          /* ==========================================
+   🏛️ ACADEMY LOGO
+========================================== */
+
+drawPGNExportAcademyLogo(
+  ctx
+);
+
 
         ctx.fillStyle =
           "#f5c542";
 
 
         ctx.font =
-          "bold 24px Arial";
+          "bold 30px Arial";
 
 
         ctx.fillText(
@@ -84913,6 +84965,7 @@ const sw = document.getElementById("floatingStopwatch");
 const header = document.getElementById("stopwatchHeader");
 const closeBtn = document.getElementById("stopwatchClose");
 const timeEl = document.getElementById("stopwatchTime");
+timeEl.style.fontSize = "85px";
 const lapsEl = document.getElementById("stopwatchLaps");
 
 const btnStart = document.getElementById("swStart");
@@ -84970,36 +85023,73 @@ function updateStopwatch(){
 }
 
 function updateCountdown(){
+
   const remaining = countdownTotal - (Date.now() - startTime);
 
-  // 10 SECOND WARNING FLASH
+  // ===============================
+  // 🔴 ONLY TIMER DIGITS FLASH RED
+  // BELOW 10 SECONDS
+  // ===============================
+
   if(remaining <= 10000 && remaining > 0){
-    sw.style.background = "linear-gradient(145deg, #4a0000, #880000, #ff0000)";
-    sw.style.boxShadow = "0 0 20px red";
+
+    // Keep the whole panel normal
+    sw.style.background =
+      "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
+
+    sw.style.boxShadow =
+      "0 15px 40px rgba(0,0,0,0.6)";
+
+    // Only the timer digits become red
+timeEl.style.color = "#e57373";
+timeEl.style.textShadow = "0 0 4px rgba(229,115,115,0.35)";
+
   } else {
-    sw.style.background = "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
-    sw.style.boxShadow = "0 15px 40px rgba(0,0,0,0.6)";
+
+    // Normal panel
+    sw.style.background =
+      "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
+
+    sw.style.boxShadow =
+      "0 15px 40px rgba(0,0,0,0.6)";
+
+    // Normal timer digit color
+    timeEl.style.color = "";
+    timeEl.style.textShadow = "";
   }
 
+  // ===============================
+  // ⏰ TIME UP
+  // ===============================
+
   if(remaining <= 0){
+
     clearInterval(timer);
     running = false;
+
     timeEl.textContent = "TIME UP!";
 
-  if(!alarmPlayed){
-  playTimerCompleteSound();
-  alarmPlayed = true;
-}
+    // Keep panel normal
+    sw.style.background =
+      "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
 
-    sw.style.background = "linear-gradient(145deg, #ff0000, #aa0000)";
-    sw.style.boxShadow = "0 0 30px red";
+    sw.style.boxShadow =
+      "0 15px 40px rgba(0,0,0,0.6)";
+
+    // Only timer text stays red
+ timeEl.style.color = "#e57373";
+timeEl.style.textShadow = "0 0 5px rgba(229,115,115,0.4)";
+
+    if(!alarmPlayed){
+      playTimerCompleteSound();
+      alarmPlayed = true;
+    }
 
     return;
   }
 
   timeEl.textContent = formatTime(remaining);
 }
-
 btnStart.onclick = function(){
   if(running) return;
   running = true;
@@ -85024,6 +85114,8 @@ btnReset.onclick = function(){
   clearInterval(timer);
   elapsed = 0;
   alarmPlayed = false;
+  timeEl.style.color = "";
+timeEl.style.textShadow = "";
 
   sw.style.background = "linear-gradient(145deg, #0f2027, #203a43, #2c5364)";
   sw.style.boxShadow = "0 15px 40px rgba(0,0,0,0.6)";
