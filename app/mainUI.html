@@ -31592,7 +31592,7 @@ transform: translateY(-50%);
  
 
 <button class="nav-btn" data-tab="memory">💡 IQ Hunt</button>
-<button class="nav-btn" data-tab="boardfreeze">❓ Guess the pieces</button>
+<button class="nav-btn" data-tab="boardfreeze">🎯 Board Recall </button>
 <button class="nav-btn" data-tab="color">🌈 Lab Hunt</button>
 <button class="nav-btn" data-tab="knightfog">
   🍎 Fog Quest
@@ -32604,7 +32604,7 @@ ATTENDANCE SECTION
   Next ➡
 </span>
 
-<button id="coachToggleBtn" title="Toggle Chess Coach">🧑🏻 Coach</button>
+<button id="coachToggleBtn" title="Toggle Chess Coach">👨🏻‍🏫 Coach</button>
 <button id="openingTrainerToggleBtn" title="Opening Trainer">
 🎯 Trainer
 </button>
@@ -36276,13 +36276,13 @@ class="lp-admin-btn"
 </section>
 
 <section id="boardfreeze-section" class="section hidden">
-  <h2>🎯 Guess Materials</h2>
+  <h2>🎯 Board Recall</h2>
 
   <!-- MENU -->
   <div class="card" id="bfMenu">
     <h3>Snapshot Challenge</h3>
     <p>
-      Board flashes for 5 seconds.<br>
+      Board flashes for 30 seconds.<br>
       Remember & answer the question.
     </p>
 
@@ -36293,8 +36293,8 @@ class="lp-admin-btn"
   <div id="bfGame" class="hidden">
 
     <div class="memory-top">
-      <div>❓ Question: <span id="bfQuestion">–</span></div>
-      <div>⭐ Score: <span id="bfScore">0</span></div>
+      <div><span id="bfQuestion">–</span></div>
+      <div>Score: <span id="bfScore">0</span></div>
     </div>
 
     <div class="bf-board-wrapper">
@@ -37578,7 +37578,7 @@ rook: "♖ Rook Trainer",
 queen: "♛ Queen Trainer",
 king: "👑 King Trainer",
     memory: "🧠 IQ Hunt",
-    boardfreeze: "❓ Guess Materials",
+    boardfreeze: "🎯 Board Recall",
     color: "🧪 Lab Hunt",
     knightfog: "🍎 Knight Fog Quest",
     iqtrainer: "🚀 IQ Trainer",
@@ -64128,11 +64128,13 @@ window.closeCTResult = function() {
 
 // ======================================
 // 🧠 BOARD FREEZE — AUTO QUESTION ENGINE
-// FULLY ISOLATED (FIXED)
+// FULLY ISOLATED
 // ======================================
 
 // ---------- CONFIG ----------
-const BF_FLASH_TIME = 5000; // ms
+const BF_FLASH_TIME = 30000; // 15 seconds board visibility
+const BF_QUESTION_TIME = 20000; // 20 seconds answer/question timer
+
 
 const BF_PIECES = [
   { type: "pawn",   color: "white", img: "./assets/pieces/wP.png" },
@@ -64150,11 +64152,17 @@ const BF_PIECES = [
   { type: "king",   color: "black", img: "./assets/pieces/bK.png" }
 ];
 
+
 // ---------- STATE ----------
 let bfPieces = [];
 let bfCorrectAnswer = 0;
 let bfUserAnswer = 0;
 let bfScore = 0;
+
+// 🔒 Board Freeze timers only
+let bfFlashTimeout = null;
+let bfQuestionTimer = null;
+
 
 // ---------- DOM (SAFE INIT) ----------
 const bfBoard = document.getElementById("bfBoard");
@@ -64164,181 +64172,757 @@ const bfScoreEl = document.getElementById("bfScore");
 const bfMenu = document.getElementById("bfMenu");
 const bfGame = document.getElementById("bfGame");
 
+// ---------- STABLE QUESTION WRAPPER ----------
+const bfQuestionWrapper =
+  bfQuestionEl
+    ? bfQuestionEl.parentElement
+    : null;
+
+if (bfQuestionWrapper) {
+
+  bfQuestionWrapper.style.width =
+    "100%";
+
+  bfQuestionWrapper.style.minWidth =
+    "0";
+
+  bfQuestionWrapper.style.boxSizing =
+    "border-box";
+
+  bfQuestionWrapper.style.textAlign =
+    "center";
+
+  bfQuestionWrapper.style.whiteSpace =
+    "nowrap";
+    bfQuestionWrapper.style.display =
+  "flex";
+
+bfQuestionWrapper.style.justifyContent =
+  "center";
+
+bfQuestionWrapper.style.alignItems =
+  "center";
+  
+}
+
+
 // ---------- QUESTION BANK ----------
 const BF_QUESTIONS = [
-  () => countBy(p => p.type === "rook", "How many rooks?"),
-  () => countBy(p => p.type === "bishop", "How many bishops?"),
-  () => countBy(p => p.type === "queen", "How many queens?"),
-  () => countBy(p => p.type === "knight", "How many knights?"),
-  () => countBy(p => p.type === "pawn", "How many pawns?"),
 
-  () => countBy(p => p.color === "white", "How many white pieces?"),
-  () => countBy(p => p.color === "black", "How many black pieces?"),
+  () => countBy(
+    p => p.type === "rook",
+    "How many rooks?"
+  ),
 
-  () => countBy(p => p.type === "pawn" && p.color === "white", "How many white pawns?"),
-  () => countBy(p => p.type === "pawn" && p.color === "black", "How many black pawns?"),
+  () => countBy(
+    p => p.type === "bishop",
+    "How many bishops?"
+  ),
 
-  () => countBy(p => p.type === "rook" && p.color === "white", "How many white rooks?"),
-  () => countBy(p => p.type === "rook" && p.color === "black", "How many black rooks?"),
+  () => countBy(
+    p => p.type === "queen",
+    "How many queens?"
+  ),
 
-  () => countBy(p => p.type === "bishop" && p.color === "white", "How many white bishops?"),
-  () => countBy(p => p.type === "bishop" && p.color === "black", "How many black bishops?"),
+  () => countBy(
+    p => p.type === "knight",
+    "How many knights?"
+  ),
 
-  () => countBy(p => p.type === "queen" && p.color === "white", "How many white queens?"),
-  () => countBy(p => p.type === "queen" && p.color === "black", "How many black queens?"),
+  () => countBy(
+    p => p.type === "pawn",
+    "How many pawns?"
+  ),
 
-  () => countBy(p => p.type === "king", "How many kings?"),
-  () => countBy(p => p.type === "king" && p.color === "white", "How many white kings?"),
-  () => countBy(p => p.type === "king" && p.color === "black", "How many black kings?"),
+  () => countBy(
+    p => p.color === "white",
+    "How many white pieces?"
+  ),
 
-  () => countBy(p => isDarkSquare(p.x, p.y), "How many pieces on dark squares?"),
-  () => countBy(p => !isDarkSquare(p.x, p.y), "How many pieces on light squares?"),
+  () => countBy(
+    p => p.color === "black",
+    "How many black pieces?"
+  ),
 
-  () => countBy(p => p.type === "pawn" || p.type === "rook", "How many pawns + rooks?"),
-  () => countBy(p => p.type === "bishop" || p.type === "knight", "How many bishops + knights?"),
+  () => countBy(
+    p => p.type === "pawn" && p.color === "white",
+    "How many white pawns?"
+  ),
 
-  () => countBy(() => true, "How many total pieces?")
+  () => countBy(
+    p => p.type === "pawn" && p.color === "black",
+    "How many black pawns?"
+  ),
+
+  () => countBy(
+    p => p.type === "rook" && p.color === "white",
+    "How many white rooks?"
+  ),
+
+  () => countBy(
+    p => p.type === "rook" && p.color === "black",
+    "How many black rooks?"
+  ),
+
+  () => countBy(
+    p => p.type === "bishop" && p.color === "white",
+    "How many white bishops?"
+  ),
+
+  () => countBy(
+    p => p.type === "bishop" && p.color === "black",
+    "How many black bishops?"
+  ),
+
+  () => countBy(
+    p => p.type === "queen" && p.color === "white",
+    "How many white queens?"
+  ),
+
+  () => countBy(
+    p => p.type === "queen" && p.color === "black",
+    "How many black queens?"
+  ),
+
+  () => countBy(
+    p => p.type === "king",
+    "How many kings?"
+  ),
+
+  () => countBy(
+    p => p.type === "king" && p.color === "white",
+    "How many white kings?"
+  ),
+
+  () => countBy(
+    p => p.type === "king" && p.color === "black",
+    "How many black kings?"
+  ),
+
+  () => countBy(
+    p => isDarkSquare(p.x, p.y),
+    "How many pieces on dark squares?"
+  ),
+
+  () => countBy(
+    p => !isDarkSquare(p.x, p.y),
+    "How many pieces on light squares?"
+  ),
+
+  () => countBy(
+    p => p.type === "pawn" || p.type === "rook",
+    "How many pawns + rooks?"
+  ),
+
+  () => countBy(
+    p => p.type === "bishop" || p.type === "knight",
+    "How many bishops + knights?"
+  ),
+
+  () => countBy(
+    () => true,
+    "How many total pieces?"
+  )
+
 ];
+
 
 // ---------- HELPERS ----------
 function isDarkSquare(x, y) {
   return (x + y) % 2 === 1;
 }
 
+
 function countBy(filterFn, questionText) {
-  bfCorrectAnswer = bfPieces.filter(filterFn).length;
-  bfQuestionEl.textContent = questionText;
+
+  bfCorrectAnswer =
+    bfPieces.filter(filterFn).length;
+
+  bfQuestionEl.textContent =
+    questionText;
 }
+
+
+// ---------- TIMER ELEMENT ----------
+function getBFTimerElement() {
+
+  let timer =
+    document.getElementById("bfQuestionTimer");
+
+  if (timer) {
+    return timer;
+  }
+
+timer =
+  document.createElement("div");
+
+timer.id =
+  "bfQuestionTimer";
+
+timer.style.textAlign =
+  "center";
+
+timer.style.fontSize =
+  "18px";
+
+timer.style.fontWeight =
+  "700";
+
+timer.style.margin =
+  "6px auto";
+
+timer.style.minHeight =
+  "0";
+
+timer.style.padding =
+  "1px 6px";
+
+timer.style.width =
+  "100%";
+
+timer.style.minWidth =
+  "0";
+
+timer.style.maxWidth =
+  "100%";
+
+timer.style.display =
+  "none";
+
+timer.style.boxSizing =
+  "border-box";
+
+timer.style.whiteSpace =
+  "nowrap";
+
+  /*
+     Put timer immediately before
+     the question so it stays inside
+     the existing Board Freeze UI.
+  */
+  if (bfQuestionEl &&
+      bfQuestionEl.parentNode) {
+
+    bfQuestionEl.parentNode.insertBefore(
+      timer,
+      bfQuestionEl
+    );
+
+  }
+
+  return timer;
+}
+
+
+// ---------- CLEAR BF TIMERS ----------
+function clearBFTimers() {
+
+  if (bfFlashTimeout) {
+
+    clearTimeout(bfFlashTimeout);
+
+    bfFlashTimeout = null;
+  }
+
+
+  if (bfQuestionTimer) {
+
+    cancelAnimationFrame(
+      bfQuestionTimer
+    );
+
+    bfQuestionTimer = null;
+  }
+
+}
+
 
 // ---------- GAME FLOW ----------
 window.startBF = function () {
+
   if (!bfBoard) return;
 
+
+  clearBFTimers();
+
+
   bfMenu.classList.add("hidden");
+
   bfGame.classList.remove("hidden");
 
+
   bfScore = 0;
-  bfScoreEl.textContent = "0";
+
+  bfScoreEl.textContent =
+    "0";
+
+
+  const timer =
+    getBFTimerElement();
+
+  timer.style.display =
+    "none";
+
 
   nextBFRound();
+
 };
 
+
+// ---------- EXIT ----------
 window.exitBF = function () {
-  // 🏆 SAVE BEST SCORE (Board Freeze)
-  saveMiniGameScore("boardfreeze", bfScore);
+
+  clearBFTimers();
+
+
+  const timer =
+    document.getElementById(
+      "bfQuestionTimer"
+    );
+
+  if (timer) {
+
+    timer.style.display =
+      "none";
+  }
+
+
+  // 🏆 SAVE BEST SCORE
+  saveMiniGameScore(
+    "boardfreeze",
+    bfScore
+  );
+
+
   bfGame.classList.add("hidden");
+
   bfMenu.classList.remove("hidden");
-  
+
 };
+
 
 // ---------- ROUND ----------
 function nextBFRound() {
 
-  bfBoard.innerHTML = "";
+  if (!bfBoard) return;
+
+
+  clearBFTimers();
+
+
+  const timer =
+    getBFTimerElement();
+
+
+  // Reset answer
   bfUserAnswer = 0;
-  bfAnswerEl.textContent = "0";
+
+  bfAnswerEl.textContent =
+    "0";
+
+
+  // Reset pieces
   bfPieces = [];
 
-  // Hide question during the 5-second memory flash
-  bfQuestionEl.textContent = "";
 
-  const pieceCount = 8 + Math.floor(Math.random() * 8);
+  // Hide question during memory phase
+  bfQuestionEl.textContent =
+    "";
 
-  while (bfPieces.length < pieceCount) {
 
-    const x = Math.floor(Math.random() * 8);
-    const y = Math.floor(Math.random() * 8);
+  // Show the 15-second memory countdown
+  startBFMemoryTimer();
 
-    if (bfPieces.some(p => p.x === x && p.y === y)) continue;
+
+  // Generate pieces
+
+  // Generate pieces
+  const pieceCount =
+    8 + Math.floor(
+      Math.random() * 8
+    );
+
+
+  while (
+    bfPieces.length <
+    pieceCount
+  ) {
+
+    const x =
+      Math.floor(
+        Math.random() * 8
+      );
+
+    const y =
+      Math.floor(
+        Math.random() * 8
+      );
+
+
+    if (
+      bfPieces.some(
+        p =>
+          p.x === x &&
+          p.y === y
+      )
+    ) {
+
+      continue;
+    }
+
 
     const piece =
-      BF_PIECES[Math.floor(Math.random() * BF_PIECES.length)];
+      BF_PIECES[
+        Math.floor(
+          Math.random() *
+          BF_PIECES.length
+        )
+      ];
+
 
     bfPieces.push({
+
       ...piece,
+
       x,
+
       y
+
     });
+
   }
 
+
+  // Select question
   const q =
     BF_QUESTIONS[
-      Math.floor(Math.random() * BF_QUESTIONS.length)
+      Math.floor(
+        Math.random() *
+        BF_QUESTIONS.length
+      )
     ];
 
-  // Set the question internally
+
+  // Calculate correct answer
   q();
 
-  // Save the question before hiding it
-  const currentQuestion = bfQuestionEl.textContent;
 
-  // Hide question while board is visible
-  bfQuestionEl.textContent = "";
+  // Save question text
+  const currentQuestion =
+    bfQuestionEl.textContent;
+
+
+  // Hide question during memory phase
+  bfQuestionEl.textContent =
+    "";
+
 
   // Show board
   drawBF(true);
 
+
+  /*
+     ==================================
+     🧠 15 SECOND MEMORY PHASE
+     ==================================
+  */
+
+bfFlashTimeout =
   setTimeout(() => {
+
+    bfFlashTimeout =
+      null;
+
+
+    // Hide the 15-second memory timer
+    const memoryTimer =
+      document.getElementById(
+        "bfQuestionTimer"
+      );
+
+    if (memoryTimer) {
+
+      memoryTimer.textContent =
+        "";
+
+      memoryTimer.style.display =
+        "none";
+    }
+
 
     // Hide board
     drawBF(false);
 
-    // 👇 SHOW QUESTION AFTER 5 SECONDS
-    bfQuestionEl.textContent = currentQuestion;
 
-    // 🔊 Ask the question after board disappears
-    if (typeof coachSay === "function") {
-      coachSay(currentQuestion);
+    // Show question
+    bfQuestionEl.textContent =
+      currentQuestion;
+
+
+      // 🔊 Coach asks question
+      if (
+        typeof coachSay ===
+        "function"
+      ) {
+
+        coachSay(
+          currentQuestion
+        );
+
+      }
+
+
+      /*
+         ==================================
+         ⏱ START 20 → 0 QUESTION TIMER
+         ==================================
+      */
+
+      startBFQuestionTimer();
+
+
+    }, BF_FLASH_TIME);
+
+}
+
+// ---------- 15 SECOND MEMORY TIMER ----------
+// ---------- 15 SECOND MEMORY TIMER ----------
+let bfMemoryAnimationFrame = null;
+
+function startBFMemoryTimer() {
+
+  const timer =
+    getBFTimerElement();
+
+
+  // Cancel any previous memory animation
+  if (bfMemoryAnimationFrame) {
+
+    cancelAnimationFrame(
+      bfMemoryAnimationFrame
+    );
+
+    bfMemoryAnimationFrame = null;
+
+  }
+
+
+timer.style.display =
+  "inline-block";
+
+
+  const endTime =
+    performance.now() +
+    BF_FLASH_TIME;
+
+
+  let lastDisplayed =
+    -1;
+
+
+  function updateMemoryTimer() {
+
+    const remaining =
+      Math.max(
+        0,
+        endTime -
+        performance.now()
+      );
+
+
+    const seconds =
+      Math.ceil(
+        remaining / 1000
+      );
+
+
+    if (
+      seconds !==
+      lastDisplayed
+    ) {
+
+      lastDisplayed =
+        seconds;
+
+
+timer.innerHTML =
+  'Observe the Board carefully, Question appears in: <span style="color:#16a34a;">⏰ ' +
+  seconds +
+  's</span>';
+
     }
 
-  }, BF_FLASH_TIME);
+
+    if (remaining <= 0) {
+
+      timer.textContent =
+        "";
+
+      timer.style.display =
+        "none";
+
+
+      bfMemoryAnimationFrame =
+        null;
+
+
+      return;
+
+    }
+
+
+    bfMemoryAnimationFrame =
+      requestAnimationFrame(
+        updateMemoryTimer
+      );
+
+  }
+
+
+  updateMemoryTimer();
+
 }
+
+
 
 // ---------- DRAW ----------
 function drawBF(show) {
-  bfBoard.innerHTML = "";
 
-  for (let y = 7; y >= 0; y--) {
-    for (let x = 0; x < 8; x++) {
-      const sq = document.createElement("div");
-      sq.className = `square ${(x + y) % 2 === 0 ? "dark" : "light"}`;
+  bfBoard.innerHTML =
+    "";
+
+
+  for (
+    let y = 7;
+    y >= 0;
+    y--
+  ) {
+
+    for (
+      let x = 0;
+      x < 8;
+      x++
+    ) {
+
+      const sq =
+        document.createElement(
+          "div"
+        );
+
+
+      sq.className =
+        `square ${
+          (x + y) % 2 === 0
+            ? "dark"
+            : "light"
+        }`;
 
 
       if (show) {
-        const p = bfPieces.find(o => o.x === x && o.y === y);
-    if (p) {
-          const img = document.createElement("img");
-          img.src = p.img;
-  
-          sq.appendChild(img);
+
+        const p =
+          bfPieces.find(
+            o =>
+              o.x === x &&
+              o.y === y
+          );
+
+
+        if (p) {
+
+          const img =
+            document.createElement(
+              "img"
+            );
+
+
+          img.src =
+            p.img;
+
+
+          sq.appendChild(
+            img
+          );
+
         }
+
       }
-      bfBoard.appendChild(sq);
+
+
+      bfBoard.appendChild(
+        sq
+      );
+
     }
+
   }
+
 }
+
 
 // ---------- ANSWER CONTROLS ----------
 window.bfPlus = function () {
+
   bfUserAnswer++;
-  bfAnswerEl.textContent = bfUserAnswer;
+
+
+  bfAnswerEl.textContent =
+    bfUserAnswer;
+
 };
+
 
 window.bfMinus = function () {
-  if (bfUserAnswer > 0) bfUserAnswer--;
-  bfAnswerEl.textContent = bfUserAnswer;
+
+  if (
+    bfUserAnswer > 0
+  ) {
+
+    bfUserAnswer--;
+
+  }
+
+
+  bfAnswerEl.textContent =
+    bfUserAnswer;
+
 };
 
+
 window.bfSubmit = function () {
-  if (bfUserAnswer === bfCorrectAnswer) {
+
+  if (
+    bfUserAnswer ===
+    bfCorrectAnswer
+  ) {
+
     bfScore++;
-    bfScoreEl.textContent = bfScore;
+
+
+    bfScoreEl.textContent =
+      bfScore;
+
+
     playNextSound?.();
+
   } else {
+
     playWrongSound?.();
+
   }
-  setTimeout(nextBFRound, 600);
-  
+
+
+  /*
+     Give the player a short
+     feedback moment, then start
+     the next 15-second memory round.
+  */
+
+  setTimeout(
+    nextBFRound,
+    600
+  );
+
 };
 
 
@@ -77190,147 +77774,809 @@ function listenForRealtimeChanges() {
     .subscribe();
 }
 
+/* =========================================================
+   🟢🔴 OLYMPUS STUDENT LIVE PRESENCE
+   =========================================================
+   ✔ NO DATABASE TABLE
+   ✔ NO DATABASE COLUMN
+   ✔ NO POLLING
+   ✔ NO setInterval()
+   ✔ NO database writes
+   ✔ Uses Supabase Realtime Presence only
+   ✔ Completely isolated from class-lock logic
+   ✔ Does not rebuild the admin UI
+   ✔ Very low data usage
+========================================================= */
+
+let olympusStudentPresenceChannel = null;
+let olympusPresenceStarted = false;
+
+const OLYMPUS_PRESENCE_CHANNEL =
+  "olympus-student-presence-v1";
+
+
+/* =========================================================
+   GET CURRENT ONLINE STUDENTS
+========================================================= */
+
+function getOlympusOnlineStudentIds() {
+
+  if (!olympusStudentPresenceChannel) {
+    return new Set();
+  }
+
+  const state =
+    olympusStudentPresenceChannel.presenceState();
+
+  const onlineIds = new Set();
+
+  Object.keys(state).forEach(userId => {
+
+    /*
+      Every presence key is the Supabase user ID.
+      Only accept keys that actually exist.
+    */
+
+    if (userId) {
+      onlineIds.add(userId);
+    }
+
+  });
+
+  return onlineIds;
+}
+
+
+/* =========================================================
+   UPDATE ONLY THE DROPDOWN OPTIONS
+   NO REBUILD
+   NO BLINK
+   NO UI GLITCH
+========================================================= */
+
+function updateOlympusStudentPresenceUI() {
+
+  const select =
+    document.getElementById("lockStudentSelect");
+
+  if (!select) return;
+
+  const onlineIds =
+    getOlympusOnlineStudentIds();
+
+
+  /*
+     Preserve currently selected student.
+     This prevents any visual jump.
+  */
+
+  const selectedValue =
+    select.value;
+
+
+  /*
+     Only modify existing student options.
+     We DO NOT recreate the dropdown.
+  */
+
+  Array.from(select.options).forEach(option => {
+
+    if (
+      option.value === "all" ||
+      !option.dataset.studentName
+    ) {
+      return;
+    }
+
+    const studentId =
+      option.value;
+
+    const studentName =
+      option.dataset.studentName;
+
+    const isOnline =
+      onlineIds.has(studentId);
+
+    const lockIcon =
+      option.dataset.locked === "true"
+        ? "🔒"
+        : "🙍‍♂️";
+
+   const liveIcon =
+  isOnline
+    ? "🟢 Online"
+    : "🔴 Offline";
+
+
+    /*
+       Example:
+
+       🟢 🔒 Rahul
+       🔴 🙍‍♂️ Arjun
+    */
+
+    option.textContent =
+      `${liveIcon} ${lockIcon} ${studentName}`;
+
+  });
+
+
+  /*
+     Restore selection just in case.
+  */
+
+  if (
+    Array.from(select.options)
+      .some(option => option.value === selectedValue)
+  ) {
+    select.value = selectedValue;
+  }
+
+}
+
+
+/* =========================================================
+   START OLYMPUS PRESENCE
+========================================================= */
+
+async function startOlympusStudentPresence() {
+
+  /*
+     Prevent duplicate channels/listeners.
+     This is important because your app has many
+     realtime systems already.
+  */
+
+  if (olympusPresenceStarted) {
+    return;
+  }
+
+  if (!currentUserId) {
+    return;
+  }
+
+  olympusPresenceStarted = true;
+
+
+  /*
+     Create ONE dedicated Presence channel.
+
+     This channel is completely separate from:
+
+     global-lock-channel
+     profile-lock-channel
+     puzzle battle channels
+     live match channels
+     classroom channels
+     etc.
+  */
+
+  olympusStudentPresenceChannel =
+    supabase.channel(
+      OLYMPUS_PRESENCE_CHANNEL,
+      {
+        config: {
+          presence: {
+            key: currentUserId
+          }
+        }
+      }
+    );
+
+
+  /* =======================================================
+     PRESENCE SYNC
+     =======================================================
+     Fired when Supabase gives us the current presence state.
+  */
+
+  olympusStudentPresenceChannel.on(
+    "presence",
+    {
+      event: "sync"
+    },
+    () => {
+
+      /*
+         Update only the existing dropdown options.
+      */
+
+      if (currentUserRole === "admin") {
+        updateOlympusStudentPresenceUI();
+      }
+
+    }
+  );
+
+
+  /* =======================================================
+     STUDENT JOINED
+     ======================================================= */
+
+  olympusStudentPresenceChannel.on(
+    "presence",
+    {
+      event: "join"
+    },
+    () => {
+
+      /*
+         No database query.
+         No DOM rebuild.
+         Just update the tiny status indicator.
+      */
+
+      if (currentUserRole === "admin") {
+        updateOlympusStudentPresenceUI();
+      }
+
+    }
+  );
+
+
+  /* =======================================================
+     STUDENT LEFT
+     ======================================================= */
+
+  olympusStudentPresenceChannel.on(
+    "presence",
+    {
+      event: "leave"
+    },
+    () => {
+
+      /*
+         Again:
+         no query
+         no polling
+         no panel rebuild
+      */
+
+      if (currentUserRole === "admin") {
+        updateOlympusStudentPresenceUI();
+      }
+
+    }
+  );
+
+
+  /* =======================================================
+     CONNECT TO PRESENCE
+  ======================================================= */
+
+  const status =
+    await new Promise(resolve => {
+
+      olympusStudentPresenceChannel.subscribe(
+        async status => {
+
+          if (status !== "SUBSCRIBED") {
+            resolve(status);
+            return;
+          }
+
+
+          /*
+             Tell Realtime:
+
+             "This user is currently connected."
+
+             The Realtime system handles the connection
+             and heartbeat internally.
+          */
+
+          const { error } =
+            await olympusStudentPresenceChannel.track({
+
+              user_id: currentUserId,
+
+              role: currentUserRole,
+
+              /*
+                 Username is included only for presence metadata.
+                 The admin dropdown already gets the real username
+                 from profiles.
+              */
+
+              timestamp: Date.now()
+
+            });
+
+
+          if (error) {
+            console.error(
+              "Olympus presence track error:",
+              error
+            );
+          }
+
+
+          resolve(status);
+
+        }
+      );
+
+    });
+
+
+  /*
+     Initial UI update after connection.
+  */
+
+  if (
+    status === "SUBSCRIBED" &&
+    currentUserRole === "admin"
+  ) {
+
+    updateOlympusStudentPresenceUI();
+
+  }
+
+}
 
 /* =========================================
    ADMIN PANEL DROPDOWN
 ========================================= */
 
+/* =========================================
+   ADMIN PANEL DROPDOWN
+   + LIVE STUDENT PRESENCE
+========================================= */
+
 async function createAdminLockPanel() {
 
-   // 🔄 Allow refresh rebuild
-  const existing = document.getElementById("advancedLockPanel");
-  if (existing) existing.remove();
+  /* =====================================================
+     REMOVE ONLY OUR OWN OLD PANEL
+  ===================================================== */
 
-  const container = document.createElement("div");
-  container.id = "advancedLockPanel";
-  container.style.display = "flex";
-  container.style.gap = "8px";
-  container.style.marginLeft = "15px";
+  const existing =
+    document.getElementById("advancedLockPanel");
 
-  // =========================
-  // 🔽 DROPDOWN
-  // =========================
+  if (existing) {
+    existing.remove();
+  }
 
-  const select = document.createElement("select");
-  select.id = "lockStudentSelect";
-  select.style.padding = "6px";
-  
 
-  const defaultOption = document.createElement("option");
-  defaultOption.value = "all";
-  defaultOption.textContent = "🌍 Entire Class";
-  select.appendChild(defaultOption);
+  /* =====================================================
+     CONTAINER
+  ===================================================== */
 
-const { data: students } = await supabase
-  .from("profiles")
-  .select("id, username, ui_locked")
-  .eq("role", "student")
-  .eq("active", true);
+  const container =
+    document.createElement("div");
 
-students.forEach(student => {
-  const opt = document.createElement("option");
-  opt.value = student.id;
+  container.id =
+    "advancedLockPanel";
 
-  // 🔒 Show lock icon if locked
-  const lockIcon = student.ui_locked ? "🔒 " : "🙋🏻‍♂️";
+  container.style.display =
+    "flex";
 
-  opt.textContent = `${lockIcon}${student.username}`;
+  container.style.gap =
+    "8px";
 
-  select.appendChild(opt);
-});
+  container.style.marginLeft =
+    "15px";
 
-  // =========================
-  // 🔘 BUTTON
-  // =========================
 
-  const btn = document.createElement("button");
-  btn.className = "nav-btn";
+  /* =====================================================
+     DROPDOWN
+  ===================================================== */
+
+  const select =
+    document.createElement("select");
+
+  select.id =
+    "lockStudentSelect";
+
+  select.style.padding =
+    "6px";
+
+
+  /* =====================================================
+     ENTIRE CLASS
+  ===================================================== */
+
+  const defaultOption =
+    document.createElement("option");
+
+  defaultOption.value =
+    "all";
+
+  defaultOption.textContent =
+    "🌍 Entire Class";
+
+  select.appendChild(
+    defaultOption
+  );
+
+
+  /* =====================================================
+     LOAD STUDENTS
+     ONE DATABASE QUERY ONLY
+  ===================================================== */
+
+  const { data: students, error } =
+    await supabase
+      .from("profiles")
+      .select(
+        "id, username, ui_locked"
+      )
+      .eq("role", "student")
+      .eq("active", true);
+
+
+  if (error) {
+
+    console.error(
+      "Olympus student list error:",
+      error
+    );
+
+  }
+
+
+  /* =====================================================
+     CREATE STUDENT OPTIONS
+  ===================================================== */
+
+  (students || []).forEach(student => {
+
+    const opt =
+      document.createElement("option");
+
+    opt.value =
+      student.id;
+
+
+    /*
+       Store the original name.
+
+       IMPORTANT:
+       We don't need to query profiles again
+       when the live status changes.
+    */
+
+    opt.dataset.studentName =
+      student.username || "Student";
+
+
+    /*
+       Store current lock state.
+
+       Presence updates can then change only
+       the 🟢 / 🔴 indicator.
+    */
+
+    opt.dataset.locked =
+      student.ui_locked
+        ? "true"
+        : "false";
+
+
+    /*
+       Initial state.
+
+       Presence sync will immediately correct this
+       when available.
+    */
+
+    const lockIcon =
+      student.ui_locked
+        ? "🔒"
+        : "🙍‍♂️";
+
+    opt.textContent =
+      `🔴 ${lockIcon} ${student.username}`;
+
+
+    select.appendChild(opt);
+
+  });
+
+
+  /* =====================================================
+     LOCK BUTTON
+  ===================================================== */
+
+  const btn =
+    document.createElement("button");
+
+  btn.className =
+    "nav-btn";
+
+
+  /* =====================================================
+     BUTTON STATE
+  ===================================================== */
 
   async function updateButtonState() {
 
-    const selected = select.value;
+    const selected =
+      select.value;
+
+
+    /* ================================================
+       ENTIRE CLASS
+    ================================================ */
 
     if (selected === "all") {
 
-      btn.innerText = globalClassLocked
-        ? "🔓 Unlock Entire Class"
-        : "🔒 Lock Entire Class";
+      btn.innerText =
+        globalClassLocked
+          ? "🔓 Unlock All Students"
+          : "🔒 Lock All Students";
 
-      btn.style.background = globalClassLocked
-        ? "#2e7d32"
-        : "#c62828";
+      btn.style.background =
+        globalClassLocked
+          ? "#2e7d32"
+          : "#c62828";
 
-    } else {
+      return;
+    }
 
-      const { data } = await supabase
+
+    /* ================================================
+       INDIVIDUAL STUDENT
+    ================================================ */
+
+    const { data, error } =
+      await supabase
         .from("profiles")
         .select("ui_locked")
         .eq("id", selected)
         .single();
 
-      const isLocked = data?.ui_locked;
 
-      btn.innerText = isLocked
+    if (error) {
+
+      console.error(
+        "Olympus lock state error:",
+        error
+      );
+
+      return;
+    }
+
+
+    const isLocked =
+      data?.ui_locked === true;
+
+
+    /*
+       Keep the option's cached lock state
+       synchronized.
+
+       This does NOT affect presence.
+    */
+
+    const selectedOption =
+      select.options[
+        select.selectedIndex
+      ];
+
+    if (selectedOption) {
+
+      selectedOption.dataset.locked =
+        isLocked
+          ? "true"
+          : "false";
+
+    }
+
+
+    btn.innerText =
+      isLocked
         ? "🔓 Unlock Student"
         : "🔒 Lock Student";
 
-      btn.style.background = isLocked
+    btn.style.background =
+      isLocked
         ? "#2e7d32"
         : "#c62828";
-    }
+
   }
 
-  // Update button when dropdown changes
-  select.addEventListener("change", updateButtonState);
 
-  // =========================
-  // CLICK ACTION
-  // =========================
+  /* =====================================================
+     DROPDOWN CHANGE
+  ===================================================== */
 
-  btn.onclick = async () => {
+  select.addEventListener(
+    "change",
+    updateButtonState
+  );
 
-    const selected = select.value;
 
-    if (selected === "all") {
+  /* =====================================================
+     LOCK / UNLOCK
+  ===================================================== */
 
-      globalClassLocked = !globalClassLocked;
+  btn.onclick =
+    async () => {
 
-      await supabase
-        .from("class_settings")
-        .update({
-          class_locked: globalClassLocked,
-          updated_at: new Date()
-        })
-        .eq("id", 1);
+      const selected =
+        select.value;
 
-    } else {
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("ui_locked")
-        .eq("id", selected)
-        .single();
+      /* ================================================
+         GLOBAL CLASS LOCK
+      ================================================ */
 
-      await supabase
-        .from("profiles")
-        .update({
-          ui_locked: !data.ui_locked
-        })
-        .eq("id", selected);
-    }
+      if (selected === "all") {
 
-    await updateButtonState();
-    // 🔄 Refresh dropdown icons
-  await createAdminLockPanel();
-  };
+        globalClassLocked =
+          !globalClassLocked;
 
-  container.appendChild(select);
-  container.appendChild(btn);
 
-  const logoutBtn = document.getElementById("logoutBtn");
-  logoutBtn.parentNode.insertBefore(container, logoutBtn);
+        const { error } =
+          await supabase
+            .from("class_settings")
+            .update({
+              class_locked:
+                globalClassLocked,
+
+              updated_at:
+                new Date()
+            })
+            .eq("id", 1);
+
+
+        if (error) {
+
+          console.error(
+            "Global lock update error:",
+            error
+          );
+
+        }
+
+      }
+
+
+      /* ================================================
+         INDIVIDUAL STUDENT LOCK
+      ================================================ */
+
+      else {
+
+        const { data, error } =
+          await supabase
+            .from("profiles")
+            .select("ui_locked")
+            .eq("id", selected)
+            .single();
+
+
+        if (error) {
+
+          console.error(
+            "Student lock read error:",
+            error
+          );
+
+          return;
+        }
+
+
+        const newLockedState =
+          !Boolean(data?.ui_locked);
+
+
+        const { error: updateError } =
+          await supabase
+            .from("profiles")
+            .update({
+              ui_locked:
+                newLockedState
+            })
+            .eq("id", selected);
+
+
+        if (updateError) {
+
+          console.error(
+            "Student lock update error:",
+            updateError
+          );
+
+          return;
+        }
+
+
+        /*
+           Update the existing option directly.
+
+           NO PANEL REBUILD.
+        */
+
+        const selectedOption =
+          select.options[
+            select.selectedIndex
+          ];
+
+        if (selectedOption) {
+
+          selectedOption.dataset.locked =
+            newLockedState
+              ? "true"
+              : "false";
+
+        }
+
+      }
+
+
+      /* =================================================
+         UPDATE BUTTON ONLY
+      ================================================= */
+
+      await updateButtonState();
+
+
+      /*
+         IMPORTANT:
+
+         We intentionally DO NOT do:
+
+         await createAdminLockPanel();
+
+         because that would destroy and recreate
+         the dropdown and could cause visual flicker.
+
+         Presence remains completely untouched.
+      */
+
+      updateOlympusStudentPresenceUI();
+
+    };
+
+
+  /* =====================================================
+     ADD TO DOM
+  ===================================================== */
+
+  container.appendChild(
+    select
+  );
+
+  container.appendChild(
+    btn
+  );
+
+
+  /* =====================================================
+     INSERT NEXT TO LOGOUT
+  ===================================================== */
+
+  const logoutBtn =
+    document.getElementById("logoutBtn");
+
+
+  if (
+    logoutBtn &&
+    logoutBtn.parentNode
+  ) {
+
+    logoutBtn.parentNode.insertBefore(
+      container,
+      logoutBtn
+    );
+
+  }
+
+
+  /* =====================================================
+     INITIAL BUTTON STATE
+  ===================================================== */
 
   await updateButtonState();
+
+
+  /* =====================================================
+     INITIAL PRESENCE UI
+  ===================================================== */
+
+  updateOlympusStudentPresenceUI();
+
 }
 
 /* =========================================
@@ -77363,6 +78609,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   applyLockToStudentUI();
   listenForRealtimeChanges();
+  startOlympusStudentPresence();
   listenForMatchChallenges();
   listenForPuzzleBattleChallenges();
   listenForChallengeBattleRoom()
@@ -89641,7 +90888,7 @@ const missionPool = [
 
 { key:"memory", text:"Play IQ Hunt 3 times", max:3 },
 
-{ key:"boardfreeze", text:"Solve Guess Materials 3 times", max:3 },
+{ key:"boardfreeze", text:"Solve Board Recall 3 times", max:3 },
 
 { key:"color", text:"Play Lab Hunt 3 times", max:3 },
 
