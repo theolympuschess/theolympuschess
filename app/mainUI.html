@@ -84787,10 +84787,20 @@ const audioBuffer =
    0.06 = very light background music
 ======================================== */
 
+/* ========================================
+   🔊 ADD SOUND TO AUDIO TIMELINE
+
+   Supports:
+   • normal volume
+   • optional fade-out
+======================================== */
+
 function addSoundToTimeline(
   sourceBuffer,
   startTime,
-  volume = 1
+  volume = 1,
+  fadeOutStart = null,
+  fadeOutEnd = null
 ) {
 
   if (
@@ -84834,7 +84844,7 @@ function addSoundToTimeline(
 
 
   /* ========================================
-     COPY AUDIO CHANNELS
+     COPY AUDIO
   ======================================== */
 
   for (
@@ -84861,11 +84871,59 @@ function addSoundToTimeline(
       i++
     ) {
 
+      const currentTime =
+        startTime +
+        (
+          i /
+          AUDIO_SAMPLE_RATE
+        );
+
+
+      let currentVolume =
+        volume;
+
+
+      /* ======================================
+         🎚️ SMOOTH FADE OUT
+      ====================================== */
+
+      if (
+        fadeOutStart !== null &&
+        fadeOutEnd !== null &&
+        currentTime >= fadeOutStart
+      ) {
+
+        const fadeProgress =
+          Math.max(
+            0,
+            Math.min(
+              1,
+              (
+                currentTime -
+                fadeOutStart
+              ) /
+              (
+                fadeOutEnd -
+                fadeOutStart
+              )
+            )
+          );
+
+
+        currentVolume =
+          volume *
+          (
+            1 -
+            fadeProgress
+          );
+      }
+
+
       destinationData[
         startSample + i
       ] +=
         sourceData[i] *
-        volume;
+        currentVolume;
     }
   }
 
@@ -84902,11 +84960,59 @@ function addSoundToTimeline(
       i++
     ) {
 
+      const currentTime =
+        startTime +
+        (
+          i /
+          AUDIO_SAMPLE_RATE
+        );
+
+
+      let currentVolume =
+        volume;
+
+
+      /* ======================================
+         🎚️ SMOOTH FADE OUT
+      ====================================== */
+
+      if (
+        fadeOutStart !== null &&
+        fadeOutEnd !== null &&
+        currentTime >= fadeOutStart
+      ) {
+
+        const fadeProgress =
+          Math.max(
+            0,
+            Math.min(
+              1,
+              (
+                currentTime -
+                fadeOutStart
+              ) /
+              (
+                fadeOutEnd -
+                fadeOutStart
+              )
+            )
+          );
+
+
+        currentVolume =
+          volume *
+          (
+            1 -
+            fadeProgress
+          );
+      }
+
+
       right[
         startSample + i
       ] +=
         sourceData[i] *
-        volume;
+        currentVolume;
     }
   }
 }
@@ -84918,12 +85024,33 @@ function addSoundToTimeline(
    0.06 = 6% volume.
 ======================================== */
 
+/* ========================================
+   🎵 BACKGROUND MUSIC
+   + SMOOTH 3 SECOND FADE OUT
+======================================== */
+
 if (
   includeMusic
 ) {
 
   const MUSIC_VOLUME =
     0.2;
+
+
+  const FADE_DURATION =
+    3;
+
+
+  const fadeOutStart =
+    Math.max(
+      0,
+      totalDuration -
+      FADE_DURATION
+    );
+
+
+  const fadeOutEnd =
+    totalDuration;
 
 
   let musicTime =
@@ -84941,7 +85068,11 @@ if (
 
       musicTime,
 
-      MUSIC_VOLUME
+      MUSIC_VOLUME,
+
+      fadeOutStart,
+
+      fadeOutEnd
 
     );
 
