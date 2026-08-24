@@ -31601,7 +31601,7 @@ transform: translateY(-50%);
   👑 Defend The King
 </button>
 <button class="nav-btn" data-tab="knightpath">🐴 Knight Path</button>
-<button class="nav-btn" data-tab="knightmonster">🐴 vs 👹</button>
+<button class="nav-btn" data-tab="knightmonster">🐴 Vs 👹 </button>
 <button class="nav-btn" data-tab="knightescape">🏰 Escape</button>
 <button class="nav-btn" data-tab="knightspeed">🐴 Speed Run</button>
 <button class="nav-btn" data-tab="knightlava">🔥 Lava Knight</button>
@@ -31803,7 +31803,7 @@ transform: translateY(-50%);
     • +1 XP for every attempt (effort reward)<br>
     • Bonus XP for improving high score<br>
     • Anti-farming protection enabled<br>
-    • Excluded 🐴Vs👹 to stop farming
+    • Excluded 🐴Knight Vs👹Monster to stop farming
   </li>
 
   <li>🧩 <strong>Assignments</strong><br>
@@ -35795,7 +35795,7 @@ class="lp-admin-btn"
 </section>
 
 <section id="knightmonster-section" class="section hidden">
-  <h2>🐴👹 Knight vs Monster</h2>
+  <h2>🐴 Knight Vs 👹 Monster</h2>
 
   <!-- MODE MENU -->
   <div class="card" id="kvmMenu">
@@ -35803,15 +35803,15 @@ class="lp-admin-btn"
 
     <div class="kvm-modes">
   <button class="kvm-mode easy" onclick="startKVM('easy')">
-    🟢 Easy<br><span>1 Monster</span>
+    🟢 Easy<br><span>2 Monsters</span>
   </button>
 
   <button class="kvm-mode medium" onclick="startKVM('medium')">
-    🟡 Medium<br><span>2 Monsters</span>
+    🟡 Medium<br><span>3 Monsters</span>
   </button>
 
   <button class="kvm-mode hard" onclick="startKVM('hard')">
-    🔥 Hard<br><span>3 Monsters</span>
+    🔥 Hard<br><span>4 Monsters</span>
   </button>
 </div>
 
@@ -59689,26 +59689,125 @@ function updateWrongDisplay() {
 // KNIGHT VS MONSTER (ISOLATED)
 // ================================
 
-// STATE
+// ---- BOARD / MOVEMENT CONSTANTS ----
+const KVM_BOARD_SIZE = 8;
+
+const KVM_KNIGHT_OFFSETS = [
+  [2, 1], [2, -1], [-2, 1], [-2, -1],
+  [1, 2], [1, -2], [-1, 2], [-1, -2]
+];
+
+const KVM_NEIGHBOR_OFFSETS = [
+  [1, 0], [-1, 0], [0, 1], [0, -1],
+  [1, 1], [1, -1], [-1, 1], [-1, -1]
+];
+
+const KVM_HISTORY_LIMIT = 60;
+const KVM_CYCLE_MIN = 2;
+const KVM_CYCLE_MAX = 6;
+
+// ---- DIFFICULTY TUNING ----
+const KVM_DIFFICULTY = {
+  easy: {
+    predictionDepth: 1,   // how many predicted destinations get covered by monsters
+    mistakeChance: 0.18,  // chance to take the 2nd-best (never a bad) move
+    clusterPenalty: 6,
+    lookaheadWeight: 0.5,
+    tieEpsilon: 3
+  },
+  medium: {
+    predictionDepth: 2,
+    mistakeChance: 0.08,
+    clusterPenalty: 9,
+    lookaheadWeight: 0.8,
+    tieEpsilon: 1.5
+  },
+  hard: {
+    predictionDepth: 3,
+    mistakeChance: 0.02,
+    clusterPenalty: 12,
+    lookaheadWeight: 1.1,
+    tieEpsilon: 0.5
+  }
+};
+
+// ---- STATE ----
 let kvmMode = "easy";
 let kvmKnight = null;
 let kvmMonsters = [];
 let kvmTurns = 0;
 let kvmWaiting = false;
-let kvmLevel = 1;           // future-proof
-let kvmBlockedSquares = []; // 🧱 level 1 only
+let kvmLevel = 1;            // future-proof
+let kvmBlockedSquares = [];  // 🧱 level 1 only
 
-
+// AI memory (bounded, reset every game)
+let kvmHistory = [];              // array of "x,y" keys, most recent last
+let kvmDestinationCounts = {};    // "x,y" -> count
+let kvmTransitionCounts = {};     // "fromX,fromY>toX,toY" -> count
 
 const kvmBoard = document.getElementById("kvmBoard");
 const kvmTurnsEl = document.getElementById("kvmTurns");
 const kvmMonsterCountEl = document.getElementById("kvmMonsterCount");
 
+// ================================
+// SMALL UTILITIES
+// ================================
+function kvmKey(sq) {
+  return `${sq.x},${sq.y}`;
+}
+
+function kvmInBounds(x, y) {
+  return x >= 0 && x < KVM_BOARD_SIZE && y >= 0 && y < KVM_BOARD_SIZE;
+}
+
+function kvmSameSquare(a, b) {
+  return a.x === b.x && a.y === b.y;
+}
+
+function kvmManhattan(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function kvmChebyshev(a, b) {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+function kvmIsBlockedSquare(x, y) {
+  if (kvmLevel !== 1) return false;
+  return kvmBlockedSquares.some(b => b.x === x && b.y === y);
+}
+
+function kvmRandomSquare() {
+  return {
+    x: Math.floor(Math.random() * KVM_BOARD_SIZE),
+    y: Math.floor(Math.random() * KVM_BOARD_SIZE)
+  };
+}
+
+// Generates `count` squares with no overlaps against each other or `avoid`.
+// Bounded — will never spin forever even if asked for more squares than fit.
+function kvmGenerateNonOverlappingSquares(count, avoid = []) {
+  const squares = [];
+  let attempts = 0;
+  const maxAttempts = count * 200 + 500;
+
+  while (squares.length < count && attempts < maxAttempts) {
+    attempts++;
+    const sq = kvmRandomSquare();
+    if (avoid.some(a => a.x === sq.x && a.y === sq.y)) continue;
+    if (squares.some(s => s.x === sq.x && s.y === sq.y)) continue;
+    squares.push(sq);
+  }
+  return squares;
+}
 
 function generateKVMBlockedSquares(count) {
   const blocks = [];
+  let attempts = 0;
+  const maxAttempts = count * 200 + 500;
 
-  while (blocks.length < count) {
+  while (blocks.length < count && attempts < maxAttempts) {
+    attempts++;
     const sq = kvmRandomSquare();
 
     // ❌ avoid knight start
@@ -59726,35 +59825,34 @@ function generateKVMBlockedSquares(count) {
   return blocks;
 }
 
-
+function kvmResetAIState() {
+  kvmHistory = [];
+  kvmDestinationCounts = {};
+  kvmTransitionCounts = {};
+}
 
 // ================================
-// Knight vs Monster - Game Over Sound
+// SOUND
 // ================================
 function playKVMGameOverSound() {
   try {
     const audio = new Audio("./sounds/party.mp3");
-    audio.volume = 0.6; // 🔊 not too loud
+    audio.volume = 0.07;
     audio.play();
   } catch (e) {
     console.warn("🔇 party.mp3 could not play", e);
   }
 }
 
-// ================================
-// Knight vs Monster - Move Sound
-// ================================
 function playKVMMoveSound() {
   try {
     const audio = new Audio("./sounds/move.mp3");
-    audio.volume = 0.5; // balanced, not loud
+    audio.volume = 0.5;
     audio.play();
   } catch (e) {
     console.warn("🔇 move.mp3 could not play", e);
   }
 }
-
-
 
 // ================================
 // START GAME
@@ -59762,31 +59860,31 @@ function playKVMMoveSound() {
 window.startKVM = function (mode) {
   kvmMode = mode;
   kvmTurns = 0;
+  kvmLevel = 1;
+  kvmWaiting = false;
 
   document.getElementById("kvmMenu").classList.add("hidden");
   document.getElementById("kvmGame").classList.remove("hidden");
 
   kvmKnight = kvmRandomSquare();
-  kvmMonsters = [];
 
-  const monsterCount =
-    mode === "easy" ? 1 : mode === "medium" ? 2 : 3;
+const monsterCount =
+  mode === "easy"
+    ? 2
+    : mode === "medium"
+      ? 3
+      : 4;
 
-  for (let i = 0; i < monsterCount; i++) {
-    kvmMonsters.push(kvmRandomSquare());
-  }
+kvmMonsters =
+  kvmGenerateNonOverlappingSquares(
+    monsterCount,
+    [kvmKnight]
+  );
 
-  // ✅ STEP 3 — BLOCK SQUARES (LEVEL 1 ONLY)
-  kvmLevel = 1;
+// No bricks anywhere.
+kvmBlockedSquares = [];
 
-  if (kvmLevel === 1) {
-    const blockCount =
-      mode === "easy" ? 5 : mode === "medium" ? 4 : 4;
-
-    kvmBlockedSquares = generateKVMBlockedSquares(blockCount);
-  } else {
-    kvmBlockedSquares = [];
-  }
+  kvmResetAIState();
 
   kvmMonsterCountEl.textContent = monsterCount;
   kvmTurnsEl.textContent = 0;
@@ -59795,115 +59893,435 @@ window.startKVM = function (mode) {
   kvmWaiting = true;
 };
 
-
 // ================================
 // EXIT GAME
 // ================================
 window.exitKVM = function () {
   document.getElementById("kvmGame").classList.add("hidden");
   document.getElementById("kvmMenu").classList.remove("hidden");
+  kvmWaiting = false;
+  kvmResetAIState();
 };
-
-// ================================
-// RANDOM SQUARE
-// ================================
-function kvmRandomSquare() {
-  return {
-    x: Math.floor(Math.random() * 8),
-    y: Math.floor(Math.random() * 8)
-  };
-}
 
 // ================================
 // HANDLE KNIGHT CLICK
 // ================================
-function handleKVMClick(x, y) {
+// ================================
+// HANDLE KNIGHT CLICK
+// ================================
+function kvmHandleClick(x, y) {
+
   if (!kvmWaiting) return;
 
-  const dx = Math.abs(x - kvmKnight.x);
-  const dy = Math.abs(y - kvmKnight.y);
+  const dx =
+    Math.abs(x - kvmKnight.x);
 
-  // 🐴 knight legality
-  if (!((dx === 2 && dy === 1) || (dx === 1 && dy === 2))) return;
+  const dy =
+    Math.abs(y - kvmKnight.y);
 
-  // 🚫 blocked square (level 1 only)
-  if (
-    kvmLevel === 1 &&
-    kvmBlockedSquares.some(b => b.x === x && b.y === y)
-  ) {
+  const isLegalKnightMove =
+    (dx === 2 && dy === 1) ||
+    (dx === 1 && dy === 2);
+
+  // 🐴 illegal move → do nothing
+  if (!isLegalKnightMove) return;
+
+  // 🚫 blocked square
+  if (kvmIsBlockedSquare(x, y)) {
     return;
   }
 
-  // ✅ MOVE KNIGHT
-  kvmKnight = { x, y };
+  // =================================================
+  // 🚨 IMMEDIATE CAPTURE CHECK
+  // Knight cannot move onto a monster safely.
+  // This MUST happen BEFORE monsters move.
+  // =================================================
+
+// =================================================
+// 🚨 MONSTER DANGER ZONE
+// Knight dies if it lands ON or NEXT TO a monster.
+// =================================================
+
+const knightLandingInMonsterDangerZone =
+  kvmMonsters.some(monster => {
+
+    const distance =
+      Math.max(
+        Math.abs(monster.x - x),
+        Math.abs(monster.y - y)
+      );
+
+    return distance <= 1;
+  });
+
+if (knightLandingInMonsterDangerZone) {
+
+    // Put knight on the captured square so the
+    // final board state is correct.
+    kvmKnight = {
+      x,
+      y
+    };
+
+    kvmTurns++;
+
+    if (kvmTurnsEl) {
+      kvmTurnsEl.textContent =
+        kvmTurns;
+    }
+
+    kvmWaiting = false;
+
+    drawKVMBoard();
+
+    kvmShowGameOver(
+      kvmTurns
+    );
+
+    return;
+  }
+
+  // =================================================
+  // MOVE KNIGHT
+  // =================================================
+
+  const prevPos = {
+    x: kvmKnight.x,
+    y: kvmKnight.y
+  };
+
+  kvmKnight = {
+    x,
+    y
+  };
+
+  kvmRecordKnightMove(
+    prevPos,
+    kvmKnight
+  );
+
   playKVMMoveSound();
 
   kvmTurns++;
-  kvmTurnsEl.textContent = kvmTurns;
 
-  moveMonsters();
+  if (kvmTurnsEl) {
+    kvmTurnsEl.textContent =
+      kvmTurns;
+  }
 
-  if (isKnightCaught()) {
-    showKVMGameOver(kvmTurns);
+  // =================================================
+  // NOW MONSTERS MOVE
+  // =================================================
+
+  kvmMoveMonsters();
+
+  // =================================================
+  // CHECK WHETHER A MONSTER CAUGHT THE KNIGHT
+  // AFTER MONSTER MOVEMENT
+  // =================================================
+
+  if (kvmIsKnightCaught()) {
+
+    kvmWaiting = false;
+
+    drawKVMBoard();
+
+    kvmShowGameOver(
+      kvmTurns
+    );
+
     return;
   }
+
+  // =================================================
+  // NORMAL RENDER
+  // =================================================
 
   drawKVMBoard();
 }
 
+// ================================
+// PLAYER HISTORY / MEMORY
+// ================================
+function kvmRecordKnightMove(prevPos, newPos) {
+  const newKey = kvmKey(newPos);
+
+  kvmDestinationCounts[newKey] = (kvmDestinationCounts[newKey] || 0) + 1;
+
+  if (prevPos) {
+    const transKey = `${kvmKey(prevPos)}>${newKey}`;
+    kvmTransitionCounts[transKey] = (kvmTransitionCounts[transKey] || 0) + 1;
+  }
+
+  kvmHistory.push(newKey);
+  if (kvmHistory.length > KVM_HISTORY_LIMIT) {
+    kvmHistory.shift(); // bounded — keep memory of tendencies, cap raw history
+  }
+}
+
+// Detects the strongest repeating cycle (length 2-6) at the tail of history.
+// Works on frequency of repeated blocks, not just one exact match, so
+// slightly-varied "disguised" loops still get flagged over time via the
+// destination/transition counts used in prediction below.
+function kvmDetectCycle(history) {
+  const n = history.length;
+  let best = null;
+
+  for (let len = KVM_CYCLE_MIN; len <= KVM_CYCLE_MAX; len++) {
+    if (n < len * 2) continue;
+
+    const recentBlock = history.slice(n - len);
+    let repeats = 0;
+
+    for (let r = 1; ; r++) {
+      const start = n - len * (r + 1);
+      if (start < 0) break;
+      const block = history.slice(start, start + len);
+      let match = true;
+      for (let k = 0; k < len; k++) {
+        if (block[k] !== recentBlock[k]) { match = false; break; }
+      }
+      if (!match) break;
+      repeats = r;
+    }
+
+    if (repeats >= 1) {
+      if (!best || repeats > best.repeats) {
+        best = { length: len, repeats: repeats + 1 };
+      }
+    }
+  }
+
+  return best;
+}
+
+// ================================
+// PREDICTION
+// ================================
+function kvmMobility(sq, opts = {}) {
+  const excludeMonsters = opts.excludeMonsters !== false;
+  let count = 0;
+  for (const [dx, dy] of KVM_KNIGHT_OFFSETS) {
+    const nx = sq.x + dx, ny = sq.y + dy;
+    if (!kvmInBounds(nx, ny)) continue;
+    if (kvmIsBlockedSquare(nx, ny)) continue;
+    if (excludeMonsters && kvmMonsters.some(m => m.x === nx && m.y === ny)) continue;
+    count++;
+  }
+  return count;
+}
+
+function kvmMobilityGivenMonsters(pos, monsterPositions) {
+  let count = 0;
+  for (const [dx, dy] of KVM_KNIGHT_OFFSETS) {
+    const nx = pos.x + dx, ny = pos.y + dy;
+    if (!kvmInBounds(nx, ny)) continue;
+    if (kvmIsBlockedSquare(nx, ny)) continue;
+    if (monsterPositions.some(m => m.x === nx && m.y === ny)) continue;
+    count++;
+  }
+  return count;
+}
+
+function kvmKnightLegalMoves(pos, opts = {}) {
+  const excludeMonsters = opts.excludeMonsters !== false;
+  const moves = [];
+  for (const [dx, dy] of KVM_KNIGHT_OFFSETS) {
+    const nx = pos.x + dx, ny = pos.y + dy;
+    if (!kvmInBounds(nx, ny)) continue;
+    if (kvmIsBlockedSquare(nx, ny)) continue;
+    if (excludeMonsters && kvmMonsters.some(m => m.x === nx && m.y === ny)) continue;
+    moves.push({ x: nx, y: ny });
+  }
+  return moves;
+}
+
+// Scores the knight's legal next squares using history (frequency + cycle
+// continuation) so monsters can aim at where the player is LIKELY to go,
+// not just where they currently are.
+function kvmPredictKnightDestinations(fromPos) {
+  const candidates = kvmKnightLegalMoves(fromPos);
+  if (candidates.length === 0) return [];
+
+  const fromKey = kvmKey(fromPos);
+  const cycle = kvmDetectCycle(kvmHistory);
+  const predictedCycleKey = cycle ? kvmHistory[kvmHistory.length - cycle.length] : null;
+
+  const scored = candidates.map(sq => {
+    const key = kvmKey(sq);
+    let score = 0;
+
+    score += (kvmDestinationCounts[key] || 0) * 2;
+    score += (kvmTransitionCounts[`${fromKey}>${key}`] || 0) * 3;
+    if (predictedCycleKey && key === predictedCycleKey) score += 20;
+
+    // Baseline heuristic for when history is sparse: assume the player
+    // tends toward squares that keep more future options open.
+    score += kvmMobility(sq) * 0.5;
+
+    return { sq, key, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
+}
+
+// ================================
+// ROLE ASSIGNMENT
+// ================================
+function kvmAssignMonsterTargets(knight, monsters, predicted, cfg) {
+  const order = monsters
+    .map((m, i) => ({ i, d: kvmManhattan(m, knight) }))
+    .sort((a, b) => a.d - b.d)
+    .map(o => o.i);
+
+  const topPredicted = predicted.slice(0, Math.max(1, cfg.predictionDepth));
+  const usedTargetKeys = new Set();
+  const assignments = [];
+
+  order.forEach((idx, rank) => {
+    let target = null;
+    let role = "CHASER";
+
+    if (rank === 0) {
+      // Closest monster intercepts the single most likely destination.
+      target = topPredicted[0] ? topPredicted[0].sq : knight;
+      role = "INTERCEPTOR";
+    } else if (topPredicted[rank] && !usedTargetKeys.has(kvmKey(topPredicted[rank].sq))) {
+      // Cover the next most likely destination.
+      target = topPredicted[rank].sq;
+      role = "CUTTER";
+    } else {
+      // Cover a high-mobility escape square nobody is covering yet —
+      // this is what shuts down repeating A<->B / A-B-C style loops.
+      const legalFromKnight = kvmKnightLegalMoves(knight);
+      const untargeted = legalFromKnight
+        .filter(sq => !usedTargetKeys.has(kvmKey(sq)))
+        .sort((a, b) => kvmMobility(b) - kvmMobility(a));
+
+      if (untargeted.length > 0) {
+        target = untargeted[0];
+        role = "BLOCKER";
+      } else {
+        target = knight;
+        role = "CHASER";
+      }
+    }
+
+    usedTargetKeys.add(kvmKey(target));
+    assignments.push({ index: idx, target, role });
+  });
+
+  return assignments;
+}
+
+// ================================
+// MONSTER MOVE EVALUATION
+// ================================
+function kvmGetMonsterCandidateMoves(monster, decidedSoFar) {
+  const candidates = [];
+
+  for (const [dx, dy] of KVM_NEIGHBOR_OFFSETS) {
+    const nx = monster.x + dx, ny = monster.y + dy;
+    if (!kvmInBounds(nx, ny)) continue;
+    if (kvmIsBlockedSquare(nx, ny)) continue;
+    if (decidedSoFar.some(p => p.x === nx && p.y === ny)) continue;
+    candidates.push({ x: nx, y: ny });
+  }
+
+  // Staying put is always a valid tactical option (and the guaranteed
+  // fallback if every neighboring square is taken/blocked).
+  if (!decidedSoFar.some(p => p.x === monster.x && p.y === monster.y)) {
+    candidates.push({ x: monster.x, y: monster.y });
+  }
+
+  return candidates;
+}
+
+function kvmEvaluateMonsterCandidate(candidateSq, target, decidedSoFar, cfg) {
+  let score = 0;
+
+  // Primary: close the gap to the assigned (predictive) target.
+  score -= kvmManhattan(candidateSq, target) * 4;
+
+  // Shallow lookahead: how much does this placement (combined with the
+  // other monsters already committed this turn) shrink the target
+  // square's future options?
+  const mobilityBefore = kvmMobilityGivenMonsters(target, kvmMonsters);
+  const mobilityAfter = kvmMobilityGivenMonsters(target, [...decidedSoFar, candidateSq]);
+  const reduction = mobilityBefore - mobilityAfter;
+  score += reduction * 6 * cfg.lookaheadWeight;
+
+  // Prefer covering low-mobility (edge/corner) squares — they're cheaper
+  // to seal off completely.
+  score += (8 - kvmMobility(target)) * 1.5;
+
+  // Avoid stacking monsters on top of each other.
+  for (const p of decidedSoFar) {
+    if (kvmChebyshev(candidateSq, p) <= 1) {
+      score -= cfg.clusterPenalty;
+    }
+  }
+
+  // Tiny jitter for tie-breaking only (not enough to override strategy).
+  score += Math.random() * 0.01;
+
+  return score;
+}
 
 // ================================
 // MOVE MONSTERS
 // ================================
-function moveMonsters() {
-  const newPositions = [];
+function kvmMoveMonsters() {
+  const cfg = KVM_DIFFICULTY[kvmMode] || KVM_DIFFICULTY.easy;
+  const predicted = kvmPredictKnightDestinations(kvmKnight);
+  const assignments = kvmAssignMonsterTargets(kvmKnight, kvmMonsters, predicted, cfg);
 
-  for (let i = 0; i < kvmMonsters.length; i++) {
-    const m = kvmMonsters[i];
+  const newPositions = new Array(kvmMonsters.length);
+  const decidedSoFar = [];
 
-    let bestMove = null;
-    let bestDist = Infinity;
+  for (const assignment of assignments) {
+    const { index, target } = assignment;
+    const monster = kvmMonsters[index];
+    const candidates = kvmGetMonsterCandidateMoves(monster, decidedSoFar);
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-
-        const nx = m.x + dx;
-        const ny = m.y + dy;
-
-        // board bounds
-        if (nx < 0 || nx >= KND_SIZE || ny < 0 || ny >= KND_SIZE) continue;
-
-
-        // 🚫 avoid occupied monster squares
-        if (newPositions.some(p => p.x === nx && p.y === ny)) continue;
-
-        const dist =
-          Math.abs(nx - kvmKnight.x) +
-          Math.abs(ny - kvmKnight.y);
-
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestMove = { x: nx, y: ny };
-        }
-      }
+    if (candidates.length === 0) {
+      // Failsafe — should be unreachable since "stay" is always offered.
+      newPositions[index] = { ...monster };
+      decidedSoFar.push(newPositions[index]);
+      continue;
     }
 
-    // if no legal free square → stay
-    newPositions.push(bestMove || { ...m });
+    const scored = candidates
+      .map(sq => ({
+        sq,
+        score: kvmEvaluateMonsterCandidate(sq, target, decidedSoFar, cfg)
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    let chosen;
+
+    if (scored.length > 1 && Math.random() < cfg.mistakeChance) {
+      // Controlled imperfection (mainly Easy) — a plausible move, never a bad one.
+      chosen = scored[1].sq;
+    } else {
+      const best = scored[0].score;
+      const topTier = scored.filter(c => best - c.score <= cfg.tieEpsilon);
+      chosen = topTier[Math.floor(Math.random() * topTier.length)].sq;
+    }
+
+    newPositions[index] = chosen;
+    decidedSoFar.push(chosen);
   }
 
   kvmMonsters = newPositions;
 }
 
-
 // ================================
 // CHECK CAUGHT
 // ================================
-function isKnightCaught() {
-  return kvmMonsters.some(
-    m => m.x === kvmKnight.x && m.y === kvmKnight.y
-  );
+function kvmIsKnightCaught() {
+  return kvmMonsters.some(m => kvmSameSquare(m, kvmKnight));
 }
 
 // ================================
@@ -59912,28 +60330,26 @@ function isKnightCaught() {
 function drawKVMBoard() {
   kvmBoard.innerHTML = "";
 
-  for (let y = 7; y >= 0; y--) {
-    for (let x = 0; x < 8; x++) {
+  for (let y = KVM_BOARD_SIZE - 1; y >= 0; y--) {
+    for (let x = 0; x < KVM_BOARD_SIZE; x++) {
       const sq = document.createElement("div");
       sq.className = "kp-square";
+
       // ♟️ FILE–RANK COORDINATE
-const file = String.fromCharCode(97 + x); // a–h
-const rank = y + 1;                       // 1–8
+      const file = String.fromCharCode(97 + x); // a–h
+      const rank = y + 1;                       // 1–8
 
-const coord = document.createElement("div");
-coord.className = "kvm-coord";
-coord.textContent = `${file}${rank}`;
-sq.appendChild(coord);
+      const coord = document.createElement("div");
+      coord.className = "kvm-coord";
+      coord.textContent = `${file}${rank}`;
+      sq.appendChild(coord);
 
-     sq.classList.add((x + y) % 2 === 1 ? "light" : "dark");
+      sq.classList.add((x + y) % 2 === 1 ? "light" : "dark");
 
-      sq.onclick = () => handleKVMClick(x, y);
+      sq.onclick = () => kvmHandleClick(x, y);
 
       // 🧱 blocked square (level 1 only)
-      if (
-        kvmLevel === 1 &&
-        kvmBlockedSquares.some(b => b.x === x && b.y === y)
-      ) {
+      if (kvmIsBlockedSquare(x, y)) {
         sq.textContent = "🧱";
         sq.style.fontSize = "32px";
         sq.style.opacity = "0.85";
@@ -59956,13 +60372,12 @@ sq.appendChild(coord);
   }
 }
 
-
-
-
-function showKVMGameOver(turns) {
-   playKVMGameOverSound(); // 🎉 PLAY SOUND ON GAME OVER
-      // 🏆 SAVE BEST SCORE (Knight vs Monster)
-   saveMiniGameScore("knightmonster", turns);
+// ================================
+// GAME OVER
+// ================================
+function kvmShowGameOver(turns) {
+  playKVMGameOverSound();
+  saveMiniGameScore("knightmonster", turns);
 
   const modal = document.getElementById("floatingModal");
   const title = document.getElementById("modalTitle");
@@ -59984,10 +60399,9 @@ function showKVMGameOver(turns) {
 
   modal.classList.remove("hidden");
 
-  // Close behavior ONLY for this game
   okBtn.onclick = () => {
     modal.classList.add("hidden");
-    exitKVM(); // 👈 safely exit Knight vs Monster only
+    exitKVM();
   };
 }
 
