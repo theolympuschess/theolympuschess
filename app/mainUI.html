@@ -11336,14 +11336,17 @@ No JS / No HTML changes
 
 .mp-clock {
   font-weight: 800;
-  font-size: 20px;
+  font-size: 22px;
   color: #ffffff;
-
   letter-spacing: 0.4px;
-
   transition:
     color 0.2s ease,
     text-shadow 0.2s ease;
+}
+
+.mp-clock::before {
+  content: "⏰";
+  margin-right: 6px;
 }
 
 
@@ -11406,15 +11409,7 @@ No JS / No HTML changes
 
 
 /* PLAYER DOT MODE */
-.mp-player span:first-child {
-  display: inline;
-  margin-left: 6px;
-}
 
-.mp-player::before {
-  content: "🟢";
-  margin-right: 4px;
-}
 
 
 
@@ -46146,7 +46141,7 @@ function renderAssignedTo(assign, studentNameMap) {
 
     return `
       <div class="assign-badge private">
-        👤 ${names.length} selected
+        🙋🏻‍♂️ ${names.length} selected
       </div>
       <div class="assign-names">
         ${names.join(", ")}
@@ -47504,7 +47499,7 @@ function openStudentModal(studentId, username) {
   window.currentStudentUsername = username;
 
   document.getElementById("studentModalTitle").textContent =
-    `👤 ${username} — Full Details`;
+    `🙋🏻‍♂️ ${username} — Full Details`;
 
   document.getElementById("studentModalBody").innerHTML =
     `<p class="loading">Fetching data…</p>`;
@@ -68996,41 +68991,230 @@ mpDrawBtn.onclick = async () => {
     .eq('id', roomId)
 }
 
-mpDrawAcceptBtn.onclick = async () => {
-  mpDrawModal.classList.add('hidden')
+/* =====================================================
+   DRAW ACCEPT / RESIGN CONFIRMATION
+   Reuses the existing Draw Modal
+===================================================== */
 
-  mpGameOver = true
-  stopClock()
+let mpResignConfirmActive = false;
+
+
+/* =====================================================
+   DRAW ACCEPT BUTTON
+===================================================== */
+
+mpDrawAcceptBtn.onclick = async () => {
+
+  /* ==========================================
+     RESIGN CONFIRMATION
+  ========================================== */
+
+  if (mpResignConfirmActive) {
+
+    mpResignConfirmActive = false;
+
+    mpDrawModal.classList.add('hidden');
+
+    if (mpGameOver || !roomId) {
+      mpRestoreDrawModal();
+      return;
+    }
+
+    // Lock game immediately
+    mpGameOver = true;
+    stopClock();
+
+    // Opponent wins
+    const winner =
+      mySide === 'w' ? 'b' : 'w';
+
+
+    // Server-authoritative resignation
+    const { error } = await supabase
+      .from('live_match_rooms')
+      .update({
+
+        status: 'finished',
+
+        resigned_by: mySide,
+
+        winner: winner,
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq('id', roomId);
+
+
+    if (error) {
+
+      console.error(
+        '❌ Resignation failed:',
+        error
+      );
+
+      // Unlock because server update failed
+      mpGameOver = false;
+
+      mpRestoreDrawModal();
+
+      return;
+    }
+
+
+    // Your local result
+    mpShowModal(
+      'Game Over',
+      '🏳 You resigned. Opponent wins.'
+    );
+
+
+    // Save archive
+    mpArchiveSaveGame(winner);
+
+
+    // Clear saved session
+    mpClearSession();
+
+
+    // Fully reset Live Match
+    mpEndAndUnlock();
+
+
+    // Restore Draw modal for future games
+    mpRestoreDrawModal();
+
+    return;
+  }
+
+
+  /* ==========================================
+     NORMAL DRAW ACCEPT
+  ========================================== */
+
+  mpDrawModal.classList.add('hidden');
+
+  mpGameOver = true;
+
+  stopClock();
 
   await supabase
     .from('live_match_rooms')
     .update({
+
       status: 'finished',
+
       winner: 'draw',
+
       draw_request: false,
+
       draw_by: null,
-      updated_at: new Date().toISOString()
+
+      updated_at:
+        new Date().toISOString()
+
     })
-    .eq('id', roomId)
+    .eq('id', roomId);
 
-  mpShowModal('Draw', '🤝 Game ended in a draw')
 
-  // 🔥 ADD THESE 2 LINES (CRITICAL)
-  mpArchiveSaveGame("draw")
-  mpEndAndUnlock()
-}
+  mpShowModal(
+    'Draw',
+    '🤝 Game ended in a draw'
+  );
+
+
+  // Archive
+  mpArchiveSaveGame("draw");
+
+  // Reset
+  mpEndAndUnlock();
+};
+
+
+/* =====================================================
+   DRAW DECLINE BUTTON
+===================================================== */
 
 mpDrawDeclineBtn.onclick = async () => {
-  mpDrawModal.classList.add('hidden')
+
+
+  /* ==========================================
+     RESIGN → NO, CONTINUE
+  ========================================== */
+
+  if (mpResignConfirmActive) {
+
+    mpResignConfirmActive = false;
+
+    mpDrawModal.classList.add('hidden');
+
+    // Restore normal Draw modal
+    mpRestoreDrawModal();
+
+    return;
+  }
+
+
+  /* ==========================================
+     NORMAL DRAW DECLINE
+  ========================================== */
+
+  mpDrawModal.classList.add('hidden');
 
   await supabase
     .from('live_match_rooms')
     .update({
+
       draw_request: false,
+
       draw_by: null,
-      updated_at: new Date().toISOString()
+
+      updated_at:
+        new Date().toISOString()
+
     })
-    .eq('id', roomId)
+    .eq('id', roomId);
+};
+
+
+/* =====================================================
+   RESTORE NORMAL DRAW MODAL
+===================================================== */
+
+/* =====================================================
+   RESTORE NORMAL DRAW MODAL
+===================================================== */
+
+function mpRestoreDrawModal() {
+
+  const title =
+    mpDrawModal.querySelector('h3');
+
+  const message =
+    mpDrawModal.querySelector('p');
+
+
+  if (title) {
+
+    title.textContent =
+      '🤝 Draw Offer';
+
+  }
+
+  if (message) {
+
+    message.textContent =
+      'Your opponent offers a draw';
+
+  }
+
+
+  mpDrawAcceptBtn.textContent =
+    'Accept';
+
+  mpDrawDeclineBtn.textContent =
+    'Decline';
 }
 
 const mpFlipBtn = document.getElementById('mpFlipBtn')
@@ -69293,30 +69477,54 @@ updateTurnHighlight()
    RESIGN (SERVER AUTHORITATIVE)
 ================================ */
 
-mpResignBtn.onclick = async () => {
-  if (mpGameOver || !roomId) return
+/* =====================================================
+   RESIGN BUTTON
+   SHOW CONFIRMATION USING EXISTING DRAW MODAL
+===================================================== */
 
-  mpGameOver = true
-  stopClock()
+mpResignBtn.onclick = () => {
 
-  const winner = mySide === 'w' ? 'b' : 'w'
+  if (mpGameOver || !roomId) return;
 
-  mpShowModal('Game Over', '🏳 You resigned. Opponent wins.')
+  // Prevent duplicate opening
+  if (mpResignConfirmActive) return;
 
-  await supabase
-    .from('live_match_rooms')
-    .update({
-      status: 'finished',
-      resigned_by: mySide,
-      winner, // 🔥 THIS IS THE KEY
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', roomId)
+  mpResignConfirmActive = true;
 
-  mpClearSession()
-  mpEndAndUnlock()
 
-}
+  // ==========================================
+  // CHANGE EXISTING DRAW MODAL → RESIGN MODAL
+  // ==========================================
+
+  const title =
+    mpDrawModal.querySelector('h3');
+
+  const message =
+    mpDrawModal.querySelector('p');
+
+
+  if (title) {
+    title.textContent = '🏳️ Resign Game?';
+  }
+
+  if (message) {
+    message.textContent =
+      'Are you sure you want to resign?';
+  }
+
+
+  // Buttons
+  mpDrawAcceptBtn.textContent =
+    'Yes, Resign';
+
+  mpDrawDeclineBtn.textContent =
+    'No, Continue';
+
+
+  // Show existing modal
+  mpDrawModal.classList.remove('hidden');
+
+};
 // REMATCH (FLIP COLORS)
 mpRematchBtn.onclick = async () => {
   if (!roomId) return
@@ -70902,15 +71110,15 @@ function updateMpPlayerLabels() {
   const whiteName = mpWhiteName || "Waiting..."
   const blackName = mpBlackName || "Waiting..."
 
-  if (mySide === 'w') {
-    // YOU are white
-    youEl.textContent = `Connected - ${whiteName} (White)`
-    opponentEl.textContent = `Connected - ${blackName} (Black)`
-  } else {
-    // YOU are black
-    youEl.textContent = `Connected - ${blackName} (Black)`
-    opponentEl.textContent = `Connected - ${whiteName} (White)`
-  }
+if (mySide === 'w') {
+  // YOU are white
+  youEl.textContent = `⚪ White: ${whiteName}`;
+  opponentEl.textContent = `⚫ Black: ${blackName}`;
+} else {
+  // YOU are black
+  youEl.textContent = `⚫ Black: ${blackName}`;
+  opponentEl.textContent = `⚪ White: ${whiteName}`;
+}
 }
 
 function mpClearCheckHighlight() {
@@ -77024,7 +77232,7 @@ students.forEach(student => {
   opt.value = student.id;
 
   // 🔒 Show lock icon if locked
-  const lockIcon = student.ui_locked ? "🔒 " : "👤 ";
+  const lockIcon = student.ui_locked ? "🔒 " : "🙋🏻‍♂️";
 
   opt.textContent = `${lockIcon}${student.username}`;
 
@@ -131768,7 +131976,7 @@ async function openPlayerProfile(playerName){
   const title = document.getElementById("pcs-modal-title");
   const content = document.getElementById("pcs-modal-content");
 
-  title.innerText = `👤 ${playerName} - Profile`;
+  title.innerText = `🙋🏻‍♂️ ${playerName} - Profile`;
   content.innerHTML = "Loading...";
 
   // 🔥 fetch all tournaments
