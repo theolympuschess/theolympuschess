@@ -36280,10 +36280,10 @@ class="lp-admin-btn"
 
   <!-- MENU -->
   <div class="card" id="bfMenu">
-    <h3>Snapshot Challenge</h3>
+    <h3>Board Recall Challenge</h3>
     <p>
       Board flashes for 30 seconds.<br>
-      Remember & answer the question.
+      Remember the board & answer the question.
     </p>
 
     <button class="btn-primary" onclick="startBF()">▶️ Start</button>
@@ -64156,6 +64156,7 @@ const BF_PIECES = [
 // ---------- STATE ----------
 let bfPieces = [];
 let bfCorrectAnswer = 0;
+let bfCorrectFilter = null;
 let bfUserAnswer = 0;
 let bfScore = 0;
 
@@ -64329,14 +64330,19 @@ const BF_QUESTIONS = [
 
 // ---------- HELPERS ----------
 function isDarkSquare(x, y) {
-  return (x + y) % 2 === 1;
+  return (x + y) % 2 === 0;
 }
 
 
 function countBy(filterFn, questionText) {
 
+  bfCorrectFilter =
+    filterFn;
+
   bfCorrectAnswer =
-    bfPieces.filter(filterFn).length;
+    bfPieces.filter(
+      filterFn
+    ).length;
 
   bfQuestionEl.textContent =
     questionText;
@@ -64593,8 +64599,22 @@ function nextBFRound() {
   }
 
 
-  // Select question
-  const q =
+// ======================================
+// 🎯 SELECT ONLY A REAL QUESTION
+// ======================================
+
+let q = null;
+
+let attempts = 0;
+
+const MAX_QUESTION_ATTEMPTS = 100;
+
+
+while (
+  attempts < MAX_QUESTION_ATTEMPTS
+) {
+
+  const candidate =
     BF_QUESTIONS[
       Math.floor(
         Math.random() *
@@ -64603,18 +64623,53 @@ function nextBFRound() {
     ];
 
 
-  // Calculate correct answer
-  q();
+  // Calculate this candidate's answer
+  candidate();
 
 
-  // Save question text
-  const currentQuestion =
-    bfQuestionEl.textContent;
+  // Only accept questions whose
+  // answer actually exists on the board.
+  if (
+    bfCorrectAnswer > 0
+  ) {
+
+    q = candidate;
+
+    break;
+
+  }
 
 
-  // Hide question during memory phase
-  bfQuestionEl.textContent =
-    "";
+  attempts++;
+
+}
+
+
+// Safety fallback
+if (!q) {
+
+  q = () => countBy(
+    () => true,
+    "How many total pieces?"
+  );
+
+}
+
+
+// Calculate final answer
+q();
+
+
+// Save question text
+
+const currentQuestion =
+  bfQuestionEl.textContent;
+
+
+// Hide question during memory phase
+
+bfQuestionEl.textContent =
+  "";
 
 
   // Show board
@@ -64746,7 +64801,7 @@ timer.style.display =
 
 
 timer.innerHTML =
-  'Observe the Board carefully, Question appears in: <span style="color:#16a34a;">⏰ ' +
+  'Observe the Board carefully... Question appears in: <span style="color:#16a34a;">⏰ ' +
   seconds +
   's</span>';
 
@@ -64783,7 +64838,76 @@ timer.innerHTML =
 
 }
 
+// ---------- WRONG ANSWER — SHOW CORRECT PIECES ----------
+function revealBFCorrectAnswer() {
 
+  if (
+    !bfBoard ||
+    !bfCorrectFilter
+  ) {
+    return;
+  }
+
+
+  // Show the complete board again
+  drawBF(true);
+
+
+  // Find every piece that belongs
+  // to the correct answer
+  const correctPieces =
+    bfPieces.filter(
+      bfCorrectFilter
+    );
+
+
+  correctPieces.forEach(
+    piece => {
+
+      /*
+         Board is drawn from:
+         y = 7 down to y = 0
+         x = 0 up to x = 7
+
+         Therefore calculate the exact
+         DOM square index.
+      */
+
+      const row =
+        7 - piece.y;
+
+      const index =
+        row * 8 +
+        piece.x;
+
+
+      const square =
+        bfBoard.children[index];
+
+
+      if (!square) {
+        return;
+      }
+
+
+      // Green highlight inside the square
+      square.style.background =
+        "rgba(34, 197, 94, 0.45)";
+
+
+      // Strong green border around square
+      square.style.boxShadow =
+        "inset 0 0 0 4px #22c55e";
+
+
+      // Keep the piece clearly visible
+      square.style.position =
+        "relative";
+
+    }
+  );
+
+}
 
 // ---------- DRAW ----------
 function drawBF(show) {
@@ -64896,31 +65020,53 @@ window.bfSubmit = function () {
     bfCorrectAnswer
   ) {
 
-    bfScore++;
+    // ==============================
+    // ✅ CORRECT ANSWER
+    // ==============================
 
+    bfScore++;
 
     bfScoreEl.textContent =
       bfScore;
 
-
     playNextSound?.();
 
-  } else {
 
-    playWrongSound?.();
+    // Normal next question
+    setTimeout(
+      nextBFRound,
+      600
+    );
+
+
+    return;
 
   }
 
 
+  // ==============================
+  // ❌ WRONG ANSWER
+  // ==============================
+
+  playWrongSound?.();
+
+
+  // Show the correct board
+  revealBFCorrectAnswer();
+
+
   /*
-     Give the player a short
-     feedback moment, then start
-     the next 15-second memory round.
+     Keep the correct answer visible
+     for exactly 4 seconds.
   */
 
   setTimeout(
-    nextBFRound,
-    600
+    () => {
+
+      nextBFRound();
+
+    },
+    4000
   );
 
 };
