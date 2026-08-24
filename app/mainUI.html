@@ -81762,8 +81762,8 @@ function showPGNViewerAnnotationMarker(
 
   const badgeSize =
     Math.max(
-      25,
-      squareRect.width * 0.34
+      28,
+      squareRect.width * 0.38
     );
 
 
@@ -81825,40 +81825,76 @@ function showPGNViewerAnnotationMarker(
    Study annotation symbol color.
 ========================================== */
 
-const studyAnnotationSymbol =
-  document.querySelector(
-    `.study-anno-item[data-type="${annotation}"] .anno-symbol`
-  );
+/* ==========================================
+   🎨 PGN VIEWER ANNOTATION COLORS
+
+   Do NOT read the color from the Study DOM.
+
+   The Study DOM can return black for
+   hidden/non-active annotation elements.
+
+   Use the actual Study annotation colors
+   directly.
+========================================== */
+
+const PGN_VIEWER_ANNOTATION_COLORS = {
+
+  brilliant:
+    "#00e5ff",
+
+  good:
+    "#4caf50",
+
+  interesting:
+    "#ffca28",
+
+  dubious:
+    "#ff9800",
+
+  mistake:
+    "#ff7043",
+
+  blunder:
+    "#ff1744",
+
+  only:
+    "#9c27b0",
+
+  zugzwang:
+    "#9c27b0",
+
+  equal:
+    "#ff7ab8",
+
+  unclear:
+    "#ff7ab8",
+
+  slightWhite:
+    "#8bc34a",
+
+  slightBlack:
+    "#8bc34a",
+
+  betterWhite:
+    "#4caf50",
+
+  betterBlack:
+    "#4caf50",
+
+  winningWhite:
+    "#8bc34a",
+
+  winningBlack:
+    "#8bc34a"
+
+};
 
 
-if (studyAnnotationSymbol) {
-
-  const studySymbolStyle =
-    getComputedStyle(
-      studyAnnotationSymbol
-    );
-
-
-  /*
-   * 🎯 EXACT SAME COLOR AS STUDY
-   */
-
-  badge.style.background =
-    studySymbolStyle.color;
-
-
-}
-else {
-
-  /*
-   * Safe fallback only if the Study
-   * annotation element is unavailable.
-   */
-
-  badge.style.background =
-    "#19c8e8";
-
-}
+badge.style.background =
+  PGN_VIEWER_ANNOTATION_COLORS[
+    annotation
+  ] ||
+  "#19c8e8";
 
 
   badge.style.display =
@@ -82462,6 +82498,19 @@ ctx.fillStyle =
    +−  −+  □   ⭘
 ===================================================== */
 
+/* =====================================================
+   🎯 PGN VIEWER → GIF / MP4 ANNOTATION BADGE
+
+   GLOBAL VERSION
+
+   Uses the SAME annotation classes as Study.
+
+   IMPORTANT:
+   Export colors are explicitly mapped here.
+   This prevents DOM/CSS state from changing
+   the exported annotation color.
+===================================================== */
+
 window.drawPGNExportAnnotation =
   function(
     ctx,
@@ -82560,9 +82609,6 @@ window.drawPGNExportAnnotation =
 
     /* ==========================================
        🔵 BADGE SIZE
-
-       Same small size you selected
-       for the PGN Viewer.
     ========================================== */
 
     const badgeSize =
@@ -82574,8 +82620,6 @@ window.drawPGNExportAnnotation =
 
     /* ==========================================
        🔵 BADGE POSITION
-
-       Upper-right of destination square.
     ========================================== */
 
     const centerX =
@@ -82590,44 +82634,81 @@ window.drawPGNExportAnnotation =
 
 
     /* ==========================================
-       🎨 GET EXACT STUDY SYMBOL COLOR
+       🎨 EXACT STUDY COLORS
 
-       The Study notation uses the color
-       of .anno-symbol.
+       DO NOT READ getComputedStyle() HERE.
 
-       We copy that exact color.
+       The Study CSS defines:
+
+       .anno-slight  = #8bc34a
+       .anno-better  = #4caf50
+       .anno-winning = #8bc34a
+
+       Both:
+       winningWhite (+−)
+       winningBlack (−+)
+
+       therefore MUST be green.
     ========================================== */
 
-    let badgeColor =
+    const EXPORT_ANNOTATION_COLORS = {
+
+      brilliant:
+        "#00e5ff",
+
+      good:
+        "#4caf50",
+
+      interesting:
+        "#ffca28",
+
+      dubious:
+        "#ff9800",
+
+      mistake:
+        "#ff7043",
+
+      blunder:
+        "#ff1744",
+
+      only:
+        "#9c27b0",
+
+      zugzwang:
+        "#9c27b0",
+
+      equal:
+        "#ff7ab8",
+
+      unclear:
+        "#ff7ab8",
+
+      slightWhite:
+        "#8bc34a",
+
+      slightBlack:
+        "#8bc34a",
+
+      betterWhite:
+        "#4caf50",
+
+      betterBlack:
+        "#4caf50",
+
+      winningWhite:
+        "#8bc34a",
+
+      winningBlack:
+        "#8bc34a"
+
+    };
+
+
+    const badgeColor =
+      EXPORT_ANNOTATION_COLORS[
+        annotation
+      ] ||
       "#19c8e8";
-
-
-    const studySymbol =
-      document.querySelector(
-        `.study-anno-item[data-type="${annotation}"] .anno-symbol`
-      );
-
-
-    if (studySymbol) {
-
-      const computedStyle =
-        getComputedStyle(
-          studySymbol
-        );
-
-
-      if (
-        computedStyle.color &&
-        computedStyle.color !==
-          "rgba(0, 0, 0, 0)"
-      ) {
-
-        badgeColor =
-          computedStyle.color;
-
-      }
-
-    }
 
 
     /* ==========================================
@@ -82710,9 +82791,19 @@ window.drawPGNExportAnnotation =
 
     console.log(
       "🎯 Export annotation:",
-      annotationData.symbol,
-      annotation,
-      move.to
+      {
+        symbol:
+          annotationData.symbol,
+
+        annotation:
+          annotation,
+
+        color:
+          badgeColor,
+
+        square:
+          move.to
+      }
     );
 
   };
