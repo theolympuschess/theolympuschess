@@ -31547,7 +31547,21 @@ transform: translateY(-50%);
   🚀 IQ Trainer
 </button>
 
- <button class="nav-btn" data-tab="assignments">📚 Assignments</button>
+<button class="nav-btn" data-tab="assignments">
+  📚 Assignments
+  <span id="studentAssignmentsBadge" style="
+    display: none;
+    margin-left: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+    vertical-align: middle;
+  "></span>
+</button>
  <button class="nav-btn" data-tab="livePuzzle">👨🏻‍🏫 Classroom</button>
  <button class="nav-btn" data-tab="puzzlerush">⚡ Puzzle Rush </button>
  <button class="nav-btn" data-tab="puzzlebattle">
@@ -42007,7 +42021,17 @@ if (profile.role !== 'admin') {
         }
 
         setupEventListeners();
-        loadAssignments();
+       loadAssignments();
+
+if (currentProfile?.role === 'student') {
+  updateStudentAssignmentsBadge();
+  startStudentAssignmentsBadgeRealtime();
+}
+console.log(
+  "📚 STUDENT BADGE TEST:",
+  currentProfile.role,
+  document.getElementById("studentAssignmentsBadge")
+);
         loadPGNLibrary();
         loadQuizPuzzle();
         
@@ -42452,6 +42476,64 @@ document.addEventListener('click', e => {
           btn.classList.add('active');
 
 const tab = btn.dataset.tab;
+
+// 📚 Clear student's new-assignment badge when Assignments opens
+// 📚 Clear student's new-assignment badge when Assignments opens
+// 📚 Clear student's assignment notifications
+if (
+  tab === 'assignments' &&
+  currentProfile?.role === 'student'
+) {
+
+  const studentAssignmentsBadge =
+    document.getElementById(
+      'studentAssignmentsBadge'
+    );
+
+
+  // --------------------------------------------
+  // Mark created assignments as seen
+  // --------------------------------------------
+
+  const seenKey =
+    getStudentAssignmentsSeenKey();
+
+  if (seenKey) {
+
+    localStorage.setItem(
+      seenKey,
+      new Date().toISOString()
+    );
+  }
+
+
+  // --------------------------------------------
+  // Clear edit/reassignment notifications
+  // --------------------------------------------
+
+  const editNotificationKey =
+    getStudentAssignmentEditNotificationKey();
+
+  if (editNotificationKey) {
+
+    localStorage.removeItem(
+      editNotificationKey
+    );
+  }
+
+
+  // --------------------------------------------
+  // Immediately hide badge
+  // --------------------------------------------
+
+  if (studentAssignmentsBadge) {
+
+    studentAssignmentsBadge.textContent = "";
+
+    studentAssignmentsBadge.style.display =
+      "none";
+  }
+}
 
 // 🔔 Clear Check Assignments badge when admin opens the tab
 if (tab === 'attempts' && currentProfile?.role === 'admin') {
@@ -58202,6 +58284,421 @@ async function updateAttemptsTabBadge() {
   }
 }
 
+
+
+// ============================================================
+// 📚 STUDENT ASSIGNMENT BADGE
+// ============================================================
+
+function getStudentAssignmentsSeenKey() {
+  if (!currentProfile?.id) return null;
+
+  return `olympus_student_assignments_seen_at_${currentProfile.id}`;
+}
+
+function getStudentAssignmentEditNotificationKey() {
+  if (!currentProfile?.id) return null;
+
+  return `olympus_student_assignment_edit_notifications_${currentProfile.id}`;
+}
+
+// ============================================================
+// GET PENDING EDIT NOTIFICATIONS
+// ============================================================
+
+function getStudentAssignmentEditNotificationCount() {
+  const key = getStudentAssignmentEditNotificationKey();
+
+  if (!key) return 0;
+
+  return Number(localStorage.getItem(key) || 0);
+}
+
+
+// ============================================================
+// ADD ONE EDIT/REASSIGNMENT NOTIFICATION
+// ============================================================
+
+function addStudentAssignmentEditNotification() {
+
+  if (currentProfile?.role !== "student") {
+    return;
+  }
+
+  const key =
+    getStudentAssignmentEditNotificationKey();
+
+  if (!key) return;
+
+  const currentCount =
+    Number(localStorage.getItem(key) || 0);
+
+  localStorage.setItem(
+    key,
+    String(currentCount + 1)
+  );
+}
+
+
+// ============================================================
+// 📚 UPDATE STUDENT ASSIGNMENT BADGE
+// ============================================================
+
+async function updateStudentAssignmentsBadge() {
+
+  const badge =
+    document.getElementById("studentAssignmentsBadge");
+
+  // Students only
+  if (currentProfile?.role !== "student") {
+
+    if (badge) {
+      badge.textContent = "";
+      badge.style.display = "none";
+    }
+
+    return;
+  }
+
+  if (!badge) return;
+
+  try {
+
+    const seenKey =
+      getStudentAssignmentsSeenKey();
+
+    if (!seenKey) return;
+
+
+    let seenAt =
+      localStorage.getItem(seenKey);
+
+    /*
+      First time this student uses the badge:
+      count all existing private assignments.
+    */
+    if (!seenAt) {
+      seenAt = "1970-01-01T00:00:00.000Z";
+    }
+
+
+    // ========================================================
+    // EXISTING / NEWLY CREATED ASSIGNMENTS
+    // ========================================================
+
+    const { data, error } = await supabase
+      .from("assignments")
+      .select(
+        "id, assigned_to, is_public, status, created_at"
+      )
+      .eq("status", "active")
+      .or(
+        `is_public.eq.true,assigned_to.cs.["${currentProfile.id}"]`
+      );
+
+
+    if (error) {
+
+      console.error(
+        "❌ Student assignment badge query failed:",
+        error
+      );
+
+      return;
+    }
+
+
+    const newCreatedAssignmentCount =
+      (data || []).filter(assignment => {
+
+        // Public assignments are not personal notifications
+        if (assignment.is_public === true) {
+          return false;
+        }
+
+        // Must be assigned to this student
+        if (
+          !Array.isArray(assignment.assigned_to) ||
+          !assignment.assigned_to.includes(
+            currentProfile.id
+          )
+        ) {
+          return false;
+        }
+
+        if (!assignment.created_at) {
+          return false;
+        }
+
+        return (
+          new Date(assignment.created_at).getTime() >
+          new Date(seenAt).getTime()
+        );
+
+      }).length;
+
+
+    // ========================================================
+    // EDIT / REASSIGNMENT NOTIFICATIONS
+    // ========================================================
+
+    const editNotificationCount =
+      getStudentAssignmentEditNotificationCount();
+
+
+    // ========================================================
+    // TOTAL BADGE
+    // ========================================================
+
+    const totalCount =
+      newCreatedAssignmentCount +
+      editNotificationCount;
+
+
+    if (totalCount > 0) {
+
+      badge.textContent =
+        `+${totalCount}`;
+
+      badge.style.display =
+        "inline-block";
+
+    } else {
+
+      badge.textContent = "";
+
+      badge.style.display =
+        "none";
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Student assignment badge error:",
+      error
+    );
+
+  }
+}
+
+// ============================================================
+// 📚 REALTIME — STUDENT ASSIGNMENT NOTIFICATIONS
+// ============================================================
+
+let studentAssignmentsBadgeChannel = null;
+
+function startStudentAssignmentsBadgeRealtime() {
+
+  if (currentProfile?.role !== "student") {
+    return;
+  }
+
+  if (studentAssignmentsBadgeChannel) {
+    return;
+  }
+
+  const studentId =
+    currentProfile.id;
+
+
+  studentAssignmentsBadgeChannel =
+    supabase
+      .channel(
+        `olympus-student-assignments-${studentId}`
+      )
+
+      // ======================================================
+      // NEW ASSIGNMENT
+      // ======================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "assignments"
+        },
+        async (payload) => {
+
+          const assignment =
+            payload.new;
+
+          if (!assignment) {
+            return;
+          }
+
+          // Ignore public assignments
+          if (assignment.is_public === true) {
+            return;
+          }
+
+          // Only this student
+          if (
+            !Array.isArray(
+              assignment.assigned_to
+            ) ||
+            !assignment.assigned_to.includes(
+              studentId
+            )
+          ) {
+            return;
+          }
+
+          // Only active assignments
+          if (
+            assignment.status !== "active"
+          ) {
+            return;
+          }
+
+          console.log(
+            "📚 NEW ASSIGNMENT FOR STUDENT:",
+            studentId,
+            assignment.id
+          );
+
+          /*
+            Do NOT manually increment here.
+
+            updateStudentAssignmentsBadge()
+            will count the new assignment using
+            created_at.
+          */
+          await updateStudentAssignmentsBadge();
+await loadAssignments();
+        }
+      )
+
+
+      // ======================================================
+      // ASSIGNMENT EDITED
+      // ======================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "assignments"
+        },
+        async (payload) => {
+
+          const assignment =
+            payload.new;
+
+          if (!assignment) {
+            return;
+          }
+
+
+          // Public assignment = no personal notification
+          if (
+            assignment.is_public === true
+          ) {
+            return;
+          }
+
+
+          // Student must be selected
+      // ======================================================
+// Check whether THIS student is still assigned
+// ======================================================
+
+const isStillAssigned =
+  Array.isArray(assignment.assigned_to) &&
+  assignment.assigned_to.includes(studentId);
+
+// ======================================================
+// If student was UNCHECKED during edit,
+// immediately refresh their assignment list.
+// ======================================================
+
+if (!isStillAssigned) {
+
+  console.log(
+    "📚 ASSIGNMENT REMOVED FROM STUDENT:",
+    studentId,
+    assignment.id
+  );
+
+  await loadAssignments();
+
+  await updateStudentAssignmentsBadge();
+
+  return;
+}
+
+          // Only active assignments
+          if (
+            assignment.status !== "active"
+          ) {
+            return;
+          }
+
+
+          console.log(
+            "📚 ASSIGNMENT EDITED/REASSIGNED FOR STUDENT:",
+            studentId,
+            assignment.id
+          );
+
+
+          /*
+            IMPORTANT:
+
+            created_at does NOT change when an assignment
+            is edited.
+
+            Therefore we explicitly store one pending
+            notification locally for this student.
+          */
+
+          addStudentAssignmentEditNotification();
+
+
+          await updateStudentAssignmentsBadge();
+          await loadAssignments();
+        }
+      )
+
+            // ======================================================
+      // 🗑 ASSIGNMENT DELETED
+      // Refresh student assignment cards immediately.
+      // No backend/schema change required.
+      // ======================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "assignments"
+        },
+        async () => {
+
+          console.log(
+            "🗑 ASSIGNMENT DELETED — refreshing student assignments"
+          );
+
+          // Remove the deleted assignment from the student's UI
+          await loadAssignments();
+
+          // Recalculate the badge
+          await updateStudentAssignmentsBadge();
+        }
+      )
+
+      .subscribe((status) => {
+
+        console.log(
+          "📚 Student assignment badge realtime:",
+          status
+        );
+
+      });
+}
+
 // ============================================================
 // 🔔 REALTIME — NEW ASSIGNMENT SUBMISSIONS
 // ============================================================
@@ -58226,8 +58723,12 @@ function startAttemptsBadgeRealtime() {
       async (payload) => {
         console.log("🔔 NEW ASSIGNMENT SUBMISSION:", payload.new);
 
+        
+
         // Recalculate the actual number of pending submissions.
         await updateAttemptsTabBadge();
+          // Refresh the Check Assignments cards/list
+  await loadAttempts();
       }
     )
     .subscribe((status) => {
