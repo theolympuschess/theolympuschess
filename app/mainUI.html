@@ -31376,6 +31376,179 @@ transform: translateY(-50%);
   opacity: 0.9;
 }
 
+
+/* ============================================================
+   📚 STUDENT ASSIGNMENT — NEW! STARBURST BADGE
+   ============================================================ */
+
+.student-assignment-new-badge {
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 50px;
+  height: 50px;
+
+  margin-bottom: 8px;
+
+  /* 🔴 Jagged NEW sticker shape */
+  background: #ef1b2d;
+
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 900;
+
+  letter-spacing: 0.4px;
+
+  line-height: 1;
+
+  text-align: center;
+
+  /* ⭐ Starburst shape */
+  clip-path: polygon(
+    50% 0%,
+    60% 15%,
+    75% 5%,
+    78% 23%,
+    96% 20%,
+    90% 38%,
+    100% 50%,
+    88% 60%,
+    96% 77%,
+    78% 75%,
+    76% 95%,
+    60% 86%,
+    50% 100%,
+    39% 87%,
+    23% 96%,
+    22% 77%,
+    4% 80%,
+    11% 61%,
+    0% 50%,
+    11% 39%,
+    4% 22%,
+    23% 24%,
+    25% 5%,
+    40% 15%
+  );
+
+  /* ✨ Continuous bounce + breathing glow */
+  animation:
+    studentNewStickerBounce 1.8s
+      cubic-bezier(0.34, 1.56, 0.64, 1)
+      infinite,
+    studentNewStickerGlow 1.8s
+      ease-in-out
+      infinite;
+
+  z-index: 5;
+}
+
+
+/* ============================================================
+   🫧 PLAYFUL BOUNCE
+   ============================================================ */
+
+@keyframes studentNewStickerBounce {
+
+  0%,
+  100% {
+    transform: rotate(-8deg) translateY(0) scale(1);
+  }
+
+  25% {
+    transform: rotate(-8deg) translateY(-4px) scale(1.05);
+  }
+
+  50% {
+    transform: rotate(-8deg) translateY(0) scale(0.97);
+  }
+
+  75% {
+    transform: rotate(-8deg) translateY(-2px) scale(1.02);
+  }
+}
+
+
+/* ============================================================
+   ✨ SOFT RED SINGING GLOW
+   ============================================================ */
+
+@keyframes studentNewStickerGlow {
+
+  0%,
+  100% {
+    filter:
+      drop-shadow(
+        0 3px 4px rgba(239, 27, 45, 0.20)
+      );
+  }
+
+  50% {
+    filter:
+      drop-shadow(
+        0 4px 10px rgba(239, 27, 45, 0.65)
+      )
+      drop-shadow(
+        0 0 16px rgba(239, 27, 45, 0.30)
+      );
+  }
+}
+
+
+/* ============================================================
+   ♿ REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .student-assignment-new-badge {
+    animation: none;
+  }
+}
+
+
+/* ============================================================
+   ✨ SINGING GLOW
+   ============================================================ */
+
+@keyframes studentNewBadgeGlow {
+
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 rgba(34, 197, 94, 0);
+  }
+
+  50% {
+    box-shadow:
+      0 0 8px rgba(34, 197, 94, 0.75),
+      0 0 16px rgba(34, 197, 94, 0.35);
+  }
+
+}
+
+
+/* ============================================================
+   🫧 CONTINUOUS GENTLE BOUNCE
+   ============================================================ */
+
+@keyframes studentNewBadgeBounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+
+}
+
   </style>
 </head>
 
@@ -46341,6 +46514,18 @@ function renderAssignedTo(assign, studentNameMap) {
 
     listEl.innerHTML = assignments.map(assign => `
       <div class="card" data-assignment-id="${assign.id}">
+  ${
+    currentProfile.role === "student" &&
+    getStudentAssignmentNotificationIds().includes(
+      Number(assign.id)
+    )
+      ? `
+        <span class="student-assignment-new-badge">
+          NEW!
+        </span>
+      `
+      : ""
+  }
         <h4>${assign.title || 'Untitled Assignment'}</h4>
         <p>${assign.description || 'No description provided.'}</p>
         <p>
@@ -46405,20 +46590,93 @@ data-id="${assign.id}">
   }
 }
 
-document.getElementById('assignmentsList').addEventListener('click', (e) => {
+document.getElementById('assignmentsList').addEventListener('click', async (e) => {
+
   const btn = e.target.closest('button');
+
   if (!btn) return;
 
   const action = btn.dataset.action;
+
   const assignmentId = btn.dataset.id;
 
+  if (!action || !assignmentId) {
+    return;
+  }
+
+
+  // ==========================================================
+  // 🗑 ADMIN — DELETE
+  // ==========================================================
+
   if (action === 'delete') {
-    confirmDeleteAssignment(assignmentId);
+
+    confirmDeleteAssignment(
+      assignmentId
+    );
+
+    return;
   }
-// ✅ ADD THIS BLOCK
+
+
+  // ==========================================================
+  // 👁 ADMIN — VIEW
+  // ==========================================================
+
   if (action === 'view') {
-    openAssignmentBulkPreview(assignmentId);
+
+    openAssignmentBulkPreview(
+      assignmentId
+    );
+
+    return;
   }
+
+
+  // ==========================================================
+  // ♟️ STUDENT — START ASSIGNMENT
+  // Remove NEW badge for THIS assignment only.
+  // ==========================================================
+
+if (
+  action === 'start' &&
+  currentProfile?.role === 'student'
+) {
+
+  // Remove NEW notification for this assignment
+  removeStudentAssignmentNotification(
+    assignmentId
+  );
+
+  // Update top +N badge
+  await updateStudentAssignmentsBadge();
+
+  // Immediately remove NEW from this card
+  const assignmentCard =
+    document.querySelector(
+      `.card[data-assignment-id="${assignmentId}"]`
+    );
+
+  if (assignmentCard) {
+
+    const newBadge =
+      assignmentCard.querySelector(
+        ".student-assignment-new-badge"
+      );
+
+    if (newBadge) {
+      newBadge.remove();
+    }
+  }
+
+  // Start existing assignment flow
+  startAssignmentMode(
+    assignmentId
+  );
+
+  return;
+}
+
 });
 
 function confirmDeleteAssignment(assignmentId) {
@@ -58306,42 +58564,149 @@ function getStudentAssignmentEditNotificationKey() {
 // GET PENDING EDIT NOTIFICATIONS
 // ============================================================
 
-function getStudentAssignmentEditNotificationCount() {
-  const key = getStudentAssignmentEditNotificationKey();
+// ============================================================
+// 📚 STUDENT ASSIGNMENT NOTIFICATION IDS
+// Stores the exact assignment IDs that are new for this student.
+// ============================================================
 
-  if (!key) return 0;
+function getStudentAssignmentNotificationKey() {
 
-  return Number(localStorage.getItem(key) || 0);
+  if (!currentProfile?.id) {
+    return null;
+  }
+
+  return `olympus_student_assignment_notifications_${currentProfile.id}`;
 }
 
 
 // ============================================================
-// ADD ONE EDIT/REASSIGNMENT NOTIFICATION
+// GET NEW ASSIGNMENT IDS
 // ============================================================
 
-function addStudentAssignmentEditNotification() {
+function getStudentAssignmentNotificationIds() {
+
+  const key =
+    getStudentAssignmentNotificationKey();
+
+  if (!key) {
+    return [];
+  }
+
+  try {
+
+    const stored =
+      JSON.parse(
+        localStorage.getItem(key) || "[]"
+      );
+
+    if (!Array.isArray(stored)) {
+      return [];
+    }
+
+    return stored
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id));
+
+  } catch (error) {
+
+    console.error(
+      "❌ Failed to read student assignment notifications:",
+      error
+    );
+
+    return [];
+  }
+}
+
+
+// ============================================================
+// ADD ASSIGNMENT TO NEW-NOTIFICATION LIST
+// ============================================================
+
+function addStudentAssignmentNotification(
+  assignmentId
+) {
 
   if (currentProfile?.role !== "student") {
     return;
   }
 
+  const id =
+    Number(assignmentId);
+
+  if (!Number.isFinite(id)) {
+    return;
+  }
+
   const key =
-    getStudentAssignmentEditNotificationKey();
+    getStudentAssignmentNotificationKey();
 
-  if (!key) return;
+  if (!key) {
+    return;
+  }
 
-  const currentCount =
-    Number(localStorage.getItem(key) || 0);
+  const ids =
+    getStudentAssignmentNotificationIds();
+
+  // Don't add the same assignment twice
+  if (ids.includes(id)) {
+    return;
+  }
+
+  ids.push(id);
 
   localStorage.setItem(
     key,
-    String(currentCount + 1)
+    JSON.stringify(ids)
   );
 }
 
 
 // ============================================================
+// REMOVE ONE ASSIGNMENT FROM NEW-NOTIFICATION LIST
+// ============================================================
+
+function removeStudentAssignmentNotification(
+  assignmentId
+) {
+
+  const id =
+    Number(assignmentId);
+
+  if (!Number.isFinite(id)) {
+    return;
+  }
+
+  const key =
+    getStudentAssignmentNotificationKey();
+
+  if (!key) {
+    return;
+  }
+
+  const ids =
+    getStudentAssignmentNotificationIds()
+      .filter(
+        existingId => existingId !== id
+      );
+
+  if (ids.length > 0) {
+
+    localStorage.setItem(
+      key,
+      JSON.stringify(ids)
+    );
+
+  } else {
+
+    localStorage.removeItem(key);
+  }
+}
+
+
+// ============================================================
 // 📚 UPDATE STUDENT ASSIGNMENT BADGE
+// Uses the exact assignment IDs that are marked as NEW.
 // ============================================================
 
 async function updateStudentAssignmentsBadge() {
@@ -58375,7 +58740,7 @@ async function updateStudentAssignmentsBadge() {
 
     /*
       First time this student uses the badge:
-      count all existing private assignments.
+      count existing private assignments.
     */
     if (!seenAt) {
       seenAt = "1970-01-01T00:00:00.000Z";
@@ -58383,7 +58748,7 @@ async function updateStudentAssignmentsBadge() {
 
 
     // ========================================================
-    // EXISTING / NEWLY CREATED ASSIGNMENTS
+    // GET ACTIVE ASSIGNMENTS FOR THIS STUDENT
     // ========================================================
 
     const { data, error } = await supabase
@@ -58408,51 +58773,148 @@ async function updateStudentAssignmentsBadge() {
     }
 
 
-    const newCreatedAssignmentCount =
-      (data || []).filter(assignment => {
+    // ========================================================
+    // EXISTING / NEWLY CREATED ASSIGNMENTS
+    // ========================================================
 
-        // Public assignments are not personal notifications
-        if (assignment.is_public === true) {
-          return false;
-        }
+    const newCreatedAssignmentIds =
+      (data || [])
+        .filter(assignment => {
 
-        // Must be assigned to this student
-        if (
-          !Array.isArray(assignment.assigned_to) ||
-          !assignment.assigned_to.includes(
-            currentProfile.id
-          )
-        ) {
-          return false;
-        }
+          // Public assignments are not personal notifications
+          if (assignment.is_public === true) {
+            return false;
+          }
 
-        if (!assignment.created_at) {
-          return false;
-        }
+          // Must be assigned to this student
+          if (
+            !Array.isArray(
+              assignment.assigned_to
+            ) ||
+            !assignment.assigned_to.includes(
+              currentProfile.id
+            )
+          ) {
+            return false;
+          }
 
-        return (
-          new Date(assignment.created_at).getTime() >
-          new Date(seenAt).getTime()
+          if (!assignment.created_at) {
+            return false;
+          }
+
+          return (
+            new Date(
+              assignment.created_at
+            ).getTime() >
+            new Date(
+              seenAt
+            ).getTime()
+          );
+
+        })
+        .map(assignment =>
+          Number(assignment.id)
+        )
+        .filter(id =>
+          Number.isFinite(id)
         );
 
-      }).length;
+
+    // ========================================================
+    // EDIT / REASSIGNMENT NOTIFICATION IDS
+    // ========================================================
+
+    const editNotificationIds =
+      getStudentAssignmentNotificationIds();
 
 
     // ========================================================
-    // EDIT / REASSIGNMENT NOTIFICATIONS
+    // COMBINE BOTH SOURCES
     // ========================================================
 
-    const editNotificationCount =
-      getStudentAssignmentEditNotificationCount();
+    const allNotificationIds =
+      [
+        ...newCreatedAssignmentIds,
+        ...editNotificationIds
+      ];
+
+
+    // Remove duplicates
+    const uniqueNotificationIds =
+      [...new Set(allNotificationIds)];
 
 
     // ========================================================
-    // TOTAL BADGE
+    // REMOVE IDS THAT ARE NO LONGER ACTIVE/ASSIGNED
+    // ========================================================
+
+    const activeAssignedIds =
+      new Set(
+        (data || [])
+          .filter(assignment => {
+
+            if (
+              assignment.is_public === true
+            ) {
+              return false;
+            }
+
+            return (
+              Array.isArray(
+                assignment.assigned_to
+              ) &&
+              assignment.assigned_to.includes(
+                currentProfile.id
+              )
+            );
+
+          })
+          .map(assignment =>
+            Number(assignment.id)
+          )
+      );
+
+
+    const validNotificationIds =
+      uniqueNotificationIds.filter(
+        id =>
+          activeAssignedIds.has(id)
+      );
+
+
+    // ========================================================
+    // SAVE CLEANED NOTIFICATION LIST
+    // ========================================================
+
+    const notificationKey =
+      getStudentAssignmentNotificationKey();
+
+    if (notificationKey) {
+
+      if (validNotificationIds.length > 0) {
+
+        localStorage.setItem(
+          notificationKey,
+          JSON.stringify(
+            validNotificationIds
+          )
+        );
+
+      } else {
+
+        localStorage.removeItem(
+          notificationKey
+        );
+      }
+    }
+
+
+    // ========================================================
+    // TOP +N BADGE
     // ========================================================
 
     const totalCount =
-      newCreatedAssignmentCount +
-      editNotificationCount;
+      validNotificationIds.length;
 
 
     if (totalCount > 0) {
@@ -58565,6 +59027,7 @@ function startStudentAssignmentsBadgeRealtime() {
             will count the new assignment using
             created_at.
           */
+         addStudentAssignmentNotification(assignment.id);
           await updateStudentAssignmentsBadge();
 await loadAssignments();
         }
@@ -58654,7 +59117,7 @@ if (!isStillAssigned) {
             notification locally for this student.
           */
 
-          addStudentAssignmentEditNotification();
+          addStudentAssignmentNotification(assignment.id);
 
 
           await updateStudentAssignmentsBadge();
