@@ -31635,6 +31635,38 @@ transform: translateY(-50%);
   background: #94a3b8;
 }
 
+/* ============================================================
+   👨‍🎓 STUDENT — ASSIGNMENT STATUS FILTER CARDS
+   ============================================================ */
+
+[data-student-assignment-filter] {
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+[data-student-assignment-filter]:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+[data-student-assignment-filter]:active {
+  transform: translateY(0);
+}
+
+/* Currently selected filter */
+
+[data-student-assignment-filter].student-status-filter-active {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,0.35),
+    0 0 14px rgba(255,255,255,0.12),
+    0 5px 14px rgba(0,0,0,0.30);
+}
+
   </style>
 </head>
 
@@ -46822,6 +46854,98 @@ async function getStudentCompletedAssignmentIds() {
     ? await getStudentCompletedAssignmentIds()
     : [];
 
+    // ============================================================
+// 👨‍🎓 STUDENT — APPLY STATUS FILTER
+// ============================================================
+
+if (
+  currentProfile?.role === "student" &&
+  studentAssignmentStatusFilter !== "all"
+) {
+
+  const now = new Date();
+
+  assignments = assignments.filter(
+    assign => {
+
+      // ------------------------------------------------------
+      // Check completed status
+      // ------------------------------------------------------
+
+      const isCompleted =
+        completedAssignmentIds.includes(
+          Number(assign.id)
+        );
+
+
+      // ------------------------------------------------------
+      // COMPLETED FILTER
+      // ------------------------------------------------------
+
+      if (
+        studentAssignmentStatusFilter ===
+        "completed"
+      ) {
+
+        return isCompleted;
+
+      }
+
+
+      // ------------------------------------------------------
+      // Completed assignments cannot be Due/Overdue
+      // ------------------------------------------------------
+
+      if (isCompleted) {
+        return false;
+      }
+
+
+      // ------------------------------------------------------
+      // OVERDUE FILTER
+      // ------------------------------------------------------
+
+      if (
+        studentAssignmentStatusFilter ===
+        "overdue"
+      ) {
+
+        return (
+          assign.due_at &&
+          new Date(
+            assign.due_at
+          ).getTime() < now.getTime()
+        );
+
+      }
+
+
+      // ------------------------------------------------------
+      // DUE FILTER
+      // ------------------------------------------------------
+
+      if (
+        studentAssignmentStatusFilter ===
+        "due"
+      ) {
+
+        return !(
+          assign.due_at &&
+          new Date(
+            assign.due_at
+          ).getTime() < now.getTime()
+        );
+
+      }
+
+
+      return true;
+
+    }
+  );
+
+}
+
  if (assignments.length === 0) {
 
   listEl.innerHTML =
@@ -46933,6 +47057,97 @@ if (
   }
 }
 
+// ============================================================
+// 👨‍🎓 STUDENT — ASSIGNMENT STATUS CARD FILTER
+// ============================================================
+//
+// Clicking:
+// 🔵 All        → all assignments
+// 🟡 Due        → due assignments
+// 🔴 Overdue    → overdue assignments
+// 🟢 Completed  → completed assignments
+//
+// Frontend only — no backend/schema changes.
+// ============================================================
+
+document.addEventListener(
+  "click",
+  async function (event) {
+
+    const filterCard =
+      event.target.closest(
+        "[data-student-assignment-filter]"
+      );
+
+    if (!filterCard) {
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // Students only
+    // --------------------------------------------------------
+
+    if (
+      currentProfile?.role !== "student"
+    ) {
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // Get selected filter
+    // --------------------------------------------------------
+
+    const selectedFilter =
+      filterCard.dataset.studentAssignmentFilter;
+
+
+    if (
+      ![
+        "all",
+        "due",
+        "overdue",
+        "completed"
+      ].includes(
+        selectedFilter
+      )
+    ) {
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // Save selected filter
+    // --------------------------------------------------------
+
+    studentAssignmentStatusFilter =
+      selectedFilter;
+
+      // Highlight the selected status card
+document
+  .querySelectorAll(
+    "[data-student-assignment-filter]"
+  )
+  .forEach(card => {
+
+    card.classList.toggle(
+      "student-status-filter-active",
+      card === filterCard
+    );
+
+  });
+
+
+    // --------------------------------------------------------
+    // Refresh assignment cards
+    // --------------------------------------------------------
+
+    await loadAssignments();
+
+  }
+);
+
 document.getElementById('assignmentsList').addEventListener('click', async (e) => {
 
   const btn = e.target.closest('button');
@@ -47021,6 +47236,23 @@ if (
 }
 
 });
+
+// ============================================================
+// 👨‍🎓 STUDENT — ASSIGNMENT STATUS FILTER
+// ============================================================
+//
+// Controls which assignments are displayed when the student
+// clicks the status cards.
+//
+// all       = All assignments
+// due       = Due assignments
+// overdue   = Overdue assignments
+// completed = Completed assignments
+//
+// Frontend only — no backend/schema changes.
+// ============================================================
+
+let studentAssignmentStatusFilter = "all";
 
 // ============================================================
 // 👨‍🎓 STUDENT — LIVE ASSIGNMENT STATUS SUMMARY
@@ -47274,147 +47506,198 @@ async function updateStudentAssignmentStatusSummary() {
 
 
         <!-- =================================================
-             STATUS CARDS
-             ================================================= -->
+     📊 STATUS CARDS
+     ================================================= -->
 
-        <div
-          style="
-            display:flex;
-            flex-wrap:wrap;
-            gap:8px;
-          "
-        >
+<div
+  style="
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:8px;
+    width:100%;
+  "
+>
 
+  <!-- ===============================================
+       🔵 ALL
+       =============================================== -->
 
-          <!-- ===============================================
-               🟡 DUE
-               =============================================== -->
+  <div
+    data-student-assignment-filter="all"
+    role="button"
+    tabindex="0"
+    style="
+      min-width:0;
+      padding:8px 12px;
+      border-radius:9px;
+      background:#171a2e;
+      border:1px solid #3b82f6;
+      box-shadow:
+        0 0 0 1px rgba(59,130,246,0.06),
+        0 3px 10px rgba(0,0,0,0.20);
+      cursor:pointer;
+    "
+  >
 
-          <div
-            style="
-              flex:1 1 120px;
-              min-width:120px;
-              padding:8px 12px;
-              border-radius:9px;
-              background:#171a2e;
-              border:1px solid #eab308;
-              box-shadow:
-                0 0 0 1px rgba(234,179,8,0.06),
-                0 3px 10px rgba(0,0,0,0.20);
-            "
-          >
+    <div
+      style="
+        font-size:14px;
+        font-weight:700;
+        color:#60a5fa;
+        margin-bottom:2px;
+      "
+    >
+       All Assignments
+    </div>
 
-            <div
-              style="
-                font-size:14px;
-                font-weight:700;
-                color:#facc15;
-                margin-bottom:2px;
-              "
-            >
-              🟡 Due Assignments
-            </div>
+    <div
+      style="
+        font-size:19px;
+        font-weight:800;
+        color:#93c5fd;
+      "
+    >
+      ${(assignments || []).length}
+    </div>
 
-            <div
-              style="
-                font-size:19px;
-                font-weight:800;
-                color:#fde047;
-              "
-            >
-              ${dueCount}
-            </div>
-
-          </div>
-
-
-          <!-- ===============================================
-               🔴 OVERDUE
-               =============================================== -->
-
-          <div
-            style="
-              flex:1 1 120px;
-              min-width:120px;
-              padding:8px 12px;
-              border-radius:9px;
-              background:#171a2e;
-              border:1px solid #ef4444;
-              box-shadow:
-                0 0 0 1px rgba(239,68,68,0.06),
-                0 3px 10px rgba(0,0,0,0.20);
-            "
-          >
-
-            <div
-              style="
-                font-size:14px;
-                font-weight:700;
-                color:#f87171;
-                margin-bottom:2px;
-              "
-            >
-              🔴 Overdue Assignments
-            </div>
-
-            <div
-              style="
-                font-size:19px;
-                font-weight:800;
-                color:#fca5a5;
-              "
-            >
-              ${overdueCount}
-            </div>
-
-          </div>
+  </div>
 
 
-          <!-- ===============================================
-               🟢 COMPLETED
-               =============================================== -->
+  <!-- ===============================================
+       🟡 DUE
+       =============================================== -->
 
-          <div
-            style="
-              flex:1 1 120px;
-              min-width:120px;
-              padding:8px 12px;
-              border-radius:9px;
-              background:#171a2e;
-              border:1px solid #22c55e;
-              box-shadow:
-                0 0 0 1px rgba(34,197,94,0.06),
-                0 3px 10px rgba(0,0,0,0.20);
-            "
-          >
+  <div
+    data-student-assignment-filter="due"
+    role="button"
+    tabindex="0"
+    style="
+      min-width:0;
+      padding:8px 12px;
+      border-radius:9px;
+      background:#171a2e;
+      border:1px solid #eab308;
+      box-shadow:
+        0 0 0 1px rgba(234,179,8,0.06),
+        0 3px 10px rgba(0,0,0,0.20);
+      cursor:pointer;
+    "
+  >
 
-            <div
-              style="
-                font-size:14px;
-                font-weight:700;
-                color:#4ade80;
-                margin-bottom:2px;
-              "
-            >
-              🟢 Completed Assignments
-            </div>
+    <div
+      style="
+        font-size:14px;
+        font-weight:700;
+        color:#facc15;
+        margin-bottom:2px;
+      "
+    >
+       Due Assignments
+    </div>
 
-            <div
-              style="
-                font-size:19px;
-                font-weight:800;
-                color:#86efac;
-              "
-            >
-              ${completedCount}
-            </div>
+    <div
+      style="
+        font-size:19px;
+        font-weight:800;
+        color:#fde047;
+      "
+    >
+      ${dueCount}
+    </div>
 
-          </div>
+  </div>
 
 
-        </div>
+  <!-- ===============================================
+       🔴 OVERDUE
+       =============================================== -->
 
-      </div>
+  <div
+    data-student-assignment-filter="overdue"
+    role="button"
+    tabindex="0"
+    style="
+      min-width:0;
+      padding:8px 12px;
+      border-radius:9px;
+      background:#171a2e;
+      border:1px solid #ef4444;
+      box-shadow:
+        0 0 0 1px rgba(239,68,68,0.06),
+        0 3px 10px rgba(0,0,0,0.20);
+      cursor:pointer;
+    "
+  >
+
+    <div
+      style="
+        font-size:14px;
+        font-weight:700;
+        color:#f87171;
+        margin-bottom:2px;
+      "
+    >
+       Overdue Assignments
+    </div>
+
+    <div
+      style="
+        font-size:19px;
+        font-weight:800;
+        color:#fca5a5;
+      "
+    >
+      ${overdueCount}
+    </div>
+
+  </div>
+
+
+  <!-- ===============================================
+       🟢 COMPLETED
+       =============================================== -->
+
+  <div
+    data-student-assignment-filter="completed"
+    role="button"
+    tabindex="0"
+    style="
+      min-width:0;
+      padding:8px 12px;
+      border-radius:9px;
+      background:#171a2e;
+      border:1px solid #22c55e;
+      box-shadow:
+        0 0 0 1px rgba(34,197,94,0.06),
+        0 3px 10px rgba(0,0,0,0.20);
+      cursor:pointer;
+    "
+  >
+
+    <div
+      style="
+        font-size:14px;
+        font-weight:700;
+        color:#4ade80;
+        margin-bottom:2px;
+      "
+    >
+       Completed Assignments
+    </div>
+
+    <div
+      style="
+        font-size:19px;
+        font-weight:800;
+        color:#86efac;
+      "
+    >
+      ${completedCount}
+    </div>
+
+  </div>
+
+</div>
     `;
 
 
@@ -47629,6 +47912,33 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
               attempt =>
                 attempt.is_correct === true
             );
+            // --------------------------------------------------
+// Get latest successful submission date
+// --------------------------------------------------
+
+let submittedAt = null;
+
+const successfulAttempts =
+  studentAttempts
+    .filter(
+      attempt =>
+        attempt.is_correct === true &&
+        attempt.submitted_at
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.submitted_at).getTime() -
+        new Date(a.submitted_at).getTime()
+    );
+
+if (
+  successfulAttempts.length > 0
+) {
+
+  submittedAt =
+    successfulAttempts[0].submitted_at;
+
+}
 
 
           // --------------------------------------------------
@@ -47709,29 +48019,31 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
 
           rows.push({
 
-            assignmentId:
-              assignment.id,
+  assignmentId:
+    assignment.id,
 
-            assignmentTitle:
-              assignment.title ||
-              "Untitled Assignment",
+  assignmentTitle:
+    assignment.title ||
+    "Untitled Assignment",
 
-            studentId,
+  studentId,
 
-            studentName,
+  studentName,
 
-            dueAt:
-              assignment.due_at,
+  dueAt:
+    assignment.due_at,
 
-            status,
+  submittedAt,
 
-            statusLabel,
+  status,
 
-            submitted,
+  statusLabel,
 
-            completed
+  submitted,
 
-          });
+  completed
+
+});
 
         }
       );
@@ -48139,6 +48451,19 @@ if (summaryEl) {
                   <strong>Due:</strong>
                   ${dueText}
                 </p>
+                ${
+  row.status === "completed" &&
+  row.submittedAt
+    ? `
+      <p>
+        <strong>✅ Submitted:</strong>
+        ${new Date(
+          row.submittedAt
+        ).toLocaleString()}
+      </p>
+    `
+    : ""
+}
 
               </div>
 
@@ -48410,6 +48735,33 @@ window.exportAssignmentStatusPDF = async function () {
                 attempt =>
                   attempt.is_correct === true
               );
+              // ------------------------------------------------
+// Latest successful submission date
+// ------------------------------------------------
+
+let submittedAt = null;
+
+const successfulAttempts =
+  studentAttempts
+    .filter(
+      attempt =>
+        attempt.is_correct === true &&
+        attempt.submitted_at
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.submitted_at).getTime() -
+        new Date(a.submitted_at).getTime()
+    );
+
+if (
+  successfulAttempts.length > 0
+) {
+
+  submittedAt =
+    successfulAttempts[0].submitted_at;
+
+}
 
 
             const dueDate =
@@ -48450,20 +48802,22 @@ window.exportAssignmentStatusPDF = async function () {
             }
 
 
-            studentAssignments.push({
+      studentAssignments.push({
 
-              title:
-                assignment.title ||
-                "Untitled Assignment",
+  title:
+    assignment.title ||
+    "Untitled Assignment",
 
-              dueAt:
-                assignment.due_at,
+  dueAt:
+    assignment.due_at,
 
-              status,
+  submittedAt,
 
-              statusLabel
+  status,
 
-            });
+  statusLabel
+
+});
 
           }
         );
@@ -48973,7 +49327,7 @@ window.exportAssignmentStatusPDF = async function () {
             }
 
 
-            const rowHeight = 15;
+           const rowHeight = 22;
 
 
             // Alternating row background
@@ -49061,43 +49415,108 @@ window.exportAssignmentStatusPDF = async function () {
 
 
             // ------------------------------------------------
-            // Complete By
-            // ------------------------------------------------
+// Complete By
+// ------------------------------------------------
 
-            doc.setFont(
-              "helvetica",
-              "normal"
-            );
+doc.setFont(
+  "helvetica",
+  "normal"
+);
 
-            doc.setFontSize(7.5);
+doc.setFontSize(7.5);
 
-            doc.setTextColor(
-              MUTED[0],
-              MUTED[1],
-              MUTED[2]
-            );
-
-
-            const dueText =
-              assignment.dueAt
-                ? new Date(
-                    assignment.dueAt
-                  ).toLocaleString()
-                : "No due date";
+doc.setTextColor(
+  MUTED[0],
+  MUTED[1],
+  MUTED[2]
+);
 
 
-            const dueLines =
-              doc.splitTextToSize(
-                dueText,
-                48
-              );
+const dueText =
+  assignment.dueAt
+    ? new Date(
+        assignment.dueAt
+      ).toLocaleString()
+    : "No due date";
 
 
-            doc.text(
-              dueLines,
-              112,
-              y + 3
-            );
+const dueLines =
+  doc.splitTextToSize(
+    dueText,
+    48
+  );
+
+
+doc.text(
+  dueLines,
+  112,
+  y + 3
+);
+
+
+// ------------------------------------------------
+// Submitted
+// ------------------------------------------------
+
+if (
+  assignment.status === "completed" &&
+  assignment.submittedAt
+) {
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(7);
+
+  doc.setTextColor(
+    GREEN[0],
+    GREEN[1],
+    GREEN[2]
+  );
+
+  doc.text(
+    "Submitted:",
+    112,
+    y + 10
+  );
+
+
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+  doc.setFontSize(7);
+
+  doc.setTextColor(
+    TEXT[0],
+    TEXT[1],
+    TEXT[2]
+  );
+
+
+  const submittedText =
+    new Date(
+      assignment.submittedAt
+    ).toLocaleString();
+
+
+  const submittedLines =
+    doc.splitTextToSize(
+      submittedText,
+      48
+    );
+
+
+  doc.text(
+    submittedLines,
+    112,
+    y + 14
+  );
+
+}
 
 
             // ------------------------------------------------
@@ -49148,15 +49567,15 @@ window.exportAssignmentStatusPDF = async function () {
             );
 
 
-            doc.roundedRect(
-              162,
-              y - 1,
-              29,
-              8,
-              2,
-              2,
-              "F"
-            );
+       doc.roundedRect(
+  162,
+  y + 2,
+  29,
+  8,
+  2,
+  2,
+  "F"
+);
 
 
             doc.setFont(
@@ -49173,14 +49592,14 @@ window.exportAssignmentStatusPDF = async function () {
             );
 
 
-            doc.text(
-              assignment.statusLabel,
-              176.5,
-              y + 4,
-              {
-                align: "center"
-              }
-            );
+         doc.text(
+  assignment.statusLabel,
+  176.5,
+  y + 7,
+  {
+    align: "center"
+  }
+);
 
 
             y += rowHeight + 2;
