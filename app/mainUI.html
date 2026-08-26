@@ -47940,6 +47940,32 @@ if (
     successfulAttempts[0].submitted_at;
 
 }
+// --------------------------------------------------
+// Get latest admin-assigned grade
+// --------------------------------------------------
+
+const gradedAttempts =
+  studentAttempts
+    .filter(
+      attempt =>
+        attempt.grade_letter
+    )
+    .sort(
+      (a, b) =>
+        new Date(
+          b.graded_at ||
+          b.submitted_at
+        ).getTime() -
+        new Date(
+          a.graded_at ||
+          a.submitted_at
+        ).getTime()
+    );
+
+const gradeLetter =
+  gradedAttempts.length > 0
+    ? gradedAttempts[0].grade_letter
+    : null;
 
 
           // --------------------------------------------------
@@ -48018,7 +48044,7 @@ if (
             "Student";
 
 
-          rows.push({
+         rows.push({
 
   assignmentId:
     assignment.id,
@@ -48035,6 +48061,18 @@ if (
     assignment.due_at,
 
   submittedAt,
+
+  // 🏅 Latest grade given by admin
+  gradeLetter:
+    successfulAttempts.length > 0
+      ? (
+          successfulAttempts
+            .find(
+              attempt =>
+                attempt.grade_letter
+            )?.grade_letter || null
+        )
+      : null,
 
   status,
 
@@ -48463,6 +48501,27 @@ if (summaryEl) {
         ).toLocaleString()}
       </p>
     `
+    : ""
+}
+    ${
+  row.status === "completed"
+    ? row.gradeLetter
+      ? `
+        <p>
+          <strong>🏅 Result:</strong>
+          ${getFriendlyGradeLabel(
+            row.gradeLetter
+          )}
+        </p>
+      `
+      : `
+        <p>
+          <strong>🏅 Grading:</strong>
+          <span style="color:#facc15;font-weight:800;">
+            ⏳ Not Graded Yet
+          </span>
+        </p>
+      `
     : ""
 }
 
