@@ -85219,6 +85219,8 @@ const PGN_VIEWER = {
 
   game: null,
 
+  orientation: "white",
+
   /*
    * 🔥 Already-parsed moves for the active chapter.
    * GIF exporter will use these directly.
@@ -85501,6 +85503,16 @@ function loadViewerPuzzle(index) {
     fenMatch
       ? fenMatch[1].trim()
       : null;
+
+      /* ==========================================
+   🎯 DETERMINE BOARD POV
+========================================== */
+
+PGN_VIEWER.orientation =
+  getPGNViewerOrientation(
+    raw,
+    startFen
+  );
 
 
   /* ==========================================
@@ -85996,6 +86008,9 @@ clearPGNViewerAnnotationMarker();
         showNotation:
           true,
 
+          orientation:
+  PGN_VIEWER.orientation,
+
         pieceTheme:
           getPieceThemePath(
             currentPieceTheme
@@ -86084,6 +86099,82 @@ function clearPGNViewerAnnotationMarker() {
 
   }
 
+}
+
+/* =====================================================
+   🎯 PGN VIEWER / GIF / MP4 ORIENTATION
+
+   White to move  → White POV
+   Black to move  → Black POV
+
+   If FEN exists, the FEN active-color field
+   is the source of truth.
+
+   Otherwise, detect a PGN beginning with 1...
+===================================================== */
+
+function getPGNViewerOrientation(
+  pgn,
+  startFen
+) {
+
+  /* ==========================================
+     1. FEN ACTIVE COLOR
+     
+     FEN:
+     w = White to move
+     b = Black to move
+  ========================================== */
+
+  if (startFen) {
+
+    const fenParts =
+      String(startFen)
+        .trim()
+        .split(/\s+/);
+
+    if (
+      fenParts.length >= 2
+    ) {
+
+      return (
+        fenParts[1] === "b"
+          ? "black"
+          : "white"
+      );
+    }
+  }
+
+
+  /* ==========================================
+     2. PGN MOVE NUMBER
+
+     1... means Black side.
+
+     1. means White side.
+  ========================================== */
+
+  const cleanPGN =
+    String(pgn || "")
+      .replace(
+        /\[[^\]]*\]/g,
+        " "
+      )
+      .trim();
+
+
+  if (
+    /^\s*1\.\.\./.test(
+      cleanPGN
+    )
+  ) {
+
+    return "black";
+
+  }
+
+
+  return "white";
 }
 
 
@@ -86771,6 +86862,61 @@ function updateViewerLabels(totalMoves) {
   }
 }
 
+/* =====================================================
+   🎯 CONVERT CHESS SQUARE TO EXPORT SCREEN POSITION
+
+   White POV:
+   a8 → top-left
+   h1 → bottom-right
+
+   Black POV:
+   h1 → top-left
+   a8 → bottom-right
+===================================================== */
+
+function getPGNExportSquarePosition(
+  squareName,
+  square,
+  boardTop
+) {
+
+  const file =
+    squareName.charCodeAt(0) -
+    97;
+
+  const rank =
+    8 -
+    parseInt(
+      squareName[1],
+      10
+    );
+
+
+  const displayFile =
+    PGN_VIEWER.orientation === "black"
+      ? 7 - file
+      : file;
+
+
+  const displayRank =
+    PGN_VIEWER.orientation === "black"
+      ? 7 - rank
+      : rank;
+
+
+  return {
+
+    x:
+      displayFile * square +
+      square / 2,
+
+    y:
+      boardTop +
+      displayRank * square +
+      square / 2
+
+  };
+}
 
 /* =====================================================
    🏹 PGN EXPORT MOVE ARROW
@@ -86799,35 +86945,17 @@ function drawPGNExportMoveArrow(
      CONVERT CHESS SQUARE → CANVAS POSITION
   ========================================== */
 
-  function squarePosition(
-    squareName
-  ) {
+function squarePosition(
+  squareName
+) {
 
-    const file =
-      squareName.charCodeAt(0) -
-      97;
+  return getPGNExportSquarePosition(
+    squareName,
+    square,
+    boardTop
+  );
 
-    const rank =
-      8 -
-      parseInt(
-        squareName[1],
-        10
-      );
-
-
-    return {
-
-      x:
-        file * square +
-        square / 2,
-
-      y:
-        boardTop +
-        rank * square +
-        square / 2
-
-    };
-  }
+}
 
 
   const from =
@@ -87125,15 +87253,27 @@ window.drawPGNExportAnnotation =
     }
 
 
-    const squareX =
-      file *
-      square;
+const displayFile =
+  PGN_VIEWER.orientation === "black"
+    ? 7 - file
+    : file;
 
 
-    const squareY =
-      boardTop +
-      rank *
-      square;
+const displayRank =
+  PGN_VIEWER.orientation === "black"
+    ? 7 - rank
+    : rank;
+
+
+const squareX =
+  displayFile *
+  square;
+
+
+const squareY =
+  boardTop +
+  displayRank *
+  square;
 
 
     /* ==========================================
@@ -87885,115 +88025,145 @@ ctx.fillText(
            BOARD SQUARES
         ====================================== */
 
-        for (
-          let rank = 0;
-          rank < 8;
-          rank++
-        ) {
-
-          for (
-            let file = 0;
-            file < 8;
-            file++
-          ) {
-
-            const light =
-              (rank + file) % 2 === 0;
-
-
-            ctx.fillStyle =
-              light
-                ? "#f0d9b5"
-                : "#b58863";
-
-
-            ctx.fillRect(
-              file * square,
-
-              boardTop +
-                rank * square,
-
-              square,
-
-              square
-            );
-          }
-        }
-
-
         /* ======================================
-           🔥 DRAW EXACT APP PIECES
-        ====================================== */
+   🎯 GIF BOARD + PIECES
+   RESPECT PGN STARTING POV
+====================================== */
 
-        const boardState =
-          chessPosition.board();
-
-
-        for (
-          let rank = 0;
-          rank < 8;
-          rank++
-        ) {
-
-          for (
-            let file = 0;
-            file < 8;
-            file++
-          ) {
-
-            const piece =
-              boardState[rank][file];
+const boardState =
+  chessPosition.board();
 
 
-            if (!piece) {
+for (
+  let rank = 0;
+  rank < 8;
+  rank++
+) {
 
-              continue;
-            }
+  for (
+    let file = 0;
+    file < 8;
+    file++
+  ) {
 
+    /* ====================================
+       ACTUAL CHESS SQUARE
 
-            /*
-             * chess.js:
-             *
-             * w + K = wK
-             * w + Q = wQ
-             * b + N = bN
-             */
+       chess.js:
+       rank 0 = rank 8
+       rank 7 = rank 1
+    ==================================== */
 
-            const pieceCode =
-              piece.color +
-              piece.type.toUpperCase();
-
-
-            const cached =
-              gifPieceImages[
-                pieceCode
-              ];
-
-
-            if (
-              !cached ||
-              !cached.image
-            ) {
-
-              continue;
-            }
+    const squareName =
+      String.fromCharCode(
+        97 + file
+      ) +
+      (
+        8 - rank
+      );
 
 
-            ctx.drawImage(
+    /* ====================================
+       CONVERT TO DISPLAY POSITION
 
-              cached.image,
+       WHITE POV:
+       a8 = top-left
 
-              file * square,
+       BLACK POV:
+       h1 = top-left
+    ==================================== */
 
-              boardTop +
-                rank * square,
+    const displayFile =
+      PGN_VIEWER.orientation === "black"
+        ? 7 - file
+        : file;
 
-              square,
 
-              square
-            );
-          }
-        }
+    const displayRank =
+      PGN_VIEWER.orientation === "black"
+        ? 7 - rank
+        : rank;
+
+
+    /* ====================================
+       BOARD SQUARE
+    ==================================== */
+
+    const light =
+      (
+        displayFile +
+        displayRank
+      ) % 2 === 0;
+
+
+    ctx.fillStyle =
+      light
+        ? "#f0d9b5"
+        : "#b58863";
+
+
+    ctx.fillRect(
+
+      displayFile * square,
+
+      boardTop +
+        displayRank * square,
+
+      square,
+
+      square
+    );
+
+
+    /* ====================================
+       PIECE
+    ==================================== */
+
+    const piece =
+      boardState[rank][file];
+
+
+    if (!piece) {
+
+      continue;
+    }
+
+
+    const pieceCode =
+      piece.color +
+      piece.type.toUpperCase();
+
+
+    const cached =
+      gifPieceImages[
+        pieceCode
+      ];
+
+
+    if (
+      !cached ||
+      !cached.image
+    ) {
+
+      continue;
+    }
+
+
+    ctx.drawImage(
+
+      cached.image,
+
+      displayFile * square,
+
+      boardTop +
+        displayRank * square,
+
+      square,
+
+      square
+    );
+  }
+}
       }
 
 
@@ -89078,83 +89248,145 @@ drawPGNExportAcademyLogo(
           chessGame.board();
 
 
-        for (
-          let rank = 0;
-          rank < 8;
-          rank++
-        ) {
+        /* ========================================
+   ♟️ DRAW BOARD + PIECES
+   RESPECT PGN POV
+======================================== */
 
-          for (
-            let file = 0;
-            file < 8;
-            file++
-          ) {
+for (
+  let rank = 0;
+  rank < 8;
+  rank++
+) {
 
-            const light =
-              (rank + file) % 2 === 0;
+  for (
+    let file = 0;
+    file < 8;
+    file++
+  ) {
 
+    /* ======================================
+       ACTUAL CHESS SQUARE
 
-            ctx.fillStyle =
-              light
-                ? "#f0d9b5"
-                : "#b58863";
+       chess.js board:
+       rank 0 = rank 8
+       rank 7 = rank 1
+    ====================================== */
 
-
-            ctx.fillRect(
-
-              file * square,
-
-              HEADER_HEIGHT +
-                rank * square,
-
-              square,
-
-              square
-
-            );
+    const squareName =
+      String.fromCharCode(
+        97 + file
+      ) +
+      (
+        8 - rank
+      );
 
 
-            const piece =
-              board[rank][file];
+    /* ======================================
+       SCREEN POSITION
+
+       This automatically flips everything
+       when POV = black.
+    ====================================== */
+
+    const position =
+      getPGNExportSquarePosition(
+        squareName,
+        square,
+        HEADER_HEIGHT
+      );
 
 
-            if (!piece) {
+    /* ======================================
+       BOARD COLOR
 
-              continue;
-            }
+       Use DISPLAY coordinates for colors.
+    ====================================== */
 
-
-            const code =
-              piece.color +
-              piece.type.toUpperCase();
-
-
-            const cached =
-              pieceImages[code];
+    const displayFile =
+      PGN_VIEWER.orientation === "black"
+        ? 7 - file
+        : file;
 
 
-            if (
-              cached &&
-              cached.image
-            ) {
+    const displayRank =
+      PGN_VIEWER.orientation === "black"
+        ? 7 - rank
+        : rank;
 
-              ctx.drawImage(
 
-                cached.image,
+    const light =
+      (
+        displayFile +
+        displayRank
+      ) % 2 === 0;
 
-                file * square,
 
-                HEADER_HEIGHT +
-                  rank * square,
+    ctx.fillStyle =
+      light
+        ? "#f0d9b5"
+        : "#b58863";
 
-                square,
 
-                square
+    ctx.fillRect(
 
-              );
-            }
-          }
-        }
+      displayFile * square,
+
+      HEADER_HEIGHT +
+        displayRank * square,
+
+      square,
+
+      square
+    );
+
+
+    /* ======================================
+       PIECE
+    ====================================== */
+
+    const piece =
+      board[rank][file];
+
+
+    if (!piece) {
+
+      continue;
+    }
+
+
+    const code =
+      piece.color +
+      piece.type.toUpperCase();
+
+
+    const cached =
+      pieceImages[code];
+
+
+    if (
+      cached &&
+      cached.image
+    ) {
+
+      ctx.drawImage(
+
+        cached.image,
+
+        position.x -
+          square / 2,
+
+        position.y -
+          square / 2,
+
+        square,
+
+        square
+
+      );
+    }
+  }
+}
       }
 
 /* ========================================
