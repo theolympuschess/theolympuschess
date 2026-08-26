@@ -42380,6 +42380,7 @@ if (profile.role === "admin") {
 // ✅ STUDENT: load progress once profile is ready
 if (profile.role === "student") {
   loadStudentProgress();
+   startStudentGradeRealtime();
 }
 
 // 🔒 Hide Upload PGN for Students
@@ -51144,10 +51145,10 @@ orderedProgress.forEach(p => {
   Status: ${p.status} |
   Time: ${formatSecondsToTime(p.time)}
   ${p.bulk_answers ? `🎯 ${stats.correct}/${stats.total}` : ""}
- ${p.grade ? `
-  | Grade:
+ ${p.grade ? ` 
+  | Result:
   <span class="grade-badge grade-${p.grade.replace("+", "plus")}">
-    ${p.grade}
+    ${getFriendlyGradeLabel(p.grade)}
   </span>
 ` : ""}
 </div>
@@ -51187,6 +51188,66 @@ orderedProgress.forEach(p => {
 });
 
 }
+
+// ============================================================
+// 👨‍🎓 STUDENT — LIVE GRADE UPDATE
+// Refresh progress immediately when an attempt is graded.
+// ============================================================
+
+let studentGradeRealtimeChannel = null;
+
+function startStudentGradeRealtime() {
+
+  // Students only
+  if (
+    currentProfile?.role !== "student"
+  ) {
+    return;
+  }
+
+  // Prevent duplicate subscriptions
+  if (studentGradeRealtimeChannel) {
+    return;
+  }
+
+  studentGradeRealtimeChannel =
+    supabase
+      .channel(
+        "olympus-student-grade-updates"
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "attempts",
+          filter:
+            `student_id=eq.${currentProfile.id}`
+        },
+        async (payload) => {
+
+          console.log(
+            "🏅 Student grade updated:",
+            payload.new
+          );
+
+          // Refresh student progress immediately
+          await loadStudentProgress();
+
+        }
+      )
+      .subscribe(
+        (status) => {
+
+          console.log(
+            "🏅 Student grade realtime:",
+            status
+          );
+
+        }
+      );
+}
+
 
 async function reattemptAssignment(assignmentId) {
   try {
@@ -62560,11 +62621,17 @@ if (!isStillAssigned) {
             "🗑 ASSIGNMENT DELETED — refreshing student assignments"
           );
 
-          // Remove the deleted assignment from the student's UI
-          await loadAssignments();
+          // Remove deleted assignment from Assignments panel
+    await loadAssignments();
 
-          // Recalculate the badge
-          await updateStudentAssignmentsBadge();
+    // Remove deleted assignment from My Progress / History
+    await loadStudentProgress();
+
+    // Update assignment notification badge
+    await updateStudentAssignmentsBadge();
+
+    // Update Due / Overdue / Completed counters
+    await updateStudentAssignmentStatusSummary();
         }
       )
 
@@ -62686,21 +62753,42 @@ function startAttemptsBadgeRealtime() {
           View Details
         </button>
 
-        <div class="grade-buttons">
-          ${["AA","A+","A","B+","B","C+","C"].map(g => `
-            <button 
-              class="grade-btn ${attempt.grade_letter === g ? "active-grade" : ""}" 
-              onclick="setLetterGrade('${attempt.id}', '${g}')">
-              ${g}
-            </button>
-          `).join("")}
-        </div>
+    <div class="grade-buttons">
+  ${
+    ["AA","A+","A","B+","B","C+","C"]
+      .map(g => `
+        <button
+          class="grade-btn ${
+            attempt.grade_letter === g
+              ? "active-grade"
+              : ""
+          }"
+          onclick="setLetterGrade(
+            '${attempt.id}',
+            '${g}'
+          )"
+        >
+          ${getFriendlyGradeLabel(g)}
+        </button>
+      `)
+      .join("")
+  }
+</div>
 
-        ${
-          attempt.grade_letter
-            ? `<p class="admin-grade-label">Grade: ${attempt.grade_letter}</p>`
-            : ""
-        }
+      ${
+  attempt.grade_letter
+    ? `
+      <p class="admin-grade-label">
+        Result:
+        <strong>
+          ${getFriendlyGradeLabel(
+            attempt.grade_letter
+          )}
+        </strong>
+      </p>
+    `
+    : ""
+}
       </div>
     </div>
   `;
@@ -62823,6 +62911,32 @@ renderBulkAnswers(attempt);
     }
   );
 };
+
+// ============================================================
+// 🏅 FRIENDLY GRADE LABELS
+// ============================================================
+//
+// Database still stores:
+// AA / A+ / A / B+ / B / C+ / C
+//
+// UI displays student-friendly wording instead.
+// ============================================================
+
+function getFriendlyGradeLabel(grade) {
+
+  const labels = {
+    "AA": "🏆 Brilliant!",
+    "A+": "🌟 Excellent!",
+    "A": "👏 Great Job!",
+    "B+": "👌🏻 Nice One!",
+    "B": "👍🏻 Good but do it again!",
+    "C+": "😔 Try Again!",
+    "C": "😢 Try Again!"
+  };
+
+  return labels[grade] || "";
+
+}
 
 
 window.setLetterGrade = async function(attemptId, grade) {
