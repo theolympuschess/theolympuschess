@@ -47744,30 +47744,45 @@ studentAssignmentStatusRefreshTimer =
 
 // ============================================================
 // 📋 ADMIN — ASSIGNMENT STATUS
-// Shows which student has which assignment and its current status.
-// Frontend-only — no database/schema changes.
+// Latest attempt controls the current status.
+// No database/schema changes.
 // ============================================================
 
 window.loadAssignmentStatus = async function loadAssignmentStatus() {
 
   const listEl =
-    document.getElementById("assignmentStatusList");
+    document.getElementById(
+      "assignmentStatusList"
+    );
 
   const summaryEl =
-    document.getElementById("assignmentStatusSummary");
+    document.getElementById(
+      "assignmentStatusSummary"
+    );
 
-  if (!listEl) return;
+  if (!listEl) {
+    return;
+  }
 
-  // Admin only
-  if (currentProfile?.role !== "admin") {
+
+  // ========================================================
+  // ADMIN ONLY
+  // ========================================================
+
+  if (
+    currentProfile?.role !== "admin"
+  ) {
+
     listEl.innerHTML =
       '<div class="card"><p>Admin access only.</p></div>';
 
     return;
   }
 
+
   listEl.innerHTML =
     '<div class="loading">Loading assignment status...</div>';
+
 
   try {
 
@@ -47775,13 +47790,22 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
     // LOAD ASSIGNMENTS
     // ========================================================
 
-    const { data: assignments, error: assignmentError } =
-      await supabase
-        .from("assignments")
-        .select("*")
-        .order("created_at", {
+    const {
+      data: assignments,
+      error: assignmentError
+    } = await supabase
+
+      .from("assignments")
+
+      .select("*")
+
+      .order(
+        "created_at",
+        {
           ascending: false
-        });
+        }
+      );
+
 
     if (assignmentError) {
       throw assignmentError;
@@ -47789,13 +47813,18 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
 
 
     // ========================================================
-    // LOAD ATTEMPTS
+    // LOAD ALL ATTEMPTS
     // ========================================================
 
-    const { data: attempts, error: attemptsError } =
-      await supabase
-        .from("attempts")
-        .select("*");
+    const {
+      data: attempts,
+      error: attemptsError
+    } = await supabase
+
+      .from("attempts")
+
+      .select("*");
+
 
     if (attemptsError) {
       throw attemptsError;
@@ -47808,31 +47837,43 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
 
     const studentIds = [];
 
-    (assignments || []).forEach(assignment => {
 
-      if (
-        Array.isArray(
-          assignment.assigned_to
-        )
-      ) {
+    (assignments || []).forEach(
+      assignment => {
 
-        assignment.assigned_to.forEach(id => {
+        if (
+          Array.isArray(
+            assignment.assigned_to
+          )
+        ) {
 
-          if (
-            id &&
-            !studentIds.includes(id)
-          ) {
-            studentIds.push(id);
-          }
+          assignment.assigned_to.forEach(
+            id => {
 
-        });
+              if (
+                id &&
+                !studentIds.includes(id)
+              ) {
+
+                studentIds.push(id);
+
+              }
+
+            }
+          );
+
+        }
+
       }
-    });
+    );
 
 
     let studentNameMap = {};
 
-    if (studentIds.length > 0) {
+
+    if (
+      studentIds.length > 0
+    ) {
 
       const nameAssignments =
         (assignments || []).filter(
@@ -47842,10 +47883,12 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
             )
         );
 
+
       studentNameMap =
         await resolveAssignedStudentNames(
           nameAssignments
         );
+
     }
 
 
@@ -47856,590 +47899,708 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
     const rows = [];
 
 
-    (assignments || []).forEach(assignment => {
+    (assignments || []).forEach(
+      assignment => {
 
-      // Ignore public assignments here.
-      // This screen is for individual student homework tracking.
-      if (
-        assignment.is_public === true
-      ) {
-        return;
-      }
+        // ----------------------------------------------------
+        // Ignore public assignments
+        // ----------------------------------------------------
 
+        if (
+          assignment.is_public === true
+        ) {
 
-      if (
-        !Array.isArray(
-          assignment.assigned_to
-        )
-      ) {
-        return;
-      }
+          return;
+
+        }
 
 
-      assignment.assigned_to.forEach(
-        studentId => {
+        if (
+          !Array.isArray(
+            assignment.assigned_to
+          )
+        ) {
 
-          if (!studentId) {
-            return;
-          }
+          return;
+
+        }
 
 
-          // --------------------------------------------------
-          // Find attempts for THIS assignment + THIS student
-          // --------------------------------------------------
+        assignment.assigned_to.forEach(
+          studentId => {
 
-          const studentAttempts =
-            (attempts || []).filter(
-              attempt =>
-                Number(
-                  attempt.assignment_id
-                ) === Number(
-                  assignment.id
-                ) &&
-                String(
-                  attempt.student_id
-                ) === String(
-                  studentId
+            if (!studentId) {
+              return;
+            }
+
+
+            // ==================================================
+            // FIND ALL ATTEMPTS FOR THIS ASSIGNMENT + STUDENT
+            // ==================================================
+
+            const studentAttempts =
+              (attempts || [])
+                .filter(
+                  attempt =>
+                    Number(
+                      attempt.assignment_id
+                    ) ===
+                    Number(
+                      assignment.id
+                    )
+
+                    &&
+
+                    String(
+                      attempt.student_id
+                    ) ===
+                    String(
+                      studentId
+                    )
                 )
-            );
+                .sort(
+                  (a, b) =>
+                    new Date(
+                      b.submitted_at
+                    ).getTime() -
+                    new Date(
+                      a.submitted_at
+                    ).getTime()
+                );
 
 
-          // --------------------------------------------------
-          // Determine completion
-          // --------------------------------------------------
+            // ==================================================
+            // LATEST ATTEMPT
+            //
+            // THIS is the important fix.
+            //
+            // A re-attempt becomes the current submission.
+            // ==================================================
 
-          const completed =
-            studentAttempts.some(
-              attempt =>
-                attempt.is_correct === true
-            );
-            // --------------------------------------------------
-// Get latest successful submission date
-// --------------------------------------------------
-
-let submittedAt = null;
-
-const successfulAttempts =
-  studentAttempts
-    .filter(
-      attempt =>
-        attempt.is_correct === true &&
-        attempt.submitted_at
-    )
-    .sort(
-      (a, b) =>
-        new Date(b.submitted_at).getTime() -
-        new Date(a.submitted_at).getTime()
-    );
-
-if (
-  successfulAttempts.length > 0
-) {
-
-  submittedAt =
-    successfulAttempts[0].submitted_at;
-
-}
-// --------------------------------------------------
-// Get latest admin-assigned grade
-// --------------------------------------------------
-
-const gradedAttempts =
-  studentAttempts
-    .filter(
-      attempt =>
-        attempt.grade_letter
-    )
-    .sort(
-      (a, b) =>
-        new Date(
-          b.graded_at ||
-          b.submitted_at
-        ).getTime() -
-        new Date(
-          a.graded_at ||
-          a.submitted_at
-        ).getTime()
-    );
-
-const gradeLetter =
-  gradedAttempts.length > 0
-    ? gradedAttempts[0].grade_letter
-    : null;
+            const latestAttempt =
+              studentAttempts.length > 0
+                ? studentAttempts[0]
+                : null;
 
 
-          // --------------------------------------------------
-          // Determine whether anything was submitted
-          // --------------------------------------------------
+            // ==================================================
+            // HAS ANY SUBMISSION?
+            // ==================================================
 
-          const submitted =
-            studentAttempts.length > 0;
+            const submitted =
+              latestAttempt !== null;
 
 
-          // --------------------------------------------------
-          // Determine due date
-          // --------------------------------------------------
+            // ==================================================
+            // CURRENT COMPLETION STATUS
+            //
+            // Only the LATEST attempt decides whether the
+            // assignment is currently completed.
+            // ==================================================
 
-          let dueDate = null;
+            const completed =
+              latestAttempt?.is_correct === true;
 
-          if (assignment.due_at) {
 
-            dueDate =
-              new Date(
-                assignment.due_at
-              );
+            // ==================================================
+            // LATEST SUBMISSION DATE
+            // ==================================================
+
+            const submittedAt =
+              latestAttempt?.submitted_at ||
+              null;
+
+
+            // ==================================================
+            // LATEST GRADE
+            //
+            // IMPORTANT:
+            // If the student re-attempts after being graded,
+            // the new attempt has no grade yet.
+            //
+            // Therefore we show:
+            // ⏳ Not Graded Yet
+            //
+            // instead of incorrectly showing the old grade.
+            // ==================================================
+
+            const gradeLetter =
+              latestAttempt?.grade_letter ||
+              null;
+
+
+            // ==================================================
+            // DUE DATE
+            // ==================================================
+
+            let dueDate = null;
+
+
+            if (
+              assignment.due_at
+            ) {
+
+              dueDate =
+                new Date(
+                  assignment.due_at
+                );
+
+            }
+
+
+            const now =
+              new Date();
+
+
+            // ==================================================
+            // DETERMINE CURRENT STATUS
+            // ==================================================
+
+            let status;
+            let statusLabel;
+
+
+            if (
+              completed
+            ) {
+
+              status =
+                "completed";
+
+              statusLabel =
+                "🟢 Completed";
+
+            }
+
+            else if (
+              submitted
+            ) {
+
+              // New / latest re-attempt
+              // that has been submitted but
+              // is not currently correct.
+
+              status =
+                "submitted";
+
+              statusLabel =
+                "🟠 Submitted";
+
+            }
+
+            else if (
+              dueDate &&
+              dueDate.getTime() <
+                now.getTime()
+            ) {
+
+              status =
+                "overdue";
+
+              statusLabel =
+                "🔴 Overdue";
+
+            }
+
+            else {
+
+              status =
+                "due";
+
+              statusLabel =
+                "🟡 Due";
+
+            }
+
+
+            // ==================================================
+            // STUDENT NAME
+            // ==================================================
+
+            const studentName =
+              studentNameMap[studentId] ||
+              "Student";
+
+
+            // ==================================================
+            // STORE ROW
+            // ==================================================
+
+            rows.push({
+
+              assignmentId:
+                assignment.id,
+
+              assignmentTitle:
+                assignment.title ||
+                "Untitled Assignment",
+
+              studentId,
+
+              studentName,
+
+              dueAt:
+                assignment.due_at,
+
+              submittedAt,
+
+              gradeLetter,
+
+              status,
+
+              statusLabel,
+
+              submitted,
+
+              completed,
+
+              // Useful for future logic
+              latestAttemptId:
+                latestAttempt?.id ||
+                null
+
+            });
 
           }
+        );
+
+      }
+    );
 
 
-          const now =
-            new Date();
+    // ========================================================
+    // FILTER ELEMENTS
+    // ========================================================
 
+    const filterEl =
+      document.getElementById(
+        "assignmentStatusFilter"
+      );
+
+    const searchEl =
+      document.getElementById(
+        "assignmentStatusSearch"
+      );
+
+    const studentFilterEl =
+      document.getElementById(
+        "assignmentStatusStudentFilter"
+      );
+
+
+    // ========================================================
+    // POPULATE STUDENT FILTER
+    // ========================================================
+
+    await populateAssignmentStatusStudentFilter();
+
+
+    const selectedFilter =
+      filterEl?.value ||
+      "all";
+
+
+    const selectedStudent =
+      studentFilterEl?.value ||
+      "all";
+
+
+    const searchText =
+      (
+        searchEl?.value ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    // ========================================================
+    // APPLY FILTERS
+    // ========================================================
+
+    const filteredRows =
+      rows.filter(
+        row => {
 
           // --------------------------------------------------
-          // Determine status
+          // STATUS
           // --------------------------------------------------
 
-          let status;
-          let statusLabel;
-
-
-          if (completed) {
-
-            status = "completed";
-            statusLabel = "🟢 Completed";
-
-          } else if (submitted) {
-
-            status = "submitted";
-            statusLabel = "🟠 Submitted";
-
-          } else if (
-            dueDate &&
-            dueDate.getTime() < now.getTime()
+          if (
+            selectedFilter !== "all" &&
+            row.status !== selectedFilter
           ) {
 
-            status = "overdue";
-            statusLabel = "🔴 Overdue";
-
-          } else if (dueDate) {
-
-            status = "due";
-            statusLabel = "🟡 Due";
-
-          } else {
-
-            status = "due";
-            statusLabel = "🟡 Due";
+            return false;
 
           }
 
 
           // --------------------------------------------------
-          // Student name
+          // STUDENT
           // --------------------------------------------------
 
-          const studentName =
-            studentNameMap[studentId] ||
-            "Student";
+          if (
+            selectedStudent !== "all" &&
+            String(
+              row.studentId
+            ) !==
+            String(
+              selectedStudent
+            )
+          ) {
+
+            return false;
+
+          }
 
 
-         rows.push({
+          // --------------------------------------------------
+          // SEARCH
+          // --------------------------------------------------
 
-  assignmentId:
-    assignment.id,
+          if (
+            searchText
+          ) {
 
-  assignmentTitle:
-    assignment.title ||
-    "Untitled Assignment",
+            const haystack =
+              `${row.studentName} ${row.assignmentTitle}`
+                .toLowerCase();
 
-  studentId,
 
-  studentName,
+            if (
+              !haystack.includes(
+                searchText
+              )
+            ) {
 
-  dueAt:
-    assignment.due_at,
+              return false;
 
-  submittedAt,
+            }
 
-  // 🏅 Latest grade given by admin
-  gradeLetter:
-    successfulAttempts.length > 0
-      ? (
-          successfulAttempts
-            .find(
-              attempt =>
-                attempt.grade_letter
-            )?.grade_letter || null
-        )
-      : null,
+          }
 
-  status,
 
-  statusLabel,
-
-  submitted,
-
-  completed
-
-});
+          return true;
 
         }
       );
 
-    });
+
+    // ========================================================
+    // SUMMARY SCOPE
+    // ========================================================
+
+    const summaryRows =
+      selectedStudent === "all"
+        ? rows
+        : rows.filter(
+            row =>
+              String(
+                row.studentId
+              ) ===
+              String(
+                selectedStudent
+              )
+          );
 
 
     // ========================================================
-    // FILTER
+    // SUMMARY COUNTS
     // ========================================================
 
-const filterEl =
-  document.getElementById(
-    "assignmentStatusFilter"
-  );
-
-const searchEl =
-  document.getElementById(
-    "assignmentStatusSearch"
-  );
-
-const studentFilterEl =
-  document.getElementById(
-    "assignmentStatusStudentFilter"
-  );
-
-// Populate student dropdown from current assignment rows
-await populateAssignmentStatusStudentFilter();
-
-const selectedFilter =
-  filterEl?.value || "all";
-
-const selectedStudent =
-  studentFilterEl?.value || "all";
-
-const searchText =
-  (
-    searchEl?.value ||
-    ""
-  )
-    .trim()
-    .toLowerCase();
-
-
-let filteredRows =
-  rows.filter(row => {
-
-    // ========================================================
-    // STATUS FILTER
-    // ========================================================
-
-    if (
-      selectedFilter !== "all" &&
-      row.status !== selectedFilter
-    ) {
-      return false;
-    }
-
-
-    // ========================================================
-    // STUDENT DROPDOWN FILTER
-    // ========================================================
-
-    if (
-      selectedStudent !== "all" &&
-      String(row.studentId) !==
-        String(selectedStudent)
-    ) {
-      return false;
-    }
-
-
-    // ========================================================
-    // SEARCH FILTER
-    // ========================================================
-
-    if (searchText) {
-
-      const haystack =
-        `${row.studentName} ${row.assignmentTitle}`
-          .toLowerCase();
-
-      if (
-        !haystack.includes(
-          searchText
-        )
-      ) {
-        return false;
-      }
-
-    }
-
-
-    return true;
-
-  });
-
-
-   // ========================================================
-// 📊 DYNAMIC ASSIGNMENT STATUS SUMMARY
-// Follows the selected student dropdown.
-// ========================================================
-
-// --------------------------------------------------------
-// Determine which rows the summary should use
-// --------------------------------------------------------
-
-const summaryRows =
-  selectedStudent === "all"
-    ? rows
-    : rows.filter(
+    const summaryCompletedCount =
+      summaryRows.filter(
         row =>
-          String(row.studentId) ===
-          String(selectedStudent)
-      );
+          row.status ===
+          "completed"
+      ).length;
 
 
-// --------------------------------------------------------
-// Calculate status counts for the selected scope
-// --------------------------------------------------------
-
-const summaryCompletedCount =
-  summaryRows.filter(
-    row => row.status === "completed"
-  ).length;
-
-const summarySubmittedCount =
-  summaryRows.filter(
-    row => row.status === "submitted"
-  ).length;
-
-const summaryDueCount =
-  summaryRows.filter(
-    row => row.status === "due"
-  ).length;
-
-const summaryOverdueCount =
-  summaryRows.filter(
-    row => row.status === "overdue"
-  ).length;
+    const summarySubmittedCount =
+      summaryRows.filter(
+        row =>
+          row.status ===
+          "submitted"
+      ).length;
 
 
-// --------------------------------------------------------
-// Get selected student's display name
-// --------------------------------------------------------
-
-let summaryStudentName =
-  "All Students";
-
-if (
-  selectedStudent !== "all"
-) {
-
-  const studentFilterEl =
-    document.getElementById(
-      "assignmentStatusStudentFilter"
-    );
-
-  const selectedOption =
-    studentFilterEl?.options[
-      studentFilterEl.selectedIndex
-    ];
-
-  summaryStudentName =
-    selectedOption?.textContent?.trim() ||
-    "Selected Student";
-}
+    const summaryDueCount =
+      summaryRows.filter(
+        row =>
+          row.status ===
+          "due"
+      ).length;
 
 
-// ========================================================
-// RENDER SUMMARY
-// ========================================================
-
-if (summaryEl) {
-
-  summaryEl.innerHTML = `
-    <div
-      style="
-        margin-bottom:18px;
-      "
-    >
-
-      <!-- =================================================
-           📚 DYNAMIC SUMMARY TITLE
-           ================================================= -->
-
-      <div
-        style="
-          font-size:17px;
-          font-weight:800;
-          margin-bottom:12px;
-          color:#f8fafc;
-          letter-spacing:0.2px;
-          text-shadow:0 1px 4px rgba(0,0,0,0.45);
-        "
-      >
-        👨🏻‍🎓 ${summaryStudentName} — 📚 Assignment Status
-      </div>
+    const summaryOverdueCount =
+      summaryRows.filter(
+        row =>
+          row.status ===
+          "overdue"
+      ).length;
 
 
-      <!-- =================================================
-           📊 STATUS SUMMARY CARDS
-           ================================================= -->
+    // ========================================================
+    // SUMMARY STUDENT NAME
+    // ========================================================
 
-      <div
-        style="
-          display:flex;
-          flex-wrap:wrap;
-          gap:10px;
-        "
-      >
+    let summaryStudentName =
+      "All Students";
 
 
-        <!-- ===============================================
-             🟡 DUE
-             =============================================== -->
+    if (
+      selectedStudent !== "all"
+    ) {
+
+      const selectedOption =
+        studentFilterEl?.options[
+          studentFilterEl.selectedIndex
+        ];
+
+
+      summaryStudentName =
+        selectedOption?.textContent?.trim() ||
+        "Selected Student";
+
+    }
+
+
+    // ========================================================
+    // RENDER SUMMARY
+    // ========================================================
+
+    if (summaryEl) {
+
+      summaryEl.innerHTML = `
 
         <div
           style="
-            flex:1 1 150px;
-            padding:12px 15px;
-            border-radius:10px;
-            background:#171a2e;
-            border:1px solid #eab308;
-            box-shadow:
-              0 0 0 1px rgba(234,179,8,0.08),
-              0 4px 12px rgba(0,0,0,0.25);
+            margin-bottom:18px;
           "
         >
 
           <div
             style="
-              font-size:12px;
-              font-weight:700;
-              color:#facc15;
-              margin-bottom:4px;
+              font-size:17px;
+              font-weight:800;
+              margin-bottom:12px;
+              color:#f8fafc;
+              letter-spacing:0.2px;
+              text-shadow:0 1px 4px rgba(0,0,0,0.45);
             "
           >
-            🟡 ${selectedStudent === "all" ? "All Due" : "Due"}
+            👨🏻‍🎓 ${summaryStudentName}
+            — 📚 Assignment Status
           </div>
+
 
           <div
             style="
-              font-size:21px;
-              font-weight:800;
-              color:#fde047;
+              display:flex;
+              flex-wrap:wrap;
+              gap:10px;
             "
           >
-            ${summaryDueCount}
+
+            <!-- DUE -->
+
+            <div
+              style="
+                flex:1 1 150px;
+                padding:12px 15px;
+                border-radius:10px;
+                background:#171a2e;
+                border:1px solid #eab308;
+                box-shadow:
+                  0 0 0 1px rgba(234,179,8,0.08),
+                  0 4px 12px rgba(0,0,0,0.25);
+              "
+            >
+
+              <div
+                style="
+                  font-size:12px;
+                  font-weight:700;
+                  color:#facc15;
+                  margin-bottom:4px;
+                "
+              >
+                🟡 ${
+                  selectedStudent === "all"
+                    ? "All Due"
+                    : "Due"
+                }
+              </div>
+
+              <div
+                style="
+                  font-size:21px;
+                  font-weight:800;
+                  color:#fde047;
+                "
+              >
+                ${summaryDueCount}
+              </div>
+
+            </div>
+
+
+            <!-- OVERDUE -->
+
+            <div
+              style="
+                flex:1 1 150px;
+                padding:12px 15px;
+                border-radius:10px;
+                background:#171a2e;
+                border:1px solid #ef4444;
+                box-shadow:
+                  0 0 0 1px rgba(239,68,68,0.08),
+                  0 4px 12px rgba(0,0,0,0.25);
+              "
+            >
+
+              <div
+                style="
+                  font-size:12px;
+                  font-weight:700;
+                  color:#f87171;
+                  margin-bottom:4px;
+                "
+              >
+                🔴 ${
+                  selectedStudent === "all"
+                    ? "All Overdue"
+                    : "Overdue"
+                }
+              </div>
+
+              <div
+                style="
+                  font-size:21px;
+                  font-weight:800;
+                  color:#fca5a5;
+                "
+              >
+                ${summaryOverdueCount}
+              </div>
+
+            </div>
+
+
+            <!-- SUBMITTED -->
+
+            <div
+              style="
+                flex:1 1 150px;
+                padding:12px 15px;
+                border-radius:10px;
+                background:#171a2e;
+                border:1px solid #f97316;
+                box-shadow:
+                  0 0 0 1px rgba(249,115,22,0.08),
+                  0 4px 12px rgba(0,0,0,0.25);
+              "
+            >
+
+              <div
+                style="
+                  font-size:12px;
+                  font-weight:700;
+                  color:#fb923c;
+                  margin-bottom:4px;
+                "
+              >
+                🟠 ${
+                  selectedStudent === "all"
+                    ? "All Submitted"
+                    : "Submitted"
+                }
+              </div>
+
+              <div
+                style="
+                  font-size:21px;
+                  font-weight:800;
+                  color:#fdba74;
+                "
+              >
+                ${summarySubmittedCount}
+              </div>
+
+            </div>
+
+
+            <!-- COMPLETED -->
+
+            <div
+              style="
+                flex:1 1 150px;
+                padding:12px 15px;
+                border-radius:10px;
+                background:#171a2e;
+                border:1px solid #22c55e;
+                box-shadow:
+                  0 0 0 1px rgba(34,197,94,0.08),
+                  0 4px 12px rgba(0,0,0,0.25);
+              "
+            >
+
+              <div
+                style="
+                  font-size:12px;
+                  font-weight:700;
+                  color:#4ade80;
+                  margin-bottom:4px;
+                "
+              >
+                🟢 ${
+                  selectedStudent === "all"
+                    ? "All Completed"
+                    : "Completed"
+                }
+              </div>
+
+              <div
+                style="
+                  font-size:21px;
+                  font-weight:800;
+                  color:#86efac;
+                "
+              >
+                ${summaryCompletedCount}
+              </div>
+
+            </div>
+
           </div>
 
         </div>
 
+      `;
 
-        <!-- ===============================================
-             🔴 OVERDUE
-             =============================================== -->
-
-        <div
-          style="
-            flex:1 1 150px;
-            padding:12px 15px;
-            border-radius:10px;
-            background:#171a2e;
-            border:1px solid #ef4444;
-            box-shadow:
-              0 0 0 1px rgba(239,68,68,0.08),
-              0 4px 12px rgba(0,0,0,0.25);
-          "
-        >
-
-          <div
-            style="
-              font-size:12px;
-              font-weight:700;
-              color:#f87171;
-              margin-bottom:4px;
-            "
-          >
-            🔴 ${selectedStudent === "all" ? "All Overdue" : "Overdue"}
-          </div>
-
-          <div
-            style="
-              font-size:21px;
-              font-weight:800;
-              color:#fca5a5;
-            "
-          >
-            ${summaryOverdueCount}
-          </div>
-
-        </div>
-
-
-        <!-- ===============================================
-             🟢 COMPLETED
-             =============================================== -->
-
-        <div
-          style="
-            flex:1 1 150px;
-            padding:12px 15px;
-            border-radius:10px;
-            background:#171a2e;
-            border:1px solid #22c55e;
-            box-shadow:
-              0 0 0 1px rgba(34,197,94,0.08),
-              0 4px 12px rgba(0,0,0,0.25);
-          "
-        >
-
-          <div
-            style="
-              font-size:12px;
-              font-weight:700;
-              color:#4ade80;
-              margin-bottom:4px;
-            "
-          >
-            🟢 ${selectedStudent === "all" ? "All Completed" : "Completed"}
-          </div>
-
-          <div
-            style="
-              font-size:21px;
-              font-weight:800;
-              color:#86efac;
-            "
-          >
-            ${summaryCompletedCount}
-          </div>
-
-        </div>
-
-
-      </div>
-
-    </div>
-  `;
-
-}
+    }
 
 
     // ========================================================
     // EMPTY RESULT
     // ========================================================
 
-    if (filteredRows.length === 0) {
+    if (
+      filteredRows.length === 0
+    ) {
 
       listEl.innerHTML = `
         <div class="card">
-          <p>No matching assignment status found.</p>
+          <p>
+            No matching assignment status found.
+          </p>
         </div>
       `;
 
       return;
+
     }
 
 
@@ -48448,101 +48609,142 @@ if (summaryEl) {
     // ========================================================
 
     listEl.innerHTML =
-      filteredRows.map(row => {
+      filteredRows
+        .map(
+          row => {
 
-        const dueText =
-          row.dueAt
-            ? new Date(
-                row.dueAt
-              ).toLocaleDateString()
-            : "No due date";
+            const dueText =
+              row.dueAt
+                ? new Date(
+                    row.dueAt
+                  ).toLocaleDateString()
+                : "No due date";
 
 
-        return `
-          <div
-            class="card assignment-status-row"
-            data-assignment-id="${row.assignmentId}"
-            data-student-id="${row.studentId}"
-          >
-
-            <div
-              style="
-                display:flex;
-                justify-content:space-between;
-                align-items:flex-start;
-                gap:12px;
-                flex-wrap:wrap;
-              "
-            >
-
-              <div>
-
-                <h4>
-                  ${row.assignmentTitle}
-                </h4>
-
-                <p>
-                  <strong>Student:</strong>
-                  ${row.studentName}
-                </p>
-
-                <p>
-                  <strong>Due:</strong>
-                  ${dueText}
-                </p>
-                ${
-  row.status === "completed" &&
-  row.submittedAt
-    ? `
-      <p>
-        <strong>✅ Submitted:</strong>
-        ${new Date(
-          row.submittedAt
-        ).toLocaleString()}
-      </p>
-    `
-    : ""
-}
-    ${
-  row.status === "completed"
-    ? row.gradeLetter
-      ? `
-        <p>
-          <strong>🏅 Result:</strong>
-          ${getFriendlyGradeLabel(
-            row.gradeLetter
-          )}
-        </p>
-      `
-      : `
-        <p>
-          <strong>🏅 Grading:</strong>
-          <span style="color:#facc15;font-weight:800;">
-            ⏳ Not Graded Yet
-          </span>
-        </p>
-      `
-    : ""
-}
-
-              </div>
-
+            return `
 
               <div
+                class="card assignment-status-row"
+                data-assignment-id="${row.assignmentId}"
+                data-student-id="${row.studentId}"
+                role="button"
+                tabindex="0"
+                title="Click to open this student's latest submission in Check HW"
                 style="
-                  font-weight:800;
-                  white-space:nowrap;
+                  cursor:pointer;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
                 "
               >
-                ${row.statusLabel}
+
+                <div
+                  style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:flex-start;
+                    gap:12px;
+                    flex-wrap:wrap;
+                  "
+                >
+
+                  <div>
+
+                    <h4>
+                      ${row.assignmentTitle}
+                    </h4>
+
+
+                    <p>
+                      <strong>Student:</strong>
+                      ${row.studentName}
+                    </p>
+
+
+                    <p>
+                      <strong>Due:</strong>
+                      ${dueText}
+                    </p>
+
+
+                    ${
+                      row.submittedAt
+                        ? `
+                          <p>
+                            <strong>📨 Submitted:</strong>
+                            ${new Date(
+                              row.submittedAt
+                            ).toLocaleString()}
+                          </p>
+                        `
+                        : ""
+                    }
+
+
+                    ${
+                      row.status === "completed"
+                        ? (
+                            row.gradeLetter
+                              ? `
+                                <p>
+                                  <strong>🏅 Result:</strong>
+                                  ${getFriendlyGradeLabel(
+                                    row.gradeLetter
+                                  )}
+                                </p>
+                              `
+                              : `
+                                <p>
+                                  <strong>🏅 Grading:</strong>
+                                  <span
+                                    style="
+                                      color:#facc15;
+                                      font-weight:800;
+                                    "
+                                  >
+                                    ⏳ Not Graded Yet
+                                  </span>
+                                </p>
+                              `
+                          )
+                        : row.status === "submitted"
+                          ? `
+                            <p>
+                              <strong>🏅 Grading:</strong>
+                              <span
+                                style="
+                                  color:#facc15;
+                                  font-weight:800;
+                                "
+                              >
+                                ⏳ Not Graded Yet
+                              </span>
+                            </p>
+                          `
+                          : ""
+                    }
+
+                  </div>
+
+
+                  <div
+                    style="
+                      font-weight:800;
+                      white-space:nowrap;
+                    "
+                  >
+                    ${row.statusLabel}
+                  </div>
+
+                </div>
+
               </div>
 
-            </div>
+            `;
 
-          </div>
-        `;
-
-      }).join("");
+          }
+        )
+        .join("");
 
 
   } catch (error) {
@@ -48552,6 +48754,7 @@ if (summaryEl) {
       error
     );
 
+
     listEl.innerHTML = `
       <div class="card">
         <p style="color:#ff4757;">
@@ -48559,8 +48762,10 @@ if (summaryEl) {
         </p>
       </div>
     `;
+
   }
-}
+
+};
 
 // ============================================================
 // 📋 ASSIGNMENT STATUS — FILTERS
@@ -48585,6 +48790,315 @@ document
   ?.addEventListener(
     "change",
     loadAssignmentStatus
+  );
+
+  // ============================================================
+// 📋 ADMIN — ASSIGNMENT STATUS CARD → EXACT CHECK HW ATTEMPT
+// ============================================================
+
+document
+  .getElementById("assignmentStatusList")
+  ?.addEventListener(
+    "click",
+    async (event) => {
+
+      const card =
+        event.target.closest(
+          ".assignment-status-row"
+        );
+
+      if (!card) {
+        return;
+      }
+
+      const assignmentId =
+        card.dataset.assignmentId;
+
+      const studentId =
+        card.dataset.studentId;
+
+      if (
+        !assignmentId ||
+        !studentId
+      ) {
+        return;
+      }
+
+      if (
+        currentProfile?.role !== "admin"
+      ) {
+        return;
+      }
+
+
+      try {
+
+        // ======================================================
+        // 1. FIND THE EXACT LATEST ATTEMPT
+        // ======================================================
+
+        const {
+          data: attempts,
+          error
+        } = await supabase
+          .from("attempts")
+          .select("id")
+          .eq(
+            "assignment_id",
+            assignmentId
+          )
+          .eq(
+            "student_id",
+            studentId
+          )
+          .order(
+            "submitted_at",
+            {
+              ascending: false
+            }
+          )
+          .limit(1);
+
+        if (error) {
+          throw error;
+        }
+
+
+        // ======================================================
+        // 2. OPEN CHECK HW
+        // ======================================================
+
+        const attemptsTab =
+          document.querySelector(
+            '[data-tab="attempts"]'
+          );
+
+        if (attemptsTab) {
+          attemptsTab.click();
+        }
+
+
+        // ======================================================
+        // 3. LOAD ATTEMPTS
+        // ======================================================
+
+        await loadAttempts();
+
+
+        // ======================================================
+        // 4. IF NO ATTEMPT EXISTS
+        // ======================================================
+
+        if (
+          !attempts ||
+          attempts.length === 0
+        ) {
+
+          console.log(
+            "ℹ️ No attempt exists for this student/assignment."
+          );
+
+          return;
+        }
+
+
+        const exactAttemptId =
+          String(
+            attempts[0].id
+          );
+
+
+        console.log(
+          "🎯 TARGET ATTEMPT ID:",
+          exactAttemptId
+        );
+
+
+        // ======================================================
+        // 5. WAIT UNTIL THE ATTEMPT CARD EXISTS
+        // ======================================================
+
+        let exactCard = null;
+
+        for (
+          let i = 0;
+          i < 20;
+          i++
+        ) {
+
+          exactCard =
+            document.querySelector(
+              `.attempt-card[data-attempt-id="${exactAttemptId}"]`
+            );
+
+          if (exactCard) {
+            break;
+          }
+
+          await new Promise(
+            resolve =>
+              setTimeout(
+                resolve,
+                100
+              )
+          );
+        }
+
+
+        // ======================================================
+        // 6. CARD STILL NOT FOUND
+        // ======================================================
+
+        if (!exactCard) {
+
+          console.warn(
+            "⚠️ Exact attempt card not found:",
+            exactAttemptId
+          );
+
+          return;
+        }
+
+
+        // ======================================================
+        // 7. WAIT ONE MORE FRAME
+        //    Allows Check HW layout/tab to finish rendering.
+        // ======================================================
+
+        await new Promise(
+          resolve =>
+            requestAnimationFrame(
+              () => resolve()
+            )
+        );
+
+
+        await new Promise(
+          resolve =>
+            setTimeout(
+              resolve,
+              100
+            )
+        );
+
+
+       // ======================================================
+// 8. SCROLL THE ACTUAL ATTEMPTS CONTAINER
+// ======================================================
+
+const attemptsContainer =
+  document.getElementById(
+    "attemptsList"
+  );
+
+if (!attemptsContainer) {
+
+  console.warn(
+    "⚠️ #attemptsList container not found."
+  );
+
+  return;
+}
+
+
+// ------------------------------------------------------
+// Calculate exact position INSIDE the scroll container
+// ------------------------------------------------------
+
+const containerRect =
+  attemptsContainer.getBoundingClientRect();
+
+const cardRect =
+  exactCard.getBoundingClientRect();
+
+const targetScrollTop =
+  attemptsContainer.scrollTop +
+  (
+    cardRect.top -
+    containerRect.top
+  ) -
+  (
+    attemptsContainer.clientHeight / 2
+  ) +
+  (
+    cardRect.height / 2
+  );
+
+
+// ------------------------------------------------------
+// Scroll the attempts list itself
+// ------------------------------------------------------
+
+attemptsContainer.scrollTo({
+
+  top:
+    Math.max(
+      0,
+      targetScrollTop
+    ),
+
+  behavior:
+    "smooth"
+
+});
+
+
+
+
+
+        // ======================================================
+        // 10. HIGHLIGHT EXACT CARD
+        // ======================================================
+
+        exactCard.style.transition =
+          "box-shadow 0.2s ease, border-color 0.2s ease";
+
+        exactCard.style.boxShadow =
+          "0 0 0 4px #facc15, 0 8px 25px rgba(0,0,0,0.35)";
+
+        exactCard.style.borderColor =
+          "#facc15";
+
+
+        // ======================================================
+        // 11. KEEP HIGHLIGHT FOR 4 SECONDS
+        // ======================================================
+
+        setTimeout(
+          () => {
+
+            if (
+              exactCard
+            ) {
+
+              exactCard.style.boxShadow =
+                "";
+
+              exactCard.style.borderColor =
+                "";
+
+            }
+
+          },
+          10000
+        );
+
+
+        console.log(
+          "✅ LANDED ON EXACT ATTEMPT:",
+          exactAttemptId
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Failed to navigate to exact attempt:",
+          error
+        );
+
+      }
+
+    }
   );
 
   // ============================================================
@@ -62763,7 +63277,7 @@ function startAttemptsBadgeRealtime() {
           .from('attempts')
           .select(`*, assignments (title), profiles (username)`)
           .order('id', { ascending: false })
-          .limit(50);
+          .limit(80);
         if (error) throw error;
 
         
@@ -62780,8 +63294,11 @@ function startAttemptsBadgeRealtime() {
   const stats = getCorrectPuzzleStats(attempt.bulk_answers || []);
 
   return `
-    <div class="card">
-      <h4>Assignment: ${attempt.assignments?.title || 'Unknown'}</h4>
+ <div
+  class="card attempt-card"
+  data-attempt-id="${attempt.id}"
+>
+  <h4>Assignment: ${attempt.assignments?.title || 'Unknown'}</h4>
 
       <p><strong>Student:</strong> ${attempt.profiles?.username || attempt.student_id || 'Unknown'}</p>
 
@@ -62983,41 +63500,128 @@ renderBulkAnswers(attempt);
 
 function getFriendlyGradeLabel(grade) {
 
-  const labels = {
-    "AA": "🏆 Brilliant!",
-    "A+": "🌟 Excellent!",
-    "A": "👏 Great Job!",
-    "B+": "👌🏻 Nice One!",
-    "B": "👍🏻 Good but do it again!",
-    "C+": "😔 Try Again!",
-    "C": "😢 Try Again!"
-  };
+const labels = {
+
+  "AA": "🏆 Brilliant!, Grade = AA, Marks = 100/100",
+
+  "A+": "⭐ Excellent!, Grade = A+, Marks = 90/100",
+
+  "A": "👏 Great Job!, Grade = A, Marks = 80/100",
+
+  "B+": "👌🏻 Nice one! One more go?, Grade = B+, Marks = 65/100",
+
+  "B": "👍🏻 Good effort! One more go?, Grade = B, Marks = 50/100",
+
+  "C+": "😢 Try Again!, Grade = C+, Marks = 35/100",
+
+  "C": "😢 Try Again!, Grade = C, Marks = 20/100"
+
+};
 
   return labels[grade] || "";
 
 }
 
 
-window.setLetterGrade = async function(attemptId, grade) {
+// ============================================================
+// 🏅 ADMIN — SET GRADE
+// Preserves Check HW scroll position after grading.
+// ============================================================
+
+window.setLetterGrade = async function(
+  attemptId,
+  grade
+) {
+
   try {
-    const { error } = await supabase
-      .from("attempts")
-      .update({
-        grade_letter: grade,
-        graded_at: new Date().toISOString()
-      })
-      .eq("id", attemptId);
 
-    if (error) throw error;
+    // --------------------------------------------------------
+    // Remember current Check HW scroll position
+    // --------------------------------------------------------
 
-    showStatus(`🏅 Grade set to ${grade}`, "success");
+    const attemptsList =
+      document.getElementById(
+        "attemptsList"
+      );
 
-    loadAttempts(); // refresh admin list
+    const previousScrollTop =
+      attemptsList
+        ? attemptsList.scrollTop
+        : 0;
+
+
+    // --------------------------------------------------------
+    // Save grade
+    // --------------------------------------------------------
+
+    const { error } =
+      await supabase
+
+        .from("attempts")
+
+        .update({
+          grade_letter: grade,
+          graded_at:
+            new Date().toISOString()
+        })
+
+        .eq(
+          "id",
+          attemptId
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    // --------------------------------------------------------
+    // Confirmation
+    // --------------------------------------------------------
+
+    showStatus(
+      `🏅 Result set to ${getFriendlyGradeLabel(grade)}`,
+      "success"
+    );
+
+
+    // --------------------------------------------------------
+    // Refresh attempts
+    // --------------------------------------------------------
+
+    await loadAttempts();
+
+
+    // --------------------------------------------------------
+    // Restore the exact previous scroll position
+    // --------------------------------------------------------
+
+    if (attemptsList) {
+
+      requestAnimationFrame(
+        () => {
+
+          attemptsList.scrollTop =
+            previousScrollTop;
+
+        }
+      );
+
+    }
 
   } catch (err) {
-    console.error(err);
-    alert("Failed to set grade");
+
+    console.error(
+      err
+    );
+
+    alert(
+      "Failed to set grade"
+    );
+
   }
+
 };
 
 
