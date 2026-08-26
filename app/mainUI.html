@@ -47253,61 +47253,250 @@ let filteredRows =
   });
 
 
-    // ========================================================
-    // SUMMARY
-    // ========================================================
+   // ========================================================
+// 📊 DYNAMIC ASSIGNMENT STATUS SUMMARY
+// Follows the selected student dropdown.
+// ========================================================
 
-    const completedCount =
-      rows.filter(
-        row => row.status === "completed"
-      ).length;
+// --------------------------------------------------------
+// Determine which rows the summary should use
+// --------------------------------------------------------
 
-    const submittedCount =
-      rows.filter(
-        row => row.status === "submitted"
-      ).length;
-
-    const dueCount =
-      rows.filter(
-        row => row.status === "due"
-      ).length;
-
-    const overdueCount =
-      rows.filter(
-        row => row.status === "overdue"
-      ).length;
+const summaryRows =
+  selectedStudent === "all"
+    ? rows
+    : rows.filter(
+        row =>
+          String(row.studentId) ===
+          String(selectedStudent)
+      );
 
 
-    if (summaryEl) {
+// --------------------------------------------------------
+// Calculate status counts for the selected scope
+// --------------------------------------------------------
 
-      summaryEl.innerHTML = `
+const summaryCompletedCount =
+  summaryRows.filter(
+    row => row.status === "completed"
+  ).length;
+
+const summarySubmittedCount =
+  summaryRows.filter(
+    row => row.status === "submitted"
+  ).length;
+
+const summaryDueCount =
+  summaryRows.filter(
+    row => row.status === "due"
+  ).length;
+
+const summaryOverdueCount =
+  summaryRows.filter(
+    row => row.status === "overdue"
+  ).length;
+
+
+// --------------------------------------------------------
+// Get selected student's display name
+// --------------------------------------------------------
+
+let summaryStudentName =
+  "All Students";
+
+if (
+  selectedStudent !== "all"
+) {
+
+  const studentFilterEl =
+    document.getElementById(
+      "assignmentStatusStudentFilter"
+    );
+
+  const selectedOption =
+    studentFilterEl?.options[
+      studentFilterEl.selectedIndex
+    ];
+
+  summaryStudentName =
+    selectedOption?.textContent?.trim() ||
+    "Selected Student";
+}
+
+
+// ========================================================
+// RENDER SUMMARY
+// ========================================================
+
+if (summaryEl) {
+
+  summaryEl.innerHTML = `
+    <div
+      style="
+        margin-bottom:18px;
+      "
+    >
+
+      <!-- =================================================
+           📚 DYNAMIC SUMMARY TITLE
+           ================================================= -->
+
+      <div
+        style="
+          font-size:17px;
+          font-weight:800;
+          margin-bottom:12px;
+          color:#f8fafc;
+          letter-spacing:0.2px;
+          text-shadow:0 1px 4px rgba(0,0,0,0.45);
+        "
+      >
+        👨🏻‍🎓 ${summaryStudentName} — 📚 Assignment Status
+      </div>
+
+
+      <!-- =================================================
+           📊 STATUS SUMMARY CARDS
+           ================================================= -->
+
+      <div
+        style="
+          display:flex;
+          flex-wrap:wrap;
+          gap:10px;
+        "
+      >
+
+
+        <!-- ===============================================
+             🟡 DUE
+             =============================================== -->
+
         <div
           style="
-            display:flex;
-            flex-wrap:wrap;
-            gap:8px;
-            margin-bottom:15px;
+            flex:1 1 150px;
+            padding:12px 15px;
+            border-radius:10px;
+            background:#171a2e;
+            border:1px solid #eab308;
+            box-shadow:
+              0 0 0 1px rgba(234,179,8,0.08),
+              0 4px 12px rgba(0,0,0,0.25);
           "
         >
 
-          <span class="card">
-            🟡 Due: <strong>${dueCount}</strong>
-          </span>
+          <div
+            style="
+              font-size:12px;
+              font-weight:700;
+              color:#facc15;
+              margin-bottom:4px;
+            "
+          >
+            🟡 ${selectedStudent === "all" ? "All Due" : "Due"}
+          </div>
 
-          <span class="card">
-            🔴 Overdue: <strong>${overdueCount}</strong>
-          </span>
-
-       
-
-          <span class="card">
-            🟢 Completed: <strong>${completedCount}</strong>
-          </span>
+          <div
+            style="
+              font-size:21px;
+              font-weight:800;
+              color:#fde047;
+            "
+          >
+            ${summaryDueCount}
+          </div>
 
         </div>
-      `;
 
-    }
+
+        <!-- ===============================================
+             🔴 OVERDUE
+             =============================================== -->
+
+        <div
+          style="
+            flex:1 1 150px;
+            padding:12px 15px;
+            border-radius:10px;
+            background:#171a2e;
+            border:1px solid #ef4444;
+            box-shadow:
+              0 0 0 1px rgba(239,68,68,0.08),
+              0 4px 12px rgba(0,0,0,0.25);
+          "
+        >
+
+          <div
+            style="
+              font-size:12px;
+              font-weight:700;
+              color:#f87171;
+              margin-bottom:4px;
+            "
+          >
+            🔴 ${selectedStudent === "all" ? "All Overdue" : "Overdue"}
+          </div>
+
+          <div
+            style="
+              font-size:21px;
+              font-weight:800;
+              color:#fca5a5;
+            "
+          >
+            ${summaryOverdueCount}
+          </div>
+
+        </div>
+
+
+        <!-- ===============================================
+             🟢 COMPLETED
+             =============================================== -->
+
+        <div
+          style="
+            flex:1 1 150px;
+            padding:12px 15px;
+            border-radius:10px;
+            background:#171a2e;
+            border:1px solid #22c55e;
+            box-shadow:
+              0 0 0 1px rgba(34,197,94,0.08),
+              0 4px 12px rgba(0,0,0,0.25);
+          "
+        >
+
+          <div
+            style="
+              font-size:12px;
+              font-weight:700;
+              color:#4ade80;
+              margin-bottom:4px;
+            "
+          >
+            🟢 ${selectedStudent === "all" ? "All Completed" : "Completed"}
+          </div>
+
+          <div
+            style="
+              font-size:21px;
+              font-weight:800;
+              color:#86efac;
+            "
+          >
+            ${summaryCompletedCount}
+          </div>
+
+        </div>
+
+
+      </div>
+
+    </div>
+  `;
+
+}
 
 
     // ========================================================
