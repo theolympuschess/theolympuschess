@@ -31376,7 +31376,44 @@ transform: translateY(-50%);
   opacity: 0.9;
 }
 
+/* ============================================================
+   📚 STUDENT ASSIGNMENT — COMPLETED BADGE
+   ============================================================ */
 
+/* ============================================================
+   📚 STUDENT ASSIGNMENT — COMPLETED BADGE
+   ============================================================ */
+
+.student-assignment-completed-badge {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 4px 9px;
+
+  margin-bottom: 8px;
+
+  border-radius: 999px;
+
+  background: #1d4ed8;
+
+  color: #ffffff;
+
+  font-size: 14px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.5px;
+
+  line-height: 1;
+
+  box-shadow:
+    0 0 8px rgba(59, 130, 246, 0.40);
+
+}
 /* ============================================================
    📚 STUDENT ASSIGNMENT — NEW! STARBURST BADGE
    ============================================================ */
@@ -37266,8 +37303,8 @@ Submit solution</button>
 
     <!-- ASSIGNMENTS -->
     <div class="section" id="assignments-section">
-      <div class="assignments-header">
-  <h2>📋 Assignments</h2>
+<div class="assignments-header">
+  <h2>Assignments</h2>
 
   <input
     type="text"
@@ -37275,6 +37312,21 @@ Submit solution</button>
     placeholder="🔍 Search assignments..."
     class="assignments-search"
   />
+
+  <!-- =====================================================
+       👨‍🎓 STUDENT ASSIGNMENT STATUS
+       ===================================================== -->
+
+  <div
+    id="studentAssignmentStatusSummary"
+    style="
+      display:none;
+      width:100%;
+      margin-top:10px;
+      flex-basis:100%;
+    "
+  ></div>
+
 </div>
 
       <div class="assignments-layout" aria-live="polite">
@@ -46676,6 +46728,62 @@ function renderAssignedTo(assign, studentNameMap) {
   return map;
 }
  
+// ============================================================
+// 👨‍🎓 STUDENT — GET COMPLETED ASSIGNMENT IDS
+// Uses existing attempts table.
+// No backend/schema changes.
+// ============================================================
+
+async function getStudentCompletedAssignmentIds() {
+
+  if (
+    currentProfile?.role !== "student"
+  ) {
+    return [];
+  }
+
+  try {
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from("attempts")
+      .select(
+        "assignment_id, student_id, is_correct"
+      )
+      .eq(
+        "student_id",
+        currentProfile.id
+      )
+      .eq(
+        "is_correct",
+        true
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || [])
+      .map(
+        attempt =>
+          Number(attempt.assignment_id)
+      )
+      .filter(
+        id => Number.isFinite(id)
+      );
+
+  } catch (error) {
+
+    console.error(
+      "❌ Failed to load completed assignment IDs:",
+      error
+    );
+
+    return [];
+  }
+}
 
     async function loadAssignments() {
     
@@ -46709,25 +46817,52 @@ function renderAssignedTo(assign, studentNameMap) {
 // ✅ ADD THIS LINE HERE (EXACT SPOT)
     const studentNameMap = await resolveAssignedStudentNames(assignments);
 
-    if (assignments.length === 0) {
-      listEl.innerHTML = '<div class="card"><p>No assignments available yet.</p></div>';
-      return;
-    }
+    const completedAssignmentIds =
+  currentProfile?.role === "student"
+    ? await getStudentCompletedAssignmentIds()
+    : [];
+
+ if (assignments.length === 0) {
+
+  listEl.innerHTML =
+    '<div class="card"><p>No assignments available yet.</p></div>';
+
+  if (
+    currentProfile?.role === "student"
+  ) {
+    await updateStudentAssignmentStatusSummary();
+  }
+
+  return;
+}
 
     listEl.innerHTML = assignments.map(assign => `
       <div class="card" data-assignment-id="${assign.id}">
-  ${
-    currentProfile.role === "student" &&
-    getStudentAssignmentNotificationIds().includes(
-      Number(assign.id)
-    )
+${
+  currentProfile.role === "student"
+    ? completedAssignmentIds.includes(
+        Number(assign.id)
+      )
       ? `
-        <span class="student-assignment-new-badge">
-          NEW!
+        <span
+          class="student-assignment-completed-badge"
+        >
+          ✅ COMPLETED
         </span>
       `
-      : ""
-  }
+      : getStudentAssignmentNotificationIds().includes(
+          Number(assign.id)
+        )
+        ? `
+          <span
+            class="student-assignment-new-badge"
+          >
+            NEW!
+          </span>
+        `
+        : ""
+    : ""
+}
         <h4>${assign.title || 'Untitled Assignment'}</h4>
         <p>${assign.description || 'No description provided.'}</p>
         <p>
@@ -46785,6 +46920,12 @@ data-id="${assign.id}">
 </div>
       </div>
     `).join('');
+    // 👨‍🎓 Refresh student's live assignment status
+if (
+  currentProfile?.role === "student"
+) {
+  await updateStudentAssignmentStatusSummary();
+}
 
   } catch (error) {
     console.error('Error loading assignments:', error);
@@ -46880,6 +47021,442 @@ if (
 }
 
 });
+
+// ============================================================
+// 👨‍🎓 STUDENT — LIVE ASSIGNMENT STATUS SUMMARY
+// ============================================================
+//
+// Shows the logged-in student's:
+// 🟡 Due
+// 🔴 Overdue
+// 🟢 Completed
+//
+// Uses existing assignments + attempts data.
+// NO backend/table/schema changes.
+// ============================================================
+
+let studentAssignmentStatusRefreshTimer = null;
+
+
+async function updateStudentAssignmentStatusSummary() {
+
+  // ----------------------------------------------------------
+  // Students only
+  // ----------------------------------------------------------
+
+  if (
+    currentProfile?.role !== "student"
+  ) {
+    return;
+  }
+
+
+  const summaryEl =
+    document.getElementById(
+      "studentAssignmentStatusSummary"
+    );
+
+  if (!summaryEl) {
+    return;
+  }
+
+
+  const studentId =
+    currentProfile.id;
+
+
+  try {
+
+    // ========================================================
+    // LOAD THIS STUDENT'S ACTIVE ASSIGNMENTS
+    // ========================================================
+
+    const {
+      data: assignments,
+      error: assignmentError
+    } = await supabase
+
+      .from("assignments")
+
+      .select(
+        "id, assigned_to, is_public, status, due_at"
+      )
+
+      .eq(
+        "status",
+        "active"
+      )
+
+      .or(
+        `is_public.eq.true,assigned_to.cs.["${studentId}"]`
+      );
+
+
+    if (assignmentError) {
+      throw assignmentError;
+    }
+
+
+    // ========================================================
+    // LOAD THIS STUDENT'S ATTEMPTS
+    // ========================================================
+
+    const {
+      data: attempts,
+      error: attemptsError
+    } = await supabase
+
+      .from("attempts")
+
+      .select(
+        "assignment_id, student_id, is_correct"
+      )
+
+      .eq(
+        "student_id",
+        studentId
+      );
+
+
+    if (attemptsError) {
+      throw attemptsError;
+    }
+
+
+    // ========================================================
+    // CALCULATE STATUS
+    // ========================================================
+
+    let dueCount = 0;
+    let overdueCount = 0;
+    let completedCount = 0;
+
+
+    const now =
+      new Date();
+
+
+    (assignments || []).forEach(
+      assignment => {
+
+        // ----------------------------------------------------
+        // Safety check:
+        // Private assignment must actually contain this
+        // student in assigned_to.
+        // Public assignments are available to everyone.
+        // ----------------------------------------------------
+
+        if (
+          assignment.is_public !== true
+        ) {
+
+          if (
+            !Array.isArray(
+              assignment.assigned_to
+            ) ||
+            !assignment.assigned_to.includes(
+              studentId
+            )
+          ) {
+
+            return;
+
+          }
+
+        }
+
+
+        // ----------------------------------------------------
+        // Check whether this student completed it
+        // ----------------------------------------------------
+
+        const completed =
+          (attempts || []).some(
+            attempt =>
+
+              String(
+                attempt.assignment_id
+              ) ===
+              String(
+                assignment.id
+              )
+
+              &&
+
+              String(
+                attempt.student_id
+              ) ===
+              String(
+                studentId
+              )
+
+              &&
+
+              attempt.is_correct === true
+          );
+
+
+        // ----------------------------------------------------
+        // COMPLETED
+        // ----------------------------------------------------
+
+        if (completed) {
+
+          completedCount++;
+
+          return;
+
+        }
+
+
+        // ----------------------------------------------------
+        // OVERDUE
+        // ----------------------------------------------------
+
+        if (
+          assignment.due_at
+          &&
+          new Date(
+            assignment.due_at
+          ).getTime()
+          <
+          now.getTime()
+        ) {
+
+          overdueCount++;
+
+          return;
+
+        }
+
+
+        // ----------------------------------------------------
+        // DUE
+        // ----------------------------------------------------
+
+        dueCount++;
+
+      }
+    );
+
+
+    // ========================================================
+    // RENDER
+    // ========================================================
+
+    summaryEl.style.display =
+      "block";
+
+
+    summaryEl.innerHTML = `
+
+      <div
+        style="
+          width:100%;
+        "
+      >
+
+        <!-- =================================================
+             TITLE
+             ================================================= -->
+
+        <div
+          style="
+            font-size:13px;
+            font-weight:800;
+            color:#f8fafc;
+            margin-bottom:8px;
+            letter-spacing:0.2px;
+          "
+        >
+          📚 My Assignment Status
+        </div>
+
+
+        <!-- =================================================
+             STATUS CARDS
+             ================================================= -->
+
+        <div
+          style="
+            display:flex;
+            flex-wrap:wrap;
+            gap:8px;
+          "
+        >
+
+
+          <!-- ===============================================
+               🟡 DUE
+               =============================================== -->
+
+          <div
+            style="
+              flex:1 1 120px;
+              min-width:120px;
+              padding:8px 12px;
+              border-radius:9px;
+              background:#171a2e;
+              border:1px solid #eab308;
+              box-shadow:
+                0 0 0 1px rgba(234,179,8,0.06),
+                0 3px 10px rgba(0,0,0,0.20);
+            "
+          >
+
+            <div
+              style="
+                font-size:14px;
+                font-weight:700;
+                color:#facc15;
+                margin-bottom:2px;
+              "
+            >
+              🟡 Due Assignments
+            </div>
+
+            <div
+              style="
+                font-size:19px;
+                font-weight:800;
+                color:#fde047;
+              "
+            >
+              ${dueCount}
+            </div>
+
+          </div>
+
+
+          <!-- ===============================================
+               🔴 OVERDUE
+               =============================================== -->
+
+          <div
+            style="
+              flex:1 1 120px;
+              min-width:120px;
+              padding:8px 12px;
+              border-radius:9px;
+              background:#171a2e;
+              border:1px solid #ef4444;
+              box-shadow:
+                0 0 0 1px rgba(239,68,68,0.06),
+                0 3px 10px rgba(0,0,0,0.20);
+            "
+          >
+
+            <div
+              style="
+                font-size:14px;
+                font-weight:700;
+                color:#f87171;
+                margin-bottom:2px;
+              "
+            >
+              🔴 Overdue Assignments
+            </div>
+
+            <div
+              style="
+                font-size:19px;
+                font-weight:800;
+                color:#fca5a5;
+              "
+            >
+              ${overdueCount}
+            </div>
+
+          </div>
+
+
+          <!-- ===============================================
+               🟢 COMPLETED
+               =============================================== -->
+
+          <div
+            style="
+              flex:1 1 120px;
+              min-width:120px;
+              padding:8px 12px;
+              border-radius:9px;
+              background:#171a2e;
+              border:1px solid #22c55e;
+              box-shadow:
+                0 0 0 1px rgba(34,197,94,0.06),
+                0 3px 10px rgba(0,0,0,0.20);
+            "
+          >
+
+            <div
+              style="
+                font-size:14px;
+                font-weight:700;
+                color:#4ade80;
+                margin-bottom:2px;
+              "
+            >
+              🟢 Completed Assignments
+            </div>
+
+            <div
+              style="
+                font-size:19px;
+                font-weight:800;
+                color:#86efac;
+              "
+            >
+              ${completedCount}
+            </div>
+
+          </div>
+
+
+        </div>
+
+      </div>
+    `;
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Student assignment status error:",
+      error
+    );
+
+  }
+
+}
+
+// ============================================================
+// ⏰ AUTO-REFRESH STUDENT ASSIGNMENT STATUS
+// Checks once every minute so Due → Overdue changes automatically.
+// ============================================================
+
+if (
+  studentAssignmentStatusRefreshTimer
+) {
+  clearInterval(
+    studentAssignmentStatusRefreshTimer
+  );
+}
+
+studentAssignmentStatusRefreshTimer =
+  setInterval(
+    () => {
+
+      if (
+        currentProfile?.role === "student"
+      ) {
+
+        updateStudentAssignmentStatusSummary();
+
+      }
+
+    },
+    60000
+  );
 
 // ============================================================
 // 📋 ADMIN — ASSIGNMENT STATUS
@@ -60212,6 +60789,22 @@ const stats = getCorrectPuzzleStats(bulkAnswers || []);
 if (currentProfile?.role === "student") {
   loadStudentProgress();
 }
+// 👨‍🎓 Refresh assignment status immediately after submission
+if (
+  currentProfile?.role === "student"
+) {
+  await updateStudentAssignmentStatusSummary();
+}
+// ============================================================
+// 📚 REFRESH ASSIGNMENT CARDS
+// Re-checks attempts and changes NEW → COMPLETED.
+// ============================================================
+
+if (
+  currentProfile?.role === "student"
+) {
+  await loadAssignments();
+}
 // 🔥 Refresh global mini stats immediately
 loadMiniStats();
 
@@ -61596,6 +62189,11 @@ function startAttemptsBadgeRealtime() {
         await updateAttemptsTabBadge();
           // Refresh the Check Assignments cards/list
   await loadAttempts();
+  
+    // 📊 Refresh Assignment Status immediately
+        await loadAssignmentStatus();
+
+
       }
     )
     .subscribe((status) => {
