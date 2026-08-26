@@ -31549,6 +31549,55 @@ transform: translateY(-50%);
 
 }
 
+/* ============================================================
+   📋 ASSIGNMENT STATUS — COMPACT ADMIN WRAPPER
+   ============================================================ */
+
+#assignmentStatus-section {
+  width: 100% !important;
+  max-width: 900px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* ============================================================
+   📋 ASSIGNMENT STATUS — ISOLATED SCROLL AREA
+   ============================================================ */
+
+#assignmentStatusList.assignment-status-scroll {
+  max-height: 450px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding-right: 8px;
+
+  box-sizing: border-box;
+
+  scrollbar-width: thin;
+  scrollbar-color: #64748b transparent;
+}
+
+
+/* Chrome / Edge / Safari */
+
+#assignmentStatusList.assignment-status-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+#assignmentStatusList.assignment-status-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#assignmentStatusList.assignment-status-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 999px;
+}
+
+#assignmentStatusList.assignment-status-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
   </style>
 </head>
 
@@ -31735,7 +31784,39 @@ transform: translateY(-50%);
     vertical-align: middle;
   "></span>
 </button>
+   <button class="nav-btn"
+        data-tab="attempts"
+        id="attemptsTab"
+        style="display: none;">
+  📊 Check assignments
+  <span id="attemptsTabBadge" style="
+    display: none;
+    margin-left: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+    vertical-align: middle;
+  "></span>
+</button>
+<button
+  class="nav-btn"
+  data-tab="assignmentStatus"
+  id="assignmentStatusTab"
+  style="display: none;"
+>
+  📜 Assignment Status
+</button>
+ <button class="nav-btn" data-tab="attendance">
+  📆 Attendance
+</button>
  <button class="nav-btn" data-tab="livePuzzle">👨🏻‍🏫 Classroom</button>
+ <button class="nav-btn" data-tab="study">📕 Study Chess</button>
+ <button class="nav-btn" data-tab="editor">🧩 Board editor</button>
+
  <button class="nav-btn" data-tab="puzzlerush">⚡ Puzzle Rush </button>
  <button class="nav-btn" data-tab="puzzlebattle">
   ⚔️ Puzzle Battle
@@ -31822,34 +31903,15 @@ transform: translateY(-50%);
 <button class="nav-btn" data-tab="pathfinder">👸 Reach Home</button>
 
 
-<button class="nav-btn" data-tab="study">📘 Study Chess</button>
+
 <button class="nav-btn" data-tab="gallery" id="galleryNavBtn">🖼️ Gallery</button>
 
 
  
-    <button class="nav-btn" data-tab="editor">🧩 Board editor</button>
+    
 
-   <button class="nav-btn"
-        data-tab="attempts"
-        id="attemptsTab"
-        style="display: none;">
-  📊 Check assignments
-  <span id="attemptsTabBadge" style="
-    display: none;
-    margin-left: 6px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: #dc2626;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.3;
-    vertical-align: middle;
-  "></span>
-</button>
-       <button class="nav-btn" data-tab="attendance">
-  📆 Attendance
-</button>
+
+       
     <button class="nav-btn" data-tab="students" id="adminTab" style="display: none;">👨‍🎓 Admin console</button>
 
     <div class="user-menu">
@@ -37290,10 +37352,34 @@ Submit solution</button>
               </select>
             </div>
             <textarea id="assignDesc" placeholder="Description and instructions..."></textarea>
-            <div class="form-row">
-              <input type="datetime-local" id="assignDue">
-              <input type="text" id="assignFEN" placeholder="Starting FEN (optional)">
-            </div>
+         <div class="form-row">
+
+  <div style="flex:1;">
+    <label
+      for="assignDue"
+      style="
+        display:block;
+        margin-bottom:6px;
+        font-size:13px;
+        font-weight:700;
+      "
+    >
+      📅 Set due date &amp; time
+    </label>
+
+    <input
+      type="datetime-local"
+      id="assignDue"
+    >
+  </div>
+
+  <input
+    type="text"
+    id="assignFEN"
+    placeholder="Starting FEN (optional)"
+  >
+
+</div>
             <div class="form-row">
               
 
@@ -37548,6 +37634,95 @@ Submit solution</button>
   accept=".pgn"
   style="display:none"
 />
+
+<!-- ============================================================
+     📋 ASSIGNMENT STATUS
+     Admin-only overview of assigned/completed/due work
+     ============================================================ -->
+
+<div class="section" id="assignmentStatus-section">
+
+  <h2>
+    📅 Assignment Status
+  </h2>
+
+  <div
+    style="
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-bottom:15px;
+    "
+  >
+
+    <button
+      type="button"
+      class="btn-secondary"
+      onclick="loadAssignmentStatus()"
+    >
+      🔄 Refresh Status
+    </button>
+
+    <button
+  type="button"
+  class="btn-secondary"
+  onclick="exportAssignmentStatusPDF()"
+>
+  📄 Export Status PDF
+</button>
+
+    <select
+      id="assignmentStatusFilter"
+      style="
+        min-width:180px;
+        padding:8px 10px;
+        border-radius:8px;
+      "
+    >
+      <option value="all">All Status</option>
+      <option value="due">🟡 Due</option>
+      <option value="overdue">🔴 Overdue</option>
+      
+      <option value="completed">🟢 Completed</option>
+    </select>
+
+    <input
+      type="text"
+      id="assignmentStatusSearch"
+      placeholder="🔍 Search student or assignment..."
+      style="
+        flex:1;
+        min-width:220px;
+        padding:9px 12px;
+        border-radius:8px;
+      "
+    >
+    <select
+  id="assignmentStatusStudentFilter"
+  style="
+    min-width:220px;
+    padding:9px 12px;
+    border-radius:8px;
+  "
+>
+  <option value="all">👨‍🎓 All Students</option>
+</select>
+
+  </div>
+
+  <div id="assignmentStatusSummary"></div>
+
+<div
+  id="assignmentStatusList"
+  class="assignment-status-scroll"
+>
+  <div class="loading">
+    Loading assignment status...
+  </div>
+</div>
+
+</div>
 
   <!-- Libraries -->
   <!-- Libraries -->
@@ -42149,6 +42324,7 @@ if (badgePanel) {
         if (profile.role === 'admin') {
           document.getElementById('adminTab').style.display = 'inline-block';
           document.getElementById('attemptsTab').style.display = 'inline-block';
+          document.getElementById('assignmentStatusTab').style.display = 'inline-block';
           document.getElementById('createAssignmentForm').style.display = 'block';
           document.getElementById('adminContent').style.display = 'block';
           document.getElementById('adminAccessDenied').style.display = 'none';
@@ -42188,6 +42364,7 @@ updateAttemptsTabBadge();
 startAttemptsBadgeRealtime();
         } else {
           document.getElementById('adminTab').style.display = 'none';
+          document.getElementById('assignmentStatusTab').style.display = 'none';
           document.getElementById('attemptsTab').style.display = 'none';
           document.getElementById('createAssignmentForm').style.display = 'none';
           document.getElementById('adminContent').style.display = 'none';
@@ -42777,6 +42954,16 @@ if (tab === 'livematch') {
     if (!mpBoard) {
       initLiveMatchBoard();
     }
+  }, 0);
+}
+
+// 📋 Assignment Status — load when admin opens tab
+if (
+  tab === 'assignmentStatus' &&
+  currentProfile?.role === 'admin'
+) {
+  setTimeout(() => {
+    loadAssignmentStatus();
   }, 0);
 }
 
@@ -46566,7 +46753,7 @@ ${currentProfile.role === "admin"
   : ""
 }
 
-        ${assign.due_at ? `<p><strong>Due:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
+        ${assign.due_at ? `<p><strong>📅 Complete by:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
         <div class="assignment-actions">
 
   ${currentProfile.role === 'admin'
@@ -46693,6 +46880,2019 @@ if (
 }
 
 });
+
+// ============================================================
+// 📋 ADMIN — ASSIGNMENT STATUS
+// Shows which student has which assignment and its current status.
+// Frontend-only — no database/schema changes.
+// ============================================================
+
+window.loadAssignmentStatus = async function loadAssignmentStatus() {
+
+  const listEl =
+    document.getElementById("assignmentStatusList");
+
+  const summaryEl =
+    document.getElementById("assignmentStatusSummary");
+
+  if (!listEl) return;
+
+  // Admin only
+  if (currentProfile?.role !== "admin") {
+    listEl.innerHTML =
+      '<div class="card"><p>Admin access only.</p></div>';
+
+    return;
+  }
+
+  listEl.innerHTML =
+    '<div class="loading">Loading assignment status...</div>';
+
+  try {
+
+    // ========================================================
+    // LOAD ASSIGNMENTS
+    // ========================================================
+
+    const { data: assignments, error: assignmentError } =
+      await supabase
+        .from("assignments")
+        .select("*")
+        .order("created_at", {
+          ascending: false
+        });
+
+    if (assignmentError) {
+      throw assignmentError;
+    }
+
+
+    // ========================================================
+    // LOAD ATTEMPTS
+    // ========================================================
+
+    const { data: attempts, error: attemptsError } =
+      await supabase
+        .from("attempts")
+        .select("*");
+
+    if (attemptsError) {
+      throw attemptsError;
+    }
+
+
+    // ========================================================
+    // RESOLVE STUDENT NAMES
+    // ========================================================
+
+    const studentIds = [];
+
+    (assignments || []).forEach(assignment => {
+
+      if (
+        Array.isArray(
+          assignment.assigned_to
+        )
+      ) {
+
+        assignment.assigned_to.forEach(id => {
+
+          if (
+            id &&
+            !studentIds.includes(id)
+          ) {
+            studentIds.push(id);
+          }
+
+        });
+      }
+    });
+
+
+    let studentNameMap = {};
+
+    if (studentIds.length > 0) {
+
+      const nameAssignments =
+        (assignments || []).filter(
+          assignment =>
+            Array.isArray(
+              assignment.assigned_to
+            )
+        );
+
+      studentNameMap =
+        await resolveAssignedStudentNames(
+          nameAssignments
+        );
+    }
+
+
+    // ========================================================
+    // BUILD STUDENT × ASSIGNMENT STATUS ROWS
+    // ========================================================
+
+    const rows = [];
+
+
+    (assignments || []).forEach(assignment => {
+
+      // Ignore public assignments here.
+      // This screen is for individual student homework tracking.
+      if (
+        assignment.is_public === true
+      ) {
+        return;
+      }
+
+
+      if (
+        !Array.isArray(
+          assignment.assigned_to
+        )
+      ) {
+        return;
+      }
+
+
+      assignment.assigned_to.forEach(
+        studentId => {
+
+          if (!studentId) {
+            return;
+          }
+
+
+          // --------------------------------------------------
+          // Find attempts for THIS assignment + THIS student
+          // --------------------------------------------------
+
+          const studentAttempts =
+            (attempts || []).filter(
+              attempt =>
+                Number(
+                  attempt.assignment_id
+                ) === Number(
+                  assignment.id
+                ) &&
+                String(
+                  attempt.student_id
+                ) === String(
+                  studentId
+                )
+            );
+
+
+          // --------------------------------------------------
+          // Determine completion
+          // --------------------------------------------------
+
+          const completed =
+            studentAttempts.some(
+              attempt =>
+                attempt.is_correct === true
+            );
+
+
+          // --------------------------------------------------
+          // Determine whether anything was submitted
+          // --------------------------------------------------
+
+          const submitted =
+            studentAttempts.length > 0;
+
+
+          // --------------------------------------------------
+          // Determine due date
+          // --------------------------------------------------
+
+          let dueDate = null;
+
+          if (assignment.due_at) {
+
+            dueDate =
+              new Date(
+                assignment.due_at
+              );
+
+          }
+
+
+          const now =
+            new Date();
+
+
+          // --------------------------------------------------
+          // Determine status
+          // --------------------------------------------------
+
+          let status;
+          let statusLabel;
+
+
+          if (completed) {
+
+            status = "completed";
+            statusLabel = "🟢 Completed";
+
+          } else if (submitted) {
+
+            status = "submitted";
+            statusLabel = "🟠 Submitted";
+
+          } else if (
+            dueDate &&
+            dueDate.getTime() < now.getTime()
+          ) {
+
+            status = "overdue";
+            statusLabel = "🔴 Overdue";
+
+          } else if (dueDate) {
+
+            status = "due";
+            statusLabel = "🟡 Due";
+
+          } else {
+
+            status = "due";
+            statusLabel = "🟡 Due";
+
+          }
+
+
+          // --------------------------------------------------
+          // Student name
+          // --------------------------------------------------
+
+          const studentName =
+            studentNameMap[studentId] ||
+            "Student";
+
+
+          rows.push({
+
+            assignmentId:
+              assignment.id,
+
+            assignmentTitle:
+              assignment.title ||
+              "Untitled Assignment",
+
+            studentId,
+
+            studentName,
+
+            dueAt:
+              assignment.due_at,
+
+            status,
+
+            statusLabel,
+
+            submitted,
+
+            completed
+
+          });
+
+        }
+      );
+
+    });
+
+
+    // ========================================================
+    // FILTER
+    // ========================================================
+
+const filterEl =
+  document.getElementById(
+    "assignmentStatusFilter"
+  );
+
+const searchEl =
+  document.getElementById(
+    "assignmentStatusSearch"
+  );
+
+const studentFilterEl =
+  document.getElementById(
+    "assignmentStatusStudentFilter"
+  );
+
+// Populate student dropdown from current assignment rows
+await populateAssignmentStatusStudentFilter();
+
+const selectedFilter =
+  filterEl?.value || "all";
+
+const selectedStudent =
+  studentFilterEl?.value || "all";
+
+const searchText =
+  (
+    searchEl?.value ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+
+let filteredRows =
+  rows.filter(row => {
+
+    // ========================================================
+    // STATUS FILTER
+    // ========================================================
+
+    if (
+      selectedFilter !== "all" &&
+      row.status !== selectedFilter
+    ) {
+      return false;
+    }
+
+
+    // ========================================================
+    // STUDENT DROPDOWN FILTER
+    // ========================================================
+
+    if (
+      selectedStudent !== "all" &&
+      String(row.studentId) !==
+        String(selectedStudent)
+    ) {
+      return false;
+    }
+
+
+    // ========================================================
+    // SEARCH FILTER
+    // ========================================================
+
+    if (searchText) {
+
+      const haystack =
+        `${row.studentName} ${row.assignmentTitle}`
+          .toLowerCase();
+
+      if (
+        !haystack.includes(
+          searchText
+        )
+      ) {
+        return false;
+      }
+
+    }
+
+
+    return true;
+
+  });
+
+
+    // ========================================================
+    // SUMMARY
+    // ========================================================
+
+    const completedCount =
+      rows.filter(
+        row => row.status === "completed"
+      ).length;
+
+    const submittedCount =
+      rows.filter(
+        row => row.status === "submitted"
+      ).length;
+
+    const dueCount =
+      rows.filter(
+        row => row.status === "due"
+      ).length;
+
+    const overdueCount =
+      rows.filter(
+        row => row.status === "overdue"
+      ).length;
+
+
+    if (summaryEl) {
+
+      summaryEl.innerHTML = `
+        <div
+          style="
+            display:flex;
+            flex-wrap:wrap;
+            gap:8px;
+            margin-bottom:15px;
+          "
+        >
+
+          <span class="card">
+            🟡 Due: <strong>${dueCount}</strong>
+          </span>
+
+          <span class="card">
+            🔴 Overdue: <strong>${overdueCount}</strong>
+          </span>
+
+       
+
+          <span class="card">
+            🟢 Completed: <strong>${completedCount}</strong>
+          </span>
+
+        </div>
+      `;
+
+    }
+
+
+    // ========================================================
+    // EMPTY RESULT
+    // ========================================================
+
+    if (filteredRows.length === 0) {
+
+      listEl.innerHTML = `
+        <div class="card">
+          <p>No matching assignment status found.</p>
+        </div>
+      `;
+
+      return;
+    }
+
+
+    // ========================================================
+    // RENDER STATUS ROWS
+    // ========================================================
+
+    listEl.innerHTML =
+      filteredRows.map(row => {
+
+        const dueText =
+          row.dueAt
+            ? new Date(
+                row.dueAt
+              ).toLocaleDateString()
+            : "No due date";
+
+
+        return `
+          <div
+            class="card assignment-status-row"
+            data-assignment-id="${row.assignmentId}"
+            data-student-id="${row.studentId}"
+          >
+
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                align-items:flex-start;
+                gap:12px;
+                flex-wrap:wrap;
+              "
+            >
+
+              <div>
+
+                <h4>
+                  ${row.assignmentTitle}
+                </h4>
+
+                <p>
+                  <strong>Student:</strong>
+                  ${row.studentName}
+                </p>
+
+                <p>
+                  <strong>Due:</strong>
+                  ${dueText}
+                </p>
+
+              </div>
+
+
+              <div
+                style="
+                  font-weight:800;
+                  white-space:nowrap;
+                "
+              >
+                ${row.statusLabel}
+              </div>
+
+            </div>
+
+          </div>
+        `;
+
+      }).join("");
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Assignment status error:",
+      error
+    );
+
+    listEl.innerHTML = `
+      <div class="card">
+        <p style="color:#ff4757;">
+          Error loading assignment status.
+        </p>
+      </div>
+    `;
+  }
+}
+
+// ============================================================
+// 📋 ASSIGNMENT STATUS — FILTERS
+// ============================================================
+
+document
+  .getElementById("assignmentStatusFilter")
+  ?.addEventListener(
+    "change",
+    loadAssignmentStatus
+  );
+
+document
+  .getElementById("assignmentStatusSearch")
+  ?.addEventListener(
+    "input",
+    loadAssignmentStatus
+  );
+
+  document
+  .getElementById("assignmentStatusStudentFilter")
+  ?.addEventListener(
+    "change",
+    loadAssignmentStatus
+  );
+
+  // ============================================================
+// 📄 ASSIGNMENT STATUS — EXPORT PDF
+// Uses the existing jsPDF library already loaded in mainUI.html.
+// Student dropdown controls which student is exported.
+// ============================================================
+
+window.exportAssignmentStatusPDF = async function () {
+
+  // ==========================================================
+  // ADMIN ONLY
+  // ==========================================================
+
+  if (currentProfile?.role !== "admin") {
+
+    alert("Admin access only.");
+
+    return;
+  }
+
+
+  // ==========================================================
+  // CHECK jsPDF
+  // ==========================================================
+
+  if (
+    !window.jspdf ||
+    !window.jspdf.jsPDF
+  ) {
+
+    alert(
+      "PDF library is not loaded yet. Please refresh the page and try again."
+    );
+
+    return;
+  }
+
+
+  const studentFilterEl =
+    document.getElementById(
+      "assignmentStatusStudentFilter"
+    );
+
+  const selectedStudent =
+    studentFilterEl?.value || "all";
+
+
+  try {
+
+    // ========================================================
+    // LOAD CURRENT ASSIGNMENTS
+    // ========================================================
+
+    const {
+      data: assignments,
+      error: assignmentError
+    } = await supabase
+      .from("assignments")
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+    if (assignmentError) {
+      throw assignmentError;
+    }
+
+
+    // ========================================================
+    // LOAD CURRENT ATTEMPTS
+    // ========================================================
+
+    const {
+      data: attempts,
+      error: attemptsError
+    } = await supabase
+      .from("attempts")
+      .select("*");
+
+    if (attemptsError) {
+      throw attemptsError;
+    }
+
+
+    // ========================================================
+    // LOAD ALL ACTIVE STUDENTS
+    // ========================================================
+
+    const {
+      data: students,
+      error: studentsError
+    } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .eq("role", "student")
+      .eq("active", true)
+      .order("username", {
+        ascending: true
+      });
+
+    if (studentsError) {
+      throw studentsError;
+    }
+
+
+    // ========================================================
+    // STUDENTS TO EXPORT
+    // ========================================================
+
+    let studentsToExport =
+      students || [];
+
+
+    if (
+      selectedStudent !== "all"
+    ) {
+
+      studentsToExport =
+        studentsToExport.filter(
+          student =>
+            String(student.id) ===
+            String(selectedStudent)
+        );
+
+    }
+
+
+    if (
+      studentsToExport.length === 0
+    ) {
+
+      alert(
+        "No active student found for the selected student."
+      );
+
+      return;
+    }
+
+
+    // ========================================================
+    // BUILD REPORT DATA
+    // ========================================================
+
+    const report = [];
+
+
+    studentsToExport.forEach(
+      student => {
+
+        const studentAssignments = [];
+
+
+        (assignments || []).forEach(
+          assignment => {
+
+            // Public assignments are not individual
+            // student homework records.
+            if (
+              assignment.is_public === true
+            ) {
+              return;
+            }
+
+
+            if (
+              !Array.isArray(
+                assignment.assigned_to
+              )
+            ) {
+              return;
+            }
+
+
+            if (
+              !assignment.assigned_to.includes(
+                student.id
+              )
+            ) {
+              return;
+            }
+
+
+            // ------------------------------------------------
+            // Find attempts for this student + assignment
+            // ------------------------------------------------
+
+            const studentAttempts =
+              (attempts || []).filter(
+                attempt =>
+                  Number(
+                    attempt.assignment_id
+                  ) ===
+                  Number(
+                    assignment.id
+                  ) &&
+                  String(
+                    attempt.student_id
+                  ) ===
+                  String(
+                    student.id
+                  )
+              );
+
+
+            const completed =
+              studentAttempts.some(
+                attempt =>
+                  attempt.is_correct === true
+              );
+
+
+            const dueDate =
+              assignment.due_at
+                ? new Date(
+                    assignment.due_at
+                  )
+                : null;
+
+
+            const now =
+              new Date();
+
+
+            let status;
+            let statusLabel;
+
+
+            if (completed) {
+
+              status = "completed";
+              statusLabel = "COMPLETED";
+
+            } else if (
+              dueDate &&
+              dueDate.getTime() <
+                now.getTime()
+            ) {
+
+              status = "overdue";
+              statusLabel = "OVERDUE";
+
+            } else {
+
+              status = "due";
+              statusLabel = "DUE";
+
+            }
+
+
+            studentAssignments.push({
+
+              title:
+                assignment.title ||
+                "Untitled Assignment",
+
+              dueAt:
+                assignment.due_at,
+
+              status,
+
+              statusLabel
+
+            });
+
+          }
+        );
+
+
+        report.push({
+
+          studentId:
+            student.id,
+
+          studentName:
+            student.username ||
+            "Student",
+
+          assignments:
+            studentAssignments
+
+        });
+
+      }
+    );
+
+
+    // ========================================================
+    // CREATE PDF
+    // ========================================================
+
+    const {
+      jsPDF
+    } = window.jspdf;
+
+
+    const doc =
+      new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+
+    const pageWidth =
+      doc.internal.pageSize.getWidth();
+
+    const pageHeight =
+      doc.internal.pageSize.getHeight();
+
+
+    const margin = 14;
+
+    let y = 18;
+
+
+    // ========================================================
+    // 🎨 PDF COLOR PALETTE
+    // ========================================================
+
+    const NAVY = [15, 23, 42];
+    const BLUE = [37, 99, 235];
+    const LIGHT_BLUE = [239, 246, 255];
+
+    const GOLD = [245, 158, 11];
+    const LIGHT_GOLD = [255, 251, 235];
+
+    const GREEN = [22, 163, 74];
+    const LIGHT_GREEN = [240, 253, 244];
+
+    const RED = [220, 38, 38];
+    const LIGHT_RED = [254, 242, 242];
+
+    const TEXT = [15, 23, 42];
+    const MUTED = [100, 116, 139];
+
+    const WHITE = [255, 255, 255];
+    const BORDER = [226, 232, 240];
+
+
+    // ========================================================
+    // 🎨 HEADER
+    // ========================================================
+
+    doc.setFillColor(
+      NAVY[0],
+      NAVY[1],
+      NAVY[2]
+    );
+
+    doc.rect(
+      0,
+      0,
+      pageWidth,
+      45,
+      "F"
+    );
+
+
+    // Blue accent
+    doc.setFillColor(
+      BLUE[0],
+      BLUE[1],
+      BLUE[2]
+    );
+
+    doc.rect(
+      0,
+      0,
+      5,
+      45,
+      "F"
+    );
+
+
+    // Gold bottom stripe
+    doc.setFillColor(
+      GOLD[0],
+      GOLD[1],
+      GOLD[2]
+    );
+
+    doc.rect(
+      0,
+      42,
+      pageWidth,
+      3,
+      "F"
+    );
+
+
+    // Academy name
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(20);
+
+    doc.setTextColor(
+      WHITE[0],
+      WHITE[1],
+      WHITE[2]
+    );
+
+    doc.text(
+      "OLYMPUS CHESS ACADEMY",
+      margin + 4,
+      17
+    );
+
+
+    // Report title
+    doc.setFontSize(14);
+
+    doc.setTextColor(
+      GOLD[0],
+      GOLD[1],
+      GOLD[2]
+    );
+
+    doc.text(
+      "Assignment Status Report",
+      margin + 4,
+      27
+    );
+
+
+    // Generated date
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(8.5);
+
+    doc.setTextColor(
+      203,
+      213,
+      225
+    );
+
+    doc.text(
+      `Generated: ${new Date().toLocaleString()}`,
+      margin + 4,
+      35
+    );
+
+
+    // Reset
+    doc.setTextColor(
+      TEXT[0],
+      TEXT[1],
+      TEXT[2]
+    );
+
+
+    y = 55;
+
+
+    // ========================================================
+    // 📋 REPORT SCOPE
+    // ========================================================
+
+    doc.setFillColor(
+      LIGHT_BLUE[0],
+      LIGHT_BLUE[1],
+      LIGHT_BLUE[2]
+    );
+
+    doc.roundedRect(
+      margin,
+      y - 5,
+      pageWidth - (margin * 2),
+      17,
+      3,
+      3,
+      "F"
+    );
+
+
+    doc.setFillColor(
+      BLUE[0],
+      BLUE[1],
+      BLUE[2]
+    );
+
+    doc.roundedRect(
+      margin,
+      y - 5,
+      4,
+      17,
+      2,
+      2,
+      "F"
+    );
+
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+      BLUE[0],
+      BLUE[1],
+      BLUE[2]
+    );
+
+    doc.text(
+      "REPORT SCOPE",
+      margin + 9,
+      y + 1
+    );
+
+
+    doc.setFontSize(11);
+
+    doc.setTextColor(
+      TEXT[0],
+      TEXT[1],
+      TEXT[2]
+    );
+
+    doc.text(
+      selectedStudent === "all"
+        ? "All Active Students"
+        : report[0].studentName,
+      margin + 9,
+      y + 8
+    );
+
+
+    y += 24;
+
+
+    // ========================================================
+    // 👨‍🎓 STUDENT REPORTS
+    // ========================================================
+
+    report.forEach(
+      studentReport => {
+
+        // ----------------------------------------------------
+        // PAGE BREAK
+        // ----------------------------------------------------
+
+        if (
+          y > pageHeight - 60
+        ) {
+
+          doc.addPage();
+
+          y = 20;
+
+        }
+
+
+        // ----------------------------------------------------
+        // STUDENT HEADER CARD
+        // ----------------------------------------------------
+
+        doc.setFillColor(
+          241,
+          245,
+          249
+        );
+
+        doc.roundedRect(
+          margin,
+          y - 5,
+          pageWidth - (margin * 2),
+          18,
+          3,
+          3,
+          "F"
+        );
+
+
+        // Blue accent
+        doc.setFillColor(
+          BLUE[0],
+          BLUE[1],
+          BLUE[2]
+        );
+
+        doc.roundedRect(
+          margin,
+          y - 5,
+          4,
+          18,
+          2,
+          2,
+          "F"
+        );
+
+
+        // Student name
+        doc.setFont(
+          "helvetica",
+          "bold"
+        );
+
+        doc.setFontSize(13);
+
+        doc.setTextColor(
+          TEXT[0],
+          TEXT[1],
+          TEXT[2]
+        );
+
+        doc.text(
+          studentReport.studentName,
+          margin + 9,
+          y + 5
+        );
+
+
+        // Assignment count
+        doc.setFont(
+          "helvetica",
+          "normal"
+        );
+
+        doc.setFontSize(8.5);
+
+        doc.setTextColor(
+          MUTED[0],
+          MUTED[1],
+          MUTED[2]
+        );
+
+        const assignmentCount =
+          studentReport.assignments.length;
+
+        doc.text(
+          `${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}`,
+          margin + 9,
+          y + 11
+        );
+
+
+        y += 23;
+
+
+        // ----------------------------------------------------
+        // NO ASSIGNMENTS
+        // ----------------------------------------------------
+
+        if (
+          studentReport.assignments.length === 0
+        ) {
+
+          doc.setFillColor(
+            LIGHT_BLUE[0],
+            LIGHT_BLUE[1],
+            LIGHT_BLUE[2]
+          );
+
+          doc.roundedRect(
+            margin,
+            y - 4,
+            pageWidth - (margin * 2),
+            12,
+            2,
+            2,
+            "F"
+          );
+
+
+          doc.setFont(
+            "helvetica",
+            "italic"
+          );
+
+          doc.setFontSize(9);
+
+          doc.setTextColor(
+            MUTED[0],
+            MUTED[1],
+            MUTED[2]
+          );
+
+          doc.text(
+            "No assignments currently assigned.",
+            margin + 5,
+            y + 4
+          );
+
+
+          y += 19;
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // TABLE HEADER
+        // ----------------------------------------------------
+
+        doc.setFillColor(
+          NAVY[0],
+          NAVY[1],
+          NAVY[2]
+        );
+
+        doc.roundedRect(
+          margin,
+          y - 4,
+          pageWidth - (margin * 2),
+          11,
+          2,
+          2,
+          "F"
+        );
+
+
+        doc.setFont(
+          "helvetica",
+          "bold"
+        );
+
+        doc.setFontSize(8.5);
+
+        doc.setTextColor(
+          WHITE[0],
+          WHITE[1],
+          WHITE[2]
+        );
+
+        doc.text(
+          "ASSIGNMENT",
+          margin + 4,
+          y + 3
+        );
+
+        doc.text(
+          "COMPLETE BY",
+          112,
+          y + 3
+        );
+
+        doc.text(
+          "STATUS",
+          165,
+          y + 3
+        );
+
+
+        y += 12;
+
+
+        // ----------------------------------------------------
+        // ASSIGNMENT ROWS
+        // ----------------------------------------------------
+
+        studentReport.assignments.forEach(
+          (assignment, index) => {
+
+            // Page break
+            if (
+              y > pageHeight - 28
+            ) {
+
+              doc.addPage();
+
+              y = 20;
+
+            }
+
+
+            const rowHeight = 15;
+
+
+            // Alternating row background
+            if (
+              index % 2 === 0
+            ) {
+
+              doc.setFillColor(
+                248,
+                250,
+                252
+              );
+
+            } else {
+
+              doc.setFillColor(
+                WHITE[0],
+                WHITE[1],
+                WHITE[2]
+              );
+
+            }
+
+
+            doc.roundedRect(
+              margin,
+              y - 4,
+              pageWidth - (margin * 2),
+              rowHeight,
+              1.5,
+              1.5,
+              "F"
+            );
+
+
+            // Bottom border
+            doc.setDrawColor(
+              BORDER[0],
+              BORDER[1],
+              BORDER[2]
+            );
+
+            doc.setLineWidth(
+              0.25
+            );
+
+            doc.line(
+              margin,
+              y + rowHeight - 4,
+              pageWidth - margin,
+              y + rowHeight - 4
+            );
+
+
+            // ------------------------------------------------
+            // Assignment title
+            // ------------------------------------------------
+
+            doc.setFont(
+              "helvetica",
+              "bold"
+            );
+
+            doc.setFontSize(8.5);
+
+            doc.setTextColor(
+              TEXT[0],
+              TEXT[1],
+              TEXT[2]
+            );
+
+
+            const titleLines =
+              doc.splitTextToSize(
+                assignment.title,
+                82
+              );
+
+
+            doc.text(
+              titleLines,
+              margin + 4,
+              y + 3
+            );
+
+
+            // ------------------------------------------------
+            // Complete By
+            // ------------------------------------------------
+
+            doc.setFont(
+              "helvetica",
+              "normal"
+            );
+
+            doc.setFontSize(7.5);
+
+            doc.setTextColor(
+              MUTED[0],
+              MUTED[1],
+              MUTED[2]
+            );
+
+
+            const dueText =
+              assignment.dueAt
+                ? new Date(
+                    assignment.dueAt
+                  ).toLocaleString()
+                : "No due date";
+
+
+            const dueLines =
+              doc.splitTextToSize(
+                dueText,
+                48
+              );
+
+
+            doc.text(
+              dueLines,
+              112,
+              y + 3
+            );
+
+
+            // ------------------------------------------------
+            // STATUS BADGE
+            // ------------------------------------------------
+
+            let statusColor;
+            let statusBackground;
+
+
+            if (
+              assignment.status ===
+              "completed"
+            ) {
+
+              statusColor =
+                GREEN;
+
+              statusBackground =
+                LIGHT_GREEN;
+
+            } else if (
+              assignment.status ===
+              "overdue"
+            ) {
+
+              statusColor =
+                RED;
+
+              statusBackground =
+                LIGHT_RED;
+
+            } else {
+
+              statusColor =
+                GOLD;
+
+              statusBackground =
+                LIGHT_GOLD;
+
+            }
+
+
+            doc.setFillColor(
+              statusBackground[0],
+              statusBackground[1],
+              statusBackground[2]
+            );
+
+
+            doc.roundedRect(
+              162,
+              y - 1,
+              29,
+              8,
+              2,
+              2,
+              "F"
+            );
+
+
+            doc.setFont(
+              "helvetica",
+              "bold"
+            );
+
+            doc.setFontSize(7);
+
+            doc.setTextColor(
+              statusColor[0],
+              statusColor[1],
+              statusColor[2]
+            );
+
+
+            doc.text(
+              assignment.statusLabel,
+              176.5,
+              y + 4,
+              {
+                align: "center"
+              }
+            );
+
+
+            y += rowHeight + 2;
+
+          }
+        );
+
+
+        y += 8;
+
+      }
+    );
+
+
+    // ========================================================
+    // 📊 REPORT SUMMARY
+    // ========================================================
+
+    let totalDue = 0;
+    let totalOverdue = 0;
+    let totalCompleted = 0;
+
+
+    report.forEach(
+      studentReport => {
+
+        studentReport.assignments.forEach(
+          assignment => {
+
+            if (
+              assignment.status ===
+              "due"
+            ) {
+
+              totalDue++;
+
+            }
+
+            if (
+              assignment.status ===
+              "overdue"
+            ) {
+
+              totalOverdue++;
+
+            }
+
+            if (
+              assignment.status ===
+              "completed"
+            ) {
+
+              totalCompleted++;
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+    // New page for summary if needed
+    if (
+      y > pageHeight - 55
+    ) {
+
+      doc.addPage();
+
+      y = 20;
+
+    }
+
+
+    // Summary title
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(12);
+
+    doc.setTextColor(
+      TEXT[0],
+      TEXT[1],
+      TEXT[2]
+    );
+
+    doc.text(
+      "Assignment Summary",
+      margin,
+      y
+    );
+
+    y += 7;
+
+
+    const summaryWidth =
+      (pageWidth - (margin * 2) - 8) / 3;
+
+
+    // --------------------------------------------------------
+    // DUE CARD
+    // --------------------------------------------------------
+
+    doc.setFillColor(
+      LIGHT_GOLD[0],
+      LIGHT_GOLD[1],
+      LIGHT_GOLD[2]
+    );
+
+    doc.roundedRect(
+      margin,
+      y,
+      summaryWidth,
+      20,
+      3,
+      3,
+      "F"
+    );
+
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+      GOLD[0],
+      GOLD[1],
+      GOLD[2]
+    );
+
+    doc.text(
+      "DUE",
+      margin + 6,
+      y + 7
+    );
+
+
+    doc.setFontSize(14);
+
+    doc.text(
+      String(totalDue),
+      margin + 6,
+      y + 15
+    );
+
+
+    // --------------------------------------------------------
+    // OVERDUE CARD
+    // --------------------------------------------------------
+
+    const overdueX =
+      margin +
+      summaryWidth +
+      4;
+
+
+    doc.setFillColor(
+      LIGHT_RED[0],
+      LIGHT_RED[1],
+      LIGHT_RED[2]
+    );
+
+    doc.roundedRect(
+      overdueX,
+      y,
+      summaryWidth,
+      20,
+      3,
+      3,
+      "F"
+    );
+
+
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+      RED[0],
+      RED[1],
+      RED[2]
+    );
+
+    doc.text(
+      "OVERDUE",
+      overdueX + 6,
+      y + 7
+    );
+
+
+    doc.setFontSize(14);
+
+    doc.text(
+      String(totalOverdue),
+      overdueX + 6,
+      y + 15
+    );
+
+
+    // --------------------------------------------------------
+    // COMPLETED CARD
+    // --------------------------------------------------------
+
+    const completedX =
+      overdueX +
+      summaryWidth +
+      4;
+
+
+    doc.setFillColor(
+      LIGHT_GREEN[0],
+      LIGHT_GREEN[1],
+      LIGHT_GREEN[2]
+    );
+
+    doc.roundedRect(
+      completedX,
+      y,
+      summaryWidth,
+      20,
+      3,
+      3,
+      "F"
+    );
+
+
+    doc.setFontSize(8);
+
+    doc.setTextColor(
+      GREEN[0],
+      GREEN[1],
+      GREEN[2]
+    );
+
+    doc.text(
+      "COMPLETED",
+      completedX + 6,
+      y + 7
+    );
+
+
+    doc.setFontSize(14);
+
+    doc.text(
+      String(totalCompleted),
+      completedX + 6,
+      y + 15
+    );
+
+
+    // ========================================================
+    // FOOTER ON EVERY PAGE
+    // ========================================================
+
+    const totalPages =
+      doc.internal.getNumberOfPages();
+
+
+    for (
+      let page = 1;
+      page <= totalPages;
+      page++
+    ) {
+
+      doc.setPage(page);
+
+
+      // Footer line
+      doc.setDrawColor(
+        BORDER[0],
+        BORDER[1],
+        BORDER[2]
+      );
+
+      doc.setLineWidth(
+        0.3
+      );
+
+      doc.line(
+        margin,
+        pageHeight - 13,
+        pageWidth - margin,
+        pageHeight - 13
+      );
+
+
+      doc.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      doc.setFontSize(7.5);
+
+      doc.setTextColor(
+        MUTED[0],
+        MUTED[1],
+        MUTED[2]
+      );
+
+
+      doc.text(
+        "Olympus Chess Academy",
+        margin,
+        pageHeight - 7
+      );
+
+
+      doc.text(
+        `Assignment Status • Page ${page} of ${totalPages}`,
+        pageWidth - margin,
+        pageHeight - 7,
+        {
+          align: "right"
+        }
+      );
+
+    }
+
+
+    // ========================================================
+    // FILE NAME
+    // ========================================================
+
+    const safeName =
+      selectedStudent === "all"
+        ? "All_Students_Assignment_Status"
+        : (
+            report[0]?.studentName ||
+            "Student"
+          )
+            .replace(
+              /[^a-z0-9_\-]+/gi,
+              "_"
+            );
+
+
+    doc.save(
+      `${safeName}_Assignment_Status.pdf`
+    );
+
+
+    console.log(
+      "📄 Assignment Status PDF exported:",
+      safeName
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Assignment Status PDF export failed:",
+      error
+    );
+
+    alert(
+      "Unable to export Assignment Status PDF. Please try again."
+    );
+
+  }
+
+};
+// ============================================================
+// 👨‍🎓 ASSIGNMENT STATUS — ALL ACTIVE STUDENTS
+// Shows every active student, even if they have zero assignments.
+// ============================================================
+
+// ============================================================
+// 👨‍🎓 ASSIGNMENT STATUS — ALL ACTIVE STUDENTS
+// Shows every active student, even if they have zero assignments.
+// Uses the same profiles pipeline as the existing assignment UI.
+// ============================================================
+
+async function populateAssignmentStatusStudentFilter() {
+
+  const select =
+    document.getElementById(
+      "assignmentStatusStudentFilter"
+    );
+
+  if (!select) return;
+
+  const currentValue =
+    select.value || "all";
+
+  try {
+
+    // ==========================================================
+    // LOAD ALL ACTIVE STUDENTS
+    // ==========================================================
+
+    const { data: students, error } =
+      await supabase
+        .from("profiles")
+        .select("id, username")
+        .eq("role", "student")
+        .eq("active", true)
+        .order("username", {
+          ascending: true
+        });
+
+    if (error) {
+      throw error;
+    }
+
+
+    // ==========================================================
+    // REBUILD DROPDOWN
+    // ==========================================================
+
+    select.innerHTML = `
+      <option value="all">
+        👨‍🎓 All Students
+      </option>
+    `;
+
+
+    (students || []).forEach(student => {
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        String(student.id);
+
+      option.textContent =
+        student.username ||
+        "Student";
+
+      select.appendChild(option);
+
+    });
+
+
+    // ==========================================================
+    // PRESERVE PREVIOUS SELECTION
+    // ==========================================================
+
+    const stillExists =
+      (students || []).some(
+        student =>
+          String(student.id) ===
+          String(currentValue)
+      );
+
+    if (
+      currentValue !== "all" &&
+      stillExists
+    ) {
+
+      select.value =
+        currentValue;
+
+    } else {
+
+      select.value =
+        "all";
+    }
+
+
+    console.log(
+      "👨‍🎓 Assignment Status students loaded:",
+      students?.length || 0
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Failed to load active students for assignment status:",
+      error
+    );
+
+  }
+}
 
 function confirmDeleteAssignment(assignmentId) {
   if (currentProfile.role !== "admin") return;
@@ -59264,7 +61464,7 @@ function startAttemptsBadgeRealtime() {
 
       <p><strong>Status:</strong> ${attempt.is_correct ? '✅ Correct' : '❌ Needs Review'}</p>
 
-      <p><strong>Score:</strong> ${attempt.score || 'Not graded'}</p>
+     
 
       ${
         attempt.pgn
