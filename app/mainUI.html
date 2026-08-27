@@ -66092,45 +66092,227 @@ if (!isStillAssigned) {
 }
 
 // ============================================================
-// 🔔 REALTIME — NEW ASSIGNMENT SUBMISSIONS
+// 🔔 REALTIME — ADMIN CHECK HW / ATTEMPTS
 // ============================================================
+//
+// Handles:
+//
+// • New student submissions
+// • Deleted attempts
+// • Deleted assignments
+//
+// This keeps the Admin Check HW tab synchronized
+// without requiring a manual page refresh.
+//
+// ============================================================
+
 let attemptsBadgeChannel = null;
 
+
 function startAttemptsBadgeRealtime() {
-  // Admin only
-  if (currentProfile?.role !== "admin") return;
 
-  // Prevent duplicate realtime subscriptions
-  if (attemptsBadgeChannel) return;
+  // ==========================================================
+  // ADMIN ONLY
+  // ==========================================================
 
-  attemptsBadgeChannel = supabase
-    .channel("olympus-admin-attempts-badge")
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "attempts"
-      },
-      async (payload) => {
-        console.log("🔔 NEW ASSIGNMENT SUBMISSION:", payload.new);
+  if (
+    currentProfile?.role !== "admin"
+  ) {
 
-        
+    return;
 
-        // Recalculate the actual number of pending submissions.
-        await updateAttemptsTabBadge();
-          // Refresh the Check Assignments cards/list
-  await loadAttempts();
-  
-    // 📊 Refresh Assignment Status immediately
-        await loadAssignmentStatus();
+  }
 
 
-      }
-    )
-    .subscribe((status) => {
-      console.log("🔔 Attempts badge realtime:", status);
-    });
+  // ==========================================================
+  // PREVENT DUPLICATE REALTIME SUBSCRIPTIONS
+  // ==========================================================
+
+  if (
+    attemptsBadgeChannel
+  ) {
+
+    return;
+
+  }
+
+
+  attemptsBadgeChannel =
+    supabase
+
+      .channel(
+        "olympus-admin-attempts-badge"
+      )
+
+
+      // ========================================================
+      // 🆕 NEW ASSIGNMENT SUBMISSION
+      // ========================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "attempts"
+        },
+        async payload => {
+
+          console.log(
+            "🔔 NEW ASSIGNMENT SUBMISSION:",
+            payload.new
+          );
+
+
+          // ----------------------------------------------------
+          // Update Check HW badge
+          // ----------------------------------------------------
+
+          await updateAttemptsTabBadge();
+
+
+          // ----------------------------------------------------
+          // Refresh Check HW cards
+          // ----------------------------------------------------
+
+          await loadAttempts();
+
+
+          // ----------------------------------------------------
+          // Refresh Assignment Status
+          // ----------------------------------------------------
+
+          await loadAssignmentStatus();
+
+        }
+      )
+
+
+      // ========================================================
+      // 🗑 DELETED ATTEMPT
+      // ========================================================
+      //
+      // This catches an attempt being deleted directly.
+      //
+      // It also helps when attempts disappear because of
+      // ON DELETE CASCADE after an assignment is deleted.
+      //
+      // ========================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "attempts"
+        },
+        async payload => {
+
+          console.log(
+            "🗑 ATTEMPT DELETED — refreshing Check HW:",
+            payload.old
+          );
+
+
+          // ----------------------------------------------------
+          // Update Check HW badge
+          // ----------------------------------------------------
+
+          await updateAttemptsTabBadge();
+
+
+          // ----------------------------------------------------
+          // Refresh Check HW cards
+          // ----------------------------------------------------
+
+          await loadAttempts();
+
+
+          // ----------------------------------------------------
+          // Refresh Assignment Status
+          // ----------------------------------------------------
+
+          await loadAssignmentStatus();
+
+        }
+      )
+
+
+      // ========================================================
+      // 🗑 DELETED ASSIGNMENT
+      // ========================================================
+      //
+      // This is the important safety listener.
+      //
+      // When an assignment is deleted:
+      //
+      // assignments
+      //      ↓
+      // attempts.assignment_id
+      //      ↓
+      // ON DELETE CASCADE
+      //      ↓
+      // attempts disappear
+      //
+      // We directly listen to assignments DELETE as well,
+      // so Check HW refreshes immediately.
+      //
+      // ========================================================
+
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "assignments"
+        },
+        async payload => {
+
+          console.log(
+            "🗑 ASSIGNMENT DELETED — refreshing Check HW:",
+            payload.old
+          );
+
+
+          // ----------------------------------------------------
+          // Update Check HW badge
+          // ----------------------------------------------------
+
+          await updateAttemptsTabBadge();
+
+
+          // ----------------------------------------------------
+          // Refresh Check HW cards
+          // ----------------------------------------------------
+
+          await loadAttempts();
+
+
+          // ----------------------------------------------------
+          // Refresh Assignment Status
+          // ----------------------------------------------------
+
+          await loadAssignmentStatus();
+
+        }
+      )
+
+
+      // ========================================================
+      // 📡 SUBSCRIBE
+      // ========================================================
+
+      .subscribe(
+        status => {
+
+          console.log(
+            "🔔 Admin Check HW realtime:",
+            status
+          );
+
+        }
+      );
+
 }
 
 
