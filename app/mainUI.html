@@ -37768,8 +37768,9 @@ Submit solution</button>
       <option value="due">🟡 Due</option>
       <option value="overdue">🔴 Overdue</option>
       <option value="reattempt">🟠 Re-attempt</option>
-      
       <option value="completed">🟢 Completed</option>
+        <option value="notgraded">🚫 Not Graded</option>
+          <option value="graded">🏅 Graded</option>
     </select>
 
     <input
@@ -48304,21 +48305,77 @@ totalPuzzles:
           // STATUS
           // --------------------------------------------------
 
-      if (
+     if (
   selectedFilter !== "all"
 ) {
 
-if (
-  selectedFilter === "reattempt"
-) {
+  // ==================================================
+  // 🔄 RE-ATTEMPT FILTER
+  // ==================================================
 
   if (
-    (row.reattemptCount || 0) <= 0
+    selectedFilter === "reattempt"
   ) {
+
+    if (
+      (row.reattemptCount || 0) <= 0
+    ) {
+      return false;
+    }
+
+  }
+
+  // ==================================================
+  // 📝 NOT GRADED FILTER
+  //
+  // Shows assignments where NO grade has been
+  // given to any submission for that student.
+  // ==================================================
+
+else if (
+  selectedFilter === "notgraded"
+) {
+
+  // Must have a submission
+  if (!row.submitted) {
     return false;
   }
 
-} else if (
+  // Must NOT have any grade
+  if (row.gradeLetter) {
+    return false;
+  }
+
+}
+
+// ==================================================
+// 🏅 GRADED FILTER
+//
+// Shows only assignments that have been submitted
+// AND have received a grade.
+// ==================================================
+
+else if (
+  selectedFilter === "graded"
+) {
+
+  // Must have a submission
+  if (!row.submitted) {
+    return false;
+  }
+
+  // Must have a grade
+  if (!row.gradeLetter) {
+    return false;
+  }
+
+}
+
+  // ==================================================
+  // EXISTING STATUS FILTERS
+  // ==================================================
+
+  else if (
     row.status !== selectedFilter
   ) {
 
@@ -48434,6 +48491,33 @@ const summaryReattemptCount =
           "overdue"
       ).length;
 
+      // ========================================================
+// 📝 NOT GRADED COUNT
+//
+// Submitted assignments that have NOT received a grade.
+// ========================================================
+
+const summaryNotGradedCount =
+  summaryRows.filter(
+    row =>
+      row.submitted === true &&
+      !row.gradeLetter
+  ).length;
+
+
+// ========================================================
+// 🏅 GRADED COUNT
+//
+// Submitted assignments that HAVE received a grade.
+// ========================================================
+
+const summaryGradedCount =
+  summaryRows.filter(
+    row =>
+      row.submitted === true &&
+      !!row.gradeLetter
+  ).length;
+
 
     // ========================================================
     // SUMMARY STUDENT NAME
@@ -48501,7 +48585,8 @@ const summaryReattemptCount =
 
             <div
               style="
-                flex:1 1 150px;
+                flex:1 1 0;
+min-width:0;
                 padding:12px 15px;
                 border-radius:10px;
                 background:#171a2e;
@@ -48520,7 +48605,7 @@ const summaryReattemptCount =
                   margin-bottom:4px;
                 "
               >
-                🟡 ${
+                 ${
                   selectedStudent === "all"
                     ? "All Due"
                     : "Due"
@@ -48544,7 +48629,8 @@ const summaryReattemptCount =
 
             <div
               style="
-                flex:1 1 150px;
+               flex:1 1 0;
+min-width:0;
                 padding:12px 15px;
                 border-radius:10px;
                 background:#171a2e;
@@ -48563,7 +48649,7 @@ const summaryReattemptCount =
                   margin-bottom:4px;
                 "
               >
-                🔴 ${
+                 ${
                   selectedStudent === "all"
                     ? "All Overdue"
                     : "Overdue"
@@ -48587,7 +48673,8 @@ const summaryReattemptCount =
 
             <div
               style="
-                flex:1 1 150px;
+               flex:1 1 0;
+min-width:0;
                 padding:12px 15px;
                 border-radius:10px;
                 background:#171a2e;
@@ -48606,7 +48693,7 @@ const summaryReattemptCount =
                   margin-bottom:4px;
                 "
               >
-                🟠 ${
+                 ${
                   selectedStudent === "all"
                    ? "All Re-attempts"
 : "Re-attempt"
@@ -48625,12 +48712,99 @@ const summaryReattemptCount =
 
             </div>
 
+            <!-- NOT GRADED -->
+
+<div
+  style="
+   flex:1 1 0;
+min-width:0;
+    padding:12px 15px;
+    border-radius:10px;
+    background:#171a2e;
+    border:1px solid #f754f5;
+    box-shadow:
+      0 0 0 1px rgba(234,179,8,0.08),
+      0 4px 12px rgba(0,0,0,0.25);
+  "
+>
+
+  <div
+    style="
+      font-size:12px;
+      font-weight:700;
+      color:#f754f5;
+      margin-bottom:4px;
+    "
+  >
+     ${
+      selectedStudent === "all"
+        ? "All Not Graded"
+        : "Not Graded"
+    }
+  </div>
+
+  <div
+    style="
+      font-size:21px;
+      font-weight:800;
+      color:#f754f5;
+    "
+  >
+    ${summaryNotGradedCount}
+  </div>
+
+</div>
+
+<!-- GRADED -->
+
+<div
+  style="
+   flex:1 1 0;
+min-width:0;
+    padding:12px 15px;
+    border-radius:10px;
+    background:#171a2e;
+    border:1px solid #56cef0;
+    box-shadow:
+      0 0 0 1px rgba(34,197,94,0.08),
+      0 4px 12px rgba(0,0,0,0.25);
+  "
+>
+
+  <div
+    style="
+      font-size:12px;
+      font-weight:700;
+      color:#56cef0;
+      margin-bottom:4px;
+    "
+  >
+     ${
+      selectedStudent === "all"
+        ? "All Graded"
+        : "Graded"
+    }
+  </div>
+
+  <div
+    style="
+      font-size:21px;
+      font-weight:800;
+      color:#56cef0;
+    "
+  >
+    ${summaryGradedCount}
+  </div>
+
+</div>
+
 
             <!-- COMPLETED -->
 
             <div
               style="
-                flex:1 1 150px;
+               flex:1 1 0;
+min-width:0;
                 padding:12px 15px;
                 border-radius:10px;
                 background:#171a2e;
@@ -48649,7 +48823,7 @@ const summaryReattemptCount =
                   margin-bottom:4px;
                 "
               >
-                🟢 ${
+                 ${
                   selectedStudent === "all"
                     ? "All Completed"
                     : "Completed"
