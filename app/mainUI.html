@@ -37767,6 +37767,7 @@ Submit solution</button>
       <option value="all">All Status</option>
       <option value="due">🟡 Due</option>
       <option value="overdue">🔴 Overdue</option>
+      <option value="reattempt">🟠 Re-attempt</option>
       
       <option value="completed">🟢 Completed</option>
     </select>
@@ -47982,6 +47983,8 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
                 ? studentAttempts[0]
                 : null;
 
+                
+
 
             // ==================================================
             // HAS ANY SUBMISSION?
@@ -48000,6 +48003,63 @@ window.loadAssignmentStatus = async function loadAssignmentStatus() {
 
             const completed =
               latestAttempt?.is_correct === true;
+
+              // ==================================================
+// ==================================================
+// 🔄 RE-ATTEMPT COUNT
+//
+// The first successful completion is NOT a
+// re-attempt.
+//
+// Every submission AFTER that first successful
+// completion counts as one re-attempt.
+//
+// Example:
+//
+// Fail → Fail → Complete
+// = 0 Re-attempts
+//
+// Fail → Fail → Complete → Submit → Submit
+// = 2 Re-attempts
+// ==================================================
+
+const chronologicalAttempts =
+  [...studentAttempts].sort(
+    (a, b) =>
+      new Date(
+        a.submitted_at || 0
+      ).getTime() -
+      new Date(
+        b.submitted_at || 0
+      ).getTime()
+  );
+
+
+// ==================================================
+// FIND FIRST SUCCESSFUL COMPLETION
+// ==================================================
+
+const firstCompletedIndex =
+  chronologicalAttempts.findIndex(
+    attempt =>
+      attempt.is_correct === true &&
+      attempt.submitted_at
+  );
+
+
+// ==================================================
+// CALCULATE RE-ATTEMPT COUNT
+// ==================================================
+
+const reattemptCount =
+  firstCompletedIndex !== -1
+    ? Math.max(
+        0,
+        chronologicalAttempts.length -
+          firstCompletedIndex -
+          1
+      )
+    : 0;
 
 
             // ==================================================
@@ -48081,21 +48141,22 @@ const puzzleStats =
 
             }
 
-            else if (
-              submitted
-            ) {
+           else if (
+  submitted
+) {
 
-              // New / latest re-attempt
-              // that has been submitted but
-              // is not currently correct.
+  // New / latest submission that has
+  // not completed the assignment.
 
-              status =
-                "submitted";
+  status =
+    "submitted";
 
-              statusLabel =
-                "🟠 Submitted";
+  statusLabel =
+    isReattempt
+      ? "🟠 Re-attempt"
+      : "🟠 Submitted";
 
-            }
+}
 
             else if (
               dueDate &&
@@ -48139,6 +48200,8 @@ const puzzleStats =
 
               assignmentId:
                 assignment.id,
+
+                reattemptCount,
 
               assignmentTitle:
                 assignment.title ||
@@ -48241,14 +48304,29 @@ totalPuzzles:
           // STATUS
           // --------------------------------------------------
 
-          if (
-            selectedFilter !== "all" &&
-            row.status !== selectedFilter
-          ) {
+      if (
+  selectedFilter !== "all"
+) {
 
-            return false;
+if (
+  selectedFilter === "reattempt"
+) {
 
-          }
+  if (
+    (row.reattemptCount || 0) <= 0
+  ) {
+    return false;
+  }
+
+} else if (
+    row.status !== selectedFilter
+  ) {
+
+    return false;
+
+  }
+
+}
 
 
           // --------------------------------------------------
@@ -48332,12 +48410,13 @@ totalPuzzles:
       ).length;
 
 
-    const summarySubmittedCount =
-      summaryRows.filter(
-        row =>
-          row.status ===
-          "submitted"
-      ).length;
+const summaryReattemptCount =
+  summaryRows.reduce(
+    (total, row) =>
+      total +
+      (row.reattemptCount || 0),
+    0
+  );
 
 
     const summaryDueCount =
@@ -48529,8 +48608,8 @@ totalPuzzles:
               >
                 🟠 ${
                   selectedStudent === "all"
-                    ? "All Submitted"
-                    : "Submitted"
+                   ? "All Re-attempts"
+: "Re-attempt"
                 }
               </div>
 
@@ -48541,7 +48620,7 @@ totalPuzzles:
                   color:#fdba74;
                 "
               >
-                ${summarySubmittedCount}
+               ${summaryReattemptCount}
               </div>
 
             </div>
@@ -48700,6 +48779,16 @@ totalPuzzles:
       <p>
         <strong>🎯 Correct Puzzles:</strong>
         ${row.correctPuzzles}/${row.totalPuzzles}
+      </p>
+    `
+    : ""
+}
+    ${
+  row.reattemptCount > 0
+    ? `
+      <p>
+        <strong>🟠 Re-attempts:</strong>
+        ${row.reattemptCount}
       </p>
     `
     : ""
