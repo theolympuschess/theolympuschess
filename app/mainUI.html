@@ -37867,13 +37867,13 @@ Submit solution</button>
         "
       >
 
-        <button
-          type="button"
-          class="btn-secondary"
-          onclick="loadAssignmentStatus()"
-        >
-          🔄 Refresh Status
-        </button>
+    <button
+  type="button"
+  class="btn-secondary"
+  onclick="refreshAssignmentStatus()"
+>
+  🔄 Refresh Status
+</button>
 
 
         <button
@@ -48542,1743 +48542,100 @@ studentAssignmentStatusRefreshTimer =
     60000
   );
 
-// ============================================================
-// 📋 ADMIN — ASSIGNMENT STATUS
-// Latest attempt controls the current status.
+ // ============================================================
+// 📋 ADMIN — ASSIGNMENT STATUS LOAD CONTROL
+// SINGLE SOURCE OF TRUTH
+//
+// Prevents:
+// • older async requests overwriting newer filters
+// • student selection becoming stale
+// • grade selection becoming stale
+// • status cards and dropdown getting out of sync
+//
 // No database/schema changes.
 // ============================================================
 
-window.loadAssignmentStatus = async function loadAssignmentStatus() {
-
-  const listEl =
-    document.getElementById(
-      "assignmentStatusList"
-    );
-
-  const summaryEl =
-    document.getElementById(
-      "assignmentStatusSummary"
-    );
-
-  if (!listEl) {
-    return;
-  }
+let assignmentStatusLoadRequest = 0;
 
 
-  // ========================================================
-  // ADMIN ONLY
-  // ========================================================
+// ============================================================
+// 📋 ADMIN — CENTRAL FILTER STATE
+// ============================================================
+//
+// ALL Assignment Status filtering uses this state.
+//
+// status:
+//   all / due / overdue / reattempt / completed
+//   notgraded / graded
+//
+// student:
+//   all / specific student id
+//
+// grade:
+//   all / AA / A+ / A / B+ / B / C+ / C
+//
+// search:
+//   current search text
+// ============================================================
 
-  if (
-    currentProfile?.role !== "admin"
+window.adminAssignmentStatusState =
+  window.adminAssignmentStatusState || {
+
+    status: "all",
+
+    student: "all",
+
+    grade: "all",
+
+    search: ""
+
+  };
+
+
+// ============================================================
+// 📋 ADMIN — LOAD ASSIGNMENT STATUS
+// ============================================================
+
+window.loadAssignmentStatus =
+  async function loadAssignmentStatus(
+    forceRefresh = false
   ) {
 
-    listEl.innerHTML =
-      '<div class="card"><p>Admin access only.</p></div>';
-
-    return;
-  }
-
-
-  listEl.innerHTML =
-    '<div class="loading">Loading assignment status...</div>';
-
-
-  try {
-
     // ========================================================
-    // LOAD ASSIGNMENTS
+    // UNIQUE REQUEST ID
     // ========================================================
 
-    const {
-      data: assignments,
-      error: assignmentError
-    } = await supabase
+    const thisLoadRequest =
+      ++assignmentStatusLoadRequest;
 
-      .from("assignments")
 
-      .select("*")
-
-      .order(
-        "created_at",
-        {
-          ascending: false
-        }
-      );
-
-
-    if (assignmentError) {
-      throw assignmentError;
-    }
-
-
-    // ========================================================
-    // LOAD ALL ATTEMPTS
-    // ========================================================
-
-    const {
-      data: attempts,
-      error: attemptsError
-    } = await supabase
-
-      .from("attempts")
-
-      .select("*");
-
-
-    if (attemptsError) {
-      throw attemptsError;
-    }
-
-
-    // ========================================================
-    // RESOLVE STUDENT NAMES
-    // ========================================================
-
-    const studentIds = [];
-
-
-    (assignments || []).forEach(
-      assignment => {
-
-        if (
-          Array.isArray(
-            assignment.assigned_to
-          )
-        ) {
-
-          assignment.assigned_to.forEach(
-            id => {
-
-              if (
-                id &&
-                !studentIds.includes(id)
-              ) {
-
-                studentIds.push(id);
-
-              }
-
-            }
-          );
-
-        }
-
-      }
-    );
-
-
-    let studentNameMap = {};
-
-
-    if (
-      studentIds.length > 0
-    ) {
-
-      const nameAssignments =
-        (assignments || []).filter(
-          assignment =>
-            Array.isArray(
-              assignment.assigned_to
-            )
-        );
-
-
-      studentNameMap =
-        await resolveAssignedStudentNames(
-          nameAssignments
-        );
-
-    }
-
-
-    // ========================================================
-    // BUILD STUDENT × ASSIGNMENT STATUS ROWS
-    // ========================================================
-
-    const rows = [];
-
-
-    (assignments || []).forEach(
-      assignment => {
-
-        // ----------------------------------------------------
-        // Ignore public assignments
-        // ----------------------------------------------------
-
-        if (
-          assignment.is_public === true
-        ) {
-
-          return;
-
-        }
-
-
-        if (
-          !Array.isArray(
-            assignment.assigned_to
-          )
-        ) {
-
-          return;
-
-        }
-
-
-        assignment.assigned_to.forEach(
-          studentId => {
-
-            if (!studentId) {
-              return;
-            }
-
-
-            // ==================================================
-            // FIND ALL ATTEMPTS FOR THIS ASSIGNMENT + STUDENT
-            // ==================================================
-
-            const studentAttempts =
-              (attempts || [])
-                .filter(
-                  attempt =>
-                    Number(
-                      attempt.assignment_id
-                    ) ===
-                    Number(
-                      assignment.id
-                    )
-
-                    &&
-
-                    String(
-                      attempt.student_id
-                    ) ===
-                    String(
-                      studentId
-                    )
-                )
-                .sort(
-                  (a, b) =>
-                    new Date(
-                      b.submitted_at
-                    ).getTime() -
-                    new Date(
-                      a.submitted_at
-                    ).getTime()
-                );
-
-
-            // ==================================================
-            // LATEST ATTEMPT
-            //
-            // THIS is the important fix.
-            //
-            // A re-attempt becomes the current submission.
-            // ==================================================
-
-            const latestAttempt =
-              studentAttempts.length > 0
-                ? studentAttempts[0]
-                : null;
-
-                
-
-
-            // ==================================================
-            // HAS ANY SUBMISSION?
-            // ==================================================
-
-            const submitted =
-              latestAttempt !== null;
-
-
-            // ==================================================
-            // CURRENT COMPLETION STATUS
-            //
-            // Only the LATEST attempt decides whether the
-            // assignment is currently completed.
-            // ==================================================
-
-            const completed =
-              latestAttempt?.is_correct === true;
-
-              // ==================================================
-// ==================================================
-// 🔄 RE-ATTEMPT COUNT
-//
-// The first successful completion is NOT a
-// re-attempt.
-//
-// Every submission AFTER that first successful
-// completion counts as one re-attempt.
-//
-// Example:
-//
-// Fail → Fail → Complete
-// = 0 Re-attempts
-//
-// Fail → Fail → Complete → Submit → Submit
-// = 2 Re-attempts
-// ==================================================
-
-const chronologicalAttempts =
-  [...studentAttempts].sort(
-    (a, b) =>
-      new Date(
-        a.submitted_at || 0
-      ).getTime() -
-      new Date(
-        b.submitted_at || 0
-      ).getTime()
-  );
-
-
-// ==================================================
-// FIND FIRST SUCCESSFUL COMPLETION
-// ==================================================
-
-const firstCompletedIndex =
-  chronologicalAttempts.findIndex(
-    attempt =>
-      attempt.is_correct === true &&
-      attempt.submitted_at
-  );
-
-
-// ==================================================
-// CALCULATE RE-ATTEMPT COUNT
-// ==================================================
-
-const reattemptCount =
-  firstCompletedIndex !== -1
-    ? Math.max(
-        0,
-        chronologicalAttempts.length -
-          firstCompletedIndex -
-          1
-      )
-    : 0;
-
-
-            // ==================================================
-            // LATEST SUBMISSION DATE
-            // ==================================================
-
-            const submittedAt =
-              latestAttempt?.submitted_at ||
-              null;
-
-
-            // ==================================================
-            // LATEST GRADE
-            //
-            // IMPORTANT:
-            // If the student re-attempts after being graded,
-            // the new attempt has no grade yet.
-            //
-            // Therefore we show:
-            // ⏳ Not Graded Yet
-            //
-            // instead of incorrectly showing the old grade.
-            // ==================================================
-
-            const gradeLetter =
-              latestAttempt?.grade_letter ||
-              null;
-
-              // ==================================================
-// 🎯 LATEST ATTEMPT — CORRECT PUZZLE STATS
-// ==================================================
-
-const puzzleStats =
-  getCorrectPuzzleStats(
-    latestAttempt?.bulk_answers || []
-  );
-
-
-            // ==================================================
-            // DUE DATE
-            // ==================================================
-
-            let dueDate = null;
-
-
-            if (
-              assignment.due_at
-            ) {
-
-              dueDate =
-                new Date(
-                  assignment.due_at
-                );
-
-            }
-
-
-            const now =
-              new Date();
-
-
-            // ==================================================
-            // DETERMINE CURRENT STATUS
-            // ==================================================
-
-            let status;
-            let statusLabel;
-
-
-            if (
-              completed
-            ) {
-
-              status =
-                "completed";
-
-              statusLabel =
-                "🟢 Completed";
-
-            }
-
-           else if (
-  submitted
-) {
-
-  // New / latest submission that has
-  // not completed the assignment.
-
-  status =
-    "submitted";
-
-  statusLabel =
-    isReattempt
-      ? "🟠 Re-attempt"
-      : "🟠 Submitted";
-
-}
-
-            else if (
-              dueDate &&
-              dueDate.getTime() <
-                now.getTime()
-            ) {
-
-              status =
-                "overdue";
-
-              statusLabel =
-                "🔴 Overdue";
-
-            }
-
-            else {
-
-              status =
-                "due";
-
-              statusLabel =
-                "🟡 Due";
-
-            }
-
-
-            // ==================================================
-            // STUDENT NAME
-            // ==================================================
-
-            const studentName =
-              studentNameMap[studentId] ||
-              "Student";
-
-
-            // ==================================================
-            // STORE ROW
-            // ==================================================
-
-            rows.push({
-
-              assignmentId:
-                assignment.id,
-
-                reattemptCount,
-
-              assignmentTitle:
-                assignment.title ||
-                "Untitled Assignment",
-
-              studentId,
-
-              studentName,
-
-              dueAt:
-                assignment.due_at,
-
-              submittedAt,
-
-              gradeLetter,
-
-              status,
-
-              statusLabel,
-
-              submitted,
-
-              completed,
-
-              correctPuzzles:
-  puzzleStats.correct,
-
-totalPuzzles:
-  puzzleStats.total,
-
-              // Useful for future logic
-              latestAttemptId:
-                latestAttempt?.id ||
-                null
-
-            });
-
-          }
-        );
-
-      }
-    );
-
-
-    // ========================================================
-    // FILTER ELEMENTS
-    // ========================================================
-
-    const filterEl =
+    const listEl =
       document.getElementById(
-        "assignmentStatusFilter"
+        "assignmentStatusList"
       );
 
-    const searchEl =
+
+    const summaryEl =
       document.getElementById(
-        "assignmentStatusSearch"
-      );
-
-    const studentFilterEl =
-      document.getElementById(
-        "assignmentStatusStudentFilter"
+        "assignmentStatusSummary"
       );
 
 
-    // ========================================================
-    // POPULATE STUDENT FILTER
-    // ========================================================
-
-    await populateAssignmentStatusStudentFilter();
-
-
- const selectedFilter =
-  filterEl?.value ||
-  "all";
-
-const selectedStudent =
-  studentFilterEl?.value ||
-  "all";
-
-
-// ========================================================
-// 🏅 ADMIN — GRADE FILTER
-// ========================================================
-//
-// Frontend-only filter.
-// Does not change backend/schema.
-//
-// all = all graded assignments
-// AA  = AA assignments
-// A+  = A+ assignments
-// A   = A assignments
-// B+  = B+ assignments
-// B   = B assignments
-// C+  = C+ assignments
-// C   = C assignments
-// ========================================================
-
-const selectedGrade =
-  window.adminAssignmentGradeFilter ||
-  "all";
-
-
-    const searchText =
-      (
-        searchEl?.value ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    // ========================================================
-    // APPLY FILTERS
-    // ========================================================
-
-    const filteredRows =
-      rows.filter(
-        row => {
-
-          // --------------------------------------------------
-          // STATUS
-          // --------------------------------------------------
-
-     if (
-  selectedFilter !== "all"
-) {
-
-  // ==================================================
-  // 🔄 RE-ATTEMPT FILTER
-  // ==================================================
-
-  if (
-    selectedFilter === "reattempt"
-  ) {
-
-    if (
-      (row.reattemptCount || 0) <= 0
-    ) {
-      return false;
-    }
-
-  }
-
-  // ==================================================
-  // 📝 NOT GRADED FILTER
-  //
-  // Shows assignments where NO grade has been
-  // given to any submission for that student.
-  // ==================================================
-
-else if (
-  selectedFilter === "notgraded"
-) {
-
-  // Must have a submission
-  if (!row.submitted) {
-    return false;
-  }
-
-  // Must NOT have any grade
-  if (row.gradeLetter) {
-    return false;
-  }
-
-}
-
-// ==================================================
-// 🏅 GRADED FILTER
-//
-// Shows only assignments that have been submitted
-// AND have received a grade.
-// ==================================================
-
-else if (
-  selectedFilter === "graded"
-) {
-
-  // Must have a submission
-  if (!row.submitted) {
-    return false;
-  }
-
-  // Must have a grade
-  if (!row.gradeLetter) {
-    return false;
-  }
-
-}
-
-  // ==================================================
-  // EXISTING STATUS FILTERS
-  // ==================================================
-
-else if (
-  row.status !== selectedFilter
-) {
-
-  return false;
-
-}
-
-}
-
-
-// --------------------------------------------------
-// 🏅 GRADE FILTER
-// --------------------------------------------------
-//
-// Grade filtering is independent from the existing
-// status filter.
-//
-// "all" = do not filter by grade.
-// Otherwise only the selected grade remains.
-// --------------------------------------------------
-
-if (
-  selectedGrade !== "all"
-) {
-
-  if (
-    row.gradeLetter !== selectedGrade
-  ) {
-
-    return false;
-
-  }
-
-}
-
-
-          // --------------------------------------------------
-          // STUDENT
-          // --------------------------------------------------
-
-          if (
-            selectedStudent !== "all" &&
-            String(
-              row.studentId
-            ) !==
-            String(
-              selectedStudent
-            )
-          ) {
-
-            return false;
-
-          }
-
-
-          // --------------------------------------------------
-          // SEARCH
-          // --------------------------------------------------
-
-          if (
-            searchText
-          ) {
-
-            const haystack =
-              `${row.studentName} ${row.assignmentTitle}`
-                .toLowerCase();
-
-
-            if (
-              !haystack.includes(
-                searchText
-              )
-            ) {
-
-              return false;
-
-            }
-
-          }
-
-
-          return true;
-
-        }
-      );
-
-
-    // ========================================================
-    // SUMMARY SCOPE
-    // ========================================================
-
-    const summaryRows =
-      selectedStudent === "all"
-        ? rows
-        : rows.filter(
-            row =>
-              String(
-                row.studentId
-              ) ===
-              String(
-                selectedStudent
-              )
-          );
-
-
-    // ========================================================
-    // SUMMARY COUNTS
-    // ========================================================
-
-    const summaryCompletedCount =
-      summaryRows.filter(
-        row =>
-          row.status ===
-          "completed"
-      ).length;
-
-
-const summaryReattemptCount =
-  summaryRows.reduce(
-    (total, row) =>
-      total +
-      (row.reattemptCount || 0),
-    0
-  );
-
-
-    const summaryDueCount =
-      summaryRows.filter(
-        row =>
-          row.status ===
-          "due"
-      ).length;
-
-
-    const summaryOverdueCount =
-      summaryRows.filter(
-        row =>
-          row.status ===
-          "overdue"
-      ).length;
-
-      // ========================================================
-// 📝 NOT GRADED COUNT
-//
-// Submitted assignments that have NOT received a grade.
-// ========================================================
-
-const summaryNotGradedCount =
-  summaryRows.filter(
-    row =>
-      row.submitted === true &&
-      !row.gradeLetter
-  ).length;
-
-
-// ========================================================
-// 🏅 GRADED COUNT
-//
-// Submitted assignments that HAVE received a grade.
-// ========================================================
-
-const summaryGradedCount =
-  summaryRows.filter(
-    row =>
-      row.submitted === true &&
-      !!row.gradeLetter
-  ).length;
-
-  // ========================================================
-// 🏅 ADMIN — GRADE COUNTS
-//
-// Counts each student × assignment row once according
-// to its latest/current grade.
-//
-// When "All Students" is selected:
-// counts are across all students.
-//
-// When an individual student is selected:
-// counts are only for that student.
-//
-// No backend/schema changes.
-// ========================================================
-
-const gradeCounts = {
-  AA: 0,
-  "A+": 0,
-  A: 0,
-  "B+": 0,
-  B: 0,
-  "C+": 0,
-  C: 0
-};
-
-
-// ========================================================
-// COUNT CURRENT GRADE
-// ========================================================
-
-summaryRows.forEach(row => {
-
-  const grade =
-    row.gradeLetter;
-
-  if (
-    grade &&
-    Object.prototype.hasOwnProperty.call(
-      gradeCounts,
-      grade
-    )
-  ) {
-
-    gradeCounts[grade]++;
-
-  }
-
-});
-
-
-    // ========================================================
-    // SUMMARY STUDENT NAME
-    // ========================================================
-
-    let summaryStudentName =
-      "All Students";
-
-
-    if (
-      selectedStudent !== "all"
-    ) {
-
-      const selectedOption =
-        studentFilterEl?.options[
-          studentFilterEl.selectedIndex
-        ];
-
-
-      summaryStudentName =
-        selectedOption?.textContent?.trim() ||
-        "Selected Student";
-
+    if (!listEl) {
+      return;
     }
 
 
     // ========================================================
-    // RENDER SUMMARY
-    // ========================================================
-
-    if (summaryEl) {
-
-      summaryEl.innerHTML = `
-
-        <div
-          style="
-            margin-bottom:18px;
-          "
-        >
-
-          <div
-            style="
-              font-size:17px;
-              font-weight:800;
-              margin-bottom:12px;
-              color:#f8fafc;
-              letter-spacing:0.2px;
-              text-shadow:0 1px 4px rgba(0,0,0,0.45);
-            "
-          >
-            👨🏻‍🎓 ${summaryStudentName}
-            — 📚 Assignment Status
-          </div>
-
-
-          <div
-            style="
-              display:flex;
-              flex-wrap:wrap;
-              gap:10px;
-            "
-          >
-
-           <!-- DUE -->
-
-<div
-  data-admin-status-filter="due"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #eab308;
-    box-shadow:
-      0 0 0 1px rgba(234,179,8,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#facc15;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Due"
-        : "Due"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#fde047;
-    "
-  >
-    ${summaryDueCount}
-  </div>
-
-</div>
-
-
-<!-- OVERDUE -->
-
-<div
-  data-admin-status-filter="overdue"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #ef4444;
-    box-shadow:
-      0 0 0 1px rgba(239,68,68,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#f87171;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Overdue"
-        : "Overdue"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#fca5a5;
-    "
-  >
-    ${summaryOverdueCount}
-  </div>
-
-</div>
-
-
-<!-- RE-ATTEMPTS -->
-
-<div
-  data-admin-status-filter="reattempt"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #f97316;
-    box-shadow:
-      0 0 0 1px rgba(249,115,22,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#fb923c;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Re-attempts"
-        : "Re-attempt"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#fdba74;
-    "
-  >
-    ${summaryReattemptCount}
-  </div>
-
-</div>
-
-
-<!-- NOT GRADED -->
-
-<div
-  data-admin-status-filter="notgraded"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #f754f5;
-    box-shadow:
-      0 0 0 1px rgba(234,179,8,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#f754f5;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Not Graded"
-        : "Not Graded"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#f754f5;
-    "
-  >
-    ${summaryNotGradedCount}
-  </div>
-
-</div>
-
-
-<!-- GRADED -->
-
-<div
-  data-admin-status-filter="graded"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #56cef0;
-    box-shadow:
-      0 0 0 1px rgba(34,197,94,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#56cef0;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Graded"
-        : "Graded"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#56cef0;
-    "
-  >
-    ${summaryGradedCount}
-  </div>
-
-</div>
-
-
-<!-- COMPLETED -->
-
-<div
-  data-admin-status-filter="completed"
-  role="button"
-  tabindex="0"
-  style="
-    flex:1 1 0;
-    min-width:0;
-    padding:12px 15px;
-    border-radius:10px;
-    background:#171a2e;
-    border:1px solid #22c55e;
-    box-shadow:
-      0 0 0 1px rgba(34,197,94,0.08),
-      0 4px 12px rgba(0,0,0,0.25);
-    cursor:pointer;
-  "
->
-
-  <div
-    style="
-      font-size:12px;
-      font-weight:700;
-      color:#4ade80;
-      margin-bottom:4px;
-    "
-  >
-    ${
-      selectedStudent === "all"
-        ? "All Completed"
-        : "Completed"
-    }
-  </div>
-
-  <div
-    style="
-      font-size:21px;
-      font-weight:800;
-      color:#86efac;
-    "
-  >
-    ${summaryCompletedCount}
-  </div>
-
-</div>
-</div>
-
-         <!-- =================================================
-     🏅 ADMIN GRADE FILTER CARDS
-     ================================================= -->
-
-<div
-  style="
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-top:10px;
-  "
->
-
-
-  <!-- ALL GRADES -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="all"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #3b82f6;
-      box-shadow:
-        0 0 0 1px rgba(59,130,246,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#60a5fa;
-        margin-bottom:3px;
-      "
-    >
-      🏅 All Grades
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#93c5fd;
-      "
-    >
-      ${
-        Object.values(
-          gradeCounts
-        ).reduce(
-          (sum, count) =>
-            sum + count,
-          0
-        )
-      }
-    </div>
-
-  </div>
-
-
-  <!-- AA -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="AA"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #facc15;
-      box-shadow:
-        0 0 0 1px rgba(250,204,21,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#facc15;
-        margin-bottom:3px;
-      "
-    >
-      🏆 AA
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#fde047;
-      "
-    >
-      ${gradeCounts.AA}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#fde047;
-        margin-top:2px;
-      "
-    >
-      100/100
-    </div>
-
-  </div>
-
-
-  <!-- A+ -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="A+"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #a855f7;
-      box-shadow:
-        0 0 0 1px rgba(168,85,247,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#c084fc;
-        margin-bottom:3px;
-      "
-    >
-      ⭐ A+
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#d8b4fe;
-      "
-    >
-      ${gradeCounts["A+"]}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#d8b4fe;
-        margin-top:2px;
-      "
-    >
-      90/100
-    </div>
-
-  </div>
-
-
-  <!-- A -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="A"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #3b82f6;
-      box-shadow:
-        0 0 0 1px rgba(59,130,246,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#60a5fa;
-        margin-bottom:3px;
-      "
-    >
-      🎉 A
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#93c5fd;
-      "
-    >
-      ${gradeCounts.A}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#93c5fd;
-        margin-top:2px;
-      "
-    >
-      80/100
-    </div>
-
-  </div>
-
-
-  <!-- B+ -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="B+"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #22c55e;
-      box-shadow:
-        0 0 0 1px rgba(34,197,94,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#4ade80;
-        margin-bottom:3px;
-      "
-    >
-      😊 B+
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#86efac;
-      "
-    >
-      ${gradeCounts["B+"]}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#86efac;
-        margin-top:2px;
-      "
-    >
-      65/100
-    </div>
-
-  </div>
-
-
-  <!-- B -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="B"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #14b8a6;
-      box-shadow:
-        0 0 0 1px rgba(20,184,166,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#2dd4bf;
-        margin-bottom:3px;
-      "
-    >
-      🙂 B
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#5eead4;
-      "
-    >
-      ${gradeCounts.B}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#5eead4;
-        margin-top:2px;
-      "
-    >
-      50/100
-    </div>
-
-  </div>
-
-
-  <!-- C+ -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="C+"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #f97316;
-      box-shadow:
-        0 0 0 1px rgba(249,115,22,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#fb923c;
-        margin-bottom:3px;
-      "
-    >
-      👍🏻 C+
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#fdba74;
-      "
-    >
-      ${gradeCounts["C+"]}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#fdba74;
-        margin-top:2px;
-      "
-    >
-      35/100
-    </div>
-
-  </div>
-
-
-  <!-- C -->
-
-  <div
-    class="admin-grade-filter-card"
-    data-admin-grade-filter="C"
-    role="button"
-    tabindex="0"
-    style="
-      flex:1 1 0;
-      min-width:0;
-      padding:10px 8px;
-      border-radius:10px;
-      background:#171a2e;
-      border:1px solid #ef4444;
-      box-shadow:
-        0 0 0 1px rgba(239,68,68,0.08),
-        0 4px 12px rgba(0,0,0,0.25);
-      cursor:pointer;
-      text-align:center;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-    "
-  >
-
-    <div
-      style="
-        font-size:13px;
-        font-weight:800;
-        color:#f87171;
-        margin-bottom:3px;
-      "
-    >
-      👌🏻 C
-    </div>
-
-    <div
-      style="
-        font-size:21px;
-        font-weight:800;
-        color:#fca5a5;
-      "
-    >
-      ${gradeCounts.C}
-    </div>
-
-    <div
-      style="
-        font-size:11px;
-        font-weight:800;
-        color:#fca5a5;
-        margin-top:2px;
-      "
-    >
-      20/100
-    </div>
-
-  </div>
-
-
-</div>
-
-
-        </div>
-
-      `;
-
-    }
-
-
-    // ========================================================
-    // EMPTY RESULT
+    // ADMIN ONLY
     // ========================================================
 
     if (
-      filteredRows.length === 0
+      currentProfile?.role !== "admin"
     ) {
 
-      listEl.innerHTML = `
-        <div class="card">
-          <p>
-            No matching assignment status found.
-          </p>
-        </div>
-      `;
+      listEl.innerHTML =
+        '<div class="card"><p>Admin access only.</p></div>';
 
       return;
 
@@ -50286,33 +48643,1320 @@ summaryRows.forEach(row => {
 
 
     // ========================================================
-    // RENDER STATUS ROWS
+    // READ CURRENT UI VALUES
+    //
+    // IMPORTANT:
+    // We read the controls BEFORE doing any async work.
+    // ========================================================
+
+    const filterEl =
+      document.getElementById(
+        "assignmentStatusFilter"
+      );
+
+
+    const searchEl =
+      document.getElementById(
+        "assignmentStatusSearch"
+      );
+
+
+    const studentFilterEl =
+      document.getElementById(
+        "assignmentStatusStudentFilter"
+      );
+
+      await populateAssignmentStatusStudentFilter();
+
+if (
+  thisLoadRequest !==
+  assignmentStatusLoadRequest
+) {
+
+  return;
+
+}
+
+
+    // ========================================================
+    // SYNCHRONIZE STATE FROM UI
+    //
+    // Only overwrite values that actually exist.
+    // This prevents an empty/unrendered control from
+    // accidentally resetting another filter.
+    // ========================================================
+
+    if (filterEl) {
+
+      window.adminAssignmentStatusState.status =
+        filterEl.value || "all";
+
+    }
+
+
+    if (searchEl) {
+
+      window.adminAssignmentStatusState.search =
+        (
+          searchEl.value || ""
+        )
+          .trim()
+          .toLowerCase();
+
+    }
+
+
+    if (studentFilterEl) {
+
+      window.adminAssignmentStatusState.student =
+        studentFilterEl.value || "all";
+
+    }
+
+
+    const selectedFilter =
+      window.adminAssignmentStatusState.status ||
+      "all";
+
+
+    const selectedStudent =
+      window.adminAssignmentStatusState.student ||
+      "all";
+
+
+    const selectedGrade =
+      window.adminAssignmentStatusState.grade ||
+      "all";
+
+
+    const searchText =
+      window.adminAssignmentStatusState.search ||
+      "";
+
+
+    // ========================================================
+    // LOADING STATE
     // ========================================================
 
     listEl.innerHTML =
-      filteredRows
-        .map(
+      '<div class="loading">Loading assignment status...</div>';
+
+
+    try {
+
+      // ======================================================
+      // LOAD ASSIGNMENTS
+      // ======================================================
+
+      const {
+        data: assignments,
+        error: assignmentError
+      } = await supabase
+
+        .from("assignments")
+
+        .select("*")
+
+        .order(
+          "created_at",
+          {
+            ascending: false
+          }
+        );
+
+
+      if (assignmentError) {
+        throw assignmentError;
+      }
+
+
+      // ======================================================
+      // ABORT OLD REQUEST
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // LOAD ALL ATTEMPTS
+      // ======================================================
+
+      const {
+        data: attempts,
+        error: attemptsError
+      } = await supabase
+
+        .from("attempts")
+
+        .select("*");
+
+
+      if (attemptsError) {
+        throw attemptsError;
+      }
+
+
+      // ======================================================
+      // ABORT OLD REQUEST
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // RESOLVE STUDENT IDS
+      // ======================================================
+
+      const studentIds = [];
+
+
+      (assignments || []).forEach(
+        assignment => {
+
+          if (
+            Array.isArray(
+              assignment.assigned_to
+            )
+          ) {
+
+            assignment.assigned_to.forEach(
+              id => {
+
+                if (
+                  id &&
+                  !studentIds.includes(id)
+                ) {
+
+                  studentIds.push(id);
+
+                }
+
+              }
+            );
+
+          }
+
+        }
+      );
+
+
+      // ======================================================
+      // RESOLVE STUDENT NAMES
+      // ======================================================
+
+      let studentNameMap = {};
+
+
+      if (
+        studentIds.length > 0
+      ) {
+
+        const nameAssignments =
+          (assignments || []).filter(
+            assignment =>
+              Array.isArray(
+                assignment.assigned_to
+              )
+          );
+
+
+        studentNameMap =
+          await resolveAssignedStudentNames(
+            nameAssignments
+          );
+
+
+        // ====================================================
+        // ABORT OLD REQUEST
+        // ====================================================
+
+        if (
+          thisLoadRequest !==
+          assignmentStatusLoadRequest
+        ) {
+
+          return;
+
+        }
+
+      }
+
+
+      // ======================================================
+      // BUILD STUDENT × ASSIGNMENT ROWS
+      // ======================================================
+
+      const rows = [];
+
+
+      (assignments || []).forEach(
+        assignment => {
+
+          // --------------------------------------------------
+          // Existing behavior:
+          // Public assignments are not included in the
+          // admin student × assignment status table.
+          // --------------------------------------------------
+
+          if (
+            assignment.is_public === true
+          ) {
+
+            return;
+
+          }
+
+
+          if (
+            !Array.isArray(
+              assignment.assigned_to
+            )
+          ) {
+
+            return;
+
+          }
+
+
+          assignment.assigned_to.forEach(
+            studentId => {
+
+              if (!studentId) {
+                return;
+              }
+
+
+              // ==================================================
+              // FIND ALL ATTEMPTS
+              // ==================================================
+
+              const studentAttempts =
+                (attempts || [])
+                  .filter(
+                    attempt =>
+
+                      Number(
+                        attempt.assignment_id
+                      ) ===
+                      Number(
+                        assignment.id
+                      )
+
+                      &&
+
+                      String(
+                        attempt.student_id
+                      ) ===
+                      String(
+                        studentId
+                      )
+                  )
+                  .sort(
+                    (a, b) => {
+
+                      const bTime =
+                        new Date(
+                          b.submitted_at || 0
+                        ).getTime();
+
+
+                      const aTime =
+                        new Date(
+                          a.submitted_at || 0
+                        ).getTime();
+
+
+                      return bTime - aTime;
+
+                    }
+                  );
+
+
+              // ==================================================
+              // LATEST ATTEMPT
+              // ==================================================
+
+              const latestAttempt =
+                studentAttempts.length > 0
+                  ? studentAttempts[0]
+                  : null;
+
+
+              // ==================================================
+              // SUBMITTED
+              // ==================================================
+
+              const submitted =
+                latestAttempt !== null;
+
+
+              // ==================================================
+              // COMPLETED
+              // ==================================================
+
+              const completed =
+                latestAttempt?.is_correct === true;
+
+
+              // ==================================================
+              // CHRONOLOGICAL ATTEMPTS
+              // ==================================================
+
+              const chronologicalAttempts =
+                [...studentAttempts].sort(
+                  (a, b) => {
+
+                    const aTime =
+                      new Date(
+                        a.submitted_at || 0
+                      ).getTime();
+
+
+                    const bTime =
+                      new Date(
+                        b.submitted_at || 0
+                      ).getTime();
+
+
+                    return aTime - bTime;
+
+                  }
+                );
+
+
+              // ==================================================
+              // FIRST SUCCESSFUL COMPLETION
+              // ==================================================
+
+              const firstCompletedIndex =
+                chronologicalAttempts.findIndex(
+                  attempt =>
+                    attempt.is_correct === true &&
+                    attempt.submitted_at
+                );
+
+
+              // ==================================================
+              // RE-ATTEMPT COUNT
+              // ==================================================
+
+              const reattemptCount =
+                firstCompletedIndex !== -1
+                  ? Math.max(
+                      0,
+                      chronologicalAttempts.length -
+                        firstCompletedIndex -
+                        1
+                    )
+                  : 0;
+
+
+              // ==================================================
+              // IS CURRENT SUBMISSION A RE-ATTEMPT?
+              //
+              // FIX:
+              // Your previous code referenced isReattempt
+              // without defining it.
+              // ==================================================
+
+              const isReattempt =
+                reattemptCount > 0 &&
+                chronologicalAttempts.length > 0 &&
+                latestAttempt !== null &&
+                firstCompletedIndex !== -1;
+
+
+              // ==================================================
+              // SUBMITTED DATE
+              // ==================================================
+
+              const submittedAt =
+                latestAttempt?.submitted_at ||
+                null;
+
+
+              // ==================================================
+              // CURRENT GRADE
+              // ==================================================
+
+              const gradeLetter =
+                latestAttempt?.grade_letter ||
+                null;
+
+
+              // ==================================================
+              // PUZZLE STATS
+              // ==================================================
+
+              const puzzleStats =
+                getCorrectPuzzleStats(
+                  latestAttempt?.bulk_answers || []
+                );
+
+
+              // ==================================================
+              // DUE DATE
+              // ==================================================
+
+              const dueDate =
+                assignment.due_at
+                  ? new Date(
+                      assignment.due_at
+                    )
+                  : null;
+
+
+              const now =
+                new Date();
+
+
+              // ==================================================
+              // CURRENT STATUS
+              // ==================================================
+
+              let status;
+              let statusLabel;
+
+
+              if (
+                completed
+              ) {
+
+                status =
+                  "completed";
+
+                statusLabel =
+                  "🟢 Completed";
+
+              }
+
+              else if (
+                submitted
+              ) {
+
+                status =
+                  "submitted";
+
+                statusLabel =
+                  isReattempt
+                    ? "🟠 Re-attempt"
+                    : "🟠 Submitted";
+
+              }
+
+              else if (
+                dueDate &&
+                dueDate.getTime() <
+                now.getTime()
+              ) {
+
+                status =
+                  "overdue";
+
+                statusLabel =
+                  "🔴 Overdue";
+
+              }
+
+              else {
+
+                status =
+                  "due";
+
+                statusLabel =
+                  "🟡 Due";
+
+              }
+
+
+              // ==================================================
+              // STUDENT NAME
+              // ==================================================
+
+              const studentName =
+                studentNameMap[studentId] ||
+                "Student";
+
+
+              // ==================================================
+              // STORE ROW
+              // ==================================================
+
+              rows.push({
+
+                assignmentId:
+                  assignment.id,
+
+                assignmentTitle:
+                  assignment.title ||
+                  "Untitled Assignment",
+
+                studentId,
+
+                studentName,
+
+                dueAt:
+                  assignment.due_at,
+
+                submittedAt,
+
+                gradeLetter,
+
+                status,
+
+                statusLabel,
+
+                submitted,
+
+                completed,
+
+                isReattempt,
+
+                reattemptCount,
+
+                correctPuzzles:
+                  puzzleStats.correct,
+
+                totalPuzzles:
+                  puzzleStats.total,
+
+                latestAttemptId:
+                  latestAttempt?.id ||
+                  null
+
+              });
+
+            }
+          );
+
+        }
+      );
+
+
+      // ======================================================
+      // ABORT OLD REQUEST BEFORE FILTERING
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // APPLY ALL FILTERS FROM ONE STATE
+      // ======================================================
+
+      const filteredRows =
+        rows.filter(
           row => {
 
-            const dueText =
-              row.dueAt
-                ? new Date(
-                    row.dueAt
-                  ).toLocaleDateString()
-                : "No due date";
+            // ------------------------------------------------
+            // STATUS FILTER
+            // ------------------------------------------------
+
+            if (
+              selectedFilter !== "all"
+            ) {
+
+              if (
+                selectedFilter === "reattempt"
+              ) {
+
+                if (
+                  (row.reattemptCount || 0) <= 0
+                ) {
+
+                  return false;
+
+                }
+
+              }
+
+              else if (
+                selectedFilter === "notgraded"
+              ) {
+
+                if (
+                  !row.submitted
+                ) {
+
+                  return false;
+
+                }
 
 
-            return `
+                if (
+                  row.gradeLetter
+                ) {
+
+                  return false;
+
+                }
+
+              }
+
+              else if (
+                selectedFilter === "graded"
+              ) {
+
+                if (
+                  !row.submitted
+                ) {
+
+                  return false;
+
+                }
+
+
+                if (
+                  !row.gradeLetter
+                ) {
+
+                  return false;
+
+                }
+
+              }
+
+              else if (
+                row.status !==
+                selectedFilter
+              ) {
+
+                return false;
+
+              }
+
+            }
+
+
+            // ------------------------------------------------
+            // GRADE FILTER
+            // ------------------------------------------------
+
+            if (
+              selectedGrade !== "all"
+            ) {
+
+              if (
+                row.gradeLetter !==
+                selectedGrade
+              ) {
+
+                return false;
+
+              }
+
+            }
+
+
+            // ------------------------------------------------
+            // STUDENT FILTER
+            // ------------------------------------------------
+
+            if (
+              selectedStudent !== "all"
+            ) {
+
+              if (
+                String(
+                  row.studentId
+                ) !==
+                String(
+                  selectedStudent
+                )
+              ) {
+
+                return false;
+
+              }
+
+            }
+
+
+            // ------------------------------------------------
+            // SEARCH FILTER
+            // ------------------------------------------------
+
+            if (
+              searchText
+            ) {
+
+              const haystack =
+                `${row.studentName} ${row.assignmentTitle}`
+                  .toLowerCase();
+
+
+              if (
+                !haystack.includes(
+                  searchText
+                )
+              ) {
+
+                return false;
+
+              }
+
+            }
+
+
+            return true;
+
+          }
+        );
+
+
+      // ======================================================
+      // SUMMARY MUST USE STUDENT SCOPE ONLY
+      //
+      // Grade/status/search filters should NOT corrupt the
+      // counts for the selected student.
+      // ======================================================
+
+      const summaryRows =
+        selectedStudent === "all"
+
+          ? rows
+
+          : rows.filter(
+              row =>
+                String(
+                  row.studentId
+                ) ===
+                String(
+                  selectedStudent
+                )
+            );
+
+
+      // ======================================================
+      // SUMMARY COUNTS
+      // ======================================================
+
+      const summaryCompletedCount =
+        summaryRows.filter(
+          row =>
+            row.status ===
+            "completed"
+        ).length;
+
+
+      const summaryReattemptCount =
+        summaryRows.reduce(
+          (total, row) =>
+            total +
+            (row.reattemptCount || 0),
+          0
+        );
+
+
+      const summaryDueCount =
+        summaryRows.filter(
+          row =>
+            row.status ===
+            "due"
+        ).length;
+
+
+      const summaryOverdueCount =
+        summaryRows.filter(
+          row =>
+            row.status ===
+            "overdue"
+        ).length;
+
+
+      const summaryNotGradedCount =
+        summaryRows.filter(
+          row =>
+            row.submitted === true &&
+            !row.gradeLetter
+        ).length;
+
+
+      const summaryGradedCount =
+        summaryRows.filter(
+          row =>
+            row.submitted === true &&
+            !!row.gradeLetter
+        ).length;
+
+
+      // ======================================================
+      // GRADE COUNTS
+      // ======================================================
+
+      const gradeCounts = {
+
+        AA: 0,
+
+        "A+": 0,
+
+        A: 0,
+
+        "B+": 0,
+
+        B: 0,
+
+        "C+": 0,
+
+        C: 0
+
+      };
+
+
+      summaryRows.forEach(
+        row => {
+
+          const grade =
+            row.gradeLetter;
+
+
+          if (
+            grade &&
+            Object.prototype.hasOwnProperty.call(
+              gradeCounts,
+              grade
+            )
+          ) {
+
+            gradeCounts[grade]++;
+
+          }
+
+        }
+      );
+
+
+      // ======================================================
+      // SUMMARY STUDENT NAME
+      // ======================================================
+
+      let summaryStudentName =
+        "All Students";
+
+
+      if (
+        selectedStudent !== "all"
+      ) {
+
+        const selectedOption =
+          studentFilterEl?.options[
+            studentFilterEl.selectedIndex
+          ];
+
+
+        summaryStudentName =
+          selectedOption?.textContent?.trim() ||
+          "Selected Student";
+
+      }
+
+
+      // ======================================================
+      // FINAL REQUEST CHECK
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // RENDER SUMMARY
+      // ======================================================
+
+      if (summaryEl) {
+
+        summaryEl.innerHTML = `
+
+          <div
+            style="
+              margin-bottom:18px;
+            "
+          >
+
+            <div
+              style="
+                font-size:17px;
+                font-weight:800;
+                margin-bottom:12px;
+                color:#f8fafc;
+                letter-spacing:0.2px;
+                text-shadow:0 1px 4px rgba(0,0,0,0.45);
+              "
+            >
+              👨🏻‍🎓 ${summaryStudentName}
+              — 📚 Assignment Status
+            </div>
+
+
+            <div
+              style="
+                display:flex;
+                flex-wrap:wrap;
+                gap:10px;
+              "
+            >
+
+              <!-- ==========================================
+                   DUE
+                   ========================================== -->
 
               <div
-                class="card assignment-status-row"
-                data-assignment-id="${row.assignmentId}"
-                data-student-id="${row.studentId}"
+                data-admin-status-filter="due"
                 role="button"
                 tabindex="0"
-                title="Click to open this student's latest submission in Check HW"
                 style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #eab308;
+                  box-shadow:
+                    0 0 0 1px rgba(234,179,8,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
                   cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#facc15;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Due"
+                      : "Due"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fde047;
+                  "
+                >
+                  ${summaryDueCount}
+                </div>
+
+              </div>
+
+
+              <!-- ==========================================
+                   OVERDUE
+                   ========================================== -->
+
+              <div
+                data-admin-status-filter="overdue"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #ef4444;
+                  box-shadow:
+                    0 0 0 1px rgba(239,68,68,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#f87171;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Overdue"
+                      : "Overdue"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fca5a5;
+                  "
+                >
+                  ${summaryOverdueCount}
+                </div>
+
+              </div>
+
+
+              <!-- ==========================================
+                   RE-ATTEMPTS
+                   ========================================== -->
+
+              <div
+                data-admin-status-filter="reattempt"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #f97316;
+                  box-shadow:
+                    0 0 0 1px rgba(249,115,22,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#fb923c;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Re-attempts"
+                      : "Re-attempt"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fdba74;
+                  "
+                >
+                  ${summaryReattemptCount}
+                </div>
+
+              </div>
+
+
+              <!-- ==========================================
+                   NOT GRADED
+                   ========================================== -->
+
+              <div
+                data-admin-status-filter="notgraded"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #f754f5;
+                  box-shadow:
+                    0 0 0 1px rgba(234,179,8,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#f754f5;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Not Graded"
+                      : "Not Graded"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#f754f5;
+                  "
+                >
+                  ${summaryNotGradedCount}
+                </div>
+
+              </div>
+
+
+              <!-- ==========================================
+                   GRADED
+                   ========================================== -->
+
+              <div
+                data-admin-status-filter="graded"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #56cef0;
+                  box-shadow:
+                    0 0 0 1px rgba(34,197,94,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#56cef0;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Graded"
+                      : "Graded"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#56cef0;
+                  "
+                >
+                  ${summaryGradedCount}
+                </div>
+
+              </div>
+
+
+              <!-- ==========================================
+                   COMPLETED
+                   ========================================== -->
+
+              <div
+                data-admin-status-filter="completed"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:12px 15px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #22c55e;
+                  box-shadow:
+                    0 0 0 1px rgba(34,197,94,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:12px;
+                    font-weight:700;
+                    color:#4ade80;
+                    margin-bottom:4px;
+                  "
+                >
+                  ${
+                    selectedStudent === "all"
+                      ? "All Completed"
+                      : "Completed"
+                  }
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#86efac;
+                  "
+                >
+                  ${summaryCompletedCount}
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <!-- ============================================
+                 🏅 ADMIN GRADE FILTER CARDS
+                 ============================================ -->
+
+            <div
+              style="
+                display:flex;
+                flex-wrap:wrap;
+                gap:10px;
+                margin-top:10px;
+              "
+            >
+
+              <!-- ALL GRADES -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="all"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #3b82f6;
+                  box-shadow:
+                    0 0 0 1px rgba(59,130,246,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
                   transition:
                     transform 0.15s ease,
                     box-shadow 0.15s ease;
@@ -50321,301 +49965,986 @@ summaryRows.forEach(row => {
 
                 <div
                   style="
-                    display:flex;
-                    justify-content:space-between;
-                    align-items:flex-start;
-                    gap:12px;
-                    flex-wrap:wrap;
+                    font-size:13px;
+                    font-weight:800;
+                    color:#60a5fa;
+                    margin-bottom:3px;
                   "
                 >
+                  🏅 All Count
+                </div>
 
-                  <div>
-
-                    <h4>
-                      ${row.assignmentTitle}
-                    </h4>
-
-
-                    <p>
-                      <strong>Student:</strong>
-                      ${row.studentName}
-                    </p>
-
-
-                    <p>
-                      <strong>Due:</strong>
-                      ${dueText}
-                    </p>
-
-
-                    ${
-                      row.submittedAt
-                        ? `
-                          <p>
-                            <strong>✅ Submitted:</strong>
-                            ${new Date(
-                              row.submittedAt
-                            ).toLocaleString()}
-                          </p>
-                        `
-                        : ""
-                    }
-                        ${
-  row.submitted
-    ? `
-      <p>
-        <strong>🎯 Correct Puzzles:</strong>
-        ${row.correctPuzzles}/${row.totalPuzzles}
-      </p>
-    `
-    : ""
-}
-    ${
-  row.reattemptCount > 0
-    ? `
-      <p>
-        <strong>🟠 Re-attempts:</strong>
-        ${row.reattemptCount}
-      </p>
-    `
-    : ""
-}
-
-
-                    ${
-                      row.status === "completed"
-                        ? (
-                            row.gradeLetter
-                              ? `
-                                <p>
-                                  <strong>🏅 Result:</strong>
-                                  ${getFriendlyGradeLabel(
-                                    row.gradeLetter
-                                  )}
-                                </p>
-                              `
-                              : `
-                                <p>
-                                  <strong>🏅 Grading:</strong>
-                                  <span
-                                    style="
-                                      color:#facc15;
-                                      font-weight:800;
-                                    "
-                                  >
-                                    ⏳ Not Graded Yet
-                                  </span>
-                                </p>
-                              `
-                          )
-                        : row.status === "submitted"
-                          ? `
-                            <p>
-                              <strong>🏅 Grading:</strong>
-                              <span
-                                style="
-                                  color:#facc15;
-                                  font-weight:800;
-                                "
-                              >
-                                ⏳ Not Graded Yet
-                              </span>
-                            </p>
-                          `
-                          : ""
-                    }
-
-                  </div>
-
-
-                  <div
-                    style="
-                      font-weight:800;
-                      white-space:nowrap;
-                    "
-                  >
-                    ${row.statusLabel}
-                  </div>
-
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#93c5fd;
+                  "
+                >
+                ${summaryRows.length}
                 </div>
 
               </div>
 
-            `;
 
-          }
-        )
-        .join("");
+              <!-- AA -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="AA"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #facc15;
+                  box-shadow:
+                    0 0 0 1px rgba(250,204,21,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#facc15;
+                    margin-bottom:3px;
+                  "
+                >
+                  🏆 AA
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fde047;
+                  "
+                >
+                  ${gradeCounts.AA}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#fde047;
+                    margin-top:2px;
+                  "
+                >
+                  100/100
+                </div>
+
+              </div>
 
 
-  } catch (error) {
+              <!-- A+ -->
 
-    console.error(
-      "❌ Assignment status error:",
-      error
-    );
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="A+"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #a855f7;
+                  box-shadow:
+                    0 0 0 1px rgba(168,85,247,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#c084fc;
+                    margin-bottom:3px;
+                  "
+                >
+                  ⭐ A+
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#d8b4fe;
+                  "
+                >
+                  ${gradeCounts["A+"]}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#d8b4fe;
+                    margin-top:2px;
+                  "
+                >
+                  90/100
+                </div>
+
+              </div>
 
 
-    listEl.innerHTML = `
-      <div class="card">
-        <p style="color:#ff4757;">
-          Error loading assignment status.
-        </p>
-      </div>
-    `;
+              <!-- A -->
 
-  }
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="A"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #3b82f6;
+                  box-shadow:
+                    0 0 0 1px rgba(59,130,246,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
 
-};
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#60a5fa;
+                    margin-bottom:3px;
+                  "
+                >
+                  🎉 A
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#93c5fd;
+                  "
+                >
+                  ${gradeCounts.A}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#93c5fd;
+                    margin-top:2px;
+                  "
+                >
+                  80/100
+                </div>
+
+              </div>
+
+
+              <!-- B+ -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="B+"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #22c55e;
+                  box-shadow:
+                    0 0 0 1px rgba(34,197,94,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#4ade80;
+                    margin-bottom:3px;
+                  "
+                >
+                  😊 B+
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#86efac;
+                  "
+                >
+                  ${gradeCounts["B+"]}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#86efac;
+                    margin-top:2px;
+                  "
+                >
+                  65/100
+                </div>
+
+              </div>
+
+
+              <!-- B -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="B"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #14b8a6;
+                  box-shadow:
+                    0 0 0 1px rgba(20,184,166,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#2dd4bf;
+                    margin-bottom:3px;
+                  "
+                >
+                  🙂 B
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#5eead4;
+                  "
+                >
+                  ${gradeCounts.B}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#5eead4;
+                    margin-top:2px;
+                  "
+                >
+                  50/100
+                </div>
+
+              </div>
+
+
+              <!-- C+ -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="C+"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #f97316;
+                  box-shadow:
+                    0 0 0 1px rgba(249,115,22,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#fb923c;
+                    margin-bottom:3px;
+                  "
+                >
+                  👍🏻 C+
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fdba74;
+                  "
+                >
+                  ${gradeCounts["C+"]}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#fdba74;
+                    margin-top:2px;
+                  "
+                >
+                  35/100
+                </div>
+
+              </div>
+
+
+              <!-- C -->
+
+              <div
+                class="admin-grade-filter-card"
+                data-admin-grade-filter="C"
+                role="button"
+                tabindex="0"
+                style="
+                  flex:1 1 0;
+                  min-width:0;
+                  padding:10px 8px;
+                  border-radius:10px;
+                  background:#171a2e;
+                  border:1px solid #ef4444;
+                  box-shadow:
+                    0 0 0 1px rgba(239,68,68,0.08),
+                    0 4px 12px rgba(0,0,0,0.25);
+                  cursor:pointer;
+                  text-align:center;
+                  transition:
+                    transform 0.15s ease,
+                    box-shadow 0.15s ease;
+                "
+              >
+
+                <div
+                  style="
+                    font-size:13px;
+                    font-weight:800;
+                    color:#f87171;
+                    margin-bottom:3px;
+                  "
+                >
+                  👌🏻 C
+                </div>
+
+                <div
+                  style="
+                    font-size:21px;
+                    font-weight:800;
+                    color:#fca5a5;
+                  "
+                >
+                  ${gradeCounts.C}
+                </div>
+
+                <div
+                  style="
+                    font-size:11px;
+                    font-weight:800;
+                    color:#fca5a5;
+                    margin-top:2px;
+                  "
+                >
+                  20/100
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `;
+
+      }
+
+
+      // ======================================================
+      // FINAL REQUEST CHECK BEFORE LIST
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // EMPTY RESULT
+      // ======================================================
+
+      if (
+        filteredRows.length === 0
+      ) {
+
+        listEl.innerHTML = `
+          <div class="card">
+            <p>
+              No matching assignment status found.
+            </p>
+          </div>
+        `;
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // RENDER FILTERED ROWS
+      // ======================================================
+
+      listEl.innerHTML =
+        filteredRows
+          .map(
+            row => {
+
+              const dueText =
+                row.dueAt
+                  ? new Date(
+                      row.dueAt
+                    ).toLocaleDateString()
+                  : "No due date";
+
+
+              return `
+
+                <div
+                  class="card assignment-status-row"
+                  data-assignment-id="${row.assignmentId}"
+                  data-student-id="${row.studentId}"
+                  role="button"
+                  tabindex="0"
+                  title="Click to open this student's latest submission in Check HW"
+                  style="
+                    cursor:pointer;
+                    transition:
+                      transform 0.15s ease,
+                      box-shadow 0.15s ease;
+                  "
+                >
+
+                  <div
+                    style="
+                      display:flex;
+                      justify-content:space-between;
+                      align-items:flex-start;
+                      gap:12px;
+                      flex-wrap:wrap;
+                    "
+                  >
+
+                    <div>
+
+                      <h4>
+                        ${row.assignmentTitle}
+                      </h4>
+
+
+                      <p>
+                        <strong>Student:</strong>
+                        ${row.studentName}
+                      </p>
+
+
+                      <p>
+                        <strong>Due:</strong>
+                        ${dueText}
+                      </p>
+
+
+                      ${
+                        row.submittedAt
+                          ? `
+                            <p>
+                              <strong>✅ Submitted:</strong>
+                              ${new Date(
+                                row.submittedAt
+                              ).toLocaleString()}
+                            </p>
+                          `
+                          : ""
+                      }
+
+
+                      ${
+                        row.submitted
+                          ? `
+                            <p>
+                              <strong>🎯 Correct Puzzles:</strong>
+                              ${row.correctPuzzles}/${row.totalPuzzles}
+                            </p>
+                          `
+                          : ""
+                      }
+
+
+                      ${
+                        row.reattemptCount > 0
+                          ? `
+                            <p>
+                              <strong>🟠 Re-attempts:</strong>
+                              ${row.reattemptCount}
+                            </p>
+                          `
+                          : ""
+                      }
+
+
+                      ${
+                        row.status === "completed"
+                          ? (
+                              row.gradeLetter
+                                ? `
+                                  <p>
+                                    <strong>🏅 Result:</strong>
+                                    ${getFriendlyGradeLabel(
+                                      row.gradeLetter
+                                    )}
+                                  </p>
+                                `
+                                : `
+                                  <p>
+                                    <strong>🏅 Grading:</strong>
+                                    <span
+                                      style="
+                                        color:#facc15;
+                                        font-weight:800;
+                                      "
+                                    >
+                                      ⏳ Not Graded Yet
+                                    </span>
+                                  </p>
+                                `
+                            )
+
+                          : row.status === "submitted"
+
+                            ? `
+                              <p>
+                                <strong>🏅 Grading:</strong>
+                                <span
+                                  style="
+                                    color:#facc15;
+                                    font-weight:800;
+                                  "
+                                >
+                                  ⏳ Not Graded Yet
+                                </span>
+                              </p>
+                            `
+
+                            : ""
+                      }
+
+                    </div>
+
+
+                    <div
+                      style="
+                        font-weight:800;
+                        white-space:nowrap;
+                      "
+                    >
+                      ${row.statusLabel}
+                    </div>
+
+                  </div>
+
+                </div>
+
+              `;
+
+            }
+          )
+          .join("");
+
+
+    } catch (error) {
+
+      // ======================================================
+      // DO NOT LET AN OLD REQUEST DISPLAY AN ERROR
+      // OVER A NEWER REQUEST
+      // ======================================================
+
+      if (
+        thisLoadRequest !==
+        assignmentStatusLoadRequest
+      ) {
+
+        return;
+
+      }
+
+
+      console.error(
+        "❌ Assignment status error:",
+        error
+      );
+
+
+      listEl.innerHTML = `
+        <div class="card">
+          <p style="color:#ff4757;">
+            Error loading assignment status.
+          </p>
+        </div>
+      `;
+
+    }
+
+  };
+
 
 // ============================================================
-// 📋 ADMIN — STATUS SUMMARY CARDS
-// Click a status card to apply the existing dropdown filter.
+// 📋 ADMIN — FORCE REFRESH
+// ============================================================
+
+window.refreshAssignmentStatus =
+  async function refreshAssignmentStatus() {
+
+    await window.loadAssignmentStatus(
+      true
+    );
+
+  };
+
+// ============================================================
+// 📋 ADMIN — UNIFIED ASSIGNMENT STATUS CARD FILTER
+// ============================================================
+//
+// STATUS CARDS and GRADE CARDS are independent.
+//
+// Clicking a STATUS card:
+//   → selects that status
+//   → clears the grade filter
+//
+// Clicking a GRADE card:
+//   → selects that grade
+//   → clears the status filter
+//
+// Student and Search filters remain unchanged.
+//
+// Examples:
+//
+// AA → Due
+// = Due + All Grades
+//
+// Due → AA
+// = All Status + AA
+//
+// This prevents one card from accidentally depending
+// on another previously selected card.
 // ============================================================
 
 document
   .getElementById("assignmentStatusSummary")
   ?.addEventListener(
     "click",
-    event => {
+    async event => {
 
-      const card =
+      // ======================================================
+      // FIND CLICKED STATUS CARD
+      // ======================================================
+
+      const statusCard =
         event.target.closest(
           "[data-admin-status-filter]"
         );
 
-      if (!card) {
-        return;
-      }
 
-      const filter =
-        card.dataset.adminStatusFilter;
-
-      if (!filter) {
-        return;
-      }
-
-
-      // --------------------------------------------------------
-      // Find the existing Status dropdown
-      // --------------------------------------------------------
-
-      const filterEl =
-        document.getElementById(
-          "assignmentStatusFilter"
-        );
-
-      if (!filterEl) {
-        return;
-      }
-
-
-      // --------------------------------------------------------
-      // Apply the same filter used by the dropdown
-      // --------------------------------------------------------
-
-      filterEl.value = filter;
-
-
-      // --------------------------------------------------------
-      // Refresh the existing Assignment Status results
-      // --------------------------------------------------------
-
-      loadAssignmentStatus();
-
-
-      // --------------------------------------------------------
-      // Focus the whole Assignment Status container
-      // --------------------------------------------------------
-
-      setTimeout(() => {
-
-        const summaryEl =
-          document.getElementById(
-            "assignmentStatusSummary"
-          );
-
-        if (!summaryEl) {
-          return;
-        }
-
-        const assignmentContainer =
-          summaryEl.closest(".card");
-
-        if (assignmentContainer) {
-
-          assignmentContainer.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-
-        } else {
-
-          summaryEl.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-
-        }
-
-      }, 200);
-
-    }
-  );
-
-// ============================================================
-// 🏅 ADMIN — GRADE CARD CLICK FILTER
-// ============================================================
-//
-// Clicking a grade card filters the existing
-// Assignment Status rows.
-//
-// All Grades = remove grade filter
-// AA / A+ / A / B+ / B / C+ / C = show that grade only
-//
-// No backend/schema changes.
-// ============================================================
-
-document
-  .getElementById("assignmentStatusSummary")
-  ?.addEventListener(
-    "click",
-    event => {
+      // ======================================================
+      // FIND CLICKED GRADE CARD
+      // ======================================================
 
       const gradeCard =
         event.target.closest(
           "[data-admin-grade-filter]"
         );
 
-      if (!gradeCard) {
+
+      // ======================================================
+      // IGNORE OTHER CLICKS
+      // ======================================================
+
+      if (
+        !statusCard &&
+        !gradeCard
+      ) {
+
         return;
+
       }
 
 
-      const selectedGrade =
-        gradeCard.getAttribute(
-          "data-admin-grade-filter"
-        );
+      // ======================================================
+      // MAKE SURE STATE EXISTS
+      // ======================================================
 
+      if (
+        !window.adminAssignmentStatusState
+      ) {
 
-      if (!selectedGrade) {
-        return;
+        window.adminAssignmentStatusState = {
+
+          status: "all",
+
+          student: "all",
+
+          grade: "all",
+
+          search: ""
+
+        };
+
       }
 
 
-      // ------------------------------------------------------
-      // Save selected grade filter
-      // ------------------------------------------------------
+      // ======================================================
+      // STATUS CARD CLICK
+      // ======================================================
 
-      window.adminAssignmentGradeFilter =
-        selectedGrade;
+      if (
+        statusCard
+      ) {
+
+        const selectedStatus =
+          statusCard.getAttribute(
+            "data-admin-status-filter"
+          );
 
 
-      // ------------------------------------------------------
-      // Refresh the existing Assignment Status rows
-      // ------------------------------------------------------
+        if (
+          !selectedStatus
+        ) {
 
-      loadAssignmentStatus();
+          return;
+
+        }
+
+
+        // ----------------------------------------------------
+        // Select this status
+        // ----------------------------------------------------
+
+        window.adminAssignmentStatusState.status =
+          selectedStatus;
+
+
+        // ----------------------------------------------------
+        // IMPORTANT:
+        // A status card clears the grade filter.
+        // ----------------------------------------------------
+
+        window.adminAssignmentStatusState.grade =
+          "all";
+
+
+        // ----------------------------------------------------
+        // Keep the existing status dropdown synchronized.
+        // ----------------------------------------------------
+
+        const filterEl =
+          document.getElementById(
+            "assignmentStatusFilter"
+          );
+
+
+        if (
+          filterEl
+        ) {
+
+          filterEl.value =
+            selectedStatus;
+
+        }
+
+
+        // ----------------------------------------------------
+        // Keep existing grade variable synchronized.
+        // ----------------------------------------------------
+
+        window.adminAssignmentGradeFilter =
+          "all";
+
+      }
+
+
+      // ======================================================
+      // GRADE CARD CLICK
+      // ======================================================
+
+      if (
+        gradeCard
+      ) {
+
+        const selectedGrade =
+          gradeCard.getAttribute(
+            "data-admin-grade-filter"
+          );
+
+
+        if (
+          !selectedGrade
+        ) {
+
+          return;
+
+        }
+
+
+        // ----------------------------------------------------
+        // Select this grade.
+        // ----------------------------------------------------
+
+        window.adminAssignmentStatusState.grade =
+          selectedGrade;
+
+
+        // ----------------------------------------------------
+        // IMPORTANT:
+        // A grade card clears the status filter.
+        // ----------------------------------------------------
+
+        window.adminAssignmentStatusState.status =
+          "all";
+
+
+        // ----------------------------------------------------
+        // Keep existing global variable synchronized.
+        // ----------------------------------------------------
+
+        window.adminAssignmentGradeFilter =
+          selectedGrade;
+
+
+        // ----------------------------------------------------
+        // Synchronize the status dropdown.
+        // ----------------------------------------------------
+
+        const filterEl =
+          document.getElementById(
+            "assignmentStatusFilter"
+          );
+
+
+        if (
+          filterEl
+        ) {
+
+          filterEl.value =
+            "all";
+
+        }
+
+      }
+
+
+      // ======================================================
+      // REFRESH RESULTS
+      // ======================================================
+
+      await loadAssignmentStatus();
+
+
+      // ======================================================
+      // FOCUS ASSIGNMENT STATUS SECTION
+      // ======================================================
+
+      requestAnimationFrame(
+        () => {
+
+          setTimeout(
+            () => {
+
+              const assignmentSection =
+                document.getElementById(
+                  "assignmentStatus-section"
+                );
+
+
+              if (
+                assignmentSection
+              ) {
+
+                assignmentSection.scrollIntoView({
+
+                  behavior:
+                    "smooth",
+
+                  block:
+                    "start"
+
+                });
+
+              }
+
+            },
+            50
+          );
+
+        }
+      );
 
     }
   );
@@ -50624,25 +50953,185 @@ document
 // 📋 ASSIGNMENT STATUS — FILTERS
 // ============================================================
 
+// ============================================================
+// 📋 ADMIN — STATUS DROPDOWN
+// Single source of truth.
+// ============================================================
+
 document
   .getElementById("assignmentStatusFilter")
   ?.addEventListener(
     "change",
-    loadAssignmentStatus
+    async event => {
+
+      const selectedStatus =
+        event.target.value || "all";
+
+
+      // --------------------------------------------------------
+      // Make sure central state exists
+      // --------------------------------------------------------
+
+      if (
+        !window.adminAssignmentStatusState
+      ) {
+
+        window.adminAssignmentStatusState = {
+
+          status: "all",
+
+          student: "all",
+
+          grade: "all",
+
+          search: ""
+
+        };
+
+      }
+
+
+      // --------------------------------------------------------
+      // Save NEW status
+      // --------------------------------------------------------
+
+      window.adminAssignmentStatusState.status =
+        selectedStatus;
+
+
+      // --------------------------------------------------------
+      // IMPORTANT:
+      // Keep the currently selected student.
+      // Keep the currently selected grade.
+      // --------------------------------------------------------
+
+
+      // --------------------------------------------------------
+      // Fresh render
+      // --------------------------------------------------------
+
+      await loadAssignmentStatus(true);
+
+    }
   );
+
+// ============================================================
+// 🔍 ADMIN — ASSIGNMENT STATUS SEARCH
+// Single source of truth.
+// ============================================================
 
 document
   .getElementById("assignmentStatusSearch")
   ?.addEventListener(
     "input",
-    loadAssignmentStatus
+    async event => {
+
+      // --------------------------------------------------------
+      // Make sure central state exists
+      // --------------------------------------------------------
+
+      if (
+        !window.adminAssignmentStatusState
+      ) {
+
+        window.adminAssignmentStatusState = {
+
+          status: "all",
+
+          student: "all",
+
+          grade: "all",
+
+          search: ""
+
+        };
+
+      }
+
+
+      // --------------------------------------------------------
+      // Save the latest search text immediately
+      // --------------------------------------------------------
+
+      window.adminAssignmentStatusState.search =
+        (
+          event.target.value || ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      // --------------------------------------------------------
+      // Refresh using the SAME state
+      // --------------------------------------------------------
+
+      await loadAssignmentStatus(true);
+
+    }
   );
 
-  document
+// ============================================================
+// 👨‍🎓 ADMIN — STUDENT FILTER
+// Single source of truth for student selection.
+// ============================================================
+
+document
   .getElementById("assignmentStatusStudentFilter")
   ?.addEventListener(
     "change",
-    loadAssignmentStatus
+    async event => {
+
+      const studentId =
+        event.target.value || "all";
+
+
+      // --------------------------------------------------------
+      // Save the NEW student immediately
+      // --------------------------------------------------------
+
+      if (
+        !window.adminAssignmentStatusState
+      ) {
+
+        window.adminAssignmentStatusState = {
+
+          status: "all",
+
+          student: "all",
+
+          grade: "all",
+
+          search: ""
+
+        };
+
+      }
+
+
+      window.adminAssignmentStatusState.student =
+        studentId;
+
+
+      // --------------------------------------------------------
+      // IMPORTANT:
+      // Do NOT change status or grade here.
+      //
+      // Example:
+      // Student A + Completed + A+
+      //
+      // changing Student A → Student B should become:
+      //
+      // Student B + Completed + A+
+      // --------------------------------------------------------
+
+
+      // --------------------------------------------------------
+      // Force a fresh Assignment Status render
+      // --------------------------------------------------------
+
+      await loadAssignmentStatus(true);
+
+    }
   );
 
   // ============================================================
@@ -52699,6 +53188,22 @@ if (
 // Uses the same profiles pipeline as the existing assignment UI.
 // ============================================================
 
+// ============================================================
+// 👨‍🎓 ADMIN — ASSIGNMENT STATUS STUDENT DROPDOWN
+// ============================================================
+//
+// Loads all active students from profiles.
+//
+// This function ONLY rebuilds the student dropdown.
+// It does NOT change:
+// • status filter
+// • grade filter
+// • search filter
+// • assignment rows
+//
+// No database/schema changes.
+// ============================================================
+
 async function populateAssignmentStatusStudentFilter() {
 
   const select =
@@ -52706,85 +53211,197 @@ async function populateAssignmentStatusStudentFilter() {
       "assignmentStatusStudentFilter"
     );
 
-  if (!select) return;
+
+  // ----------------------------------------------------------
+  // Dropdown does not exist
+  // ----------------------------------------------------------
+
+  if (!select) {
+
+    console.warn(
+      "⚠️ #assignmentStatusStudentFilter not found."
+    );
+
+    return false;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // Remember current student selection
+  // ----------------------------------------------------------
 
   const currentValue =
-    select.value || "all";
+    String(
+      select.value || "all"
+    );
+
 
   try {
 
-    // ==========================================================
-    // LOAD ALL ACTIVE STUDENTS
-    // ==========================================================
+    console.log(
+      "👨‍🎓 Loading active students..."
+    );
 
-    const { data: students, error } =
-      await supabase
-        .from("profiles")
-        .select("id, username")
-        .eq("role", "student")
-        .eq("active", true)
-        .order("username", {
+
+    // ========================================================
+    // LOAD ACTIVE STUDENTS
+    // ========================================================
+
+    const {
+      data: students,
+      error
+    } = await supabase
+
+      .from("profiles")
+
+      .select(
+        "id, username"
+      )
+
+      .eq(
+        "role",
+        "student"
+      )
+
+      .eq(
+        "active",
+        true
+      )
+
+      .order(
+        "username",
+        {
           ascending: true
-        });
+        }
+      );
+
+
+    // ========================================================
+    // DATABASE ERROR
+    // ========================================================
 
     if (error) {
-      throw error;
+
+      console.error(
+        "❌ Failed to load active students:",
+        error
+      );
+
+      return false;
+
     }
 
 
-    // ==========================================================
-    // REBUILD DROPDOWN
-    // ==========================================================
+    // ========================================================
+    // CLEAR OLD OPTIONS
+    // ========================================================
 
-    select.innerHTML = `
-      <option value="all">
-        👨‍🎓 All Students
-      </option>
-    `;
+    select.innerHTML = "";
 
 
-    (students || []).forEach(student => {
+    // ========================================================
+    // ALL STUDENTS OPTION
+    // ========================================================
 
-      const option =
-        document.createElement("option");
-
-      option.value =
-        String(student.id);
-
-      option.textContent =
-        student.username ||
-        "Student";
-
-      select.appendChild(option);
-
-    });
-
-
-    // ==========================================================
-    // PRESERVE PREVIOUS SELECTION
-    // ==========================================================
-
-    const stillExists =
-      (students || []).some(
-        student =>
-          String(student.id) ===
-          String(currentValue)
+    const allOption =
+      document.createElement(
+        "option"
       );
+
+
+    allOption.value =
+      "all";
+
+
+    allOption.textContent =
+      "👨‍🎓 All Students";
+
+
+    select.appendChild(
+      allOption
+    );
+
+
+    // ========================================================
+    // ADD STUDENTS
+    // ========================================================
+
+    (students || []).forEach(
+      student => {
+
+        if (
+          !student ||
+          !student.id
+        ) {
+
+          return;
+
+        }
+
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+
+        option.value =
+          String(
+            student.id
+          );
+
+
+        option.textContent =
+          student.username ||
+          "Student";
+
+
+        select.appendChild(
+          option
+        );
+
+      }
+    );
+
+
+    // ========================================================
+    // RESTORE PREVIOUS STUDENT
+    // ========================================================
+
+    const studentStillExists =
+      Array.from(
+        select.options
+      ).some(
+        option =>
+          String(
+            option.value
+          ) ===
+          currentValue
+      );
+
 
     if (
       currentValue !== "all" &&
-      stillExists
+      studentStillExists
     ) {
 
       select.value =
         currentValue;
 
-    } else {
+    }
+
+    else {
 
       select.value =
         "all";
+
     }
 
+
+    // ========================================================
+    // LOG RESULT
+    // ========================================================
 
     console.log(
       "👨‍🎓 Assignment Status students loaded:",
@@ -52792,14 +53409,21 @@ async function populateAssignmentStatusStudentFilter() {
     );
 
 
+    return true;
+
+
   } catch (error) {
 
     console.error(
-      "❌ Failed to load active students for assignment status:",
+      "❌ Failed to populate Assignment Status student dropdown:",
       error
     );
 
+
+    return false;
+
   }
+
 }
 
 function confirmDeleteAssignment(assignmentId) {
@@ -54051,6 +54675,10 @@ function startStudentGradeRealtime() {
 
           // Refresh student progress immediately
           await loadStudentProgress();
+
+          await updateStudentAssignmentStatusSummary();
+
+          
 
         }
       )
