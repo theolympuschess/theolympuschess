@@ -49423,6 +49423,152 @@ window.exportAssignmentStatusPDF = async function () {
                 attempt =>
                   attempt.is_correct === true
               );
+
+              // ========================================================
+// 🎯 CORRECT PUZZLES
+// ========================================================
+
+let correctPuzzles = 0;
+let totalPuzzles = 0;
+
+
+// --------------------------------------------------------
+// Use the latest submitted attempt
+// --------------------------------------------------------
+
+const latestAttempt =
+  [...studentAttempts]
+    .sort(
+      (a, b) =>
+        new Date(
+          b.submitted_at || 0
+        ).getTime() -
+        new Date(
+          a.submitted_at || 0
+        ).getTime()
+    )[0] || null;
+
+
+// --------------------------------------------------------
+// Bulk assignment puzzle statistics
+// --------------------------------------------------------
+
+if (
+  latestAttempt?.bulk_answers &&
+  Array.isArray(
+    latestAttempt.bulk_answers
+  ) &&
+  latestAttempt.bulk_answers.length > 0
+) {
+
+  const puzzleStats =
+    getCorrectPuzzleStats(
+      latestAttempt.bulk_answers
+    );
+
+  correctPuzzles =
+    puzzleStats.correct || 0;
+
+  totalPuzzles =
+    puzzleStats.total || 0;
+
+}
+
+
+// --------------------------------------------------------
+// Single-puzzle assignment
+// --------------------------------------------------------
+
+else if (
+  latestAttempt
+) {
+
+  totalPuzzles = 1;
+
+  correctPuzzles =
+    latestAttempt.is_correct === true
+      ? 1
+      : 0;
+
+}
+
+
+// ========================================================
+// 🔄 RE-ATTEMPT COUNT
+//
+// Count every submission AFTER the student's first
+// successful completion.
+//
+// Failed attempts BEFORE the first completion
+// are NOT counted.
+// ========================================================
+
+const chronologicalAttempts =
+  [...studentAttempts].sort(
+    (a, b) =>
+      new Date(
+        a.submitted_at || 0
+      ).getTime() -
+      new Date(
+        b.submitted_at || 0
+      ).getTime()
+  );
+
+
+const firstCompletedIndex =
+  chronologicalAttempts.findIndex(
+    attempt =>
+      attempt.is_correct === true &&
+      attempt.submitted_at
+  );
+
+
+const reattemptCount =
+  firstCompletedIndex !== -1
+    ? Math.max(
+        0,
+        chronologicalAttempts.length -
+          firstCompletedIndex -
+          1
+      )
+    : 0;
+
+
+// ========================================================
+// 🏅 LATEST GRADE
+// ========================================================
+
+const gradedAttempts =
+  [...studentAttempts]
+    .filter(
+      attempt =>
+        attempt.grade_letter
+    )
+    .sort(
+      (a, b) =>
+        new Date(
+          b.graded_at ||
+          b.submitted_at ||
+          0
+        ).getTime() -
+        new Date(
+          a.graded_at ||
+          a.submitted_at ||
+          0
+        ).getTime()
+    );
+
+
+const gradeLetter =
+  gradedAttempts.length > 0
+    ? gradedAttempts[0].grade_letter
+    : null;
+
+
+const gradeLabel =
+  gradeLetter
+    ? `Grade: ${gradeLetter}`
+    : null;
               // ------------------------------------------------
 // Latest successful submission date
 // ------------------------------------------------
@@ -49490,7 +49636,7 @@ if (
             }
 
 
-      studentAssignments.push({
+     studentAssignments.push({
 
   title:
     assignment.title ||
@@ -49503,7 +49649,20 @@ if (
 
   status,
 
-  statusLabel
+  statusLabel,
+
+  // 🎯 Correct puzzle information
+  correctPuzzles,
+
+  totalPuzzles,
+
+  // 🔄 Total re-attempt submissions
+  reattemptCount,
+
+  // 🏅 Latest grade
+  gradeLetter,
+
+  gradeLabel
 
 });
 
@@ -49545,12 +49704,16 @@ if (
         format: "a4"
       });
 
+      
+
 
     const pageWidth =
       doc.internal.pageSize.getWidth();
 
     const pageHeight =
       doc.internal.pageSize.getHeight();
+
+      
 
 
     const margin = 14;
@@ -49631,6 +49794,29 @@ if (
       3,
       "F"
     );
+
+    // ========================================================
+// 🏛️ ACADEMY LOGO — TOP RIGHT
+// ========================================================
+
+const logoImg =
+  document.getElementById("academyLogo");
+
+if (
+  logoImg &&
+  logoImg.src
+) {
+
+doc.addImage(
+  logoImg,
+  "PNG",
+  pageWidth - 38,
+  9,
+  22,
+  22
+);
+
+}
 
 
     // Academy name
@@ -49974,23 +50160,23 @@ if (
           WHITE[2]
         );
 
-        doc.text(
-          "ASSIGNMENT",
-          margin + 4,
-          y + 3
-        );
+       doc.text(
+  "ASSIGNMENT",
+  margin + 4,
+  y + 3
+);
 
-        doc.text(
-          "COMPLETE BY",
-          112,
-          y + 3
-        );
+doc.text(
+  "COMPLETE BY",
+  112,
+  y + 3
+);
 
-        doc.text(
-          "STATUS",
-          165,
-          y + 3
-        );
+doc.text(
+  "RESULT",
+  165,
+  y + 3
+);
 
 
         y += 12;
@@ -50015,7 +50201,7 @@ if (
             }
 
 
-           const rowHeight = 22;
+          const rowHeight = 32;
 
 
             // Alternating row background
@@ -50130,7 +50316,7 @@ const dueText =
 
 const dueLines =
   doc.splitTextToSize(
-    dueText,
+    `Due date: ${dueText}`,
     48
   );
 
@@ -50207,87 +50393,197 @@ if (
 }
 
 
-            // ------------------------------------------------
-            // STATUS BADGE
-            // ------------------------------------------------
+            // ========================================================
+// 📊 RESULT DETAILS
+// ========================================================
 
-            let statusColor;
-            let statusBackground;
-
-
-            if (
-              assignment.status ===
-              "completed"
-            ) {
-
-              statusColor =
-                GREEN;
-
-              statusBackground =
-                LIGHT_GREEN;
-
-            } else if (
-              assignment.status ===
-              "overdue"
-            ) {
-
-              statusColor =
-                RED;
-
-              statusBackground =
-                LIGHT_RED;
-
-            } else {
-
-              statusColor =
-                GOLD;
-
-              statusBackground =
-                LIGHT_GOLD;
-
-            }
+let statusColor;
+let statusBackground;
 
 
-            doc.setFillColor(
-              statusBackground[0],
-              statusBackground[1],
-              statusBackground[2]
-            );
+// --------------------------------------------------------
+// Status colors
+// --------------------------------------------------------
+
+if (
+  assignment.status ===
+  "completed"
+) {
+
+  statusColor =
+    GREEN;
+
+  statusBackground =
+    LIGHT_GREEN;
+
+} else if (
+  assignment.status ===
+  "overdue"
+) {
+
+  statusColor =
+    RED;
+
+  statusBackground =
+    LIGHT_RED;
+
+} else {
+
+  statusColor =
+    GOLD;
+
+  statusBackground =
+    LIGHT_GOLD;
+
+}
 
 
-       doc.roundedRect(
+// --------------------------------------------------------
+// STATUS
+// --------------------------------------------------------
+
+doc.setFillColor(
+  statusBackground[0],
+  statusBackground[1],
+  statusBackground[2]
+);
+
+doc.roundedRect(
   162,
-  y + 2,
+  y + 1,
   29,
-  8,
+  7,
   2,
   2,
   "F"
 );
 
+doc.setFont(
+  "helvetica",
+  "bold"
+);
 
-            doc.setFont(
-              "helvetica",
-              "bold"
-            );
+doc.setFontSize(8);
 
-            doc.setFontSize(7);
+doc.setTextColor(
+  statusColor[0],
+  statusColor[1],
+  statusColor[2]
+);
 
-            doc.setTextColor(
-              statusColor[0],
-              statusColor[1],
-              statusColor[2]
-            );
-
-
-         doc.text(
+doc.text(
   assignment.statusLabel,
   176.5,
-  y + 7,
+  y + 5.5,
   {
     align: "center"
   }
 );
+
+
+// --------------------------------------------------------
+// 🎯 CORRECT PUZZLES
+// --------------------------------------------------------
+
+if (
+  assignment.totalPuzzles > 0
+) {
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setTextColor(
+  statusColor[0],
+  statusColor[1],
+  statusColor[2]
+);
+
+  doc.setFontSize(8);
+
+  doc.setTextColor(
+    TEXT[0],
+    TEXT[1],
+    TEXT[2]
+  );
+
+  doc.text(
+    `Correct Puzzles: ${assignment.correctPuzzles}/${assignment.totalPuzzles}`,
+    162,
+    y + 12
+  );
+
+}
+
+
+// --------------------------------------------------------
+// 🔄 RE-ATTEMPTS
+// --------------------------------------------------------
+
+if (
+  assignment.reattemptCount > 0
+) {
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(6.5);
+
+  doc.setTextColor(
+    GOLD[0],
+    GOLD[1],
+    GOLD[2]
+  );
+
+  doc.text(
+    `Re-attempts: ${assignment.reattemptCount}`,
+    162,
+    y + 17
+  );
+
+}
+
+
+// --------------------------------------------------------
+// 🏅 GRADE
+// --------------------------------------------------------
+
+if (
+  assignment.gradeLabel
+) {
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(6.5);
+
+  doc.setTextColor(
+    BLUE[0],
+    BLUE[1],
+    BLUE[2]
+  );
+
+  const gradeText =
+    assignment.gradeLabel;
+
+  const gradeLines =
+    doc.splitTextToSize(
+      gradeText,
+      29
+    );
+
+  doc.text(
+    gradeLines,
+    162,
+    y + 22
+  );
+
+}
 
 
             y += rowHeight + 2;
