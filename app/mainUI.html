@@ -47167,60 +47167,296 @@ ${
       `
     : ""
 }
-        <h4>${assign.title || 'Untitled Assignment'}</h4>
-        <p>${assign.description || 'No description provided.'}</p>
-        <p>
-  <strong>Type:</strong> ${assign.task_type || 'General'}
-  | <strong>Status:</strong> ${assign.status || 'active'}
-</p>
+        <div
+  style="
+    padding:14px 16px;
+    border-radius:12px;
+    background:linear-gradient(
+      145deg,
+      rgba(30,41,59,0.95),
+      rgba(15,23,42,0.95)
+    );
+    border:1px solid rgba(99,102,241,0.35);
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.22),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+  "
+>
 
-<div class="assignment-search-students" style="display:none;">
+  <h4
+    style="
+      margin:0 0 7px 0;
+      color:#e0e7ff;
+      font-size:17px;
+      font-weight:800;
+      line-height:1.3;
+    "
+  >
+    ${assign.title || 'Untitled Assignment'}
+  </h4>
+
+
+  <p
+    style="
+      margin:0 0 9px 0;
+      color:#cbd5e1;
+      font-size:13px;
+      line-height:1.45;
+    "
+  >
+    ${assign.description || 'No description provided.'}
+  </p>
+
+
+  <p
+    style="
+      margin:0 0 8px 0;
+      font-size:12px;
+      line-height:1.4;
+      color:#cbd5e1;
+    "
+  >
+    <strong style="color:#67e8f9;">
+      Type:
+    </strong>
+    ${assign.task_type || 'General'}
+
+    <span
+      style="
+        margin:0 6px;
+        color:#64748b;
+      "
+    >|</span>
+
+    <strong style="color:#86efac;">
+      Status:
+    </strong>
+    ${assign.status || 'active'}
+  </p>
+
+
+  <div
+    class="assignment-search-students"
+    style="display:none;"
+  >
+    ${
+      assign.is_public
+        ? "all students"
+        : (Array.isArray(assign.assigned_to)
+            ? assign.assigned_to
+                .map(id => studentNameMap[id])
+                .filter(Boolean)
+                .join(" ")
+            : "")
+    }
+  </div>
+
+
   ${
-    assign.is_public
-      ? "all students"
-      : (Array.isArray(assign.assigned_to)
-          ? assign.assigned_to
-              .map(id => studentNameMap[id])
-              .filter(Boolean)
-              .join(" ")
-          : "")
+    currentProfile.role === "admin"
+      ? renderAssignedTo(
+          assign,
+          studentNameMap
+        )
+      : ""
   }
+
+
+  ${
+    assign.due_at
+      ? `
+        <div
+          style="
+            display:inline-block;
+            margin-top:3px;
+            padding:5px 9px;
+            border-radius:7px;
+            background:rgba(245,158,11,0.10);
+            border:1px solid rgba(245,158,11,0.28);
+            color:#fbbf24;
+            font-size:11px;
+            font-weight:700;
+          "
+        >
+          📅 Complete by:
+          ${new Date(assign.due_at).toLocaleDateString()}
+        </div>
+      `
+      : ''
+  }
+
 </div>
 
-${currentProfile.role === "admin"
-  ? renderAssignedTo(assign, studentNameMap)
-  : ""
+
+<div class="assignment-actions">
+
+ ${currentProfile.role === 'admin'
+  ? `
+    <!-- 👁️ ADMIN — VIEW DETAILS -->
+    <button
+      class="btn-secondary"
+      data-action="view"
+      data-id="${assign.id}"
+      style="
+        background: linear-gradient(135deg, #2563eb, #6366f1);
+        color: #ffffff;
+        border: 1px solid #818cf8;
+        box-shadow: 0 3px 10px rgba(99,102,241,0.35);
+        font-weight: 800;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+      "
+      onmouseenter="
+        this.style.transform='translateY(-3px) scale(1.04)';
+        this.style.boxShadow='0 6px 16px rgba(99,102,241,0.55)';
+      "
+      onmouseleave="
+        this.style.transform='translateY(0) scale(1)';
+        this.style.boxShadow='0 3px 10px rgba(99,102,241,0.35)';
+      "
+      onmousedown="
+        this.style.transform='translateY(-1px) scale(0.98)';
+      "
+      onmouseup="
+        this.style.transform='translateY(-3px) scale(1.04)';
+      "
+    >
+       View Details
+    </button>
+
+
+    <!-- ✏️ ADMIN — EDIT -->
+    <button
+      class="btn-warning"
+      data-action="edit"
+      data-id="${assign.id}"
+      style="
+        background: linear-gradient(135deg, #f59e0b, #f97316);
+        color: #ffffff;
+        border: 1px solid #fbbf24;
+        box-shadow: 0 3px 10px rgba(249,115,22,0.35);
+        font-weight: 800;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+      "
+      onmouseenter="
+        this.style.transform='translateY(-3px) scale(1.04)';
+        this.style.boxShadow='0 6px 16px rgba(249,115,22,0.55)';
+      "
+      onmouseleave="
+        this.style.transform='translateY(0) scale(1)';
+        this.style.boxShadow='0 3px 10px rgba(249,115,22,0.35)';
+      "
+      onmousedown="
+        this.style.transform='translateY(-1px) scale(0.98)';
+      "
+      onmouseup="
+        this.style.transform='translateY(-3px) scale(1.04)';
+      "
+    >
+       Edit
+    </button>
+
+
+    <!-- 🧪 ADMIN — TEST ASSIGNMENT -->
+    <button
+      class="btn-primary"
+      data-action="test"
+      data-id="${assign.id}"
+      style="
+        background: linear-gradient(135deg, #8b5cf6, #ec4899);
+        color: #ffffff;
+        border: 1px solid #c084fc;
+        box-shadow: 0 3px 10px rgba(168,85,247,0.35);
+        font-weight: 800;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+      "
+      onmouseenter="
+        this.style.transform='translateY(-3px) scale(1.04)';
+        this.style.boxShadow='0 6px 16px rgba(168,85,247,0.55)';
+      "
+      onmouseleave="
+        this.style.transform='translateY(0) scale(1)';
+        this.style.boxShadow='0 3px 10px rgba(168,85,247,0.35)';
+      "
+      onmousedown="
+        this.style.transform='translateY(-1px) scale(0.98)';
+      "
+      onmouseup="
+        this.style.transform='translateY(-3px) scale(1.04)';
+      "
+    >
+       Test Assignment
+    </button>
+
+
+    <!-- 🗑️ ADMIN — DELETE -->
+    <button
+      class="btn-danger"
+      data-action="delete"
+      data-id="${assign.id}"
+      style="
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        color: #ffffff;
+        border: 1px solid #f87171;
+        box-shadow: 0 3px 10px rgba(239,68,68,0.35);
+        font-weight: 800;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+      "
+      onmouseenter="
+        this.style.transform='translateY(-3px) scale(1.04)';
+        this.style.boxShadow='0 6px 16px rgba(239,68,68,0.55)';
+      "
+      onmouseleave="
+        this.style.transform='translateY(0) scale(1)';
+        this.style.boxShadow='0 3px 10px rgba(239,68,68,0.35)';
+      "
+      onmousedown="
+        this.style.transform='translateY(-1px) scale(0.98)';
+      "
+      onmouseup="
+        this.style.transform='translateY(-3px) scale(1.04)';
+      "
+    >
+       Delete
+    </button>
+  `
+  : `
+    <!-- ▶️ STUDENT — START ASSIGNMENT -->
+    <button
+      class="btn-primary"
+      data-action="start"
+      data-id="${assign.id}"
+      style="
+        background: linear-gradient(135deg, #2563eb, #06b6d4);
+        color: #ffffff;
+        border: 1px solid #38bdf8;
+        box-shadow: 0 3px 10px rgba(6,182,212,0.35);
+        font-weight: 800;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        cursor: pointer;
+      "
+      onmouseenter="
+        this.style.transform='translateY(-4px) scale(1.05)';
+        this.style.boxShadow='0 7px 18px rgba(6,182,212,0.55)';
+      "
+      onmouseleave="
+        this.style.transform='translateY(0) scale(1)';
+        this.style.boxShadow='0 3px 10px rgba(6,182,212,0.35)';
+      "
+      onmousedown="
+        this.style.transform='translateY(-1px) scale(0.98)';
+      "
+      onmouseup="
+        this.style.transform='translateY(-4px) scale(1.05)';
+      "
+    >
+      ▶ Start Assignment
+    </button>
+  `
 }
-
-        ${assign.due_at ? `<p><strong>📅 Complete by:</strong> ${new Date(assign.due_at).toLocaleDateString()}</p>` : ''}
-        <div class="assignment-actions">
-
-  ${currentProfile.role === 'admin'
-    ? `
-      <button class="btn-secondary" data-action="view" data-id="${assign.id}">
-        View Details
-      </button>
-
-      <button class="btn-warning"
-data-action="edit"
-data-id="${assign.id}">
- Edit
-</button>
-
-      <button class="btn-primary" data-action="test" data-id="${assign.id}">
-        Test Assignment
-      </button>
-
-      <button class="btn-danger" data-action="delete" data-id="${assign.id}">
-        🗑 Delete
-      </button>
-    `
-    : `
-      <button class="btn-primary" data-action="start" data-id="${assign.id}">
-        Start Assignment
-      </button>
-    `
-  }
 </div>
       </div>
     `).join('');
@@ -54546,26 +54782,76 @@ orderedProgress.forEach(p => {
 
       <div class="progress-actions">
 
-        <button
-          class="btn-small reattempt-btn"
-          data-assignment-id="${p.assignmentId}"
-        >
-          Re-attempt
-        </button>
+       <button  
+  class="btn-small reattempt-btn"  
+  data-assignment-id="${p.assignmentId}"  
+  style="
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #ffffff;
+    border: 1px solid #4ade80;
+    box-shadow: 0 2px 8px rgba(34,197,94,0.35);
+    font-weight: 700;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  " 
+  onmouseenter=" 
+    this.style.transform='translateY(-3px) scale(1.04)'; 
+    this.style.boxShadow='0 5px 14px rgba(34,197,94,0.50)'; 
+  " 
+  onmouseleave=" 
+    this.style.transform='translateY(0) scale(1)'; 
+    this.style.boxShadow='0 2px 8px rgba(34,197,94,0.35)'; 
+  " 
+> 
+  Re-Attempt 
+</button>
 
-        <button
-          class="btn-small view-details-btn"
-          data-assignment-id="${p.assignmentId}"
-        >
-          View details
-        </button>
+           <button 
+  class="btn-small view-puzzles-btn" 
+  data-assignment-id="${p.assignmentId}" 
+  style="
+    background: linear-gradient(135deg, #0284c7, #06b6d4);
+    color: #ffffff; 
+    border:  1px solid #22d3ee;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.35); 
+    font-weight: 700;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  "
+  onmouseenter="
+    this.style.transform='translateY(-3px) scale(1.04)';
+    this.style.boxShadow='0 5px 14px rgba(99,102,241,0.50)';
+  "
+  onmouseleave="
+    this.style.transform='translateY(0) scale(1)';
+    this.style.boxShadow='0 2px 8px rgba(99,102,241,0.35)';
+  "
+>
+  My Details
+</button>
 
-        <button
-          class="btn-small view-puzzles-btn"
-          data-assignment-id="${p.assignmentId}"
-        >
-          Puzzles
-        </button>
+       <button 
+  class="btn-small view-details-btn" 
+  data-assignment-id="${p.assignmentId}" 
+  style="
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #ffffff;
+    border: 1px solid #a78bfa;
+    box-shadow: 0 2px 8px rgba(6,182,212,0.35);
+    font-weight: 700;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  "
+  onmouseenter="
+    this.style.transform='translateY(-3px) scale(1.04)';
+    this.style.boxShadow='0 5px 14px rgba(6,182,212,0.50)';
+  "
+  onmouseleave="
+    this.style.transform='translateY(0) scale(1)';
+    this.style.boxShadow='0 2px 8px rgba(6,182,212,0.35)';
+  "
+>
+  Description
+</button>
+
+     
 
       </div>
 
@@ -54679,41 +54965,618 @@ async function reattemptAssignment(assignmentId) {
   }
 }
 
+// ============================================================
+// 📘 STUDENT — ASSIGNMENT DETAILS POPUP
+// Fully isolated popup.
+// Does NOT use showModal().
+// Does NOT use resultModal.
+// Does NOT depend on modal-card CSS.
+// Does NOT reveal solution / expected moves.
+// ============================================================
+
 async function viewAssignmentDetailsForStudent(assignmentId) {
+
   try {
-    const { data: assignment, error } = await supabase
+
+    // ========================================================
+    // 📡 LOAD ASSIGNMENT
+    // ========================================================
+
+    const {
+      data: assignment,
+      error
+    } = await supabase
+
       .from("assignments")
+
       .select(`
         title,
         description,
         task_type,
         due_at,
-        created_at
+        created_at,
+        status,
+        is_bulk,
+        pgn
       `)
-      .eq("id", assignmentId)
+
+      .eq(
+        "id",
+        assignmentId
+      )
+
       .single();
 
-    if (error || !assignment) {
-      showModal("❌ Error", "<p>Assignment details not found.</p>");
+
+    // ========================================================
+    // ❌ ERROR
+    // ========================================================
+
+    if (
+      error ||
+      !assignment
+    ) {
+
+      alert(
+        "Assignment details not found."
+      );
+
       return;
     }
 
-    const html = `
-      <p><strong>Title:</strong> ${assignment.title}</p>
-      <p><strong>Type:</strong> ${assignment.task_type}</p>
-      <p><strong>Created:</strong> ${new Date(assignment.created_at).toLocaleString()}</p>
-      ${assignment.due_at ? `<p><strong>Due:</strong> ${new Date(assignment.due_at).toLocaleString()}</p>` : ""}
-      <hr>
-      <p><strong>Description:</strong></p>
-      <p>${assignment.description || "No description provided."}</p>
+
+    // ========================================================
+    // 🧩 CALCULATE PUZZLE COUNT
+    // ========================================================
+
+    let puzzleCount = 1;
+
+    if (
+      assignment.is_bulk &&
+      assignment.pgn
+    ) {
+
+      puzzleCount =
+        assignment.pgn
+          .split(
+            /\n\s*\n(?=\[Event|\[FEN)/g
+          )
+          .filter(
+            p =>
+              p.trim().length > 0
+          )
+          .length;
+
+    }
+
+
+    // ========================================================
+    // 📚 ASSIGNMENT FORMAT
+    // ========================================================
+
+    const format =
+      assignment.is_bulk
+        ? "Bulk Assignment"
+        : "Single Assignment";
+
+
+    // ========================================================
+    // 📅 DUE DATE
+    // ========================================================
+
+    const dueText =
+      assignment.due_at
+        ? new Date(
+            assignment.due_at
+          ).toLocaleString()
+        : "No deadline";
+
+
+    // ========================================================
+    // 📝 DESCRIPTION
+    // ========================================================
+
+    const description =
+      assignment.description ||
+      "No description provided.";
+
+
+    // ========================================================
+    // 🧹 REMOVE EXISTING POPUP
+    // ========================================================
+
+    const existingPopup =
+      document.getElementById(
+        "studentAssignmentDetailsPopup"
+      );
+
+    if (existingPopup) {
+      existingPopup.remove();
+    }
+
+
+    // ========================================================
+    // 🪟 CREATE ISOLATED POPUP
+    // ========================================================
+
+    const overlay =
+      document.createElement(
+        "div"
+      );
+
+    overlay.id =
+      "studentAssignmentDetailsPopup";
+
+
+    // ========================================================
+    // 🎨 OVERLAY STYLE
+    // ========================================================
+
+    Object.assign(
+      overlay.style,
+      {
+
+        position: "fixed",
+
+        inset: "0",
+
+        width: "100vw",
+
+        height: "100vh",
+
+        background:
+          "rgba(0,0,0,0.72)",
+
+        display: "flex",
+
+        alignItems: "center",
+
+        justifyContent: "center",
+
+        zIndex: "999999",
+
+        padding: "16px",
+
+        boxSizing: "border-box"
+
+      }
+    );
+
+
+    // ========================================================
+    // 🪟 POPUP WINDOW
+    // ========================================================
+
+    const popup =
+      document.createElement(
+        "div"
+      );
+
+
+    Object.assign(
+      popup.style,
+      {
+
+        width: "380px",
+
+        maxWidth:
+          "calc(100vw - 32px)",
+
+        background:
+          "#171a2e",
+
+        color:
+          "#ffffff",
+
+        border:
+          "1px solid #3b82f6",
+
+        borderRadius:
+          "12px",
+
+        padding:
+          "16px",
+
+        boxSizing:
+          "border-box",
+
+        boxShadow:
+          "0 15px 40px rgba(0,0,0,0.55)",
+
+        fontFamily:
+          "inherit",
+
+        position:
+          "relative",
+
+        maxHeight:
+          "80vh",
+
+        overflowY:
+          "auto"
+
+      }
+    );
+
+
+    // ========================================================
+    // 📘 TITLE
+    // ========================================================
+
+    const heading =
+      document.createElement(
+        "div"
+      );
+
+
+    heading.textContent =
+      "📘 Assignment Details";
+
+
+    Object.assign(
+      heading.style,
+      {
+
+        fontSize:
+          "18px",
+
+        fontWeight:
+          "800",
+
+        color:
+          "#60a5fa",
+
+        marginBottom:
+          "12px",
+
+        paddingRight:
+          "30px"
+
+      }
+    );
+
+
+    popup.appendChild(
+      heading
+    );
+
+
+    // ========================================================
+    // ❌ CLOSE BUTTON
+    // ========================================================
+
+    const closeButton =
+      document.createElement(
+        "button"
+      );
+
+
+    closeButton.type =
+      "button";
+
+
+    closeButton.textContent =
+      "✕";
+
+
+    Object.assign(
+      closeButton.style,
+      {
+
+        position:
+          "absolute",
+
+        top:
+          "10px",
+
+        right:
+          "10px",
+
+        width:
+          "28px",
+
+        height:
+          "28px",
+
+        border:
+          "none",
+
+        borderRadius:
+          "50%",
+
+        background:
+          "rgba(255,255,255,0.10)",
+
+        color:
+          "#ffffff",
+
+        fontSize:
+          "16px",
+
+        fontWeight:
+          "800",
+
+        cursor:
+          "pointer",
+
+        display:
+          "flex",
+
+        alignItems:
+          "center",
+
+        justifyContent:
+          "center"
+
+      }
+    );
+
+
+    closeButton.onclick =
+      () => {
+
+        overlay.remove();
+
+      };
+
+
+    popup.appendChild(
+      closeButton
+    );
+
+
+    // ========================================================
+    // 📋 DETAILS CONTAINER
+    // ========================================================
+
+    const details =
+      document.createElement(
+        "div"
+      );
+
+
+    Object.assign(
+      details.style,
+      {
+
+        fontSize:
+          "13px",
+
+        lineHeight:
+          "1.35",
+
+        textAlign:
+          "left"
+
+      }
+    );
+
+
+    // ========================================================
+    // 📘 DETAILS HTML
+    // ========================================================
+
+    details.innerHTML = `
+
+      <div style="
+        display:grid;
+        grid-template-columns:auto 1fr;
+        column-gap:12px;
+        row-gap:6px;
+      ">
+
+        <strong>📘 Title:</strong>
+        <span>${assignment.title || "Untitled Assignment"}</span>
+
+        <strong>♟ Type:</strong>
+        <span>${assignment.task_type || "General"}</span>
+
+        <strong>📚 Format:</strong>
+        <span>${format}</span>
+
+        ${
+          assignment.is_bulk
+            ? `
+              <strong>🧩 Puzzles:</strong>
+              <span>${puzzleCount}</span>
+            `
+            : ""
+        }
+
+        <strong>🟢 Status:</strong>
+        <span>${assignment.status || "active"}</span>
+
+        <strong>🕒 Created:</strong>
+        <span>
+          ${
+            assignment.created_at
+              ? new Date(
+                  assignment.created_at
+                ).toLocaleString()
+              : "Unknown"
+          }
+        </span>
+
+        <strong>📅 Due:</strong>
+        <span>${dueText}</span>
+
+      </div>
+
+
+      <div style="
+        margin-top:10px;
+        padding-top:8px;
+        border-top:1px solid rgba(255,255,255,0.15);
+      ">
+
+        <div style="
+          font-weight:800;
+          margin-bottom:4px;
+        ">
+          📝 Description:
+        </div>
+
+        <div style="
+          line-height:1.4;
+          word-break:break-word;
+        ">
+          ${description}
+        </div>
+
+      </div>
+
     `;
 
-    showModal("📘 Assignment Details", html);
+
+    popup.appendChild(
+      details
+    );
+
+
+    // ========================================================
+    // 🔘 CLOSE BUTTON
+    // ========================================================
+
+    const doneButton =
+      document.createElement(
+        "button"
+      );
+
+
+    doneButton.type =
+      "button";
+
+
+    doneButton.textContent =
+      "Close";
+
+
+    Object.assign(
+      doneButton.style,
+      {
+
+        width:
+          "100%",
+
+        marginTop:
+          "12px",
+
+        padding:
+          "8px 12px",
+
+        border:
+          "1px solid #22c55e",
+
+        borderRadius:
+          "8px",
+
+        background:
+          "#166534",
+
+        color:
+          "#ffffff",
+
+        fontSize:
+          "13px",
+
+        fontWeight:
+          "800",
+
+        cursor:
+          "pointer"
+
+      }
+    );
+
+
+    doneButton.onclick =
+      () => {
+
+        overlay.remove();
+
+      };
+
+
+    popup.appendChild(
+      doneButton
+    );
+
+
+    // ========================================================
+    // 📎 ADD POPUP TO PAGE
+    // ========================================================
+
+    overlay.appendChild(
+      popup
+    );
+
+    document.body.appendChild(
+      overlay
+    );
+
+
+    // ========================================================
+    // 🖱️ CLICK OUTSIDE TO CLOSE
+    // ========================================================
+
+    overlay.addEventListener(
+      "click",
+      event => {
+
+        if (
+          event.target === overlay
+        ) {
+
+          overlay.remove();
+
+        }
+
+      }
+    );
+
+
+    // ========================================================
+    // ⌨️ ESC TO CLOSE
+    // ========================================================
+
+    const escapeHandler =
+      event => {
+
+        if (
+          event.key === "Escape"
+        ) {
+
+          overlay.remove();
+
+          document.removeEventListener(
+            "keydown",
+            escapeHandler
+          );
+
+        }
+
+      };
+
+
+    document.addEventListener(
+      "keydown",
+      escapeHandler
+    );
+
 
   } catch (err) {
-    console.error(err);
-    showModal("❌ Error", "<p>Something went wrong.</p>");
+
+    console.error(
+      "❌ Student assignment details error:",
+      err
+    );
+
+    alert(
+      "Something went wrong while loading assignment details."
+    );
+
   }
+
 }
 
 
@@ -63829,38 +64692,600 @@ function safeStyle(id, property, value) {
 
     };
 
-    window.viewAssignment = async function (assignmentId) {
+   // ============================================================
+// 📘 ADMIN — ASSIGNMENT DETAILS POPUP
+// Fully isolated popup.
+// Does NOT use showModal().
+// Does NOT use resultModal.
+// Does NOT depend on modal-card CSS.
+// ============================================================
+
+window.viewAssignment = async function (assignmentId) {
+
   try {
-    const { data: assignment, error } = await supabase
+
+    // ========================================================
+    // 📡 LOAD ASSIGNMENT
+    // ========================================================
+
+    const {
+      data: assignment,
+      error
+    } = await supabase
+
       .from("assignments")
+
       .select("*")
-      .eq("id", assignmentId)
+
+      .eq(
+        "id",
+        assignmentId
+      )
+
       .single();
 
-    if (error || !assignment) {
-      showModal("Error", "Failed to load assignment details.");
+
+    // ========================================================
+    // ❌ ERROR
+    // ========================================================
+
+    if (
+      error ||
+      !assignment
+    ) {
+
+      alert(
+        "Failed to load assignment details."
+      );
+
       return;
     }
 
-    const html = `
-      <p><strong>Title:</strong> ${assignment.title}</p>
-      <p><strong>Type:</strong> ${assignment.task_type}</p>
-      <p><strong>Status:</strong> ${assignment.status}</p>
-      <p><strong>Created:</strong> ${new Date(assignment.created_at).toLocaleString()}</p>
-      ${assignment.due_at ? `<p><strong>Due:</strong> ${new Date(assignment.due_at).toLocaleString()}</p>` : ""}
-      <hr>
-      <p><strong>Description:</strong></p>
-      <p>${assignment.description || "No description provided."}</p>
-      <hr>
-      <p><strong>Bulk Assignment:</strong> ${assignment.is_bulk ? "Yes" : "No"}</p>
+
+    // ========================================================
+    // 🧩 ASSIGNMENT FORMAT
+    // ========================================================
+
+    const format =
+      assignment.is_bulk
+        ? "Bulk Assignment"
+        : "Single Assignment";
+
+
+    // ========================================================
+    // 🧩 PUZZLE COUNT
+    // ========================================================
+
+    let puzzleCount = 1;
+
+    if (
+      assignment.is_bulk &&
+      assignment.pgn
+    ) {
+
+      puzzleCount =
+        assignment.pgn
+          .split(
+            /\n\s*\n(?=\[Event|\[FEN)/g
+          )
+          .filter(
+            p =>
+              p.trim().length > 0
+          )
+          .length;
+
+    }
+
+
+    // ========================================================
+    // 📅 DUE DATE
+    // ========================================================
+
+    const dueText =
+      assignment.due_at
+        ? new Date(
+            assignment.due_at
+          ).toLocaleString()
+        : "No deadline";
+
+
+    // ========================================================
+    // 📝 DESCRIPTION
+    // ========================================================
+
+    const description =
+      assignment.description ||
+      "No description provided.";
+
+
+    // ========================================================
+    // 🧹 REMOVE EXISTING POPUP
+    // ========================================================
+
+    const existingPopup =
+      document.getElementById(
+        "adminAssignmentDetailsPopup"
+      );
+
+    if (existingPopup) {
+      existingPopup.remove();
+    }
+
+
+    // ========================================================
+    // 🪟 CREATE OVERLAY
+    // ========================================================
+
+    const overlay =
+      document.createElement(
+        "div"
+      );
+
+    overlay.id =
+      "adminAssignmentDetailsPopup";
+
+
+    Object.assign(
+      overlay.style,
+      {
+
+        position: "fixed",
+
+        inset: "0",
+
+        width: "100vw",
+
+        height: "100vh",
+
+        background:
+          "rgba(0,0,0,0.72)",
+
+        display: "flex",
+
+        alignItems: "center",
+
+        justifyContent: "center",
+
+        zIndex: "999999",
+
+        padding: "16px",
+
+        boxSizing: "border-box"
+
+      }
+    );
+
+
+    // ========================================================
+    // 🪟 CREATE POPUP
+    // ========================================================
+
+    const popup =
+      document.createElement(
+        "div"
+      );
+
+
+    Object.assign(
+      popup.style,
+      {
+
+        width: "380px",
+
+        maxWidth:
+          "calc(100vw - 32px)",
+
+        background:
+          "#171a2e",
+
+        color:
+          "#ffffff",
+
+        border:
+          "1px solid #3b82f6",
+
+        borderRadius:
+          "12px",
+
+        padding:
+          "16px",
+
+        boxSizing:
+          "border-box",
+
+        boxShadow:
+          "0 15px 40px rgba(0,0,0,0.55)",
+
+        fontFamily:
+          "inherit",
+
+        position:
+          "relative",
+
+        maxHeight:
+          "80vh",
+
+        overflowY:
+          "auto"
+
+      }
+    );
+
+
+    // ========================================================
+    // 📘 TITLE
+    // ========================================================
+
+    const heading =
+      document.createElement(
+        "div"
+      );
+
+
+    heading.textContent =
+      "📘 Assignment Details";
+
+
+    Object.assign(
+      heading.style,
+      {
+
+        fontSize:
+          "18px",
+
+        fontWeight:
+          "800",
+
+        color:
+          "#60a5fa",
+
+        marginBottom:
+          "12px",
+
+        paddingRight:
+          "30px"
+
+      }
+    );
+
+
+    popup.appendChild(
+      heading
+    );
+
+
+    // ========================================================
+    // ❌ CLOSE BUTTON
+    // ========================================================
+
+    const closeButton =
+      document.createElement(
+        "button"
+      );
+
+
+    closeButton.type =
+      "button";
+
+
+    closeButton.textContent =
+      "✕";
+
+
+    Object.assign(
+      closeButton.style,
+      {
+
+        position:
+          "absolute",
+
+        top:
+          "10px",
+
+        right:
+          "10px",
+
+        width:
+          "28px",
+
+        height:
+          "28px",
+
+        border:
+          "none",
+
+        borderRadius:
+          "50%",
+
+        background:
+          "rgba(255,255,255,0.10)",
+
+        color:
+          "#ffffff",
+
+        fontSize:
+          "16px",
+
+        fontWeight:
+          "800",
+
+        cursor:
+          "pointer",
+
+        display:
+          "flex",
+
+        alignItems:
+          "center",
+
+        justifyContent:
+          "center"
+
+      }
+    );
+
+
+    closeButton.onclick =
+      () => {
+
+        overlay.remove();
+
+      };
+
+
+    popup.appendChild(
+      closeButton
+    );
+
+
+    // ========================================================
+    // 📋 DETAILS
+    // ========================================================
+
+    const details =
+      document.createElement(
+        "div"
+      );
+
+
+    Object.assign(
+      details.style,
+      {
+
+        fontSize:
+          "13px",
+
+        lineHeight:
+          "1.35",
+
+        textAlign:
+          "left"
+
+      }
+    );
+
+
+    details.innerHTML = `
+
+      <div style="
+        display:grid;
+        grid-template-columns:auto 1fr;
+        column-gap:12px;
+        row-gap:6px;
+      ">
+
+        <strong>📘 Title:</strong>
+        <span>${assignment.title || "Untitled Assignment"}</span>
+
+        <strong>♟ Type:</strong>
+        <span>${assignment.task_type || "General"}</span>
+
+        <strong>🟢 Status:</strong>
+        <span>${assignment.status || "active"}</span>
+
+        <strong>📚 Format:</strong>
+        <span>${format}</span>
+
+        ${
+          assignment.is_bulk
+            ? `
+              <strong>🧩 Puzzles:</strong>
+              <span>${puzzleCount}</span>
+            `
+            : ""
+        }
+
+        <strong>🕒 Created:</strong>
+        <span>
+          ${
+            assignment.created_at
+              ? new Date(
+                  assignment.created_at
+                ).toLocaleString()
+              : "Unknown"
+          }
+        </span>
+
+        <strong>📅 Due:</strong>
+        <span>${dueText}</span>
+
+      </div>
+
+
+      <div style="
+        margin-top:10px;
+        padding-top:8px;
+        border-top:1px solid rgba(255,255,255,0.15);
+      ">
+
+        <div style="
+          font-weight:800;
+          margin-bottom:4px;
+        ">
+          📝 Description:
+        </div>
+
+        <div style="
+          line-height:1.4;
+          word-break:break-word;
+        ">
+          ${description}
+        </div>
+
+      </div>
+
     `;
 
-    showModal("📘 Assignment Details", html);
+
+    popup.appendChild(
+      details
+    );
+
+
+    // ========================================================
+    // 🔘 CLOSE BUTTON
+    // ========================================================
+
+    const doneButton =
+      document.createElement(
+        "button"
+      );
+
+
+    doneButton.type =
+      "button";
+
+
+    doneButton.textContent =
+      "Close";
+
+
+    Object.assign(
+      doneButton.style,
+      {
+
+        width:
+          "100%",
+
+        marginTop:
+          "12px",
+
+        padding:
+          "8px 12px",
+
+        border:
+          "1px solid #22c55e",
+
+        borderRadius:
+          "8px",
+
+        background:
+          "#166534",
+
+        color:
+          "#ffffff",
+
+        fontSize:
+          "13px",
+
+        fontWeight:
+          "800",
+
+        cursor:
+          "pointer"
+
+      }
+    );
+
+
+    doneButton.onclick =
+      () => {
+
+        overlay.remove();
+
+      };
+
+
+    popup.appendChild(
+      doneButton
+    );
+
+
+    // ========================================================
+    // 📎 ADD TO PAGE
+    // ========================================================
+
+    overlay.appendChild(
+      popup
+    );
+
+    document.body.appendChild(
+      overlay
+    );
+
+
+    // ========================================================
+    // 🖱️ CLICK OUTSIDE TO CLOSE
+    // ========================================================
+
+    overlay.addEventListener(
+      "click",
+      event => {
+
+        if (
+          event.target === overlay
+        ) {
+
+          overlay.remove();
+
+        }
+
+      }
+    );
+
+
+    // ========================================================
+    // ⌨️ ESC TO CLOSE
+    // ========================================================
+
+    const escapeHandler =
+      event => {
+
+        if (
+          event.key === "Escape"
+        ) {
+
+          overlay.remove();
+
+          document.removeEventListener(
+            "keydown",
+            escapeHandler
+          );
+
+        }
+
+      };
+
+
+    document.addEventListener(
+      "keydown",
+      escapeHandler
+    );
+
 
   } catch (err) {
-    console.error(err);
-    showModal("Error", "Unexpected error occurred.");
+
+    console.error(
+      "❌ Admin assignment details error:",
+      err
+    );
+
+    alert(
+      "Unexpected error occurred."
+    );
+
   }
+
 };
 
 async function editAssignment(id) {
@@ -94221,138 +95646,625 @@ audioSource.close();
     }
   };
 
-/* =====================================
-   STUDENT PUZZLE GRID VIEWER
-   (NO MOVE NAVIGATION)
-===================================== */
+/* ============================================================
+   🎓 STUDENT PUZZLE GRID VIEWER
+   Shows the same bulk-answer details used by Admin:
+   - Student moves
+   - Expected moves
+   - Attempts
+   - Time taken
+   - Attempt history
+   - Result
+   ============================================================ */
 
 window.viewStudentAssignmentPuzzles = async function(assignmentId) {
 
-  const { data, error } = await supabase
-    .from("assignments")
-    .select("title, pgn, is_bulk, attempts!left(bulk_answers)")
-    .eq("id", assignmentId)
-    .single();
+  try {
 
-  if (error || !data) {
-    showModal("❌ Error", "<p>Could not load puzzles.</p>");
-    return;
-  }
+    // ==========================================================
+    // LOAD ASSIGNMENT + ATTEMPTS
+    // ==========================================================
 
-  document.getElementById("studentPuzzleTitle").textContent = data.title;
+    const { data, error } = await supabase
+      .from("assignments")
+      .select(`
+        title,
+        pgn,
+        is_bulk,
+        attempts (
+          id,
+          bulk_answers,
+          submitted_at,
+          time_spent,
+          attempt_count
+        )
+      `)
+      .eq("id", assignmentId)
+      .single();
 
-  const grid = document.getElementById("studentPuzzleGrid");
-  grid.innerHTML = "";
-  // 🎯 BUILD RESULT MAP (correct / wrong / skipped)
-let puzzleResultMap = {};
-let puzzleTimeMap = {}; // ⏱️ NEW
+    if (error || !data) {
 
-if (data.attempts && data.attempts.length > 0) {
-  const latestAttempt = data.attempts[0];
+      showModal(
+        "❌ Error",
+        "<p>Could not load puzzles.</p>"
+      );
 
-  if (latestAttempt.bulk_answers) {
-    latestAttempt.bulk_answers.forEach(a => {
-      puzzleResultMap[a.index] = a.result;
-      puzzleTimeMap[a.index] = a.time_taken || 0; // ⏱️ STORE TIME
-    });
-  }
+      return;
+    }
+
+    
+
+
+    // ==========================================================
+    // TITLE
+    // ==========================================================
+
+    document.getElementById(
+      "studentPuzzleTitle"
+    ).textContent =
+      data.title || "Assignment";
+
+
+    // ==========================================================
+    // GRID
+    // ==========================================================
+
+    const grid =
+      document.getElementById(
+        "studentPuzzleGrid"
+      );
+
+    grid.innerHTML = "";
+
+
+    // ==========================================================
+    // NO PGN
+    // ==========================================================
+
+    if (!data.pgn) {
+
+      grid.innerHTML =
+        "<p>No PGN found.</p>";
+
+      document.getElementById(
+        "studentPuzzleOverlay"
+      ).style.display = "flex";
+
+      return;
+    }
+
+
+    // ==========================================================
+    // FIND LATEST ATTEMPT
+    // ==========================================================
+    //
+    // Admin viewAttempt() works with one exact attempt.
+    //
+    // Here we use the newest attempt for this assignment.
+    //
+    // ==========================================================
+
+    let latestAttempt = null;
+
+    if (
+      Array.isArray(data.attempts) &&
+      data.attempts.length > 0
+    ) {
+
+      latestAttempt =
+        [...data.attempts]
+          .sort(
+            (a, b) =>
+              new Date(
+                b.submitted_at || 0
+              ).getTime() -
+              new Date(
+                a.submitted_at || 0
+              ).getTime()
+          )[0];
+    }
+
+
+    // ==========================================================
+    // BUILD PUZZLE RESULT MAP
+    // ==========================================================
+
+    const puzzleAnswerMap = {};
+
+    if (
+      latestAttempt &&
+      Array.isArray(
+        latestAttempt.bulk_answers
+      )
+    ) {
+
+      latestAttempt.bulk_answers.forEach(
+        answer => {
+
+          const index =
+            Number(answer.index);
+
+          if (
+            Number.isFinite(index)
+          ) {
+
+            puzzleAnswerMap[index] =
+              answer;
+          }
+
+        }
+      );
+    }
+
+
+    // ==========================================================
+    // SPLIT PGN INTO PUZZLES
+    // ==========================================================
+
+    let puzzles = [];
+
+    if (data.is_bulk) {
+
+      puzzles =
+        data.pgn
+          .split(
+            /\n\s*\n(?=\[Event|\[FEN)/g
+          )
+          .filter(
+            p =>
+              p.trim().length > 0
+          );
+
+    } else {
+
+      puzzles = [
+        data.pgn
+      ];
+    }
+
+
+    // ==========================================================
+    // RENDER EACH PUZZLE
+    // ==========================================================
+
+    puzzles.forEach(
+      (raw, index) => {
+
+        const puzzleNumber =
+          index + 1;
+
+        const answer =
+          puzzleAnswerMap[
+            puzzleNumber
+          ] || null;
+
+
+        // ======================================================
+        // LOAD STARTING POSITION
+        // ======================================================
+
+   // ======================================================
+// ♟️ GET EXACT STARTING POSITION
+// ======================================================
+//
+// For bulk assignments, the student's saved
+// bulk_answers already contains the exact FEN.
+//
+// Use that FEN directly instead of reconstructing
+// the position from PGN.
+//
+// This is the same source Admin uses.
+// ======================================================
+
+let startingFen = null;
+
+
+// ------------------------------------------------------
+// BULK ASSIGNMENT — USE SAVED FEN
+// ------------------------------------------------------
+
+if (
+  answer &&
+  answer.fen
+) {
+
+  startingFen =
+    answer.fen;
+
 }
 
-  if (!data.pgn) {
-    grid.innerHTML = "<p>No PGN found.</p>";
-    return;
+
+// ------------------------------------------------------
+// FALLBACK — NON-BULK / OLD DATA
+// ------------------------------------------------------
+
+if (!startingFen) {
+
+  const game =
+    new Chess();
+
+  try {
+
+    game.load_pgn(raw);
+
+    startingFen =
+      game.fen();
+
+  } catch (err) {
+
+    console.warn(
+      "⚠️ Could not load puzzle PGN:",
+      puzzleNumber,
+      err
+    );
+
   }
 
-  let puzzles = [];
-
-  if (data.is_bulk) {
-    puzzles = data.pgn
-      .split(/\n\s*\n(?=\[Event|\[FEN)/g)
-      .filter(p => p.trim().length > 0);
-  } else {
-    puzzles = [data.pgn];
-  }
-
-puzzles.forEach((raw, index) => {
-
-  const game = new Chess();
-  game.load_pgn(raw);
-
-  // Reset to starting FEN
-  while (game.history().length > 0) {
-    game.undo();
-  }
-
-const container = document.createElement("div");
-container.style.textAlign = "center";
-container.style.position = "relative"; // ✅ IMPORTANT
-// ⏱️ TIME BADGE (LEFT SIDE)
-const time = puzzleTimeMap[index + 1];
-
-if (time !== undefined) {
-  const timeBadge = document.createElement("div");
-
-  timeBadge.style.position = "absolute";
-  timeBadge.style.top = "5px";
-  timeBadge.style.left = "10px";
-  timeBadge.style.fontSize = "13px";
-  timeBadge.style.background = "rgba(0,0,0,0.6)";
-  timeBadge.style.padding = "2px 6px";
-  timeBadge.style.borderRadius = "6px";
-  timeBadge.style.color = "#fff";
-  timeBadge.style.zIndex = "10";
-
-  timeBadge.textContent = `⏱ ${time}s`;
-
-  container.appendChild(timeBadge);
 }
 
-  const title = document.createElement("div");
-  title.textContent = `Puzzle ${index + 1}`;
-  title.style.marginBottom = "6px";
 
-  const boardDiv = document.createElement("div");
-  boardDiv.style.width = "180px";
-  boardDiv.style.margin = "0 auto";
+// ------------------------------------------------------
+// FINAL FALLBACK
+// ------------------------------------------------------
 
-  container.appendChild(title);
-  container.appendChild(boardDiv);
-  // 🎯 STATUS ICON
-const result = puzzleResultMap[index + 1];
+if (!startingFen) {
 
-if (result) {
-  const badge = document.createElement("div");
+  startingFen =
+    new Chess().fen();
 
-  badge.style.position = "absolute";
-  badge.style.top = "-2px";
-  badge.style.right = "10px";
-  badge.style.fontSize = "22px";
-  badge.style.zIndex = "10";
-
-  if (result === "correct") {
-    badge.textContent = "✅";
-  } else if (result === "wrong") {
-    badge.textContent = "❌";
-  } else {
-    badge.textContent = "⚠️"; // skipped
-  }
-
-  container.appendChild(badge);
 }
 
-  grid.appendChild(container);
 
-  // ✅ IMPORTANT — pass actual DOM element
-  Chessboard(boardDiv, {
-    position: game.fen(),
-    draggable: false,
-    showNotation: false,
-    pieceTheme: getPieceThemePath(currentPieceTheme)
-  });
+        // ======================================================
+        // PUZZLE CONTAINER
+        // ======================================================
+
+        const container =
+          document.createElement(
+            "div"
+          );
+
+        container.style.textAlign =
+          "center";
+
+        container.style.position =
+          "relative";
+
+        container.style.marginBottom =
+          "24px";
+
+        container.style.padding =
+          "12px";
+
+        container.style.border =
+          "1px solid rgba(255,255,255,0.10)";
+
+        container.style.borderRadius =
+          "10px";
+
+
+        // ======================================================
+        // PUZZLE TITLE
+        // ======================================================
+
+        const title =
+          document.createElement(
+            "div"
+          );
+
+        title.textContent =
+          `Puzzle ${puzzleNumber}`;
+
+        title.style.marginBottom =
+          "8px";
+
+        title.style.fontWeight =
+          "800";
+
+        container.appendChild(
+          title
+        );
+
+
+        // ======================================================
+        // RESULT BADGE
+        // ======================================================
+
+        if (answer) {
+
+          const resultBadge =
+            document.createElement(
+              "div"
+            );
+
+          resultBadge.style.fontWeight =
+            "800";
+
+          resultBadge.style.marginBottom =
+            "8px";
+
+          if (
+            answer.result ===
+            "correct"
+          ) {
+
+            resultBadge.textContent =
+              "✅ Correct";
+
+            resultBadge.style.color =
+              "#4ade80";
+
+          } else if (
+            answer.result ===
+            "wrong"
+          ) {
+
+            resultBadge.textContent =
+              "❌ Wrong";
+
+            resultBadge.style.color =
+              "#f87171";
+
+          } else {
+
+            resultBadge.textContent =
+              "⚠️ Skipped";
+
+            resultBadge.style.color =
+              "#fbbf24";
+          }
+
+          container.appendChild(
+            resultBadge
+          );
+        }
+
+
+        // ======================================================
+        // TIME BADGE
+        // ======================================================
+
+        if (answer) {
+
+          const time =
+            Number(
+              answer.time_taken || 0
+            );
+
+          const timeBadge =
+            document.createElement(
+              "div"
+            );
+
+          timeBadge.style.fontSize =
+            "13px";
+
+          timeBadge.style.marginBottom =
+            "8px";
+
+          timeBadge.style.opacity =
+            "0.9";
+
+          timeBadge.textContent =
+            `⏰ Time: ${time}s`;
+
+          container.appendChild(
+            timeBadge
+          );
+        }
+
+
+        // ======================================================
+        // BOARD
+        // ======================================================
+
+        const boardDiv =
+          document.createElement(
+            "div"
+          );
+
+        boardDiv.style.width =
+          "180px";
+
+        boardDiv.style.margin =
+          "0 auto 10px";
+
+        container.appendChild(
+          boardDiv
+        );
+
+
+       // ======================================================
+// ♟️ BOARD
+// IMPORTANT:
+// The container must be attached to the DOM BEFORE
+// Chessboard.js initializes.
+// ======================================================
+
+// Attach the container first.
+grid.appendChild(
+  container
+);
+
+
+// Initialize after the browser has rendered it.
+requestAnimationFrame(() => {
+
+  Chessboard(
+    boardDiv,
+    {
+      position:
+        startingFen,
+
+      draggable:
+        false,
+
+      showNotation:
+        false,
+
+      pieceTheme:
+        getPieceThemePath(
+          currentPieceTheme
+        )
+    }
+  );
 
 });
 
-  document.getElementById("studentPuzzleOverlay").style.display = "flex";
+
+        // ======================================================
+        // DETAILS
+        // ======================================================
+
+        if (answer) {
+
+          const details =
+            document.createElement(
+              "div"
+            );
+
+          details.style.textAlign =
+            "left";
+
+          details.style.marginTop =
+            "10px";
+
+          details.style.fontSize =
+            "13px";
+
+          details.style.lineHeight =
+            "1.5";
+
+
+          // ----------------------------------------------------
+          // STUDENT MOVES
+          // ----------------------------------------------------
+
+          details.innerHTML += `
+            <div style="margin-bottom:6px;">
+              <strong>My Answer:</strong>
+              ${answer.student_move || "-"}
+            </div>
+          `;
+
+
+      
+
+
+          // ----------------------------------------------------
+          // ATTEMPTS
+          // ----------------------------------------------------
+
+          details.innerHTML += `
+            <div style="margin-bottom:6px;">
+              <strong>Attempts:</strong>
+              ${answer.attempts ?? 0}
+            </div>
+          `;
+
+
+          // ----------------------------------------------------
+          // ATTEMPT HISTORY
+          // ----------------------------------------------------
+
+          const historyHTML =
+            answer.tries &&
+            answer.tries.length
+
+              ? answer.tries
+                  .map(
+                    (tries, retryIndex) => `
+                      <div>
+                        👉 #${retryIndex + 1}:
+                        ${tries.join(" ")}
+                      </div>
+                    `
+                  )
+                  .join("")
+
+              : "<i>No attempts</i>";
+
+
+          details.innerHTML += `
+            <div
+              style="
+                margin-top:8px;
+                padding-top:8px;
+                border-top:1px solid rgba(255,255,255,0.10);
+              "
+            >
+              <strong>Attempt History:</strong>
+
+              <div style="margin-top:4px;">
+                ${historyHTML}
+              </div>
+            </div>
+          `;
+
+
+          container.appendChild(
+            details
+          );
+
+        } else {
+
+          // ====================================================
+          // NO SUBMISSION FOR THIS PUZZLE
+          // ====================================================
+
+          const noAttempt =
+            document.createElement(
+              "div"
+            );
+
+          noAttempt.style.marginTop =
+            "8px";
+
+          noAttempt.style.fontSize =
+            "13px";
+
+          noAttempt.style.opacity =
+            "0.7";
+
+          noAttempt.innerHTML =
+            "<i>No submission recorded for this puzzle.</i>";
+
+          container.appendChild(
+            noAttempt
+          );
+        }
+
+
+     
+
+      }
+    );
+
+
+    // ==========================================================
+    // SHOW OVERLAY
+    // ==========================================================
+
+    document.getElementById(
+      "studentPuzzleOverlay"
+    ).style.display =
+      "flex";
+
+
+  } catch (error) {
+
+    console.error(
+      "❌ Student puzzle viewer error:",
+      error
+    );
+
+    showModal(
+      "❌ Error",
+      "<p>Could not load puzzle details.</p>"
+    );
+
+  }
+
 };
 
 
