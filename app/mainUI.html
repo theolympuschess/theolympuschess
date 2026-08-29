@@ -37105,10 +37105,25 @@ class="lp-admin-btn"
 
 
 
-      <div id="gameStatus" class="status-indicator" style="display: none;"></div>
-      <div id="timerDisplay" class="timer" style="display: none;">
-        ⏰ Time: <span id="timer">00:00</span>
-      </div>
+<div id="gameStatus" class="status-indicator" style="display: none;"></div>
+
+<div id="timerDisplay" class="timer" style="display: none; font-size:20px;"> 
+  ⏰ Time: <span id="timer">00:00</span>  
+
+  <span style="margin-left: 20px; color:#ffffff; font-weight:700; font-size:20px;">
+    Assignment:
+    <span id="studentAssignmentTitle" style="color:#facc15;">
+      —
+    </span>
+  </span>
+
+  <span style="margin-left: 20px; color:#ffffff; font-weight:700; font-size:19px;">
+    Chapter:
+    <span id="currentAssignmentPGNTitle" style="color:#facc15;">
+      —
+    </span>
+  </span>
+</div>
 
       <div class="board-layout">
         
@@ -64230,6 +64245,7 @@ if (typeof trackActivity === "function") {
 
 // BULK FUNCTIONS START//
 function splitBulkPGNIntoPuzzles(rawPGN) {
+
   const games = rawPGN
     .split(/\n\n(?=\[Event )/g)
     .map(g => g.trim())
@@ -64238,8 +64254,28 @@ function splitBulkPGNIntoPuzzles(rawPGN) {
   const puzzles = [];
 
   for (const gamePGN of games) {
-    const fenMatch = gamePGN.match(/\[FEN\s+"([^"]+)"\]/i);
-    const fen = fenMatch ? fenMatch[1] : "start";
+
+    // 🏷️ Get the PGN / Chapter name
+    // Supports [ChapterName "..."] first,
+    // then falls back to [Event "..."]
+    const chapterMatch =
+      gamePGN.match(/\[ChapterName\s+"([^"]+)"\]/i);
+
+    const eventMatch =
+      gamePGN.match(/\[Event\s+"([^"]+)"\]/i);
+
+    const pgnTitle =
+      chapterMatch?.[1]?.trim() ||
+      eventMatch?.[1]?.trim() ||
+      `Puzzle ${puzzles.length + 1}`;
+
+    // ♟️ Get FEN
+    const fenMatch =
+      gamePGN.match(/\[FEN\s+"([^"]+)"\]/i);
+
+    const fen = fenMatch
+      ? fenMatch[1]
+      : "start";
 
     const temp = new Chess(fen);
 
@@ -64256,7 +64292,10 @@ function splitBulkPGNIntoPuzzles(rawPGN) {
       fen,
       moves,
       sideToMove: moves[0]?.color || "w",
-      rawPGN: gamePGN
+      rawPGN: gamePGN,
+
+      // 🏷️ CURRENT PGN / CHAPTER NAME
+      title: pgnTitle
     });
   }
 
@@ -64299,6 +64338,16 @@ function loadCurrentBulkPuzzle() {
   if (bulkIndex < 0 || bulkIndex >= bulkPuzzles.length) return;
 
   const puzzle = bulkPuzzles[bulkIndex];
+
+  // 🔥 UPDATE CURRENT CHAPTER / PGN NAME
+const currentPGNTitle = document.getElementById("currentAssignmentPGNTitle");
+
+if (currentPGNTitle) {
+  currentPGNTitle.textContent =
+    puzzle.title ||
+    puzzle.chapterTitle ||
+    `Puzzle ${bulkIndex + 1}`;
+}
 
   // ✅ SAFE FEN
   const fenToLoad =
@@ -64448,6 +64497,9 @@ updateEngineVisibility();
 
 
   currentAssignment = assignment;
+
+  document.getElementById("studentAssignmentTitle").textContent =
+  assignment.title || "Untitled Assignment";
 
   // 🔁 BULK ASSIGNMENT MODE
   if (assignment.is_bulk && assignment.pgn) {
