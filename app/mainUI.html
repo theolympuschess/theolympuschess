@@ -43894,14 +43894,30 @@ currentAttemptMoves.push(move.san);
 if (move.san !== expected.san) {
 
   // 🔥 SAVE FAILED ATTEMPT
-  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+  // 🔥 SAVE COMPLETE FAILED LINE
+// Includes every correct solution move before the mistake
+// + the student's actual wrong move.
 
-  // ✅ SAVE LIVE INTO GLOBAL STORAGE (CRITICAL FIX)
- bulkAttemptsData[currentPuzzleIndex] = JSON.parse(
-  JSON.stringify(allAttemptsForThisPuzzle)
+const failedLine = expectedMoves
+  .slice(0, assignmentCursor)
+  .map(m => m.san);
+
+failedLine.push(move.san);
+
+allAttemptsForThisPuzzle.push(
+  failedLine
 );
 
-  currentAttemptMoves = [];
+// ✅ SAVE LIVE INTO GLOBAL STORAGE
+bulkAttemptsData[currentPuzzleIndex] =
+  JSON.parse(
+    JSON.stringify(
+      allAttemptsForThisPuzzle
+    )
+  );
+
+// 🔄 Keep current attempt tracker clean
+currentAttemptMoves = [];
   // 🔥 EXTRA SAFETY (VERY IMPORTANT)
 
 
@@ -44013,9 +44029,20 @@ if (!puzzleTimeTaken[currentIdx]) {
   );
 }
 
-  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+  // ✅ SAVE COMPLETE CORRECT SOLUTION LINE
+const completedLine = expectedMoves
+  .map(m => m.san);
 
-  bulkAttemptsData[currentIdx] = JSON.parse(JSON.stringify(allAttemptsForThisPuzzle));
+allAttemptsForThisPuzzle.push(
+  completedLine
+);
+
+bulkAttemptsData[currentIdx] =
+  JSON.parse(
+    JSON.stringify(
+      allAttemptsForThisPuzzle
+    )
+  );
 
   bulkIndex++;
 
@@ -44071,6 +44098,7 @@ loadMiniStats();
     playSound('move');
   }
           fullPGNHistory.push(autoMove);
+         
           pgnCursor++;
           assignmentCursor++;
           // ✅ FIX CASTLING ROOK STUCK
@@ -65510,161 +65538,539 @@ window.showPromotionDialog = function(from, to) {
 
 
 window.completePromotion = function (piece) {
+
   if (!pendingPromotion) return;
 
   const { from, to } = pendingPromotion;
 
+  // ======================================================
+  // ♟️ MAKE PROMOTION MOVE
+  // ======================================================
+
   const move = chess.move({
-    from,
-    to,
+    from: from,
+    to: to,
     promotion: piece
   });
-  if (move) {
-  currentAttemptMoves.push(move.san); // 🔥 TRACK MOVE
-}
 
   pendingPromotion = null;
-  document.getElementById("promotionModal").classList.add("hidden");
 
-  if (!move) return;
-  // 🔊 PROMOTION SOUND (ONLY ADDITION)
-if (move.flags.includes('k') || move.flags.includes('q')) {
-  // 👑 Castling
-  playSound('castle');
+  const promotionModal =
+    document.getElementById("promotionModal");
 
-} else if (move.san.includes('+')) {
-  // 🔔 Check
-  playSound('check');
+  if (promotionModal) {
+    promotionModal.classList.add("hidden");
+  }
 
-} else if (move.captured) {
-  // ⚔️ Capture
-  playSound('capture');
-
-} else {
-  // ♟ Normal move
-  playSound('move');
-}
+  if (!move) {
+    board.position(chess.fen());
+    return;
+  }
 
 
+  // ======================================================
+  // 🔥 ASSIGNMENT MODE
+  // ======================================================
+
+  if (
+    currentAssignment &&
+    expectedMoves.length > 0 &&
+    assignmentCursor < expectedMoves.length
+  ) {
+
+    const expected =
+      expectedMoves[assignmentCursor];
 
 
-   // ✅ ADD TO TREE (VERY IMPORTANT)
-  addMoveToTree(move);
+    // ====================================================
+    // ♟️ PROMOTION CORRECTNESS
+    // ====================================================
+    //
+    // Compare the actual promotion move:
+    // FROM + TO + PROMOTION PIECE
+    //
+    // Do NOT compare complete SAN because + / #
+    // can make an otherwise correct promotion differ.
+    // ====================================================
 
-  // ✅ ADD TO HISTORY
-  fullPGNHistory.push(move);
-  pgnCursor++;
-
-  // 🔥 Sync board (safety)
-  board.position(chess.fen());
-  updateEnginePosition();
-  setTimeout(() => {
-  highlightLastMove(move.from, move.to, "chessboard");
-}, 10);
-
-  // 🔥 Update UI
-  updatePGNViewer();
-  renderNotationTree();
-  updateNavigationButtons();
-  checkGameEnd();
+    const isCorrectPromotion =
+      move.from === expected.from &&
+      move.to === expected.to &&
+      String(move.promotion || "").toLowerCase() ===
+      String(expected.promotion || "").toLowerCase();
 
 
-  // ===============================
-  // 🔥 ASSIGNMENT MODE CONTINUATION
-  // ===============================
-  if (currentAssignment && expectedMoves.length > 0) {
-    const expected = expectedMoves[assignmentCursor];
+    // ====================================================
+    // ❌ WRONG PROMOTION
+    // ====================================================
 
-    // ❌ wrong promotion choice
-    if (move.san !== expected.san) {
-      // 🔥 SAVE FAILED ATTEMPT
-  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+    if (!isCorrectPromotion) {
 
-// ✅ ADD THIS LINE
-bulkAttemptsData[currentPuzzleIndex] = JSON.parse(
-  JSON.stringify(allAttemptsForThisPuzzle)
-);
+      // 🔥 SAVE COMPLETE FAILED LINE
+      const failedLine =
+        expectedMoves
+          .slice(0, assignmentCursor)
+          .map(m => m.san);
 
-currentAttemptMoves = [];
+      failedLine.push(move.san);
+
+      allAttemptsForThisPuzzle.push(
+        failedLine
+      );
+
+      bulkAttemptsData[currentPuzzleIndex] =
+        JSON.parse(
+          JSON.stringify(
+            allAttemptsForThisPuzzle
+          )
+        );
+
+      currentAttemptMoves = [];
 
       attemptCount++;
+
+
+      // 🎯 TRACK PUZZLE ATTEMPT
+      if (currentAssignment?.is_bulk) {
+
+        if (!bulkResults[bulkIndex]) {
+
+          bulkResults[bulkIndex] = {
+            attempted: true,
+            correct: false,
+            attempts: 0
+          };
+
+        }
+
+        bulkResults[bulkIndex].attempts++;
+      }
+
+
+      playSound("wrong");
+
+
+      if (
+        currentProfile.role === "admin"
+      ) {
+
+        showStatus(
+          `Wrong promotion. Attempts: ${attemptCount}`,
+          "error"
+        );
+
+      } else {
+
+        showStatus(
+          `Wrong promotion. Try again. <span style="float:right;">Retry: ${attemptCount}</span>`,
+          "error"
+        );
+
+      }
+
+
+      // Undo the wrong promotion
       chess.undo();
-      board.position(chess.fen());
+
+      board.position(
+        chess.fen(),
+        true
+      );
+
       updateEnginePosition();
 
-      showStatus(
-        `Wrong promotion. Try again. Attempts: ${attemptCount}`,
-        "error"
-      );
+      updatePGNViewer();
+      renderNotation();
+      renderNotationTree();
+      updateNavigationButtons();
+
       return;
     }
 
-    // ✅ correct promotion
-    assignmentCursor++;
-    
 
-    // 🔁 BULK CHECK
-    if (currentAssignment.is_bulk && assignmentCursor >= expectedMoves.length) {
-        // 🔥 SAVE USING CURRENT INDEX (SAFE)
-  const currentIdx = bulkIndex;
-  // ⏱️ SAVE TIME TAKEN (ONLY ONCE)
-if (!puzzleTimeTaken[currentIdx]) {
-  const end = Date.now();
-  puzzleTimeTaken[currentIdx] = Math.floor(
-    (end - (puzzleStartTime[currentIdx] || end)) / 1000
-  );
-}
+    // ====================================================
+    // ✅ CORRECT PROMOTION
+    // ====================================================
 
-  allAttemptsForThisPuzzle.push([...currentAttemptMoves]);
+    // 🔥 TRACK STUDENT PROMOTION
+    currentAttemptMoves.push(
+      move.san
+    );
 
-  bulkAttemptsData[currentIdx] = JSON.parse(JSON.stringify(allAttemptsForThisPuzzle));
+
+    // ====================================================
+    // 🔊 PROMOTION MOVE SOUND
+    // ====================================================
+
+    if (move.san.includes("+")) {
+
+      playSound("check");
+
+    } else if (move.captured) {
+
+      playSound("capture");
+
+    } else {
+
+      playSound("move");
+
+    }
+
+
+    // 📝 SAVE PROMOTION FOR ASSIGNMENT DATA
+// 🚫 DO NOT add promotion to the student's live notation panel
+
+fullPGNHistory.push(move);
+
+pgnCursor++;
+assignmentCursor++;
+
+
+    // ====================================================
+    // 🔶 HIGHLIGHT PROMOTION
+    // ====================================================
+
+    setTimeout(() => {
+
+      highlightLastMove(
+        move.from,
+        move.to,
+        "chessboard"
+      );
+
+    }, 10);
+
+
+    // ====================================================
+    // 🔄 UPDATE NOTATION / BOARD
+    // ====================================================
+
+    board.position(
+      chess.fen(),
+      true
+    );
+
+    updateEnginePosition();
+
+  
+    updateNavigationButtons();
+    checkGameEnd();
+
+
+    // ====================================================
+    // 🔥 BULK PUZZLE COMPLETION
+    // ====================================================
+
+    if (
+      currentAssignment.is_bulk &&
+      assignmentCursor >= expectedMoves.length
+    ) {
+
+      const currentIdx =
+        bulkIndex;
+
+
+      // -----------------------------------------------
+      // ✅ MARK PUZZLE CORRECT
+      // -----------------------------------------------
+
+      if (!bulkResults[bulkIndex]) {
+
+        bulkResults[bulkIndex] = {
+          attempted: true,
+          attempts: 0
+        };
+
+      }
+
+      bulkResults[bulkIndex].attempted =
+        true;
+
+      bulkResults[bulkIndex].correct =
+        true;
+
+      bulkResults[bulkIndex].attempts =
+        bulkResults[bulkIndex].attempts || 1;
+
+
+      // -----------------------------------------------
+      // ⏱️ SAVE TIME
+      // -----------------------------------------------
+
+      if (!puzzleTimeTaken[currentIdx]) {
+
+        const end =
+          Date.now();
+
+        puzzleTimeTaken[currentIdx] =
+          Math.floor(
+            (
+              end -
+              (
+                puzzleStartTime[currentIdx] ||
+                end
+              )
+            ) / 1000
+          );
+
+      }
+
+
+      // -----------------------------------------------
+      // ✅ SAVE COMPLETE CORRECT LINE
+      // -----------------------------------------------
+
+      const completedLine =
+        expectedMoves.map(
+          m => m.san
+        );
+
+      allAttemptsForThisPuzzle.push(
+        completedLine
+      );
+
+      bulkAttemptsData[currentIdx] =
+        JSON.parse(
+          JSON.stringify(
+            allAttemptsForThisPuzzle
+          )
+        );
+
+
+      // -----------------------------------------------
+      // ▶ NEXT PUZZLE
+      // -----------------------------------------------
+
       bulkIndex++;
 
-      if (bulkIndex < bulkPuzzles.length) {
-        setTimeout(loadCurrentBulkPuzzle, 600);
+
+      if (
+        bulkIndex <
+        bulkPuzzles.length
+      ) {
+
+        // 🔊 NEXT PUZZLE SOUND
+        playSound("next");
+
+
+        setTimeout(() => {
+
+          loadCurrentBulkPuzzle();
+
+          restorePuzzleHeader();
+
+        }, 800);
+
       } else {
+
+        // ---------------------------------------------
+        // 🏁 ALL PUZZLES COMPLETED
+        // ---------------------------------------------
+
+        // 🔊 FINAL COMPLETE SOUND
+        playSound("complete");
+
+
         showStatus(
           "🎉 All puzzles completed! Submit your assignment.",
           "success"
         );
-        // 🎯 DAILY MISSION PROGRESS
-if (typeof trackActivity === "function") {
-  trackActivity("assignment");
-}
-        document.getElementById("submitBtn").style.display = "block";
+
+
+        // 🏆 RATING
+        applyAssignmentRating(
+          currentAssignment?.title
+        );
+
+
+        // 🎯 DAILY MISSION
+        if (
+          typeof trackActivity ===
+          "function"
+        ) {
+
+          trackActivity(
+            "assignment"
+          );
+
+        }
+
+
+        // 🔥 REFRESH MINI STATS
+        if (
+          typeof loadMiniStats ===
+          "function"
+        ) {
+
+          loadMiniStats();
+
+        }
+
+
+        // 📤 SHOW SUBMIT BUTTON
+        const submitBtn =
+          document.getElementById(
+            "submitBtn"
+          );
+
+        if (submitBtn) {
+
+          submitBtn.style.display =
+            "block";
+
+        }
+
       }
+
       return;
     }
 
+
+    // ====================================================
     // ▶ AUTO-PLAY OPPONENT MOVE
-    if (assignmentCursor < expectedMoves.length) {
-      const reply = expectedMoves[assignmentCursor];
+    // ====================================================
+
+    if (
+      assignmentCursor <
+      expectedMoves.length
+    ) {
+
+      const reply =
+        expectedMoves[
+          assignmentCursor
+        ];
+
 
       setTimeout(() => {
-        const autoMove = chess.move(reply.san);
-        if (autoMove) {
-          fullPGNHistory.push(autoMove);
-          pgnCursor++;
-          assignmentCursor++;
-          board.position(chess.fen());
-          updateEnginePosition();
-          setTimeout(() => {
-    highlightLastMove(autoMove.from, autoMove.to, "chessboard");
-  }, 10);
 
-          updatePGNViewer();
-          renderNotation();
-          updateNavigationButtons();
-          
+        const autoMove =
+          chess.move(
+            reply.san
+          );
+
+        if (!autoMove) return;
+
+
+        // 🔥 TRACK AUTO MOVE
+        currentAttemptMoves.push(
+          autoMove.san
+        );
+
+
+        fullPGNHistory.push(
+          autoMove
+        );
+
+        pgnCursor++;
+        assignmentCursor++;
+
+
+        // 🔄 BOARD
+        board.position(
+          chess.fen(),
+          true
+        );
+
+        updateEnginePosition();
+
+
+        // 🔶 HIGHLIGHT AUTO MOVE
+        setTimeout(() => {
+
+          highlightLastMove(
+            autoMove.from,
+            autoMove.to,
+            "chessboard"
+          );
+
+        }, 10);
+
+
+        // 🔊 AUTO MOVE SOUND
+        if (autoMove.captured) {
+
+          playSound("capture");
+
+        } else {
+
+          playSound("move");
+
         }
-      }, 400);
+
+
+        // 🔄 UPDATE NOTATION
+        updatePGNViewer();
+        renderNotationTree();
+        renderNotation();
+        updateNavigationButtons();
+        checkGameEnd();
+
+      }, 500);
+
     }
+
+    return;
   }
 
-  board.position(chess.fen());
+
+  // ======================================================
+  // ♟️ NORMAL FREE-PLAY PROMOTION
+  // ======================================================
+
+  if (move.san.includes("+")) {
+
+    playSound("check");
+
+  } else if (move.captured) {
+
+    playSound("capture");
+
+  } else {
+
+    playSound("move");
+
+  }
+
+
+  addMoveToTree(move);
+
+  moveHistory.push({
+    from: move.from,
+    to: move.to,
+    san: move.san,
+    fen: chess.fen(),
+    timestamp: new Date()
+  });
+
+  fullPGNHistory.push(move);
+
+  pgnCursor++;
+
+
+  board.position(
+    chess.fen(),
+    true
+  );
+
+  updateEnginePosition();
+
+  setTimeout(() => {
+
+    highlightLastMove(
+      move.from,
+      move.to,
+      "chessboard"
+    );
+
+  }, 10);
+
+
   updatePGNViewer();
+  renderNotationTree();
   renderNotation();
   updateNavigationButtons();
+  checkGameEnd();
+
 };
 
 
@@ -66621,6 +67027,91 @@ function openGradeConfirm(title, message, onConfirm) {
   document.getElementById("gradeConfirmModal").classList.remove("hidden");
 }
 
+// ======================================================
+// 🎨 COLOR ATTEMPT HISTORY MOVES
+// Correct moves = Green
+// Wrong move   = Red
+// ======================================================
+
+function formatAttemptHistoryLine(tries, correctMove) {
+
+  if (!Array.isArray(tries) || !tries.length) {
+    return "<i>No attempts</i>";
+  }
+
+  const correctLine = (correctMove || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  let html = "";
+
+  tries.forEach((move, index) => {
+
+    const isCorrect =
+      correctLine[index] === move;
+
+    // 🔵 Automatic opponent moves
+    // Student moves: 0, 2, 4, 6...
+    // Auto moves:    1, 3, 5, 7...
+    const isAutoMove =
+      index % 2 === 1;
+
+    const color =
+      isCorrect
+        ? (
+            isAutoMove
+              ? "#60a5fa"   // 🔵 Auto move
+              : "#4ade80"   // 🟢 Student correct
+          )
+        : "#f87171";        // 🔴 Wrong move
+
+
+    // ==================================================
+    // 🔢 MOVE NUMBER
+    // 1. e4 e5 2. Nf3 Nc6 3. Bb5
+    // ==================================================
+
+    const moveNumber =
+      Math.floor(index / 2) + 1;
+
+
+    // Add move number before White/Student's move
+    if (index % 2 === 0) {
+
+      html += `
+        <span style="
+          color:#cbd5e1;
+          font-weight:800;
+          margin-right:3px;
+        ">
+          ${moveNumber}.
+        </span>
+      `;
+
+    }
+
+
+    html += `
+      <span style="
+        color:${color};
+        font-weight:800;
+      ">
+        ${move}
+      </span>
+    `;
+
+
+    // Space between moves
+    if (index < tries.length - 1) {
+      html += " ";
+    }
+
+  });
+
+  return html;
+}
+
 
 function renderBulkAnswers(attempt) {
   const panel = document.getElementById("bulkAnswersPanel");
@@ -66666,6 +67157,7 @@ list.appendChild(summary);
         <span>Student:</span>
         <span>${a.student_move || "-"}</span>
       </div>
+      
 
       <div class="row">
         <span>Expected:</span>
@@ -66683,13 +67175,19 @@ list.appendChild(summary);
       <div class="row" style="flex-direction:column; align-items:flex-start">
   <span><strong>Attempt History:</strong></span>
   <div>
-    ${
-      a.tries && a.tries.length
-        ? a.tries.map((t, i) => `
-            <div>👉 #${i+1}: ${t.join(" ")}</div>
-          `).join("")
-        : "<i>No attempts</i>"
-    }
+    ${ 
+  a.tries && a.tries.length
+    ? a.tries.map((t, i) => `
+        <div style="margin-bottom:3px;">
+          👉 #${i + 1}:
+          ${formatAttemptHistoryLine(
+            t,
+            a.correct_move
+          )}
+        </div>
+      `).join("")
+    : "<i>No attempts</i>"
+}
   </div>
 </div>
 
@@ -67854,14 +68352,27 @@ function startAttemptsBadgeRealtime() {
           ${formatTime(attempt.time_spent || 0)}
         </p>
 
-       <p style="
+      <p style="
   margin:9px 0;
   font-size:16px;
   font-weight:700;
 ">
-          <strong>Attempts:</strong>
-          ${attempt.attempt_count || 1}
-        </p>
+  <strong>Wrong Moves:</strong>
+  ${
+    Array.isArray(attempt.bulk_answers)
+      ? attempt.bulk_answers.reduce(
+          (total, answer) =>
+            total +
+            (
+              Array.isArray(answer.tries)
+                ? Math.max(0, answer.tries.length - 1)
+                : 0
+            ),
+          0
+        )
+      : 0
+  }
+</p>
 
        <p style="
   margin:9px 0;
@@ -68873,18 +69384,77 @@ Object.assign(
                 ">
 
                   ${
-                    answer.tries &&
-                    answer.tries.length
+  answer.tries &&
+  answer.tries.length
 
-                      ? answer.tries
-                          .map(
-                            (t, i) =>
-                              `<div>👉 #${i + 1}: ${t.join(" ")}</div>`
-                          )
-                          .join("")
+    ? answer.tries
+        .map((t, i) => {
 
-                      : "<i>No attempts</i>"
-                  }
+          const isFinalCorrect =
+            t.join(" ").trim() ===
+            (answer.correct_move || "").trim();
+
+          const movesHTML =
+            t
+              .map((move, moveIndex) => {
+
+                const isWrongMove =
+  !isFinalCorrect &&
+  moveIndex === t.length - 1;
+
+// Auto moves are the opponent's moves.
+// Student starts at move 0, so opponent moves are 1, 3, 5...
+const isAutoMove =
+  moveIndex % 2 === 1;
+
+const moveNumber =
+  Math.floor(moveIndex / 2) + 1;
+
+const moveNumberHTML =
+  moveIndex % 2 === 0
+    ? `
+      <span style="
+        color:#cbd5e1;
+        font-weight:800;
+        margin-right:3px;
+      ">
+        ${moveNumber}.
+      </span>
+    `
+    : "";
+
+return `
+  ${moveNumberHTML}
+  <span 
+    style="
+      color:${
+        isWrongMove
+          ? "#f87171"
+          : isAutoMove
+          ? "#60a5fa"
+          : "#4ade80"
+      };
+      font-weight:800;
+    "
+  >
+    ${move}
+  </span>
+`;
+              })
+              .join(" ");
+
+          return `
+            <div style="margin-bottom:3px;">
+              👉 #${i + 1}:
+              ${movesHTML}
+            </div>
+          `;
+
+        })
+        .join("")
+
+    : "<i>No attempts</i>"
+}
 
                 </div>
 
@@ -98210,21 +98780,24 @@ requestAnimationFrame(() => {
           // ----------------------------------------------------
 
           const historyHTML =
-            answer.tries &&
-            answer.tries.length
+  answer.tries &&
+  answer.tries.length
 
-              ? answer.tries
-                  .map(
-                    (tries, retryIndex) => `
-                      <div>
-                        👉 #${retryIndex + 1}:
-                        ${tries.join(" ")}
-                      </div>
-                    `
-                  )
-                  .join("")
+    ? answer.tries
+        .map(
+          (tries, retryIndex) => `
+            <div style="margin-bottom:3px;">
+              👉 #${retryIndex + 1}:
+              ${formatAttemptHistoryLine(
+                tries,
+                answer.correct_move
+              )}
+            </div>
+          `
+        )
+        .join("")
 
-              : "<i>No attempts</i>";
+    : "<i>No attempts</i>";
 
 
           details.innerHTML += `
