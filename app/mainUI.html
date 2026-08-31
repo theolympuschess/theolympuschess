@@ -31950,7 +31950,7 @@ transform: translateY(-50%);
         data-tab="attempts"
         id="attemptsTab"
         style="display: none;">
-  📊 Check assignments
+  📊 Check Assignments
   <span id="attemptsTabBadge" style="
     display: none;
     margin-left: 6px;
@@ -31970,7 +31970,7 @@ transform: translateY(-50%);
   id="assignmentStatusTab"
   style="display: none;"
 >
-  📜 Assignment Status
+  ♻️ Assignment Status
 </button>
  <button class="nav-btn" data-tab="attendance">
   📆 Attendance
@@ -54853,7 +54853,7 @@ orderedProgress.forEach(p => {
     this.style.boxShadow='0 2px 8px rgba(99,102,241,0.35)';
   "
 >
-  My Details
+  My Results
 </button>
 
        <button 
@@ -68436,7 +68436,7 @@ function startAttemptsBadgeRealtime() {
   font-size:16px;
   font-weight:700;
 ">
-  <strong>Wrong Moves:</strong>
+  <strong>Total Wrong Moves:</strong>
   ${
     Array.isArray(attempt.bulk_answers)
       ? attempt.bulk_answers.reduce(
@@ -69064,18 +69064,31 @@ Object.assign(
   ],
 
   [
-    "⏱ Total Time",
+    "⏰ Total Time",
     formatTime(
       attempt.time_spent || 0
     )
   ],
 
-  [
-    "🔁 Attempts",
-    calculateTotalAttempts(
-      attempt
-    )
-  ],
+ [
+  "❌ Total Wrong Moves",
+
+  Array.isArray(attempt.bulk_answers)
+    ? attempt.bulk_answers.reduce(
+        (total, answer) =>
+          total +
+          (
+            Array.isArray(answer.tries)
+              ? Math.max(
+                  0,
+                  answer.tries.length - 1
+                )
+              : 0
+          ),
+        0
+      )
+    : 0
+],
 
   // ========================================================
   // 🎯 CORRECT PUZZLE COUNT
@@ -69329,10 +69342,26 @@ Object.assign(
                 ${answer.student_move || "-"}
               </span>
 
-              <strong>Attempts:</strong>
-              <span>
-                ${answer.attempts ?? 0}
-              </span>
+              <strong>Wrong Moves:</strong>
+<span>
+  ${
+    Array.isArray(answer.tries)
+      ? answer.tries.reduce(
+          (total, attemptLine) => {
+
+            const isFinalCorrect =
+              attemptLine.join(" ").trim() ===
+              (answer.correct_move || "").trim();
+
+            return total +
+              (isFinalCorrect ? 0 : 1);
+
+          },
+          0
+        )
+      : 0
+  }
+</span>
 
               <strong>Time:</strong>
               <span>
@@ -98843,15 +98872,35 @@ requestAnimationFrame(() => {
 
 
           // ----------------------------------------------------
-          // ATTEMPTS
-          // ----------------------------------------------------
+// ❌ WRONG MOVES
+// ----------------------------------------------------
 
-          details.innerHTML += `
-            <div style="margin-bottom:6px;">
-              <strong>Attempts:</strong>
-              ${answer.attempts ?? 0}
-            </div>
-          `;
+details.innerHTML += `
+  <div style="margin-bottom:6px;">
+    <strong>Wrong Moves:</strong>
+    ${
+      Array.isArray(answer.tries)
+        ? answer.tries.reduce(
+            (total, attemptLine) => {
+
+              const isFinalCorrect =
+                attemptLine.join(" ").trim() ===
+                (answer.correct_move || "").trim();
+
+              return total +
+                (
+                  isFinalCorrect
+                    ? 0
+                    : 1
+                );
+
+            },
+            0
+          )
+        : 0
+    }
+  </div>
+`;
 
 
           // ----------------------------------------------------
