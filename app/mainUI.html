@@ -107099,14 +107099,24 @@ const pieces = [
 
 let selectedBet = 0;
 
+// 🎁 CURRENT SPIN BET
+// Normal spin = selected XP
+// Free spin = fixed 3 XP
+let currentSpinBet = 0;
+
+
 /* SELECT BET */
+
 document.addEventListener("click", (e) => {
 
   if(e.target.classList.contains("bet-btn")){
-    
-    document.querySelectorAll(".bet-btn").forEach(b => b.classList.remove("active"));
-    
+
+    document.querySelectorAll(".bet-btn").forEach(b =>
+      b.classList.remove("active")
+    );
+
     e.target.classList.add("active");
+
     selectedBet = parseInt(e.target.dataset.bet);
   }
 
@@ -107114,6 +107124,7 @@ document.addEventListener("click", (e) => {
 
 
 /* SPIN BUTTON */
+
 document.addEventListener("click", (e) => {
 
   if(e.target.id === "spinCasinoBtn"){
@@ -107125,35 +107136,76 @@ document.addEventListener("click", (e) => {
 
 function spinCasino(){
 
-  if(!selectedBet){
-    setCasinoText("⚠ Select XP first!");
-    return;
+  /*
+  ==========================================
+  🎁 FREE SPIN CHECK
+  ==========================================
+  */
+
+  if(useFreeSpin()){
+
+    // 🎁 FREE SPIN IS ALWAYS 3 XP
+    currentSpinBet = 5;
+
+    setCasinoText("🎁 Free Spin (5 XP)");
+
   }
 
-if(useFreeSpin()){
+  /*
+  ==========================================
+  💰 NORMAL XP SPIN
+  ==========================================
+  */
 
-  // 🎁 FREE SPIN USES CURRENT SELECTED BET
-  setCasinoText(`🎁 Free Spin (${selectedBet} XP bet)`);
+  else {
 
-} else {
+    // Normal spin still requires XP selection
+    if(!selectedBet){
 
-  let saved = JSON.parse(localStorage.getItem("olympusDailyXP") || "{}");
+      setCasinoText("⚠ Select XP first!");
 
-  if(!saved.xp || saved.xp < selectedBet){
-    setCasinoText("❌ Not enough XP!");
-    return;
+      return;
+    }
+
+    currentSpinBet = selectedBet;
+
+    let saved = JSON.parse(
+      localStorage.getItem("olympusDailyXP") || "{}"
+    );
+
+    if(!saved.xp || saved.xp < currentSpinBet){
+
+      setCasinoText("❌ Not enough XP!");
+
+      return;
+    }
+
+    // 🔥 SHOW SPINNING
+    setCasinoText("🎰 Spinning...");
+
+    // 💰 DEDUCT NORMAL SELECTED BET
+    saved.xp -= currentSpinBet;
+
+    localStorage.setItem(
+      "olympusDailyXP",
+      JSON.stringify(saved)
+    );
+
+    updateDailyXPUI(saved.xp);
+
   }
- // 🔥 CLEAR OLD RESULT + SHOW SPINNING
-  setCasinoText("🎰 Spinning...");
 
-  // deduct XP
-  saved.xp -= selectedBet;
-  localStorage.setItem("olympusDailyXP", JSON.stringify(saved));
-  updateDailyXPUI(saved.xp);
 
-}
-spinSound.currentTime = 0;
-spinSound.play();
+  /*
+  ==========================================
+  🔊 START SPIN
+  ==========================================
+  */
+
+  spinSound.currentTime = 0;
+
+  spinSound.play().catch(()=>{});
+
   animateSpin();
 
 }
@@ -107169,117 +107221,187 @@ function animateSpin(){
   const final2 = randomPiece();
   const final3 = randomPiece();
 
-  let speed = 100; // 🔥 slower start
+  let speed = 100;
   let running = true;
 
   let stop1 = false;
   let stop2 = false;
   let stop3 = false;
 
+
   function spinLoop(){
 
-    if(!stop1) r1.src = "assets/pieces/" + randomPiece();
-    if(!stop2) r2.src = "assets/pieces/" + randomPiece();
-    if(!stop3) r3.src = "assets/pieces/" + randomPiece();
+    if(!stop1)
+      r1.src = "assets/pieces/" + randomPiece();
+
+    if(!stop2)
+      r2.src = "assets/pieces/" + randomPiece();
+
+    if(!stop3)
+      r3.src = "assets/pieces/" + randomPiece();
+
 
     // 🔥 smoother gradual slowdown
     speed += 1;
 
     if(running){
+
       setTimeout(spinLoop, speed);
+
     }
+
   }
+
 
   spinLoop();
 
+
   // 🛑 STOP REEL 1
- 
+
   setTimeout(() => {
+
     stop1 = true;
+
     r1.src = "assets/pieces/" + final1;
-     playHit(0.8); // low pitch
+
+    playHit(0.8);
+
   }, 2000);
 
+
   // 🛑 STOP REEL 2
- 
+
   setTimeout(() => {
+
     stop2 = true;
+
     r2.src = "assets/pieces/" + final2;
-     playHit(0.9); // medium pitch
+
+    playHit(0.9);
+
   }, 4500);
+
 
   // 🛑 STOP REEL 3
 
   setTimeout(() => {
+
     stop3 = true;
+
     r3.src = "assets/pieces/" + final3;
-      playHit(1.0); // high pitch
+
+    playHit(1.0);
 
     running = false;
 
     setTimeout(finalizeSpin, 400);
+
   }, 6500);
 
 }
 
+
 function playWin(){
+
   winSound.currentTime = 0;
-  winSound.play();
+
+  winSound.play().catch(()=>{});
+
 }
+
 
 function finalizeSpin(){
 
-  const r1 = document.getElementById("reel1").src.split("/").pop();
-  const r2 = document.getElementById("reel2").src.split("/").pop();
-  const r3 = document.getElementById("reel3").src.split("/").pop();
+  const r1 = document.getElementById("reel1")
+    .src.split("/").pop();
 
-  const isThreeMatch = (r1 === r2 && r2 === r3);
-  const isTwoMatch = (r1 === r2 || r2 === r3 || r1 === r3);
+  const r2 = document.getElementById("reel2")
+    .src.split("/").pop();
 
-  // 🎯 CONTROLLED JACKPOT REDUCTION
+  const r3 = document.getElementById("reel3")
+    .src.split("/").pop();
+
+
+  const isThreeMatch =
+    (r1 === r2 && r2 === r3);
+
+  const isTwoMatch =
+    (r1 === r2 ||
+     r2 === r3 ||
+     r1 === r3);
+
+
+  /*
+  ==========================================
+  🔥 THREE MATCH
+  ==========================================
+  
+  ALWAYS 2X
+  */
+
   if(isThreeMatch){
 
-    // 🔥 reduce jackpot chance (only allow ~60% of real jackpots)
-    if(Math.random() < 0.6){
+    const win = currentSpinBet * 2;
 
-      const win = selectedBet * 10;
-      addDailyXP(win);
-      triggerConfetti();
-      playWin();
-
-      setCasinoText(`🔥 JACKPOT! You Win +${win} XP (10x)`);
-
-    } else {
-      // downgrade to 2-match reward
-      const win = selectedBet * 3;
-      addDailyXP(win);
-      triggerConfetti();
-      playWin();
-
-      setCasinoText(`✨ Close! You Win +${win} XP (3x)`);
-    }
-
-  } 
-  else if (isTwoMatch){
-
-    // ⭐ 2 MATCH → 2x
-    const win = selectedBet * 3;
     addDailyXP(win);
+
     triggerConfetti();
+
     playWin();
 
-    setCasinoText(`✨ Nice! You Win +${win} XP (3x)`);
+    setCasinoText(
+      `🔥 JACKPOT! You Win +${win} XP (2x)`
+    );
 
-  } 
+  }
+
+
+  /*
+  ==========================================
+  ✨ TWO MATCH
+  ==========================================
+  
+  ALWAYS 2X
+  */
+
+  else if(isTwoMatch){
+
+    const win = currentSpinBet * 2;
+
+    addDailyXP(win);
+
+    triggerConfetti();
+
+    playWin();
+
+    setCasinoText(
+      `✨ Nice! You Win +${win} XP (2x)`
+    );
+
+  }
+
+
+  /*
+  ==========================================
+  😅 NO MATCH
+  ==========================================
+  */
+
   else {
 
     const msgs = [
-  "😅 No match this time!",
-  "🎯 Almost there!",
-  "😬 Missed! Comeback later",
-];
 
-setCasinoText(msgs[Math.floor(Math.random()*msgs.length)]);
+      "😅 No match this time!",
+
+      "🎯 Almost there!",
+
+      "😬 Missed! Comeback later"
+
+    ];
+
+    setCasinoText(
+      msgs[Math.floor(Math.random() * msgs.length)]
+    );
 
   }
 
@@ -107287,13 +107409,25 @@ setCasinoText(msgs[Math.floor(Math.random()*msgs.length)]);
 
 
 function randomPiece(){
-  return pieces[Math.floor(Math.random() * pieces.length)];
+
+  return pieces[
+    Math.floor(Math.random() * pieces.length)
+  ];
+
 }
 
 
 function setCasinoText(text){
-  const el = document.getElementById("casinoResultText");
-  if(el) el.textContent = text;
+
+  const el =
+    document.getElementById("casinoResultText");
+
+  if(el){
+
+    el.textContent = text;
+
+  }
+
 }
 
 })();
@@ -107437,7 +107571,7 @@ function loadFreeSpins(){
   if(data.date !== today){
     data = {
       date: today,
-      spins: 2
+      spins: 1
     };
     localStorage.setItem("olympusFreeSpins", JSON.stringify(data));
   }
