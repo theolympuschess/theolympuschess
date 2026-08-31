@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ask Checks — Self Play</title>
+<title>Ask Legal Check — Self Play + Online</title>
+<!--
+  LEGAL CHECK MULTIPLAYER EDITION
+  The chess/legal-check engine is intentionally unchanged.
+  Only the multiplayer shell/state-sync layer uses legal_check_matches.
+  Multiplayer flow mirrors Find Legal Moves: invitation -> accept ->
+  server-stored position -> simultaneous answers -> admin finalization ->
+  10-second round transition -> next round -> final result.
+-->
 <style>
   :root {
     --bg: #0b1020;
@@ -22,8 +30,8 @@
     --amber: #f59e0b;
 --light-square: #F0D9B5;
     --dark-square: #B58863;
-    --light-square-2: #e6cfa8;
-    --dark-square-2: #a77a55;
+    --light-square-2: #f3dfbf;
+    --dark-square-2: #a97b54;
     --shadow: 0 24px 70px rgba(0,0,0,.35);
     --radius: 20px;
   }
@@ -126,7 +134,7 @@
     font-size: 40px; font-weight: 800;  letter-spacing: .08em;
   }
   .start-screen h2 {
-    font-size: clamp(42px, 8vw, 30px);
+    font-size: clamp(30px, 5vw, 52px);
     line-height: .95;
     margin: 18px 0 14px;
     letter-spacing: -.045em;
@@ -312,7 +320,7 @@
     gap: 8px;
     padding: 8px 10px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 20px;
     text-transform: uppercase;
     letter-spacing: .08em;
     font-weight: 850;
@@ -336,7 +344,7 @@
     background: rgba(255,255,255,.035);
     border: 1px solid var(--line);
   }
-  .timer-label { color: var(--muted); font-size: 25px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+  .timer-label { color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
   .timer-value { font-weight: 900; font-size: 30px; }
   .timer-warning { color: var(--amber); }
   .timer-danger { color: var(--red); animation: pulse .75s infinite alternate; }
@@ -563,6 +571,13 @@
     opacity: 0;
   }
 }
+
+/* =========================================================
+   ONLINE LEGAL CHECK UI
+========================================================= */
+.mp-status-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;padding:18px 20px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.mp-status-side{text-align:center;min-width:120px}.mp-status-name{font-weight:850;font-size:13px;letter-spacing:.04em;color:var(--accent-2)}.mp-status-state{margin-top:4px;font-size:18px;font-weight:800;color:var(--muted)}.mp-status-score{margin-top:4px;font-weight:900;font-size:26px}.mp-status-mid{text-align:center;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}#mpRoundBanner{margin-top:6px;font-weight:900;font-size:19px;color:white;text-transform:none}
+.mp-overlay{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(3,6,15,.66);backdrop-filter:blur(4px);padding:20px}.mp-modal{width:min(440px,100%);padding:28px;border-radius:20px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);text-align:center}.mp-invite-details{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.mp-invite-details div{padding:10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--line)}.mp-invite-details span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:800}.mp-invite-details strong{display:block;margin-top:4px;font-size:14px}.mp-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:95;padding:12px 18px;border-radius:12px;background:#1f2937;border:1px solid var(--line);color:white;font-size:13px;box-shadow:var(--shadow)}
 </style>
 </head>
 <body>
@@ -570,8 +585,8 @@
 
   <section id="startScreen" class="screen-card start-screen">
     <div class="hero-badge">Olympus Chess Academy</div>
-    <h2 class="gradient-title">LEGAL CHECKS</h2>
-    <p class="sub">A self-play challenge: study the position, find every <strong>move that gives check</strong>, then submit your answer.</p>
+    <h2 class="gradient-title">LEGAL CHECK</h2>
+    <p class="sub">A self-play challenge: study the position, count the <strong>real legal checking moves</strong>, then submit your answer.</p>
 
     <div class="setting-grid">
       <div class="setting">
@@ -603,17 +618,52 @@
     </div>
 
     <button id="startBtn" class="primary-btn big">START GAME</button>
+  <button id="playOnlineBtn" class="secondary-btn hidden"
+  style="margin-top:12px;display:block;margin-left:auto;margin-right:auto;">
+  PLAY ONLINE
+</button>
     <div class="empty-note">
-  Sharpen calculation • Improve board vision • Build tactical awareness • Think faster
+  Sharpen calculation • Spot checks faster • Build tactical awareness • Think faster
 </div>
   </section>
 
+
+  <!-- =========================================================
+       ONLINE LEGAL CHECK MULTIPLAYER
+  ========================================================= -->
+  <section id="onlineScreen" class="hidden screen-card start-screen">
+    <div class="hero-badge">⚔️ Challenge a Student</div>
+    <h2 class="gradient-title">PLAY ONLINE</h2>
+    <p class="sub">Set up a live head-to-head Legal Check challenge.</p>
+    <div class="setting-grid">
+      <div class="setting"><label for="mpStudentSelect">Student</label><select id="mpStudentSelect"><option value="">Loading students...</option></select></div>
+      <div class="setting"><label for="mpQuestionCount">Rounds</label><select id="mpQuestionCount"><option value="3" selected>3 rounds</option><option value="4">4 rounds</option><option value="5">5 rounds</option><option value="6">6 rounds</option><option value="7">7 rounds</option><option value="8">8 rounds</option><option value="9">9 rounds</option><option value="10">10 rounds</option></select></div>
+      <div class="setting"><label for="mpDifficulty">Difficulty</label><select id="mpDifficulty"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>
+      <div class="setting">
+  <label for="mpTimerSetting">Time</label>
+  <select id="mpTimerSetting">
+    <option value="30" selected>30 sec</option>
+    <option value="60">1 minute</option>
+    <option value="120">2 minutes</option>
+    <option value="180">3 minutes</option>
+    <option value="240">4 minutes</option>
+    <option value="300">5 minutes</option>
+  </select>
+</div>
+    </div>
+    <button id="mpStartInvitationBtn" class="primary-btn big">SEND INVITATION</button>
+    <button id="mpBackBtn" class="ghost-btn" style="margin-top:12px;display:block;margin-left:auto;margin-right:auto;">BACK</button>
+    <div id="mpAdminStatus" class="empty-note"></div>
+  </section>
+
   <section id="gameScreen" class="hidden">
+   
+
     <div class="topbar">
       <div class="brand">
         <div class="brand-mark">♞</div>
         <div>
-          <h1>LEGAL CHECKS</h1>
+          <h1>LEGAL CHECK</h1>
           <p>Self Play • Standard Chess Rules</p>
         </div>
       </div>
@@ -625,6 +675,11 @@
         <div class="stat"><div class="k">Best</div><div class="v" id="bestStreakValue">0</div></div>
         <div class="stat"><div class="k">XP</div><div class="v" id="xpValue">0</div></div>
       </div>
+    </div>
+     <div id="mpStatusBar" class="mp-status-bar hidden">
+      <div class="mp-status-side"><div class="mp-status-name">YOU</div><div id="mpYouState" class="mp-status-state">🤔 Thinking...</div><div id="mpYouScore" class="mp-status-score">0</div></div>
+      <div class="mp-status-mid"><div id="mpQuestionLabel">Round 1/3</div><div id="mpRoundBanner" class="hidden"></div></div>
+      <div class="mp-status-side"><div id="mpOppName" class="mp-status-name">OPPONENT</div><div id="mpOppState" class="mp-status-state">🤔 Thinking...</div><div id="mpOppScore" class="mp-status-score">0</div></div>
     </div>
 
     <div class="game-layout">
@@ -647,10 +702,10 @@
 
         <div class="question">
           <div class="label">Your challenge</div>
-          <h3>How many checks?</h3>
-          <div class="helper">Count every legal move that gives check to the opponent's king. Find all checking moves, including checks by discovered attacks, captures, promotions and other legal tactical moves.</div>
+          <h3>How many legal checks?</h3>
+          <div class="helper">Count only moves that are actually legal under standard chess rules. Checks, pins, castling, en passant and promotions all count correctly.</div>
 
-          <input id="answerInput" class="answer-input" inputmode="numeric" type="number" min="0" step="1" autocomplete="off" aria-label="Number of legal moves">
+          <input id="answerInput" class="answer-input" inputmode="numeric" type="number" min="0" step="1" autocomplete="off" aria-label="Number of legal checks">
           <button id="submitBtn" class="submit-btn">SUBMIT ANSWER</button>
         </div>
 
@@ -658,10 +713,11 @@
 
         <div id="breakdown" class="breakdown hidden"></div>
 
-        <div class="side-actions">
-          <button id="nextBtn" class="primary-btn" disabled>NEXT POSITION</button>
-          <button id="endBtn" class="ghost-btn">END GAME</button>
-        </div>
+      <div class="side-actions">
+  <button id="nextBtn" class="primary-btn" disabled>NEXT POSITION</button>
+  <button id="endBtn" class="ghost-btn">END GAME</button>
+  <button id="homeBtn" class="ghost-btn">🏠 BACK TO HOME</button>
+</div>
       </aside>
     </div>
   </section>
@@ -669,7 +725,7 @@
   <section id="resultsScreen" class="screen-card results hidden">
     <div class="hero-badge">✓ Session Complete</div>
     <h2 class="gradient-title">GAME COMPLETE</h2>
-    <p class="result-sub">Your check-finding calculation session is finished.</p>
+    <p class="result-sub">Your legal-check calculation session is finished.</p>
 
     <div class="result-grid">
       <div class="result-box"><div class="k">Correct</div><div class="v" id="resultCorrect">0</div></div>
@@ -689,7 +745,31 @@
     </div>
   </section>
 
+  <section id="mpResultsScreen" class="screen-card results hidden">
+    <div class="hero-badge" id="mpResultBadge">🏆 Match Complete</div>
+    <h2 class="gradient-title" id="mpResultTitle">RESULT</h2>
+    <p class="result-sub" id="mpResultSub"></p>
+    <div class="result-grid">
+      <div class="result-box"><div class="k">Your Score</div><div class="v" id="mpResultYourScore">0</div></div>
+      <div class="result-box"><div class="k">Opponent Score</div><div class="v" id="mpResultOppScore">0</div></div>
+      <div class="result-box"><div class="k">Rounds</div><div class="v" id="mpResultPuzzles">0</div></div>
+      <div class="result-box"><div class="k">Correct</div><div class="v" id="mpResultCorrect">0</div></div>
+    </div>
+    <div class="result-actions"><button id="mpBackHomeBtn" class="primary-btn">BACK TO HOME</button></div>
+  </section>
+
 </div>
+
+<div id="mpInvitationOverlay" class="mp-overlay hidden">
+  <div class="mp-modal">
+    <div class="hero-badge">⚔️ Challenge Invitation</div>
+    <h3 style="margin:14px 0 6px;">Olympus Chess Academy</h3>
+    <p style="color:var(--muted);margin:0 0 16px;">You have been challenged to a Legal Check match by <strong id="mpInviteFrom">—</strong>.</p>
+    <div class="mp-invite-details"><div><span>Rounds</span><strong id="mpInvitePuzzles">—</strong></div><div><span>Difficulty</span><strong id="mpInviteDifficulty">—</strong></div><div><span>Time</span><strong id="mpInviteTimer">—</strong></div></div>
+    <div class="side-actions" style="margin-top:18px;"><button id="mpAcceptBtn" class="primary-btn">ACCEPT</button><button id="mpDeclineBtn" class="ghost-btn">DECLINE</button></div>
+  </div>
+</div>
+<div id="mpToast" class="mp-toast hidden"></div>
 
 <script type="module">
 
@@ -706,6 +786,12 @@ const standaloneSupabase = createClient(
     }
   }
 );
+/* =========================================================
+   🔐 AUTH / PROFILE STATE
+   Used by the multiplayer layer.
+========================================================= */
+let currentUserId = null;
+let currentUserProfile = null;
 
 "use strict";
 async function checkStandaloneAccess() {
@@ -733,6 +819,8 @@ async function checkStandaloneAccess() {
     );
     return false;
   }
+  currentUserId = user.id;
+currentUserProfile = profile;
 
   if (profile.role === "admin") {
     return true;
@@ -843,6 +931,7 @@ const feedbackEl = $("feedback");
 const breakdownEl = $("breakdown");
 const timerRow = $("timerRow");
 const timerValue = $("timerValue");
+const mpStatusBar = $("mpStatusBar");
 
 /* =========================================================
    CHESS ENGINE
@@ -1222,6 +1311,11 @@ function getCheckingMoves(pos, legalMoves) {
 
   return checkingMoves;
 }
+function checkingMovesForPosition(pos, color = pos.turn) {
+  const legal = legalMovesForPosition(pos, color);
+  return getCheckingMoves(pos, legal);
+}
+
 
 function positionKey(pos) {
   return pos.board.join("") + "|" + pos.turn + "|" +
@@ -1610,6 +1704,9 @@ function applyCheckHighlights() {
       dot
     );
   }
+}
+function applyLegalHighlights() {
+  applyCheckHighlights();
 }
 /* =========================================================
    QUESTION / FEEDBACK
@@ -2162,46 +2259,1422 @@ function playAgain() {
   beginGame();
 }
 
+
+/* =========================================================
+   MULTIPLAYER STATE
+========================================================= */
+const multiplayer = {
+  active: false,
+  matchId: null,
+  role: null,
+
+  adminId: null,
+  player1Id: null,
+  player2Id: null,
+
+  player1Name: "Player 1",
+  player2Name: "Player 2",
+  opponentName: "Opponent",
+
+  questionCount: 0,
+  questionNumber: 0,
+  timerSeconds: 0,
+  currentAnswer: 0,
+  questionStartedAt: null,
+
+  submitted: false,
+
+  channel: null,
+  invitationChannel: null,
+  timerId: null,
+  countdownId: null,
+
+  _roundHandled: false,
+  _finalizing: false,
+  _startingNextRound: false,
+  _finishingMatch: false
+};
+
+function mpShowToast(msg) {
+  const el = $("mpToast");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  clearTimeout(mpShowToast._t);
+  mpShowToast._t = setTimeout(
+    () => el.classList.add("hidden"),
+    3200
+  );
+}
+
+function isPlayer1() {
+  return Boolean(
+    currentUserId &&
+    multiplayer.player1Id &&
+    currentUserId === multiplayer.player1Id
+  );
+}
+
+function cleanupMatchChannel() {
+  if (multiplayer.channel) {
+    standaloneSupabase.removeChannel(multiplayer.channel);
+    multiplayer.channel = null;
+  }
+}
+
+function cleanupInvitationChannel() {
+  if (multiplayer.invitationChannel) {
+    standaloneSupabase.removeChannel(multiplayer.invitationChannel);
+    multiplayer.invitationChannel = null;
+  }
+}
+
+function resetMultiplayerState() {
+  stopMultiplayerTimer();
+  clearInterval(multiplayer.countdownId);
+  multiplayer.countdownId = null;
+
+  multiplayer.active = false;
+  multiplayer.matchId = null;
+  multiplayer.role = null;
+  multiplayer.adminId = null;
+  multiplayer.player1Id = null;
+  multiplayer.player2Id = null;
+  multiplayer.player1Name = "Player 1";
+  multiplayer.player2Name = "Player 2";
+  multiplayer.opponentName = "Opponent";
+  multiplayer.questionCount = 0;
+  multiplayer.questionNumber = 0;
+  multiplayer.timerSeconds = 0;
+  multiplayer.currentAnswer = 0;
+  multiplayer.questionStartedAt = null;
+  multiplayer.submitted = false;
+
+  multiplayer._roundHandled = false;
+  multiplayer._finalizing = false;
+  multiplayer._startingNextRound = false;
+  multiplayer._finishingMatch = false;
+}
+
+function formatMultiplayerTime(seconds) {
+  seconds = Number(seconds) || 0;
+  if (seconds < 60) return `${seconds} sec`;
+
+  if (seconds % 60 === 0) {
+    const m = seconds / 60;
+    return `${m} ${m === 1 ? "minute" : "minutes"}`;
+  }
+
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+/* =========================================================
+   ONLINE MENU
+========================================================= */
+async function openOnlineMode() {
+  if (!currentUserProfile || currentUserProfile.role !== "admin") {
+    mpShowToast("Only administrators can create online matches.");
+    return;
+  }
+
+  startScreen.classList.add("hidden");
+  onlineScreen.classList.remove("hidden");
+  $("mpAdminStatus").textContent = "";
+
+  await loadOnlineStudents();
+}
+
+function closeOnlineMode() {
+  onlineScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+}
+
+async function loadOnlineStudents() {
+  const select = $("mpStudentSelect");
+
+  select.innerHTML =
+    '<option value="">Loading students...</option>';
+
+  const { data, error } =
+    await standaloneSupabase
+      .from("profiles")
+      .select("id, username")
+      .eq("role", "student")
+      .eq("active", true)
+      .order("username", { ascending: true });
+
+  if (error || !data) {
+    console.error("Student list error:", error);
+    select.innerHTML =
+      '<option value="">Unable to load students</option>';
+    return;
+  }
+
+  if (!data.length) {
+    select.innerHTML =
+      '<option value="">No active students found</option>';
+    return;
+  }
+
+  select.innerHTML = data
+    .map(student => {
+      const safeName = String(student.username || "Student")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+      return `<option value="${student.id}">${safeName}</option>`;
+    })
+    .join("");
+}
+
+async function createLegalCheckInvitation() {
+  if (!currentUserId || currentUserProfile?.role !== "admin") {
+    mpShowToast("Your admin session could not be verified.");
+    return;
+  }
+
+  const studentId = $("mpStudentSelect").value;
+
+  if (!studentId) {
+    $("mpAdminStatus").textContent = "Select a student first.";
+    return;
+  }
+
+  const questionCount = Number($("mpQuestionCount").value);
+  const timerSeconds = Number($("mpTimerSetting").value);
+  const difficulty = $("mpDifficulty").value;
+
+  if (
+    !Number.isInteger(questionCount) ||
+    questionCount < 3 ||
+    questionCount > 10
+  ) {
+    $("mpAdminStatus").textContent = "Rounds must be between 3 and 10.";
+    return;
+  }
+
+  if (!["easy", "medium", "hard"].includes(difficulty)) {
+    $("mpAdminStatus").textContent = "Invalid difficulty.";
+    return;
+  }
+
+  if (
+    !Number.isInteger(timerSeconds) ||
+    timerSeconds < 1 ||
+    timerSeconds > 3600
+  ) {
+    $("mpAdminStatus").textContent = "Invalid timer.";
+    return;
+  }
+
+  const btn = $("mpStartInvitationBtn");
+  btn.disabled = true;
+  $("mpAdminStatus").textContent = "Sending invitation...";
+
+  const { data, error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .insert({
+        admin_id: currentUserId,
+        player1_id: currentUserId,
+        player2_id: studentId,
+        status: "invited",
+        question_count: questionCount,
+        difficulty,
+        timer_seconds: timerSeconds,
+        question_number: 1,
+        player1_score: 0,
+        player2_score: 0
+      })
+      .select()
+      .single();
+
+  btn.disabled = false;
+
+  if (error || !data) {
+    console.error("Create invitation error:", error);
+    $("mpAdminStatus").textContent =
+      "Unable to send invitation. Please try again.";
+    return;
+  }
+
+  setMultiplayerFromRow(data, "player1");
+
+  $("mpAdminStatus").textContent =
+    "Invitation sent. Waiting for student...";
+
+  listenForMatch(data.id);
+}
+
+function setMultiplayerFromRow(row, roleOverride = null) {
+  if (!row) return;
+
+  multiplayer.matchId = row.id;
+  multiplayer.role =
+    roleOverride ||
+    (currentUserId === row.player1_id ? "player1" : "player2");
+
+  multiplayer.adminId = row.admin_id;
+  multiplayer.player1Id = row.player1_id;
+  multiplayer.player2Id = row.player2_id;
+  multiplayer.questionCount = Number(row.question_count || 0);
+  multiplayer.timerSeconds = Number(row.timer_seconds || 0);
+}
+
+/* =========================================================
+   REALTIME SUBSCRIPTIONS
+========================================================= */
+function listenForMatch(matchId) {
+  if (!matchId) return;
+
+  cleanupMatchChannel();
+
+  multiplayer.channel =
+    standaloneSupabase
+      .channel(`lc-match-${matchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "legal_check_matches",
+          filter: `id=eq.${matchId}`
+        },
+        payload => {
+          handleMultiplayerRealtimeUpdate(payload.new);
+        }
+      )
+      .subscribe(status => {
+        if (status === "CHANNEL_ERROR") {
+          mpShowToast("Match connection error. Retrying...");
+        }
+      });
+}
+
+function listenForStudentInvitations() {
+  if (!currentUserId || multiplayer.invitationChannel) return;
+
+  multiplayer.invitationChannel =
+    standaloneSupabase
+      .channel(`lc-invites-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "legal_check_matches",
+          filter: `player2_id=eq.${currentUserId}`
+        },
+        payload => {
+          if (payload.new?.status === "invited") {
+            showInvitationModal(payload.new);
+          }
+        }
+      )
+      .subscribe(status => {
+        if (status === "CHANNEL_ERROR") {
+          mpShowToast("Invitation connection error.");
+        }
+      });
+}
+
+/* A student can miss a realtime INSERT if the invitation was
+   created while their page was loading. Check once on startup. */
+async function checkPendingStudentInvitation() {
+  if (!currentUserId || currentUserProfile?.role !== "student") {
+    return;
+  }
+
+  const { data, error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .select("*")
+      .eq("player2_id", currentUserId)
+      .eq("status", "invited")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (!error && data) {
+    await showInvitationModal(data);
+  }
+}
+
+/* =========================================================
+   INVITATION
+========================================================= */
+async function showInvitationModal(match) {
+  if (!match || match.status !== "invited") return;
+
+  setMultiplayerFromRow(match, "player2");
+
+  let name = "Your admin";
+
+  const { data } =
+    await standaloneSupabase
+      .from("profiles")
+      .select("username")
+      .eq("id", match.admin_id)
+      .single();
+
+  if (data?.username) {
+    name = data.username;
+  }
+
+  $("mpInviteFrom").textContent = name;
+  $("mpInvitePuzzles").textContent =
+    `${match.question_count} rounds`;
+  $("mpInviteDifficulty").textContent =
+    String(match.difficulty || "").toUpperCase();
+  $("mpInviteTimer").textContent =
+    formatMultiplayerTime(match.timer_seconds);
+
+  $("mpInvitationOverlay").classList.remove("hidden");
+
+  listenForMatch(match.id);
+}
+
+async function acceptInvitation() {
+  if (!multiplayer.matchId || currentUserProfile?.role !== "student") {
+    return;
+  }
+
+  $("mpAcceptBtn").disabled = true;
+  $("mpDeclineBtn").disabled = true;
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        status: "accepted",
+        accepted_at: new Date().toISOString()
+      })
+      .eq("id", multiplayer.matchId)
+      .eq("player2_id", currentUserId)
+      .eq("status", "invited");
+
+  $("mpAcceptBtn").disabled = false;
+  $("mpDeclineBtn").disabled = false;
+
+  if (error) {
+    console.error("Accept invitation error:", error);
+    mpShowToast("Unable to accept invitation. Please try again.");
+    return;
+  }
+
+  $("mpInvitationOverlay").classList.add("hidden");
+}
+
+async function declineInvitation() {
+  if (!multiplayer.matchId) return;
+
+  $("mpAcceptBtn").disabled = true;
+  $("mpDeclineBtn").disabled = true;
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({ status: "cancelled" })
+      .eq("id", multiplayer.matchId)
+      .eq("player2_id", currentUserId)
+      .eq("status", "invited");
+
+  $("mpAcceptBtn").disabled = false;
+  $("mpDeclineBtn").disabled = false;
+
+  $("mpInvitationOverlay").classList.add("hidden");
+
+  if (error) {
+    console.error("Decline invitation error:", error);
+    mpShowToast("Unable to decline invitation.");
+    return;
+  }
+
+  cleanupMatchChannel();
+  resetMultiplayerState();
+}
+
+/* =========================================================
+   MATCH START
+========================================================= */
+async function initializeMultiplayerMatch(match) {
+  if (!match || !isPlayer1()) return;
+
+  const pos = generatePosition(match.difficulty);
+
+  const internalPos = {
+    board: cloneBoard(pos.board),
+    turn: pos.turn,
+    castling: {...pos.castling},
+    enPassant: pos.enPassant,
+    halfmove: pos.halfmove,
+    fullmove: pos.fullmove
+  };
+
+  const checking =
+    checkingMovesForPosition(
+      internalPos,
+      internalPos.turn
+    );
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        status: "playing",
+        current_position: internalPos,
+        correct_answer: checking.length,
+        question_started_at: new Date().toISOString(),
+        question_number: 1,
+
+        player1_answer: null,
+        player2_answer: null,
+        player1_submitted: false,
+        player2_submitted: false,
+        player1_correct: null,
+        player2_correct: null,
+        question_finished_at: null,
+
+        player1_score: Number(match.player1_score || 0),
+        player2_score: Number(match.player2_score || 0)
+      })
+      .eq("id", match.id)
+      .eq("status", "accepted");
+
+  if (error) {
+    console.error("Initialize match error:", error);
+    $("mpAdminStatus").textContent =
+      "Unable to start match. Please try again.";
+  }
+}
+
+async function handleMultiplayerRealtimeUpdate(row) {
+  if (!row || row.id !== multiplayer.matchId) return;
+
+  if (row.status === "cancelled") {
+    mpShowToast("Invitation declined.");
+
+    if (isPlayer1()) {
+      $("mpAdminStatus").textContent =
+        "Invitation declined.";
+    }
+
+    cleanupMatchChannel();
+    resetMultiplayerState();
+    return;
+  }
+
+  if (
+    row.status === "accepted" &&
+    isPlayer1() &&
+    !multiplayer.active
+  ) {
+    $("mpAdminStatus").textContent =
+      "Student accepted! Starting match...";
+
+    await initializeMultiplayerMatch(row);
+    return;
+  }
+
+  if (row.status === "playing") {
+    if (!multiplayer.active) {
+      await enterMultiplayerGame(row);
+    } else {
+      syncMultiplayerRow(row);
+    }
+    return;
+  }
+
+  if (row.status === "finished") {
+    finishMultiplayerMatch(row);
+  }
+}
+
+async function enterMultiplayerGame(row) {
+  multiplayer.active = true;
+
+  setMultiplayerFromRow(row);
+
+  multiplayer._roundHandled = false;
+  multiplayer._finalizing = false;
+  multiplayer._startingNextRound = false;
+  multiplayer._finishingMatch = false;
+
+  const [p1, p2] = await Promise.all([
+    standaloneSupabase
+      .from("profiles")
+      .select("username")
+      .eq("id", row.player1_id)
+      .single(),
+
+    standaloneSupabase
+      .from("profiles")
+      .select("username")
+      .eq("id", row.player2_id)
+      .single()
+  ]);
+
+  multiplayer.player1Name =
+    p1.data?.username || "Player 1";
+
+  multiplayer.player2Name =
+    p2.data?.username || "Player 2";
+
+  multiplayer.opponentName =
+    isPlayer1()
+      ? multiplayer.player2Name
+      : multiplayer.player1Name;
+
+  onlineScreen.classList.add("hidden");
+  startScreen.classList.add("hidden");
+  resultsScreen.classList.add("hidden");
+  $("mpResultsScreen").classList.add("hidden");
+
+  gameScreen.classList.remove("hidden");
+  mpStatusBar.classList.remove("hidden");
+
+  nextBtn.classList.add("hidden");
+
+  if (isPlayer1()) {
+    endBtn.classList.remove("hidden");
+    endBtn.disabled = false;
+  } else {
+    endBtn.classList.add("hidden");
+  }
+  // Hide BACK TO HOME for student during multiplayer.
+// Admin keeps the normal home button hidden as well because
+// multiplayer has its own match flow.
+if (multiplayer.active) {
+  $("homeBtn").classList.add("hidden");
+}
+
+  $("mpOppName").textContent =
+    multiplayer.opponentName.toUpperCase();
+
+  renderMultiplayerQuestion(row);
+}
+
+/* =========================================================
+   RENDER CURRENT ONLINE ROUND
+========================================================= */
+function renderMultiplayerQuestion(row) {
+  const pos = row.current_position;
+
+  if (
+    !pos ||
+    !Array.isArray(pos.board) ||
+    pos.board.length !== 64
+  ) {
+    mpShowToast("Invalid match position received.");
+    return;
+  }
+
+  stopMultiplayerTimer();
+
+  state.board = cloneBoard(pos.board);
+  state.turn = pos.turn;
+  state.castling = {...pos.castling};
+  state.enPassant = Number(pos.enPassant ?? -1);
+  state.halfmove = Number(pos.halfmove || 0);
+  state.fullmove = Number(pos.fullmove || 1);
+
+  const internalPos = makeStateFromCurrent();
+
+  state.legalMoves =
+    legalMovesForPosition(
+      internalPos,
+      state.turn
+    );
+
+  state.checkingMoves =
+    checkingMovesForPosition(
+      internalPos,
+      state.turn
+    );
+
+  state.currentAnswer =
+    Number(row.correct_answer || state.checkingMoves.length);
+
+  multiplayer.currentAnswer = state.currentAnswer;
+  multiplayer.questionStartedAt =
+    row.question_started_at;
+  multiplayer.questionNumber =
+    Number(row.question_number || 1);
+  multiplayer.questionCount =
+    Number(row.question_count || multiplayer.questionCount);
+  multiplayer.timerSeconds =
+    Number(row.timer_seconds || multiplayer.timerSeconds);
+
+  multiplayer.submitted = false;
+  multiplayer._roundHandled = false;
+  multiplayer._finalizing = false;
+  multiplayer._startingNextRound = false;
+
+  clearFeedback();
+
+  answerInput.disabled = false;
+  submitBtn.disabled = false;
+  nextBtn.disabled = true;
+  answerInput.value = "";
+
+  renderBoard();
+  showTurn();
+
+  $("mpQuestionLabel").textContent =
+    `Round ${row.question_number}/${row.question_count}`;
+
+  $("mpYouScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player1_score || 0)
+      : Number(row.player2_score || 0));
+
+  $("mpOppScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player2_score || 0)
+      : Number(row.player1_score || 0));
+
+  $("mpYouState").textContent = "🤔 Thinking...";
+  $("mpOppState").textContent = "🤔 Thinking...";
+
+  $("mpRoundBanner").classList.add("hidden");
+  $("mpRoundBanner").textContent = "";
+
+  startMultiplayerTimer(row);
+
+  setTimeout(() => {
+    if (!multiplayer.submitted) {
+      answerInput.focus();
+    }
+  }, 0);
+}
+
+/* =========================================================
+   ONLINE TIMER
+   Both clients use the server's question_started_at.
+   The timer never decides the score by itself; it only
+   submits a missing answer. Finalization happens only after
+   both players have submitted.
+========================================================= */
+function startMultiplayerTimer(row) {
+  stopMultiplayerTimer();
+
+  const seconds = Number(row.timer_seconds || 0);
+
+  if (!seconds) {
+    timerRow.classList.add("hidden");
+    return;
+  }
+
+  timerRow.classList.remove("hidden");
+
+  const startedAt =
+    new Date(row.question_started_at).getTime();
+
+  if (!Number.isFinite(startedAt)) {
+    timerValue.textContent = String(seconds);
+    return;
+  }
+
+  const deadline =
+    startedAt + seconds * 1000;
+
+  async function tick() {
+    if (!multiplayer.active) {
+      stopMultiplayerTimer();
+      return;
+    }
+
+    const remaining =
+      Math.max(
+        0,
+        Math.ceil((deadline - Date.now()) / 1000)
+      );
+
+    timerValue.textContent = String(remaining);
+    timerValue.className = "timer-value";
+
+    if (remaining <= 5) {
+      timerValue.classList.add("timer-danger");
+    } else if (remaining <= 9) {
+      timerValue.classList.add("timer-warning");
+    }
+
+    if (remaining <= 0) {
+      stopMultiplayerTimer();
+
+      if (!multiplayer.submitted) {
+        await submitMultiplayerAnswer(true);
+      }
+
+      /* Do NOT finalize from the timer until both DB flags
+         are actually present. */
+      if (isPlayer1()) {
+        await waitForBothMultiplayerSubmissions(
+          multiplayer.matchId,
+          5000
+        );
+      }
+    }
+  }
+
+  tick();
+  multiplayer.timerId =
+    setInterval(tick, 250);
+}
+
+function stopMultiplayerTimer() {
+  if (multiplayer.timerId !== null) {
+    clearInterval(multiplayer.timerId);
+    multiplayer.timerId = null;
+  }
+}
+
+/* =========================================================
+   ONLINE ANSWER SUBMISSION
+========================================================= */
+async function submitMultiplayerAnswer(timedOut = false) {
+  if (!multiplayer.active || multiplayer.submitted) {
+    return false;
+  }
+
+  let answer = null;
+
+  if (!timedOut) {
+    answer = getValidatedAnswer();
+
+    if (answer === null) {
+      answerInput.focus();
+      return false;
+    }
+  }
+
+  multiplayer.submitted = true;
+
+  stopMultiplayerTimer();
+
+  answerInput.disabled = true;
+  submitBtn.disabled = true;
+
+  $("mpYouState").textContent =
+    timedOut
+      ? "⏱️ Time's up"
+      : "✔️ Answer submitted";
+
+  const correct =
+    answer !== null &&
+    answer === multiplayer.currentAnswer;
+
+  const fields =
+    isPlayer1()
+      ? {
+          player1_answer: answer,
+          player1_submitted: true,
+          player1_correct: correct
+        }
+      : {
+          player2_answer: answer,
+          player2_submitted: true,
+          player2_correct: correct
+        };
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update(fields)
+      .eq("id", multiplayer.matchId)
+      .eq("status", "playing");
+
+  if (error) {
+    console.error("Submit multiplayer answer error:", error);
+
+    /* Allow a retry if the network/database write failed. */
+    multiplayer.submitted = false;
+    answerInput.disabled = false;
+    submitBtn.disabled = false;
+
+    $("mpYouState").textContent =
+      "⚠️ Submission failed";
+
+    mpShowToast(
+      "Connection problem. Please submit again."
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+/* =========================================================
+   WAIT FOR BOTH PLAYERS
+   Player 1 is the single finalizer. Polling is used only as
+   a timeout safety net because realtime delivery can arrive
+   slightly after the local timer.
+========================================================= */
+async function waitForBothMultiplayerSubmissions(
+  matchId,
+  maxWaitMs = 5000
+) {
+  if (!matchId || !isPlayer1()) return null;
+
+  const started = Date.now();
+
+  while (Date.now() - started < maxWaitMs) {
+    const { data, error } =
+      await standaloneSupabase
+        .from("legal_check_matches")
+        .select("*")
+        .eq("id", matchId)
+        .maybeSingle();
+
+    if (error) {
+      console.error("Match polling error:", error);
+      await new Promise(r => setTimeout(r, 250));
+      continue;
+    }
+
+    if (!data || data.status !== "playing") {
+      return data || null;
+    }
+
+    if (
+      data.player1_submitted === true &&
+      data.player2_submitted === true
+    ) {
+      await finalizeMultiplayerRound(data);
+      return data;
+    }
+
+    await new Promise(r => setTimeout(r, 250));
+  }
+
+  return null;
+}
+
+/* =========================================================
+   REALTIME SYNC
+========================================================= */
+function syncMultiplayerRow(row) {
+  if (!multiplayer.active) return;
+
+  if (
+    row.question_number !== multiplayer.questionNumber ||
+    row.question_started_at !== multiplayer.questionStartedAt
+  ) {
+    renderMultiplayerQuestion(row);
+    return;
+  }
+
+  const youSubmitted =
+    isPlayer1()
+      ? row.player1_submitted === true
+      : row.player2_submitted === true;
+
+  const oppSubmitted =
+    isPlayer1()
+      ? row.player2_submitted === true
+      : row.player1_submitted === true;
+
+  $("mpYouState").textContent =
+    youSubmitted
+      ? "✔️ Answer submitted"
+      : "🤔 Thinking...";
+
+  $("mpOppState").textContent =
+    oppSubmitted
+      ? "✔️ Answer submitted"
+      : "🤔 Thinking...";
+
+  $("mpYouScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player1_score || 0)
+      : Number(row.player2_score || 0));
+
+  $("mpOppScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player2_score || 0)
+      : Number(row.player1_score || 0));
+
+  const bothDone =
+    row.player1_submitted === true &&
+    row.player2_submitted === true;
+
+  if (
+    bothDone &&
+    !row.question_finished_at &&
+    isPlayer1()
+  ) {
+    finalizeMultiplayerRound(row);
+  }
+
+  if (
+    row.question_finished_at &&
+    !multiplayer._roundHandled
+  ) {
+    multiplayer._roundHandled = true;
+    finishMultiplayerQuestion(row);
+  }
+}
+
+/* =========================================================
+   ROUND FINALIZATION
+   Only Player 1 performs this operation.
+   The DB condition question_finished_at IS NULL makes the
+   operation idempotent against duplicate realtime events.
+========================================================= */
+async function finalizeMultiplayerRound(row) {
+  if (
+    !isPlayer1() ||
+    !row ||
+    row.status !== "playing" ||
+    row.question_finished_at ||
+    multiplayer._finalizing
+  ) {
+    return false;
+  }
+
+  if (
+    row.player1_submitted !== true ||
+    row.player2_submitted !== true
+  ) {
+    return false;
+  }
+
+  multiplayer._finalizing = true;
+
+  const p1Correct =
+    row.player1_correct === true;
+
+  const p2Correct =
+    row.player2_correct === true;
+
+  const p1Score =
+    Number(row.player1_score || 0) +
+    (p1Correct ? 1 : 0);
+
+  const p2Score =
+    Number(row.player2_score || 0) +
+    (p2Correct ? 1 : 0);
+
+  const finishedAt =
+    new Date().toISOString();
+
+  const { data, error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        /* Both are known to have submitted at this point. */
+        player1_submitted: true,
+        player2_submitted: true,
+
+        player1_correct: p1Correct,
+        player2_correct: p2Correct,
+
+        player1_score: p1Score,
+        player2_score: p2Score,
+
+        question_finished_at: finishedAt
+      })
+      .eq("id", row.id)
+      .eq("status", "playing")
+      .is("question_finished_at", null)
+      .select()
+      .maybeSingle();
+
+  multiplayer._finalizing = false;
+
+  if (error) {
+    console.error("Finalize round error:", error);
+    return false;
+  }
+
+  /* If data is null, another finalization already happened. */
+  return Boolean(data);
+}
+
+/* =========================================================
+   ROUND RESULT + 10 SECOND TRANSITION
+========================================================= */
+function finishMultiplayerQuestion(row) {
+  stopMultiplayerTimer();
+
+  answerInput.disabled = true;
+  submitBtn.disabled = true;
+
+  const youCorrect =
+    isPlayer1()
+      ? row.player1_correct === true
+      : row.player2_correct === true;
+
+  const oppCorrect =
+    isPlayer1()
+      ? row.player2_correct === true
+      : row.player1_correct === true;
+
+  const banner = $("mpRoundBanner");
+
+  banner.classList.remove("hidden");
+
+  if (youCorrect && oppCorrect) {
+    banner.textContent = "BOTH CORRECT";
+  } else if (!youCorrect && !oppCorrect) {
+    banner.textContent = "ROUND DRAW";
+  } else if (youCorrect) {
+    banner.textContent = "✓ YOU WON THIS ROUND";
+  } else {
+    banner.textContent = "✗ OPPONENT WON THIS ROUND";
+  }
+
+  $("mpYouScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player1_score || 0)
+      : Number(row.player2_score || 0));
+
+  $("mpOppScore").textContent =
+    String(isPlayer1()
+      ? Number(row.player2_score || 0)
+      : Number(row.player1_score || 0));
+
+  /* Show the correct checking moves only after submission. */
+  applyLegalHighlights();
+  buildBreakdown();
+
+  startMultiplayerCountdown(row);
+}
+
+function startMultiplayerCountdown(row) {
+  let secs = 10;
+
+  const banner = $("mpRoundBanner");
+  const base = banner.textContent;
+
+  clearInterval(multiplayer.countdownId);
+
+  banner.textContent =
+    `${base} • Next in ${secs}...`;
+
+  multiplayer.countdownId =
+    setInterval(async () => {
+      secs--;
+
+      if (secs > 0) {
+        banner.textContent =
+          `${base} • Next in ${secs}...`;
+        return;
+      }
+
+      clearInterval(multiplayer.countdownId);
+      multiplayer.countdownId = null;
+
+      if (!isPlayer1()) return;
+
+      if (row.question_number >= row.question_count) {
+        await finishMultiplayerMatchWrite(row);
+      } else {
+        await startNextMultiplayerQuestion(row);
+      }
+    }, 1000);
+}
+
+/* =========================================================
+   NEXT ROUND
+========================================================= */
+async function startNextMultiplayerQuestion(row) {
+  if (
+    !isPlayer1() ||
+    !row ||
+    row.status !== "playing" ||
+    multiplayer._startingNextRound
+  ) {
+    return;
+  }
+
+  multiplayer._startingNextRound = true;
+
+  const pos =
+    generatePosition(row.difficulty);
+
+  const internalPos = {
+    board: cloneBoard(pos.board),
+    turn: pos.turn,
+    castling: {...pos.castling},
+    enPassant: pos.enPassant,
+    halfmove: pos.halfmove,
+    fullmove: pos.fullmove
+  };
+
+  const checking =
+    checkingMovesForPosition(
+      internalPos,
+      internalPos.turn
+    );
+
+  const nextQuestion =
+    Number(row.question_number) + 1;
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        question_number: nextQuestion,
+        current_position: internalPos,
+        correct_answer: checking.length,
+        question_started_at: new Date().toISOString(),
+
+        player1_answer: null,
+        player2_answer: null,
+        player1_submitted: false,
+        player2_submitted: false,
+        player1_correct: null,
+        player2_correct: null,
+        question_finished_at: null
+      })
+      .eq("id", row.id)
+      .eq("status", "playing")
+      .eq("question_number", row.question_number);
+
+  multiplayer._startingNextRound = false;
+
+  if (error) {
+    console.error("Start next round error:", error);
+    mpShowToast(
+      "Unable to start the next round. Please reconnect."
+    );
+  }
+}
+
+/* =========================================================
+   MATCH FINISH
+========================================================= */
+async function finishMultiplayerMatchWrite(row) {
+  if (
+    !isPlayer1() ||
+    !row ||
+    multiplayer._finishingMatch
+  ) {
+    return;
+  }
+
+  multiplayer._finishingMatch = true;
+
+  let winnerId = null;
+
+  const p1Score = Number(row.player1_score || 0);
+  const p2Score = Number(row.player2_score || 0);
+
+  if (p1Score > p2Score) {
+    winnerId = row.player1_id;
+  } else if (p2Score > p1Score) {
+    winnerId = row.player2_id;
+  }
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        status: "finished",
+        winner_id: winnerId,
+        finished_at: new Date().toISOString()
+      })
+      .eq("id", row.id)
+      .eq("status", "playing");
+
+  multiplayer._finishingMatch = false;
+
+  if (error) {
+    console.error("Finish match error:", error);
+    mpShowToast(
+      "Unable to finish the match. Please try again."
+    );
+  }
+}
+
+function finishMultiplayerMatch(row) {
+  if (!row) return;
+
+  stopMultiplayerTimer();
+  clearInterval(multiplayer.countdownId);
+  multiplayer.countdownId = null;
+
+  endBtn.disabled = true;
+  endBtn.classList.add("hidden");
+
+  gameScreen.classList.add("hidden");
+  mpStatusBar.classList.add("hidden");
+  $("mpResultsScreen").classList.remove("hidden");
+
+  const yourScore =
+    isPlayer1()
+      ? Number(row.player1_score || 0)
+      : Number(row.player2_score || 0);
+
+  const oppScore =
+    isPlayer1()
+      ? Number(row.player2_score || 0)
+      : Number(row.player1_score || 0);
+
+  let title = "DRAW";
+  let badge = "🤝 Match Complete";
+
+  if (row.winner_id === currentUserId) {
+    title = "YOU WIN";
+    badge = "🏆 Match Complete";
+  } else if (row.winner_id) {
+    title = "YOU LOSE";
+    badge = "Match Complete";
+  }
+
+  $("mpResultBadge").textContent = badge;
+  $("mpResultTitle").textContent = title;
+  $("mpResultSub").textContent =
+    `vs ${multiplayer.opponentName || "opponent"}`;
+
+  $("mpResultYourScore").textContent =
+    String(yourScore);
+
+  $("mpResultOppScore").textContent =
+    String(oppScore);
+
+  $("mpResultPuzzles").textContent =
+    String(row.question_count || 0);
+
+  /* In this match, one point = one correct round. */
+  $("mpResultCorrect").textContent =
+    String(yourScore);
+
+  cleanupMultiplayer(false);
+}
+
+/* =========================================================
+   ADMIN END MATCH
+========================================================= */
+async function adminEndMultiplayerGame() {
+  if (
+    !multiplayer.active ||
+    !isPlayer1() ||
+    !multiplayer.matchId
+  ) {
+    return;
+  }
+
+  endBtn.disabled = true;
+
+  const { error } =
+    await standaloneSupabase
+      .from("legal_check_matches")
+      .update({
+        status: "finished",
+        winner_id: null,
+        finished_at: new Date().toISOString()
+      })
+      .eq("id", multiplayer.matchId)
+      .eq("player1_id", currentUserId)
+      .eq("status", "playing");
+
+  if (error) {
+    console.error("Admin end match error:", error);
+    endBtn.disabled = false;
+    mpShowToast(
+      "Unable to end the match. Please try again."
+    );
+  }
+}
+
+/* =========================================================
+   CLEANUP
+========================================================= */
+function cleanupMultiplayer(returnHome = true) {
+  cleanupMatchChannel();
+  stopMultiplayerTimer();
+  clearInterval(multiplayer.countdownId);
+  multiplayer.countdownId = null;
+
+  resetMultiplayerState();
+  $("homeBtn").classList.remove("hidden");
+
+  mpStatusBar.classList.add("hidden");
+  $("mpInvitationOverlay").classList.add("hidden");
+
+  if (returnHome) {
+    gameScreen.classList.add("hidden");
+    $("mpResultsScreen").classList.add("hidden");
+    onlineScreen.classList.add("hidden");
+    startScreen.classList.remove("hidden");
+  }
+}
+function backToHome() {
+  if (multiplayer.active) {
+    cleanupMultiplayer(true);
+    return;
+  }
+
+  stopTimer();
+
+  state.phase = "menu";
+
+  gameScreen.classList.add("hidden");
+  resultsScreen.classList.add("hidden");
+  $("mpResultsScreen").classList.add("hidden");
+  onlineScreen.classList.add("hidden");
+
+  startScreen.classList.remove("hidden");
+}
+
 /* =========================================================
    EVENT LISTENERS
 ========================================================= */
 $("startBtn").addEventListener("click", beginGame);
 $("playAgainBtn").addEventListener("click", playAgain);
 $("menuBtn").addEventListener("click", backToMenu);
-submitBtn.addEventListener("click", () => handleSubmit(false));
-nextBtn.addEventListener("click", goNext);
-endBtn.addEventListener("click", () => endGame(true));
+$("homeBtn").addEventListener("click", backToHome);
+submitBtn.addEventListener("click", () => { if (multiplayer.active) { submitMultiplayerAnswer(false); return; } handleSubmit(false); });
+nextBtn.addEventListener("click", () => { if (multiplayer.active) return; goNext(); });
+endBtn.addEventListener("click", () => { if (multiplayer.active) { adminEndMultiplayerGame(); return; } endGame(true); });
 
 answerInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     e.preventDefault();
-    handleSubmit(false);
+    if (multiplayer.active) submitMultiplayerAnswer(false);
+    else handleSubmit(false);
   }
 });
 
 document.addEventListener("keydown", e => {
-  if (state.phase === "game" && e.key === "Escape" && !state.submitted) {
+  if (state.phase === "game" && e.key === "Escape" && !state.submitted && !multiplayer.active) {
     endGame(true);
   }
 });
 
-/* =========================================================
-   STARTUP
-========================================================= */
-/* =========================================================
-   STARTUP
-========================================================= */
 
+/* ONLINE LEGAL CHECK LISTENERS */
+$("playOnlineBtn")?.addEventListener("click",openOnlineMode);
+$("mpBackBtn")?.addEventListener("click",closeOnlineMode);
+$("mpStartInvitationBtn")?.addEventListener("click",createLegalCheckInvitation);
+$("mpAcceptBtn")?.addEventListener("click",acceptInvitation);
+$("mpDeclineBtn")?.addEventListener("click",declineInvitation);
+$("mpBackHomeBtn")?.addEventListener("click",()=>cleanupMultiplayer(true));
+/* =========================================================
+   STARTUP
+========================================================= */
 (async function boot() {
-
   const allowed = await checkStandaloneAccess();
 
   if (!allowed) return;
 
   $("timerSetting").value = "15";
-
   clearFeedback();
 
+  if (
+    currentUserProfile &&
+    currentUserProfile.role === "admin"
+  ) {
+    $("playOnlineBtn")?.classList.remove("hidden");
+  } else {
+    listenForStudentInvitations();
+    await checkPendingStudentInvitation();
+  }
 })();
 </script>
 </body>
