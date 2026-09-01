@@ -44067,8 +44067,432 @@ document.addEventListener("click", (e) => {
 
 
 
+// ==========================================================
+// 👨‍🏫 OLYMPUS UI ROLE DISPLAY NAME
+// ==========================================================
+// IMPORTANT:
+// Internal role remains "admin" everywhere.
+// Only visible UI text is changed to "Head Coach".
+//
+// Student usernames are also formatted for display only:
+// dona    → Dona
+// doNA    → Dona
+// doyel15 → Doyel15
+// ==========================================================
 
+(function setupRoleDisplayName() {
 
+  let olympusStudentUsernames = new Set();
+
+  const ROLE_DISPLAY_NAMES = {
+    admin: "Head Coach",
+    student: "Student"
+  };
+
+  // ==========================================================
+  // 👨‍🏫 / 👨‍🎓 DISPLAY TEXT ENGINE
+  // ==========================================================
+
+  function replaceAdminText(node) {
+
+    if (!node) return;
+
+    // ========================================================
+    // TEXT NODE
+    // ========================================================
+
+    if (node.nodeType === Node.TEXT_NODE) {
+
+      const text = node.nodeValue;
+
+      if (!text) return;
+
+      const parent = node.parentNode;
+
+      if (!parent) return;
+
+      // ------------------------------------------------------
+      // 👨‍🎓 STUDENT USERNAME DISPLAY FORMAT
+      // ------------------------------------------------------
+      // Only usernames that actually exist in the student list
+      // are changed.
+      //
+      // dona    → Dona
+      // doNA    → Dona
+      // doyel15 → Doyel15
+      // ------------------------------------------------------
+
+      if (olympusStudentUsernames.size > 0) {
+
+        const usernames = Array.from(
+          olympusStudentUsernames
+        )
+          .sort((a, b) => b.length - a.length)
+          .map(name =>
+            name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+          );
+
+        if (usernames.length > 0) {
+
+          const usernameRegex = new RegExp(
+            `(^|\\s)(${usernames.join("|")})(?=\\s|$|[.,!?;:)])`,
+            "gi"
+          );
+
+          if (usernameRegex.test(text)) {
+
+            usernameRegex.lastIndex = 0;
+
+            const fragment =
+              document.createDocumentFragment();
+
+            let lastIndex = 0;
+            let match;
+
+            while (
+              (match = usernameRegex.exec(text)) !== null
+            ) {
+
+              const username = match[2];
+
+              const matchStart =
+                match.index + match[1].length;
+
+              const matchEnd =
+                matchStart + username.length;
+
+              // Text before username
+              if (matchStart > lastIndex) {
+
+                fragment.appendChild(
+                  document.createTextNode(
+                    text.slice(lastIndex, matchStart)
+                  )
+                );
+
+              }
+
+              // ------------------------------------------------
+              // 👨‍🎓 FORMATTED STUDENT NAME
+              // ------------------------------------------------
+
+              const studentSpan =
+                document.createElement("span");
+
+              studentSpan.className =
+                "olympus-student-display-name";
+
+              const formattedName =
+                username.charAt(0).toUpperCase() +
+                username.slice(1).toLowerCase();
+
+              studentSpan.textContent =
+                formattedName;
+
+              studentSpan.style.fontWeight = "700";
+              studentSpan.style.fontStyle = "italic";
+
+              fragment.appendChild(studentSpan);
+
+              lastIndex = matchEnd;
+            }
+
+            // Remaining text
+            if (lastIndex < text.length) {
+
+              fragment.appendChild(
+                document.createTextNode(
+                  text.slice(lastIndex)
+                )
+              );
+
+            }
+
+            parent.replaceChild(
+              fragment,
+              node
+            );
+
+            return;
+          }
+
+        }
+
+      }
+
+      // ========================================================
+      // 👨‍🏫 ADMIN → HEAD COACH
+      // ========================================================
+
+      if (/\badmin\b/i.test(text)) {
+
+        const parts =
+          text.split(/\badmin\b/i);
+
+        const fragment =
+          document.createDocumentFragment();
+
+        parts.forEach((part, index) => {
+
+          if (part) {
+
+            fragment.appendChild(
+              document.createTextNode(part)
+            );
+
+          }
+
+          if (index < parts.length - 1) {
+
+            const coachSpan =
+              document.createElement("span");
+
+            coachSpan.className =
+              "olympus-coach-display-name";
+
+            coachSpan.innerHTML =
+              `${ROLE_DISPLAY_NAMES.admin}<sup class="olympus-coach-star">TM</sup>`;
+
+          coachSpan.style.fontWeight = "800";
+coachSpan.style.fontStyle = "italic";
+coachSpan.style.fontSize = "1.08em";
+coachSpan.style.color = "#f59e0b";
+            coachSpan.style.fontFamily =
+              "'Trebuchet MS', 'Segoe UI', sans-serif";
+            coachSpan.style.letterSpacing = "0.2px";
+            coachSpan.style.textShadow =
+              "0 1px 2px rgba(0,0,0,0.15)";
+
+            const star =
+              coachSpan.querySelector(
+                ".olympus-coach-star"
+              );
+
+            if (star) {
+
+              star.style.fontSize = "0.55em";
+              star.style.verticalAlign = "super";
+              star.style.marginLeft = "2px";
+              star.style.fontWeight = "800";
+
+            }
+
+            fragment.appendChild(
+              coachSpan
+            );
+
+          }
+
+        });
+
+        parent.replaceChild(
+          fragment,
+          node
+        );
+
+      }
+
+      return;
+    }
+
+    // ==========================================================
+    // IGNORE NON-ELEMENTS
+    // ==========================================================
+
+    if (
+      node.nodeType !== Node.ELEMENT_NODE
+    ) {
+      return;
+    }
+
+    // ==========================================================
+    // NEVER TOUCH CODE / INPUT AREAS
+    // ==========================================================
+
+    if (
+      node.tagName === "SCRIPT" ||
+      node.tagName === "STYLE" ||
+      node.tagName === "INPUT" ||
+      node.tagName === "TEXTAREA"
+    ) {
+      return;
+    }
+
+    // ==========================================================
+    // NEVER REPROCESS OUR OWN DISPLAY SPANS
+    // ==========================================================
+
+    if (
+      node.classList &&
+      (
+        node.classList.contains(
+          "olympus-student-display-name"
+        ) ||
+        node.classList.contains(
+          "olympus-coach-display-name"
+        )
+      )
+    ) {
+      return;
+    }
+
+    // ==========================================================
+    // PROCESS CHILDREN
+    // ==========================================================
+
+    node.childNodes.forEach(
+      replaceAdminText
+    );
+
+  }
+
+  // ==========================================================
+  // REFRESH CURRENT UI
+  // ==========================================================
+
+  function refreshRoleDisplay() {
+
+    if (document.body) {
+      replaceAdminText(
+        document.body
+      );
+    }
+
+  }
+
+  // ==========================================================
+  // LOAD ALL STUDENT USERNAMES
+  // ==========================================================
+
+  async function loadOlympusStudentNames() {
+
+    try {
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("role", "student");
+
+      if (error) {
+
+        console.warn(
+          "⚠️ Could not load student display names:",
+          error
+        );
+
+        return;
+      }
+
+      olympusStudentUsernames =
+        new Set(
+          (data || [])
+            .map(student =>
+              String(
+                student.username || ""
+              )
+                .trim()
+                .toLowerCase()
+            )
+            .filter(Boolean)
+        );
+
+      // Re-check UI after student names are loaded
+      refreshRoleDisplay();
+
+    } catch (error) {
+
+      console.warn(
+        "⚠️ Student display-name setup failed:",
+        error
+      );
+
+    }
+
+  }
+
+  // ==========================================================
+  // CATCH UI CREATED LATER
+  // ==========================================================
+
+  const observer =
+    new MutationObserver(
+      (mutations) => {
+
+        mutations.forEach(
+          (mutation) => {
+
+            mutation.addedNodes.forEach(
+              (node) => {
+
+                replaceAdminText(
+                  node
+                );
+
+              }
+            );
+
+            if (
+              mutation.type ===
+                "characterData" &&
+              mutation.target
+            ) {
+
+              replaceAdminText(
+                mutation.target
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+  // ==========================================================
+  // START OBSERVER
+  // ==========================================================
+
+  if (document.body) {
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true,
+        characterData: true
+      }
+    );
+
+  }
+
+  // ==========================================================
+  // GLOBAL ROLE DISPLAY HELPER
+  // ==========================================================
+
+  window.getRoleDisplayName =
+    function(role) {
+
+      return (
+        ROLE_DISPLAY_NAMES[role] ||
+        role
+      );
+
+    };
+
+  // ==========================================================
+  // INITIAL DISPLAY
+  // ==========================================================
+
+  refreshRoleDisplay();
+
+  // ==========================================================
+  // LOAD STUDENT NAMES
+  // ==========================================================
+
+  loadOlympusStudentNames();
+
+})();
     // ============================================
     // INIT
     // ============================================
