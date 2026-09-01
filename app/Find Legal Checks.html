@@ -3677,5 +3677,194 @@ $("mpBackHomeBtn")?.addEventListener("click",()=>cleanupMultiplayer(true));
   }
 })();
 </script>
+  <!-- ==========================================================
+     👨‍🏫 OLYMPUS LEGAL CHECK — ADMIN DISPLAY MASK
+     ==========================================================
+     Internal value remains "admin".
+     Only visible UI text becomes "Head Coach™".
+     No Supabase / backend dependency.
+     ========================================================== -->
+
+<script>
+(function setupLegalCheckRoleDisplay() {
+
+  function replaceAdminText(node) {
+
+    if (!node) return;
+
+    // ========================================================
+    // TEXT NODE
+    // ========================================================
+
+    if (node.nodeType === Node.TEXT_NODE) {
+
+      const text = node.nodeValue;
+
+      if (!text || !/\badmin\b/i.test(text)) {
+        return;
+      }
+
+      const parent = node.parentNode;
+
+      if (!parent) return;
+
+      const parts = text.split(/\badmin\b/i);
+
+      const fragment =
+        document.createDocumentFragment();
+
+      parts.forEach((part, index) => {
+
+        if (part) {
+          fragment.appendChild(
+            document.createTextNode(part)
+          );
+        }
+
+        if (index < parts.length - 1) {
+
+          const coachSpan =
+            document.createElement("span");
+
+          coachSpan.className =
+            "olympus-legal-coach-display";
+
+          coachSpan.innerHTML =
+            `Head Coach<sup class="olympus-legal-coach-tm">TM</sup>`;
+
+          coachSpan.style.fontWeight = "800";
+          coachSpan.style.fontStyle = "italic";
+          coachSpan.style.fontSize = "1.08em";
+          coachSpan.style.color = "#f59e0b";
+          coachSpan.style.fontFamily =
+            "'Trebuchet MS', 'Segoe UI', sans-serif";
+          coachSpan.style.letterSpacing = "0.2px";
+          coachSpan.style.textShadow =
+            "0 1px 2px rgba(0,0,0,0.15)";
+
+          const tm =
+            coachSpan.querySelector(
+              ".olympus-legal-coach-tm"
+            );
+
+          if (tm) {
+            tm.style.fontSize = "0.55em";
+            tm.style.verticalAlign = "super";
+            tm.style.marginLeft = "2px";
+            tm.style.fontWeight = "800";
+          }
+
+          fragment.appendChild(
+            coachSpan
+          );
+        }
+
+      });
+
+      parent.replaceChild(
+        fragment,
+        node
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // ELEMENT SAFETY
+    // ========================================================
+
+    if (
+      node.nodeType !== Node.ELEMENT_NODE
+    ) {
+      return;
+    }
+
+    if (
+      node.tagName === "SCRIPT" ||
+      node.tagName === "STYLE" ||
+      node.tagName === "INPUT" ||
+      node.tagName === "TEXTAREA"
+    ) {
+      return;
+    }
+
+    // Don't process our own Head Coach span again
+    if (
+      node.classList &&
+      node.classList.contains(
+        "olympus-legal-coach-display"
+      )
+    ) {
+      return;
+    }
+
+    node.childNodes.forEach(
+      replaceAdminText
+    );
+  }
+
+  // ========================================================
+  // INITIAL UI
+  // ========================================================
+
+  if (document.body) {
+    replaceAdminText(
+      document.body
+    );
+  }
+
+  // ========================================================
+  // CATCH DYNAMICALLY CREATED UI
+  // ========================================================
+
+  const observer =
+    new MutationObserver(
+      (mutations) => {
+
+        mutations.forEach(
+          (mutation) => {
+
+            mutation.addedNodes.forEach(
+              (node) => {
+
+                replaceAdminText(
+                  node
+                );
+
+              }
+            );
+
+            if (
+              mutation.type === "characterData" &&
+              mutation.target
+            ) {
+
+              replaceAdminText(
+                mutation.target
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+  if (document.body) {
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true,
+        characterData: true
+      }
+    );
+
+  }
+
+})();
+</script>
 </body>
 </html>
