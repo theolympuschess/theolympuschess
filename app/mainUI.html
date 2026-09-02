@@ -91555,23 +91555,66 @@ function setReady(isReady) {
      
      ------------------------------------------ */
 
-  window.markWelcomeAppReady = function () {
+window.markWelcomeAppReady = function () {
 
-    console.log(
-      "✅ Welcome Ready Gate: application reported ready"
+  console.log(
+    "✅ Welcome Ready Gate: application reported ready"
+  );
+
+  appReady = true;
+
+  /*
+    Stop the slow background progress.
+    The real application is already initialized.
+  */
+  clearInterval(progressTimer);
+
+  /*
+    Smoothly finish the visual progress from
+    the current percentage to exactly 100%.
+
+    This is ONLY a visual animation.
+    It does not perform any application work.
+  */
+  const startProgress = progress;
+  const finishDuration = 450;
+  const finishStart = performance.now();
+
+  function finishTo100(now) {
+
+    const elapsed = now - finishStart;
+
+    const ratio = Math.min(
+      1,
+      elapsed / finishDuration
     );
 
-    appReady = true;
-
     /*
-      REAL APPLICATION IS READY.
-
-      Stop the visual progress timer immediately.
+      Smooth ease-out:
+      starts quickly and gently settles at 100%.
     */
-    clearInterval(progressTimer);
+    const eased =
+      1 - Math.pow(1 - ratio, 3);
+
+    progress =
+      startProgress +
+      (100 - startProgress) * eased;
+
+    fill.style.width =
+      progress + "%";
+
+    pct.textContent =
+      "Loading… " + Math.floor(progress) + "%";
+
+    if (ratio < 1) {
+
+      requestAnimationFrame(finishTo100);
+
+      return;
+    }
 
     /*
-      Go directly to 100%.
+      Final exact state.
     */
     progress = 100;
 
@@ -91583,14 +91626,17 @@ function setReady(isReady) {
     wrap.classList.add("ready");
 
     /*
-      Unlock the button immediately.
+      Now the button becomes available.
     */
     setReady(true);
 
     console.log(
       "🟢 Welcome Ready Gate: 100% READY"
     );
-  };
+  }
+
+  requestAnimationFrame(finishTo100);
+};
 
 
   /* ------------------------------------------
