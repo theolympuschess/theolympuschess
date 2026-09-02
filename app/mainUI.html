@@ -14069,13 +14069,14 @@ body {
    ========================================================= */
 
 .welcome-btn:disabled {
+
   opacity: 1 !important;
 
-  background: #777 !important;
+  background: #ffd700 !important;
 
   background-image: none !important;
 
-  color: #d5d5d5 !important;
+  color: #000000 !important;
 
   border: none !important;
 
@@ -14086,8 +14087,8 @@ body {
   filter: none !important;
 
   box-shadow:
-    inset 0 1px 2px rgba(255,255,255,.12),
-    0 2px 6px rgba(0,0,0,.18) !important;
+    inset 0 1px 2px rgba(255,255,255,.35),
+    0 3px 8px rgba(0,0,0,.18) !important;
 }
 
 
@@ -91457,33 +91458,99 @@ wrap.innerHTML = `
      Button starts locked
      ------------------------------------------ */
 
+/* ------------------------------------------
+   Button starts locked
+   ------------------------------------------ */
+
+let welcomeMessageTimer = null;
+
 function setReady(isReady) {
 
-  okBtn.disabled = !isReady;
+  /* ------------------------------------------
+     REAL APPLICATION READY
+     ------------------------------------------ */
 
-  okBtn.textContent =
-    isReady ? "I'm ready!" : "Not ready";
+  if (isReady) {
 
-  okBtn.style.opacity =
-    isReady ? "1" : "1";
+    if (welcomeMessageTimer) {
+      clearInterval(welcomeMessageTimer);
+      welcomeMessageTimer = null;
+    }
 
-  okBtn.style.cursor =
-    isReady ? "pointer" : "not-allowed";
+    okBtn.disabled = false;
 
-  okBtn.style.pointerEvents =
-    isReady ? "auto" : "none";
-}
-  setReady(false);
+    okBtn.textContent = "I'm ready!";
+
+    okBtn.style.opacity = "1";
+    okBtn.style.cursor = "pointer";
+    okBtn.style.pointerEvents = "auto";
+
+    return;
+  }
 
 
   /* ------------------------------------------
-     REAL readiness state
+     APPLICATION STILL LOADING
      ------------------------------------------ */
 
-  let appReady = false;
+  const loadingMessages = [
+    "Hold tight...",
+     "Getting things ready...",
+    "Preparing your game...",
+    "Almost there...",
+   
+    "Almost ready...",
+    "Final checks..."
+  ];
+
+  let messageIndex = 0;
+
+  okBtn.disabled = true;
+
+  okBtn.textContent =
+    loadingMessages[messageIndex];
+
+  okBtn.style.opacity = "1";
+  okBtn.style.cursor = "not-allowed";
+  okBtn.style.pointerEvents = "none";
+
+
+  /* ------------------------------------------
+     PREVENT DUPLICATE MESSAGE TIMER
+     ------------------------------------------ */
+
+  if (welcomeMessageTimer) {
+    clearInterval(welcomeMessageTimer);
+  }
+
+
+  /* ------------------------------------------
+     LIGHTWEIGHT MESSAGE ROTATION
+     ------------------------------------------ */
+
+  welcomeMessageTimer = setInterval(() => {
+
+    if (!okBtn.disabled) {
+
+      clearInterval(welcomeMessageTimer);
+      welcomeMessageTimer = null;
+
+      return;
+    }
+
+    messageIndex =
+      (messageIndex + 1) % loadingMessages.length;
+
+    okBtn.textContent =
+      loadingMessages[messageIndex];
+
+  }, 1200);
+}
+
+setReady(false);
  
 
-
+let appReady = false;
     /* ------------------------------------------
      SMOOTH LIGHTWEIGHT VISUAL PROGRESS
 
