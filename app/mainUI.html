@@ -48782,7 +48782,14 @@ if (
   return;
 }
 
-    listEl.innerHTML = assignments.map(assign => `
+   listEl.innerHTML = assignments.map(assign => {
+
+  const puzzleCount =
+    assign.pgn
+      ? splitBulkPGNIntoPuzzles(assign.pgn).length
+      : 0;
+
+  return `
       <div class="card" data-assignment-id="${assign.id}">
 ${
   currentProfile.role === "student"
@@ -48871,6 +48878,27 @@ ${
     </strong>
     ${assign.status || 'active'}
   </p>
+
+  <div
+  style="
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin:0 0 9px 0;
+    padding:5px 10px;
+    border-radius:8px;
+    background:rgba(99,102,241,0.10);
+    border:1px solid rgba(99,102,241,0.28);
+    color:#c7d2fe;
+    font-size:12px;
+    font-weight:800;
+  "
+>
+   Puzzles:
+  <span style="color:#67e8f9;">
+    ${puzzleCount}
+  </span>
+</div>
 
 
   <div
@@ -49097,7 +49125,8 @@ ${
 }
 </div>
       </div>
-    `).join('');
+        `;
+}).join('');
     // 👨‍🎓 Refresh student's live assignment status
 if (
   currentProfile?.role === "student"
@@ -55262,34 +55291,47 @@ if (prResultBtn) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const searchBox = document.getElementById("assignmentsSearchBox");
-  const list = document.getElementById("assignmentsList");
+
+  const searchBox =
+    document.getElementById("assignmentsSearchBox");
+
+  const list =
+    document.getElementById("assignmentsList");
 
   if (!searchBox || !list) return;
 
   searchBox.addEventListener("input", () => {
-    const query = searchBox.value.toLowerCase().trim();
-    const cards = list.querySelectorAll(".card");
+
+    const query =
+      searchBox.value
+        .toLowerCase()
+        .trim();
+
+    const cards =
+      list.querySelectorAll(".card");
 
     cards.forEach(card => {
-const title =
-  card.querySelector("h4")?.textContent.toLowerCase() || "";
 
-const desc =
-  card.querySelector("p")?.textContent.toLowerCase() || "";
+      // ⚡ Very lightweight search:
+      // Use already-rendered card text.
+      const searchableText =
+        card.textContent
+          .toLowerCase();
 
-const students =
-  card.querySelector(".assignment-search-students")
-    ?.textContent.toLowerCase() || "";
+      // 🧩 Puzzle count is already displayed
+      // inside the card, so numbers such as
+      // "25", "64", etc. are searchable too.
+      const match =
+        !query ||
+        searchableText.includes(query);
 
-const match =
-  title.includes(query) ||
-  desc.includes(query) ||
-  students.includes(query);
+      card.style.display =
+        match ? "" : "none";
 
-      card.style.display = match ? "block" : "none";
     });
+
   });
+
 });
 
 
@@ -55559,17 +55601,55 @@ async function loadAssignmentBatches() {
   select.innerHTML =
     '<option value="">📚 Select Batch...</option>';
 
-  const { data } =
+  // Get active students only
+  const { data: activeStudents, error: profileError } =
+    await supabase
+      .from("profiles")
+      .select("username")
+      .eq("role", "student")
+      .eq("active", true);
+
+  if (profileError) {
+    console.error(
+      "❌ Failed to load active students for batches:",
+      profileError
+    );
+    return;
+  }
+
+  const activeUsernames = new Set(
+    (activeStudents || [])
+      .map(student => student.username)
+      .filter(Boolean)
+  );
+
+  // Get batch memberships
+  const { data, error } =
     await supabase
       .from("student_batches")
-      .select("batch_name");
+      .select("batch_name, username");
+
+  if (error) {
+    console.error(
+      "❌ Failed to load assignment batches:",
+      error
+    );
+    return;
+  }
 
   const batches =
-    [...new Set(
-      (data || [])
-      .map(x => x.batch_name)
-      .filter(Boolean)
-    )].sort();
+    [
+      ...new Set(
+        (data || [])
+          .filter(batchStudent =>
+            activeUsernames.has(
+              batchStudent.username
+            )
+          )
+          .map(x => x.batch_name)
+          .filter(Boolean)
+      )
+    ].sort();
 
   batches.forEach(batch => {
 
@@ -55577,7 +55657,8 @@ async function loadAssignmentBatches() {
       document.createElement("option");
 
     option.value = batch;
-   option.textContent = "📚 " + batch;   // Books (recommended)
+    option.textContent =
+      "📚 " + batch;
 
     select.appendChild(option);
 
@@ -94508,24 +94589,28 @@ select.appendChild(defaultStudent);
 batchSelect.innerHTML =
   '<option value="">⚠️ No Batch Selected</option>';
 
-const { data: batches } =
-  await supabase
-    .from("student_batches")
-    .select("batch_name");
+const { data: batches } = await supabase
+  .from("student_batches")
+  .select("batch_name, username");
+
+const activeUsernames = new Set(
+  (data || []).map(student => student.username)
+);
 
 [...new Set(
   (batches || [])
+    .filter(batchStudent =>
+      activeUsernames.has(batchStudent.username)
+    )
     .map(x => x.batch_name)
 )]
 .sort()
 .forEach(batch => {
 
-  const option =
-    document.createElement("option");
+  const option = document.createElement("option");
 
   option.value = batch;
-  option.textContent =
-    "📚 " + batch;
+  option.textContent = "📚 " + batch;
 
   batchSelect.appendChild(option);
 
@@ -98696,7 +98781,7 @@ message.innerHTML = `
     color:#facc15;
     font-weight:800;
   ">
-    👨‍🏫 Your Admin hasn't checked and graded
+    👨‍🏫 Your Coach hasn't checked and graded
     your assignment yet.
   </p>
 
@@ -132828,11 +132913,34 @@ if (search) {
 }
 
 // =====================================
-// LOAD AVAILABLE BATCHS
+// LOAD AVAILABLE BATCHES
 // =====================================
 
 async function lpLoadInviteBatches() {
 
+  // Get active students only
+  const { data: activeStudents, error: profileError } =
+    await supabase
+      .from("profiles")
+      .select("username")
+      .eq("role", "student")
+      .eq("active", true);
+
+  if (profileError) {
+    console.error(
+      "❌ Failed to load active students:",
+      profileError
+    );
+    return;
+  }
+
+  const activeUsernames = new Set(
+    (activeStudents || [])
+      .map(student => student.username)
+      .filter(Boolean)
+  );
+
+  // Get batch memberships
   const { data, error } =
     await supabase
       .from("student_batches")
@@ -132840,16 +132948,18 @@ async function lpLoadInviteBatches() {
       .order("batch_name");
 
   if (error) {
-
     console.error(error);
-
     return;
-
   }
 
   lpBatchStudentMap = {};
 
   (data || []).forEach(row => {
+
+    // 🚫 Ignore deactivated students
+    if (!activeUsernames.has(row.username)) {
+      return;
+    }
 
     if (!lpBatchStudentMap[row.batch_name]) {
 
