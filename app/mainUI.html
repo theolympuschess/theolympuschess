@@ -39021,6 +39021,8 @@ document.addEventListener("DOMContentLoaded", () => {
 let stockfish = null;
 const ENGINE_BULLETS = ["🔷", "🔷", "🔷"];
 let engineReady = false;
+let engineReadyPromise = null;
+let engineReadyPromiseResolve = null;
 let engineAnalyzing = false;
 let currentPV = [];
 const pvMap = {};
@@ -39375,9 +39377,22 @@ let engineFen = null;
 
 
 function initStockfish() {
-  if (stockfish) return;
+
+  // ============================================================
+  // ♟️ STOCKFISH STARTUP PROMISE
+  // ============================================================
+
+  // If Stockfish was already created, return the existing
+  // readiness Promise so startup can wait for the same engine.
+  if (stockfish) {
+    return engineReadyPromise;
+  }
 
   console.log("♟ Initializing Stockfish engine…");
+
+  engineReadyPromise = new Promise((resolve) => {
+    engineReadyPromiseResolve = resolve;
+  });
 
   stockfish = new Worker("./stockfish/stockfish.js");
 
@@ -39405,8 +39420,15 @@ if (line === "uciok") {
 
 if (line === "readyok") {
   engineReady = true;
+
   console.log("✅ Engine ready");
- 
+
+  // 🔓 Release the startup readiness Promise
+  if (engineReadyPromiseResolve) {
+    engineReadyPromiseResolve();
+    engineReadyPromiseResolve = null;
+  }
+
   return;
 }
 
@@ -44128,15 +44150,15 @@ document.addEventListener("click", (e) => {
 
         updateRatingsFromProfile(currentProfile);
 
-        // 🏆 Load Best Scores (AFTER profile is ready)
-loadMyBestScores();
+       // 🏆 Load Best Scores (AFTER profile is ready)
+await loadMyBestScores();
 
 // 📊 Load Mini Stats (AFTER profile is ready)
-loadMiniStats();
+await loadMiniStats();
 
-        // 🔐 PER-STUDENT BADGE STORAGE
+// 🔐 PER-STUDENT BADGE STORAGE
 BADGE_STORAGE_KEY = `unlocked_badges_${currentProfile.id}`;
-loadUnlockedBadges();
+await loadUnlockedBadges();
 
 
         
@@ -44160,10 +44182,9 @@ if (profile.role === "admin") {
 
 // ✅ STUDENT: load progress once profile is ready
 if (profile.role === "student") {
-  loadStudentProgress();
-   startStudentGradeRealtime();
+  await loadStudentProgress();
+  startStudentGradeRealtime();
 }
-
 // 🔒 Hide Upload PGN for Students
 if (profile.role === "student") {
   const uploadCard = document.getElementById("trainerUploadCard");
@@ -44212,20 +44233,17 @@ if (currentProfile.role !== "admin") {
 }
 
 
-if (currentProfile.role === "student") {
-  document.body.classList.add("student-view");
-  loadStudentProgress();
-}
 
 
 
 
 
 
-          loadStudents();
-          loadStudentsForAssignment();
-          loadStudentsForAssignment2();
-          loadAttempts();
+
+         await loadStudents();
+await loadStudentsForAssignment();
+await loadStudentsForAssignment2();
+await loadAttempts();
 updateAttemptsTabBadge();
 startAttemptsBadgeRealtime();
         } else {
@@ -44251,27 +44269,30 @@ if (profile.role !== 'admin') {
 
         }
 
-        setupEventListeners();
-       loadAssignments();
+       setupEventListeners();
+
+await loadAssignments();
 
 if (currentProfile?.role === 'student') {
   updateStudentAssignmentsBadge();
   startStudentAssignmentsBadgeRealtime();
 }
+
 console.log(
   "📚 STUDENT BADGE TEST:",
   currentProfile.role,
   document.getElementById("studentAssignmentsBadge")
 );
-        loadPGNLibrary();
-        loadQuizPuzzle();
+
+await loadPGNLibrary();
+await loadQuizPuzzle();
         
 
 
         initChessboard();
         wireMoveInput();
         setupKeyboardNavigation();
-        initStockfish();
+        await initStockfish();
 
         // 🔴🟢 Live classroom status
         updateLiveClassStatus();
@@ -91316,14 +91337,214 @@ window.studentName = localStorage.getItem("studentName") || "Student";
   console.log("User loaded:", currentUser.id);
 
   listenForVisualReactions();
+   
 }
 
 initUserSystem();
 
-if (!sessionStorage.getItem("welcome_shown")) {
-  openWelcomeWithName();
-  sessionStorage.setItem("welcome_shown", "1");
-}
+// Show on every load/refresh (not just once per session)
+openWelcomeWithName();
+
+})();
+
+/* ==============================
+   Inline Loading Bar + TRUE Ready Gate
+   Real application readiness controls
+   the "I'm ready!" button.
+   ============================== */
+(function () {
+
+  const okBtn = document.getElementById("welcomeOkBtn");
+  if (!okBtn) return;
+
+  const footer = okBtn.parentNode;
+
+  /* ------------------------------------------
+     Loading bar
+     ------------------------------------------ */
+
+  const wrap = document.createElement("div");
+
+  wrap.id = "welcomeLoadWrap";
+
+  wrap.style.cssText =
+    "margin-top:16px; width:100%;";
+
+  wrap.innerHTML = `
+    <div style="
+      height:7px;
+      background:rgba(255,255,255,.15);
+      border-radius:6px;
+      overflow:hidden;
+    ">
+      <div
+        id="welcomeLoadFill"
+        style="
+          height:100%;
+          width:0%;
+          background:#4ade80;
+          transition:width .12s linear;
+        "
+      ></div>
+    </div>
+
+    <div
+      id="welcomeLoadPct"
+      style="
+        margin-top:5px;
+        font-size:12px;
+        opacity:.8;
+        text-align:right;
+      "
+    >
+      Loading… 0%
+    </div>
+  `;
+
+  footer.insertBefore(wrap, okBtn);
+
+  const fill = wrap.querySelector("#welcomeLoadFill");
+  const pct  = wrap.querySelector("#welcomeLoadPct");
+
+
+  /* ------------------------------------------
+     Button starts locked
+     ------------------------------------------ */
+
+  function setReady(isReady) {
+
+    okBtn.disabled = !isReady;
+
+    okBtn.style.opacity =
+      isReady ? "1" : "0.45";
+
+    okBtn.style.cursor =
+      isReady ? "pointer" : "not-allowed";
+
+    okBtn.style.pointerEvents =
+      isReady ? "auto" : "none";
+  }
+
+  setReady(false);
+
+
+  /* ------------------------------------------
+     REAL readiness state
+     ------------------------------------------ */
+
+  let appReady = false;
+  let visualReady = false;
+
+
+  /* ------------------------------------------
+     Visual progress
+     
+     This is only the visual loading animation.
+     It NEVER unlocks the button by itself.
+     ------------------------------------------ */
+
+  const MIN_DURATION = 1800;
+  const STEP = 100;
+
+  let elapsed = 0;
+
+  const timer = setInterval(() => {
+
+    elapsed += STEP;
+
+    /*
+      Never show 100% until the REAL application
+      has reported readiness.
+    */
+    const progress = Math.min(
+      95,
+      Math.round(
+        (elapsed / MIN_DURATION) * 95
+      )
+    );
+
+    fill.style.width = progress + "%";
+
+    pct.textContent =
+      "Loading… " + progress + "%";
+
+    if (elapsed >= MIN_DURATION) {
+
+      clearInterval(timer);
+
+      visualReady = true;
+
+      tryComplete();
+    }
+
+  }, STEP);
+
+
+  /* ------------------------------------------
+     REAL APPLICATION READY SIGNAL
+     
+     startApp() calls this ONLY after:
+     
+         await initApp();
+     
+     ------------------------------------------ */
+
+  window.markWelcomeAppReady = function () {
+
+    console.log(
+      "✅ Welcome Ready Gate: application reported ready"
+    );
+
+    appReady = true;
+
+    tryComplete();
+  };
+
+
+  /* ------------------------------------------
+     FINAL COMPLETION
+     ------------------------------------------ */
+
+  function tryComplete() {
+
+    /*
+      BOTH conditions are required:
+      
+      1. Minimum visual loading time completed
+      2. Real application initialization completed
+    */
+
+    if (!visualReady || !appReady) {
+      return;
+    }
+
+
+    /*
+      Give the browser a couple of frames to finish
+      painting the initialized UI before enabling
+      the button.
+    */
+
+    requestAnimationFrame(() => {
+
+      requestAnimationFrame(() => {
+
+        fill.style.width = "100%";
+
+        pct.textContent =
+          "Ready! 100%";
+
+        setReady(true);
+
+        console.log(
+          "🟢 Welcome Ready Gate: 100% READY"
+        );
+
+      });
+
+    });
+
+  }
 
 })();
 
@@ -91350,6 +91571,8 @@ if(savedVersion !== CURRENT_VERSION){
 }
 
 })();
+
+
 
 /* ==================================================
    STUDENT AVATAR PICKER (NO SUPABASE)
@@ -147054,6 +147277,7 @@ async function startApp() {
   console.log("✅ Session ready");
 
   await initApp();
+  window.markWelcomeAppReady && window.markWelcomeAppReady(); // 👈 add this line
 
 }
 
