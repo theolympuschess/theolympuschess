@@ -44150,7 +44150,309 @@ document.addEventListener("click", (e) => {
 });
 
 
+// ==========================================================
+// 👨‍🏫 OLYMPUS UI ROLE DISPLAY MASK — MAX LIGHT + READY GATE
+// ==========================================================
+// Internal value remains "admin".
+// Only visible UI text becomes "Head Coach™".
+//
+// DISPLAY ONLY.
+// No Supabase request.
+// No database modification.
+// No authentication modification.
+//
+// READY GATE:
+// The initial DOM scan reports completion to the
+// Welcome Ready Gate. Future DOM masking remains non-blocking.
+// ==========================================================
+(function () {
 
+  const ADMIN_REGEX = /\badmin\b/i;
+
+  const SKIP_TAGS = new Set([
+    "SCRIPT",
+    "STYLE",
+    "INPUT",
+    "TEXTAREA",
+    "SELECT",
+    "OPTION"
+  ]);
+
+
+  // ==========================================================
+  // READY SIGNAL FOR WELCOME LOADING GATE
+  // ==========================================================
+  let roleMaskReadyResolve;
+
+  window.olympusRoleMaskReadyPromise = new Promise((resolve) => {
+    roleMaskReadyResolve = resolve;
+  });
+
+
+  function makeCoachSpan() {
+
+    const coach = document.createElement("span");
+
+    coach.className = "olympus-head-coach";
+
+    coach.innerHTML = "Head Coach<sup>VIP</sup>";
+
+    coach.style.cssText =
+      "font-weight:800;" +
+      "font-style:italic;" +
+      "font-size:1.08em;" +
+      "color:#f59e0b;" +
+      "font-family:'Trebuchet MS','Segoe UI',sans-serif;";
+
+    const vip = coach.querySelector("sup");
+
+    if (vip) {
+      vip.style.cssText =
+        "font-size:.55em;" +
+        "vertical-align:super;" +
+        "margin-left:2px;" +
+        "font-weight:800;";
+    }
+
+    return coach;
+  }
+
+
+  // ==========================================================
+  // MASK ADMIN TEXT INSIDE ONE ROOT
+  // ==========================================================
+  function maskAdmin(root) {
+
+    if (!root) return;
+
+    const walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+
+          if (node.nodeType === Node.ELEMENT_NODE) {
+
+            if (
+              SKIP_TAGS.has(node.tagName) ||
+              node.classList.contains("olympus-head-coach")
+            ) {
+              return NodeFilter.FILTER_REJECT;
+            }
+
+            return NodeFilter.FILTER_SKIP;
+          }
+
+          return ADMIN_REGEX.test(node.nodeValue)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+
+    let node = walker.nextNode();
+
+    while (node) {
+
+      const next = walker.nextNode();
+      const parent = node.parentNode;
+
+      if (parent) {
+
+        const parts = node.nodeValue.split(ADMIN_REGEX);
+        const fragment = document.createDocumentFragment();
+
+        for (let i = 0; i < parts.length; i++) {
+
+          if (parts[i]) {
+            fragment.appendChild(
+              document.createTextNode(parts[i])
+            );
+          }
+
+          if (i < parts.length - 1) {
+            fragment.appendChild(
+              makeCoachSpan()
+            );
+          }
+        }
+
+        parent.replaceChild(
+          fragment,
+          node
+        );
+      }
+
+      node = next;
+    }
+  }
+
+  // Expose the same lightweight mask for the final Ready Gate pass.
+  window.olympusMaskAdminNow = maskAdmin;
+  // ==========================================================
+  // ONLY PROCESS NEWLY ADDED DOM
+  // ==========================================================
+  const pendingRoots = new Set();
+  let scheduled = false;
+
+  const scheduleIdle =
+    typeof requestIdleCallback === "function"
+      ? (callback) =>
+          requestIdleCallback(callback, { timeout: 200 })
+      : (callback) =>
+          setTimeout(callback, 32);
+
+
+  function flushPending() {
+
+    scheduled = false;
+
+    pendingRoots.forEach((root) => {
+
+      if (root) {
+        maskAdmin(root);
+      }
+
+    });
+
+    pendingRoots.clear();
+  }
+
+    // ==========================================================
+  // READY GATE — FLUSH ONLY PENDING DOM
+  // No second full document scan.
+  // ==========================================================
+  window.olympusFlushRoleMaskNow = function () {
+
+    if (scheduled) {
+      scheduled = false;
+    }
+
+    pendingRoots.forEach((root) => {
+
+      if (root) {
+        maskAdmin(root);
+      }
+
+    });
+
+    pendingRoots.clear();
+  };
+
+
+  function scheduleFlush() {
+
+    if (scheduled) return;
+
+    scheduled = true;
+
+    scheduleIdle(flushPending);
+  }
+
+
+  // ==========================================================
+  // START
+  // ==========================================================
+  function start() {
+
+    if (!document.body) {
+
+      // Safety fallback — never leave the Ready Gate waiting.
+      if (roleMaskReadyResolve) {
+        roleMaskReadyResolve();
+        roleMaskReadyResolve = null;
+      }
+
+      return;
+    }
+
+
+    // ========================================================
+    // INITIAL PAGE SCAN
+    // ========================================================
+    maskAdmin(document.body);
+
+
+    // ========================================================
+    // INITIAL ROLE MASK COMPLETE
+    // ========================================================
+    // From this point onward, the initial "admin" display
+    // masking is finished and the Ready Gate may continue.
+    // ========================================================
+    if (roleMaskReadyResolve) {
+
+      roleMaskReadyResolve();
+      roleMaskReadyResolve = null;
+
+    }
+
+
+    // ========================================================
+    // WATCH ONLY FOR NEWLY ADDED DOM
+    // ========================================================
+    const observer = new MutationObserver((mutations) => {
+
+      for (let i = 0; i < mutations.length; i++) {
+
+        const addedNodes =
+          mutations[i].addedNodes;
+
+        for (let n = 0; n < addedNodes.length; n++) {
+
+          const node =
+            addedNodes[n];
+
+          if (
+            node.nodeType !== Node.ELEMENT_NODE &&
+            node.nodeType !== Node.TEXT_NODE
+          ) {
+            continue;
+          }
+
+          const root =
+            node.nodeType === Node.TEXT_NODE
+              ? node.parentElement
+              : node;
+
+          if (root) {
+            pendingRoots.add(root);
+          }
+        }
+      }
+
+      if (pendingRoots.size) {
+        scheduleFlush();
+      }
+    });
+
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+  }
+
+
+  // ==========================================================
+  // START AS EARLY AS POSSIBLE
+  // ==========================================================
+  if (document.readyState === "loading") {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      start,
+      { once: true }
+    );
+
+  } else {
+
+    start();
+  }
+
+})();
 
 
     // ============================================
@@ -91595,6 +91897,14 @@ window.markWelcomeAppReady = function () {
   console.log(
     "✅ Welcome Ready Gate: application reported ready"
   );
+    // ==========================================================
+  // 👨‍🏫 FINAL ROLE MASK FLUSH
+  // Process only DOM created/added during initApp().
+  // No second full document scan.
+  // ==========================================================
+  if (typeof window.olympusFlushRoleMaskNow === "function") {
+    window.olympusFlushRoleMaskNow();
+  }
 
   appReady = true;
 
@@ -147410,8 +147720,13 @@ async function startApp() {
 
   console.log("✅ Session ready");
 
-  await initApp();
-  window.markWelcomeAppReady && window.markWelcomeAppReady(); // 👈 add this line
+ await initApp();
+
+if (window.olympusRoleMaskReadyPromise) {
+  await window.olympusRoleMaskReadyPromise;
+}
+
+window.markWelcomeAppReady && window.markWelcomeAppReady();// 👈 add this line
 
 }
 
