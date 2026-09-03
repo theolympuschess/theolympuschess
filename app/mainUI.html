@@ -68941,124 +68941,245 @@ window.refreshStudentList = function () {
 
 
 
-    window.addStudent = async function() {
-      if (currentProfile.role !== 'admin') {
-        alert('Access denied. Admin only.');
-        return;
-      }
+   window.addStudent = async function() {
 
-      const username = document.getElementById('newStudentUser').value.trim();
-      const password = document.getElementById('newStudentPass').value.trim();
+  if (currentProfile.role !== 'admin') {
+    alert('Access denied. Admin only.');
+    return;
+  }
 
-      if (!username || !password) {
-  showModal(
-    "⚠️ Missing Information",
-    "<p>Please enter both username and password.</p>"
-  );
+  // ============================================================
+  // 🔐 SAVE CURRENT ADMIN SESSION BEFORE CREATING STUDENT
+  // ============================================================
 
-  setTimeout(() => {
-    closeModal();
-  }, 1800);
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await supabase.auth.getSession();
 
-  return;
-}
+  if (sessionError || !sessionData?.session) {
+    console.error('❌ Could not capture admin session:', sessionError);
 
-if (password.length < 6) {
-  showModal(
-    "⚠️ Weak Password",
-    "<p>Password must be at least 6 characters long.</p>"
-  );
-
-  setTimeout(() => {
-    closeModal();
-  }, 1800);
-
-  return;
-}
-
-
-      const email = `${username}@olympuschess.com`;
-
-      try {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { username },
-            emailRedirectTo: window.location.origin
-          }
-        });
-
-        let userId = authData?.user?.id;
-
-        if (authError) {
-          if (authError.message.includes('already registered')) {
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-            if (signInError) {
-  showModal(
-    "⚠️ Login Error",
-    "<p>User already exists but the password is incorrect.<br>Please use a different username.</p>"
-  );
-
-  setTimeout(() => {
-    closeModal();
-  }, 2200);
-
-  return;
-}
-
-            userId = signInData.user.id;
-          } else {
-            throw authError;
-          }
-        }
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([{ 
-            id: userId, 
-            username, 
-            email,
-            role: 'student', 
-            active: true 
-          }]);
-        
-        if (profileError) {
-  if (profileError.message.includes('duplicate')) {
     showModal(
-      "⚠️ Duplicate Student",
-      "<p>A student with this username already exists.</p>"
+      "❌ Session Error",
+      "<p>Your admin session could not be verified.<br>Please log in again.</p>"
     );
 
     setTimeout(() => {
       closeModal();
-    }, 2000);
+    }, 2200);
 
     return;
   }
-  throw profileError;
-}
 
+  const adminSession = sessionData.session;
+
+  const username =
+    document.getElementById('newStudentUser').value.trim();
+
+  const password =
+    document.getElementById('newStudentPass').value.trim();
+
+  if (!username || !password) {
+
+    showModal(
+      "⚠️ Missing Information",
+      "<p>Please enter both username and password.</p>"
+    );
+
+    setTimeout(() => {
+      closeModal();
+    }, 1800);
+
+    return;
+  }
+
+  if (password.length < 6) {
+
+    showModal(
+      "⚠️ Weak Password",
+      "<p>Password must be at least 6 characters long.</p>"
+    );
+
+    setTimeout(() => {
+      closeModal();
+    }, 1800);
+
+    return;
+  }
+
+  const email = `${username}@olympuschess.com`;
+
+  try {
+
+    const {
+      data: authData,
+      error: authError
+    } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username
+        },
+        emailRedirectTo: window.location.origin
+      }
+    });
+
+    let userId = authData?.user?.id;
+
+    if (authError) {
+
+      if (authError.message.includes('already registered')) {
+
+        const {
+          data: signInData,
+          error: signInError
+        } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (signInError) {
+
+          showModal(
+            "⚠️ Login Error",
+            "<p>User already exists but the password is incorrect.<br>Please use a different username.</p>"
+          );
+
+          setTimeout(() => {
+            closeModal();
+          }, 2200);
+
+          return;
+        }
+
+        userId = signInData.user.id;
+
+      } else {
+        throw authError;
+      }
+    }
+
+    const {
+      error: profileError
+    } = await supabase
+      .from('profiles')
+      .insert([{
+        id: userId,
+        username,
+        email,
+        role: 'student',
+        active: true
+      }]);
+
+    if (profileError) {
+
+      if (profileError.message.includes('duplicate')) {
 
         showModal(
-  "🎉 Success",
-  "<p>Student added successfully!</p>"
-);
+          "⚠️ Duplicate Student",
+          "<p>A student with this username already exists.</p>"
+        );
 
-setTimeout(() => {
-  closeModal();
-}, 1500);
+        setTimeout(() => {
+          closeModal();
+        }, 2000);
 
-document.getElementById('newStudentUser').value = '';
-document.getElementById('newStudentPass').value = '';
-loadStudents();
-
-
-      } catch (error) {
-        console.error('Error adding student:', error);
-        alert('❌ Error: ' + error.message);
+        return;
       }
-    };
+
+      throw profileError;
+    }
+
+    showModal(
+      "🎉 Success",
+      "<p>Student added successfully!</p>"
+    );
+
+    setTimeout(() => {
+      closeModal();
+    }, 1500);
+
+    document.getElementById('newStudentUser').value = '';
+    document.getElementById('newStudentPass').value = '';
+
+    await loadStudents();
+
+  } catch (error) {
+
+    console.error('Error adding student:', error);
+
+    showModal(
+      "❌ Error",
+      `<p>${error.message}</p>`
+    );
+
+    setTimeout(() => {
+      closeModal();
+    }, 2200);
+
+  } finally {
+
+    // ============================================================
+    // 🔐 RESTORE ORIGINAL ADMIN SESSION
+    // ============================================================
+
+    try {
+
+      const {
+        error: restoreError
+      } = await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token
+      });
+
+      if (restoreError) {
+        console.error(
+          '❌ Failed to restore admin session:',
+          restoreError
+        );
+        return;
+      }
+
+      // ==========================================================
+      // 🔄 RESTORE APP'S CURRENT PROFILE
+      // ==========================================================
+
+      currentUser = adminSession.user;
+
+      const {
+        data: restoredProfile,
+        error: restoredProfileError
+      } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', adminSession.user.id)
+        .single();
+
+      if (restoredProfileError || !restoredProfile) {
+        console.error(
+          '❌ Failed to restore admin profile:',
+          restoredProfileError
+        );
+        return;
+      }
+
+      currentProfile = restoredProfile;
+
+      console.log(
+        '✅ Student creation finished — ADMIN SESSION RESTORED'
+      );
+
+    } catch (restoreError) {
+
+      console.error(
+        '❌ Admin session restoration failed:',
+        restoreError
+      );
+    }
+  }
+};
 
     window.toggleStudentStatus = function (studentId, activate) {
   if (currentProfile.role !== 'admin') return;
