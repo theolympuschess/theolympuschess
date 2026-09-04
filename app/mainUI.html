@@ -71111,7 +71111,7 @@ Object.assign(
 ],
 
 [
-  "✅ Correct Moves",
+  "✅ Total Correct Moves",
   (() => {
 
     if (
@@ -71410,6 +71410,55 @@ Object.assign(
 
             </div>
 
+            <!-- ================================================= -->
+<!-- 🎬 REVIEW MODE -->
+<!-- ================================================= -->
+
+<div
+  style="
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+    margin-bottom:10px;
+  "
+>
+  <button
+    type="button"
+    id="isolatedAttemptStudentMode-${answer.index}"
+    style="
+      flex:1;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid #22c55e;
+      background:#166534;
+      color:#ffffff;
+      font-size:12px;
+      font-weight:800;
+      cursor:pointer;
+    "
+  >
+     Student Moves
+  </button>
+
+  <button
+    type="button"
+    id="isolatedAttemptCorrectMode-${answer.index}"
+    style="
+      flex:1;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid #60a5fa;
+      background:#1e293b;
+      color:#93c5fd;
+      font-size:12px;
+      font-weight:800;
+      cursor:pointer;
+    "
+  >
+     Correct Moves
+  </button>
+</div>
+
 
                        <!-- ================================================= -->
             <!-- ♟️ BOARD + 📜 ATTEMPT HISTORY — SIDE BY SIDE -->
@@ -71504,7 +71553,7 @@ Object.assign(
               </div>
 
 
-              <!-- =============================================== -->
+                           <!-- =============================================== -->
               <!-- 📜 ATTEMPT HISTORY SIDE -->
               <!-- =============================================== -->
 
@@ -71524,85 +71573,40 @@ Object.assign(
                 </strong>
 
 
-                <div style="
-                  margin-top:6px;
-                  font-size:12px;
-                  color:#cbd5e1;
-                  line-height:1.45;
-                ">
+                <!-- ============================================= -->
+                <!-- 👨‍🎓 STUDENT ATTEMPTS -->
+                <!-- ============================================= -->
 
-                  ${
-  answer.tries &&
-  answer.tries.length
+                <div
+                  id="isolatedAttemptStudentHistory-${answer.index}"
+                  data-admin-attempt-history="${answer.index}"
+                  style="
+                    margin-top:6px;
+                    font-size:12px;
+                    color:#cbd5e1;
+                    line-height:1.45;
+                  "
+                ></div>
 
-    ? answer.tries
-        .map((t, i) => {
 
-          const isFinalCorrect =
-            t.join(" ").trim() ===
-            (answer.correct_move || "").trim();
+                <!-- ============================================= -->
+                <!-- ♟️ ORIGINAL CORRECT PGN -->
+                <!-- ============================================= -->
 
-          const movesHTML =
-            t
-              .map((move, moveIndex) => {
+                <div
+                  id="isolatedAttemptCorrectHistory-${answer.index}"
+                  style="
+                    margin-top:6px;
+                    font-size:12px;
+                    color:#cbd5e1;
+                    line-height:1.45;
+                    display:none;
+                  "
+                ></div>
 
-                const isWrongMove =
-  !isFinalCorrect &&
-  moveIndex === t.length - 1;
+              </div>
 
-// Auto moves are the opponent's moves.
-// Student starts at move 0, so opponent moves are 1, 3, 5...
-const isAutoMove =
-  moveIndex % 2 === 1;
-
-const moveNumber =
-  Math.floor(moveIndex / 2) + 1;
-
-const moveNumberHTML =
-  moveIndex % 2 === 0
-    ? `
-      <span style="
-        color:#cbd5e1;
-        font-weight:800;
-        margin-right:3px;
-      ">
-        ${moveNumber}.
-      </span>
-    `
-    : "";
-
-return `
-  ${moveNumberHTML}
-  <span 
-    style="
-      color:${
-        isWrongMove
-          ? "#f87171"
-          : isAutoMove
-          ? "#60a5fa"
-          : "#4ade80"
-      };
-      font-weight:800;
-    "
-  >
-    ${move}
-  </span>
-`;
-              })
-              .join(" ");
-
-          return `
-            <div style="margin-bottom:3px;">
-              👉 #${i + 1}:
-              ${movesHTML}
-            </div>
-          `;
-
-        })
-        .join("")
-
-    : "<i>No attempts</i>"
-}
+                 
 
                 </div>
 
@@ -71623,6 +71627,30 @@ return `
       // ------------------------------------------------------
       // INITIALIZE BOARDS
       // ------------------------------------------------------
+
+                // ------------------------------------------------------
+      // INITIALIZE BOARDS + STUDENT / CORRECT MOVE REVIEW
+      // ------------------------------------------------------
+      //
+      // TWO COMPLETELY SEPARATE REVIEW MODES:
+      //
+      // 👨‍🎓 STUDENT MOVES
+      //     Uses answer.tries
+      //     Includes wrong moves and automatic moves.
+      //
+      // ♟️ CORRECT MOVES
+      //     Uses answer.correct_move
+      //     Shows only the original correct PGN line.
+      //
+      // The board + ◀ ▶ navigation always follows the
+      // currently selected mode.
+      //
+      // ------------------------------------------------------
+
+      const localAttemptIndex = {};
+      const localReviewMode = {};
+      const localReviewLines = {};
+
 
       requestAnimationFrame(
         () => {
@@ -71656,23 +71684,65 @@ return `
               }
 
 
-              localGames[idx] =
-                new Chess(
-                  answer.fen
-                );
+              // ==================================================
+              // SAVED STUDENT ATTEMPTS
+              // ==================================================
+
+              const tries =
+                Array.isArray(answer.tries)
+                  ? answer.tries.filter(
+                      line =>
+                        Array.isArray(line)
+                    )
+                  : [];
 
 
-              localMoves[idx] =
+              // ==================================================
+              // CORRECT PGN LINE
+              // ==================================================
+
+              const correctMoves =
                 answer.correct_move
                   ? answer.correct_move
                       .trim()
                       .split(/\s+/)
+                      .filter(Boolean)
                   : [];
+
+
+              // ==================================================
+              // INITIAL MODE
+              // ==================================================
+
+              localReviewMode[idx] =
+                "student";
+
+
+              localAttemptIndex[idx] =
+                0;
+
+
+              localReviewLines[idx] =
+                tries.length
+                  ? tries[0].slice()
+                  : correctMoves.slice();
+
+
+              localMoves[idx] =
+                localReviewLines[idx].slice();
 
 
               localSteps[idx] =
                 0;
 
+
+              localGames[idx] =
+                new Chess(answer.fen);
+
+
+              // ==================================================
+              // CREATE BOARD
+              // ==================================================
 
               localBoards[idx] =
                 Chessboard(
@@ -71697,23 +71767,997 @@ return `
                 );
 
 
+              // ==================================================
+              // ELEMENTS
+              // ==================================================
+
               const label =
                 document.getElementById(
                   `isolatedAttemptStep-${idx}`
                 );
 
 
-              if (label) {
+              const studentButton =
+                document.getElementById(
+                  `isolatedAttemptStudentMode-${idx}`
+                );
+
+
+              const correctButton =
+                document.getElementById(
+                  `isolatedAttemptCorrectMode-${idx}`
+                );
+
+
+              const studentHistory =
+                document.getElementById(
+                  `isolatedAttemptStudentHistory-${idx}`
+                );
+
+
+              const correctHistory =
+                document.getElementById(
+                  `isolatedAttemptCorrectHistory-${idx}`
+                );
+
+
+              // ==================================================
+              // UPDATE NAVIGATION LABEL
+              // ==================================================
+
+              function updateReviewLabel() {
+
+                if (!label) {
+                  return;
+                }
+
 
                 label.textContent =
-                  `0 / ${localMoves[idx].length}`;
+                  `${localSteps[idx]} / ${localMoves[idx].length}`;
 
               }
 
 
-              // ----------------------------------------------
+              // ==================================================
+              // BUTTON VISUAL STATE
+              // ==================================================
+
+              function updateModeButtons() {
+
+                if (studentButton) {
+
+                  const active =
+                    localReviewMode[idx] === "student";
+
+
+                  studentButton.style.background =
+                    active
+                      ? "#166534"
+                      : "#1e293b";
+
+
+                  studentButton.style.color =
+                    active
+                      ? "#ffffff"
+                      : "#86efac";
+
+
+                  studentButton.style.boxShadow =
+                    active
+                      ? "0 0 10px rgba(34,197,94,0.35)"
+                      : "none";
+
+                }
+
+
+                if (correctButton) {
+
+                  const active =
+                    localReviewMode[idx] === "correct";
+
+
+                  correctButton.style.background =
+                    active
+                      ? "#1d4ed8"
+                      : "#1e293b";
+
+
+                  correctButton.style.color =
+                    active
+                      ? "#ffffff"
+                      : "#93c5fd";
+
+
+                  correctButton.style.boxShadow =
+                    active
+                      ? "0 0 10px rgba(59,130,246,0.35)"
+                      : "none";
+
+                }
+
+              }
+
+
+              // ==================================================
+              // REBUILD BOARD FROM ORIGINAL FEN
+              // ==================================================
+
+              function showReviewPosition(
+                targetStep
+              ) {
+
+                const moves =
+                  localMoves[idx] || [];
+
+
+                const safeStep =
+                  Math.max(
+                    0,
+                    Math.min(
+                      targetStep,
+                      moves.length
+                    )
+                  );
+
+
+                const reviewGame =
+                  new Chess(answer.fen);
+
+
+                for (
+                  let moveIndex = 0;
+                  moveIndex < safeStep;
+                  moveIndex++
+                ) {
+
+                  const san =
+                    moves[moveIndex];
+
+
+                  if (!san) {
+                    continue;
+                  }
+
+
+                  const played =
+                    reviewGame.move(san);
+
+
+                  if (!played) {
+
+                    console.warn(
+                      "⚠️ Admin review could not replay move:",
+                      {
+                        puzzle: idx,
+                        mode:
+                          localReviewMode[idx],
+                        attempt:
+                          localAttemptIndex[idx],
+                        moveIndex,
+                        san
+                      }
+                    );
+
+
+                    break;
+
+                  }
+
+                }
+
+
+                localSteps[idx] =
+                  safeStep;
+
+
+                localGames[idx] =
+                  reviewGame;
+
+
+                localBoards[idx].position(
+                  reviewGame.fen(),
+                  true
+                );
+
+
+                updateReviewLabel();
+
+
+
+               // ==================================================
+// 🎯 HIGHLIGHT EXACT SELECTED MOVE
+//
+// STUDENT MODE:
+//   Match BOTH:
+//   1. Attempt number
+//   2. Move number
+//
+// CORRECT MODE:
+//   Match move number only.
+//
+// This prevents move #1 from attempt #2,
+// #3, #4, etc. from selecting attempt #1.
+// ==================================================
+
+const historyContainer =
+  localReviewMode[idx] === "student"
+    ? studentHistory
+    : correctHistory;
+
+
+if (historyContainer) {
+
+  // --------------------------------------------------
+  // CLEAR ALL PREVIOUS HIGHLIGHTS
+  // --------------------------------------------------
+
+  historyContainer
+    .querySelectorAll(
+      "[data-admin-review-move]"
+    )
+    .forEach(
+      moveElement => {
+
+        moveElement.style.background =
+          "";
+
+        moveElement.style.boxShadow =
+          "none";
+
+      }
+    );
+
+
+  // --------------------------------------------------
+  // NO MOVE SELECTED = NO HIGHLIGHT
+  // --------------------------------------------------
+
+  if (safeStep <= 0) {
+    return;
+  }
+
+
+  // --------------------------------------------------
+  // STUDENT MOVES
+  //
+  // IMPORTANT:
+  // Match BOTH attempt + move.
+  // --------------------------------------------------
+
+  if (
+    localReviewMode[idx] === "student"
+  ) {
+
+    const selectedAttempt =
+      localAttemptIndex[idx];
+
+
+    const selected =
+      historyContainer.querySelector(
+        `[data-admin-review-attempt="${selectedAttempt}"][data-admin-review-move="${safeStep}"]`
+      );
+
+
+    if (selected) {
+
+      selected.style.background =
+        "rgba(250,204,21,0.18)";
+
+      selected.style.boxShadow =
+        "0 0 0 2px rgba(250,204,21,0.75)";
+
+    }
+
+    return;
+  }
+
+
+  // --------------------------------------------------
+  // CORRECT MOVES
+  //
+  // Correct PGN has only one sequence,
+  // so move number alone is sufficient.
+  // --------------------------------------------------
+
+  const selected =
+    historyContainer.querySelector(
+      `[data-admin-review-move="${safeStep}"]`
+    );
+
+
+  if (selected) {
+
+    selected.style.background =
+      "rgba(250,204,21,0.18)";
+
+    selected.style.boxShadow =
+      "0 0 0 2px rgba(250,204,21,0.75)";
+
+  }
+
+}
+
+              }
+
+              
+
+
+              // ==================================================
+              // RENDER STUDENT ATTEMPT HISTORY
+              // ==================================================
+
+// ==================================================
+// 👨‍🎓 RENDER STUDENT ATTEMPT HISTORY
+// OLD INLINE STYLE + CLICKABLE MOVES
+// ==================================================
+
+function renderStudentHistory() {
+
+  if (!studentHistory) {
+    return;
+  }
+
+
+  studentHistory.innerHTML = "";
+
+
+  if (!tries.length) {
+
+    studentHistory.innerHTML =
+      "<i>No student attempts</i>";
+
+    return;
+
+  }
+
+
+  tries.forEach(
+    (line, attemptNumber) => {
+
+      // ==================================================
+      // ONE LINE PER STUDENT ATTEMPT
+      //
+      // 👉 #1: 1. Qxh7+ Kxh7 2. Rh5+
+      //
+      // The moves stay on the SAME LINE as 👉 #1:
+      // ==================================================
+
+      const row =
+        document.createElement("div");
+
+
+      row.style.marginBottom =
+        "4px";
+
+
+      row.style.whiteSpace =
+        "normal";
+
+
+      // --------------------------------------------------
+      // BULLET / ATTEMPT NUMBER
+      // --------------------------------------------------
+
+      const attemptLabel =
+        document.createElement("span");
+
+
+      attemptLabel.textContent =
+        `👉 #${attemptNumber + 1}: `;
+
+
+      attemptLabel.style.color =
+        "#cbd5e1";
+
+
+      attemptLabel.style.fontWeight =
+        "800";
+
+
+      row.appendChild(
+        attemptLabel
+      );
+
+
+      // ==================================================
+      // MOVES — INLINE WITH THE BULLET
+      // ==================================================
+
+      line.forEach(
+        (move, moveIndex) => {
+
+          const isFinalCorrect =
+            line.join(" ").trim() ===
+            (
+              answer.correct_move ||
+              ""
+            ).trim();
+
+
+          // ------------------------------------------------
+          // WRONG MOVE
+          // Only the final move of a failed attempt is red.
+          // ------------------------------------------------
+
+          const isWrongMove =
+            !isFinalCorrect &&
+            moveIndex ===
+              line.length - 1;
+
+
+          // ------------------------------------------------
+          // AUTOMATIC / OPPONENT MOVE
+          // Student = 0,2,4...
+          // Auto    = 1,3,5...
+          // ------------------------------------------------
+
+          const isAutoMove =
+            moveIndex % 2 === 1;
+
+
+          // ------------------------------------------------
+          // MOVE NUMBER
+          // ------------------------------------------------
+
+          const moveNumber =
+            Math.floor(
+              moveIndex / 2
+            ) + 1;
+
+
+          // ------------------------------------------------
+          // Add "1.", "2.", "3." before White/student move
+          // ------------------------------------------------
+
+          if (
+            moveIndex % 2 === 0
+          ) {
+
+            const number =
+              document.createElement(
+                "span"
+              );
+
+
+            number.textContent =
+              `${moveNumber}. `;
+
+
+            number.style.color =
+              "#cbd5e1";
+
+
+            number.style.fontWeight =
+              "800";
+
+
+            row.appendChild(
+              number
+            );
+
+          }
+
+
+          // ==================================================
+          // CLICKABLE MOVE
+          // ==================================================
+
+          const moveElement =
+            document.createElement(
+              "span"
+            );
+
+
+          moveElement.textContent =
+            move;
+
+
+          moveElement.dataset
+            .adminReviewMove =
+            moveIndex + 1;
+
+
+          moveElement.dataset
+            .adminReviewAttempt =
+            attemptNumber;
+
+
+          moveElement.dataset
+            .adminReviewPuzzle =
+            answer.index;
+
+
+          // ------------------------------------------------
+          // COLORS
+          // ------------------------------------------------
+
+          moveElement.style.color =
+            isWrongMove
+              ? "#f87171"
+              : isAutoMove
+              ? "#60a5fa"
+              : "#4ade80";
+
+
+          moveElement.style.fontWeight =
+            "800";
+
+
+          moveElement.style.cursor =
+            "pointer";
+
+
+          moveElement.style.display =
+            "inline-block";
+
+
+          moveElement.style.borderRadius =
+            "4px";
+
+
+          moveElement.style.padding =
+            "1px 3px";
+
+
+          moveElement.style.transition =
+            "background 0.15s ease, transform 0.12s ease";
+
+
+          moveElement.title =
+            "Click to show this position";
+
+
+          // ==================================================
+          // CLICK → JUMP BOARD TO THIS EXACT MOVE
+          // ==================================================
+
+          moveElement.onclick =
+            event => {
+
+              event.preventDefault();
+
+              event.stopPropagation();
+
+
+              localReviewMode[idx] =
+                "student";
+
+
+              localAttemptIndex[idx] =
+                attemptNumber;
+
+
+              localMoves[idx] =
+                line.slice();
+
+
+              updateModeButtons();
+
+
+              showReviewPosition(
+                moveIndex + 1
+              );
+
+            };
+
+
+          // ------------------------------------------------
+          // HOVER
+          // ------------------------------------------------
+
+          moveElement.onmouseenter =
+            () => {
+
+              moveElement.style.background =
+                "rgba(255,255,255,0.10)";
+
+              moveElement.style.transform =
+                "scale(1.04)";
+
+            };
+
+
+          moveElement.onmouseleave =
+            () => {
+
+              moveElement.style.transform =
+                "scale(1)";
+
+
+              const selected =
+                localReviewMode[idx] ===
+                  "student" &&
+
+                localAttemptIndex[idx] ===
+                  attemptNumber &&
+
+                localSteps[idx] ===
+                  moveIndex + 1;
+
+
+              if (!selected) {
+
+                moveElement.style.background =
+                  "";
+
+              }
+
+            };
+
+
+          row.appendChild(
+            moveElement
+          );
+
+
+          // ------------------------------------------------
+          // SPACE BETWEEN MOVES
+          // ------------------------------------------------
+
+          if (
+            moveIndex <
+            line.length - 1
+          ) {
+
+            row.appendChild(
+              document.createTextNode(
+                " "
+              )
+            );
+
+          }
+
+        }
+      );
+
+
+      // ==================================================
+      // ADD COMPLETE INLINE ROW
+      // ==================================================
+
+      studentHistory.appendChild(
+        row
+      );
+
+    }
+  );
+
+}
+
+              // ==================================================
+              // RENDER CORRECT PGN HISTORY
+              // ==================================================
+
+              function renderCorrectHistory() {
+
+                if (!correctHistory) {
+                  return;
+                }
+
+
+                correctHistory.innerHTML =
+                  "";
+
+
+                if (!correctMoves.length) {
+
+                  correctHistory.innerHTML =
+                    "<i>No correct PGN moves</i>";
+
+                  return;
+
+                }
+
+
+                const row =
+                  document.createElement("div");
+
+
+                row.innerHTML = `
+                  <div style="
+                    margin-bottom:2px;
+                  ">
+                     Correct PGN Moves:
+                  </div>
+                `;
+
+
+                const movesWrapper =
+                  document.createElement("div");
+
+
+                movesWrapper.style.paddingLeft =
+                  "20px";
+
+
+                correctMoves.forEach(
+                  (move, moveIndex) => {
+
+                    const moveNumber =
+                      Math.floor(
+                        moveIndex / 2
+                      ) + 1;
+
+
+                    if (
+                      moveIndex % 2 === 0
+                    ) {
+
+                      const number =
+                        document.createElement(
+                          "span"
+                        );
+
+
+                      number.textContent =
+                        `${moveNumber}. `;
+
+
+                      number.style.color =
+                        "#cbd5e1";
+
+
+                      number.style.fontWeight =
+                        "800";
+
+
+                      movesWrapper.appendChild(
+                        number
+                      );
+
+                    }
+
+
+                    const moveElement =
+                      document.createElement(
+                        "span"
+                      );
+
+
+                    moveElement.textContent =
+                      move;
+
+
+                    moveElement.dataset
+                      .adminReviewMove =
+                      moveIndex + 1;
+
+
+                    moveElement.style.color =
+                      "#60a5fa";
+
+
+                    moveElement.style.fontWeight =
+                      "800";
+
+
+                    moveElement.style.cursor =
+                      "pointer";
+
+
+                    moveElement.style.display =
+                      "inline-block";
+
+
+                    moveElement.style.padding =
+                      "1px 3px";
+
+
+                    moveElement.style.borderRadius =
+                      "4px";
+
+
+                    moveElement.title =
+                      "Click to show this correct position";
+
+
+                    moveElement.onclick =
+                      event => {
+
+                        event.preventDefault();
+                        event.stopPropagation();
+
+
+                        localReviewMode[idx] =
+                          "correct";
+
+
+                        localMoves[idx] =
+                          correctMoves.slice();
+
+
+                        localSteps[idx] =
+                          0;
+
+
+                        updateModeButtons();
+
+
+                        showReviewPosition(
+                          moveIndex + 1
+                        );
+
+                      };
+
+
+                    movesWrapper.appendChild(
+                      moveElement
+                    );
+
+
+                    if (
+                      moveIndex <
+                      correctMoves.length - 1
+                    ) {
+
+                      movesWrapper.appendChild(
+                        document.createTextNode(
+                          " "
+                        )
+                      );
+
+                    }
+
+                  }
+                );
+
+
+                row.appendChild(
+                  movesWrapper
+                );
+
+
+                correctHistory.appendChild(
+                  row
+                );
+
+              }
+
+
+              // ==================================================
+              // STUDENT MOVES BUTTON
+              // ==================================================
+
+              if (studentButton) {
+
+                studentButton.onclick =
+                  () => {
+
+                    localReviewMode[idx] =
+                      "student";
+
+
+                    const selectedAttempt =
+                      localAttemptIndex[idx] || 0;
+
+
+                    localMoves[idx] =
+                      tries[selectedAttempt]
+                        ? tries[
+                            selectedAttempt
+                          ].slice()
+                        : [];
+
+
+                    localSteps[idx] =
+                      0;
+
+
+                    if (
+                      studentHistory
+                    ) {
+
+                      studentHistory.style.display =
+                        "block";
+
+                    }
+
+
+                    if (
+                      correctHistory
+                    ) {
+
+                      correctHistory.style.display =
+                        "none";
+
+                    }
+
+
+                    updateModeButtons();
+
+
+                    showReviewPosition(0);
+
+                  };
+
+              }
+
+
+              // ==================================================
+              // CORRECT MOVES BUTTON
+              // ==================================================
+
+              if (correctButton) {
+
+                correctButton.onclick =
+                  () => {
+
+                    localReviewMode[idx] =
+                      "correct";
+
+
+                    localMoves[idx] =
+                      correctMoves.slice();
+
+
+                    localSteps[idx] =
+                      0;
+
+
+                    if (
+                      studentHistory
+                    ) {
+
+                      studentHistory.style.display =
+                        "none";
+
+                    }
+
+
+                    if (
+                      correctHistory
+                    ) {
+
+                      correctHistory.style.display =
+                        "block";
+
+                    }
+
+
+                    updateModeButtons();
+
+
+                    showReviewPosition(0);
+
+                  };
+
+              }
+
+
+              // ==================================================
+              // INITIAL HISTORY
+              // ==================================================
+
+              renderStudentHistory();
+              renderCorrectHistory();
+
+
+              // ==================================================
+              // INITIAL VISIBILITY
+              // ==================================================
+
+              if (studentHistory) {
+
+                studentHistory.style.display =
+                  "block";
+
+              }
+
+
+              if (correctHistory) {
+
+                correctHistory.style.display =
+                  "none";
+
+              }
+
+
+              updateModeButtons();
+
+
+              // ==================================================
               // ▶ NEXT
-              // ----------------------------------------------
+              // ==================================================
 
               const next =
                 document.getElementById(
@@ -71734,36 +72778,18 @@ return `
                     }
 
 
-                    localGames[idx].move(
-                      localMoves[idx][
-                        localSteps[idx]
-                      ]
+                    showReviewPosition(
+                      localSteps[idx] + 1
                     );
-
-
-                    localSteps[idx]++;
-
-
-                    localBoards[idx].position(
-                      localGames[idx].fen()
-                    );
-
-
-                    if (label) {
-
-                      label.textContent =
-                        `${localSteps[idx]} / ${localMoves[idx].length}`;
-
-                    }
 
                   };
 
               }
 
 
-              // ----------------------------------------------
+              // ==================================================
               // ◀ PREVIOUS
-              // ----------------------------------------------
+              // ==================================================
 
               const prev =
                 document.getElementById(
@@ -71783,27 +72809,20 @@ return `
                     }
 
 
-                    localGames[idx].undo();
-
-
-                    localSteps[idx]--;
-
-
-                    localBoards[idx].position(
-                      localGames[idx].fen()
+                    showReviewPosition(
+                      localSteps[idx] - 1
                     );
-
-
-                    if (label) {
-
-                      label.textContent =
-                        `${localSteps[idx]} / ${localMoves[idx].length}`;
-
-                    }
 
                   };
 
               }
+
+
+              // ==================================================
+              // START POSITION
+              // ==================================================
+
+              showReviewPosition(0);
 
             }
           );
@@ -101663,21 +102682,112 @@ details.innerHTML += `
           // ATTEMPT HISTORY
           // ----------------------------------------------------
 
-          const historyHTML =
+         // ============================================================
+// 👨‍🎓 CLICKABLE STUDENT ATTEMPT HISTORY
+//
+// Every individual move is clickable.
+// Clicking a move rebuilds the board from the saved
+// starting FEN and plays moves up to that exact move.
+//
+// Nothing else is changed.
+// ============================================================
+
+const historyHTML =
   answer.tries &&
   answer.tries.length
 
     ? answer.tries
         .map(
-          (tries, retryIndex) => `
-            <div style="margin-bottom:3px;">
-              👉 #${retryIndex + 1}:
-              ${formatAttemptHistoryLine(
-                tries,
-                answer.correct_move
-              )}
-            </div>
-          `
+          (attemptLine, retryIndex) => {
+
+            if (!Array.isArray(attemptLine)) {
+              return "";
+            }
+
+            const movesHTML =
+              attemptLine
+                .map(
+                  (move, moveIndex) => {
+
+                    const moveNumber =
+                      Math.floor(
+                        moveIndex / 2
+                      ) + 1;
+
+                    const isAutoMove =
+                      moveIndex % 2 === 1;
+
+                    const isFinalCorrect =
+                      attemptLine.join(" ").trim() ===
+                      (
+                        answer.correct_move ||
+                        ""
+                      ).trim();
+
+                    const isWrongMove =
+                      !isFinalCorrect &&
+                      moveIndex ===
+                        attemptLine.length - 1;
+
+                    const moveColor =
+                      isWrongMove
+                        ? "#f87171"
+                        : isAutoMove
+                        ? "#60a5fa"
+                        : "#4ade80";
+
+                    const numberHTML =
+                      moveIndex % 2 === 0
+                        ? `<span style="
+                            color:#cbd5e1;
+                            font-weight:800;
+                          ">${moveNumber}. </span>`
+                        : "";
+
+                    return `
+                      ${numberHTML}
+
+                      <span
+                        class="student-puzzle-review-move"
+                        data-attempt-index="${retryIndex}"
+                        data-move-index="${moveIndex}"
+                        style="
+                          color:${moveColor};
+                          font-weight:800;
+                          cursor:pointer;
+                          display:inline-block;
+                          padding:1px 3px;
+                          border-radius:4px;
+                          transition:background 0.15s ease;
+                        "
+                        title="Click to show this position"
+                      >
+                        ${move}
+                      </span>
+                    `;
+
+                  }
+                )
+                .join(" ");
+
+
+            return `
+              <div style="
+                margin-bottom:4px;
+                white-space:normal;
+              ">
+                <span style="
+                  color:#cbd5e1;
+                  font-weight:800;
+                ">
+                  👉 #${retryIndex + 1}:
+                </span>
+
+                ${movesHTML}
+              </div>
+            `;
+
+          }
         )
         .join("")
 
@@ -101710,6 +102820,212 @@ details.innerHTML += `
           container.appendChild(
             details
           );
+          // ============================================================
+// 🖱️ STUDENT MOVE CLICK → SHOW EXACT BOARD POSITION
+// ============================================================
+
+details
+  .querySelectorAll(
+    ".student-puzzle-review-move"
+  )
+  .forEach(
+    moveElement => {
+
+      moveElement.addEventListener(
+        "click",
+        function (event) {
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const attemptIndex =
+            Number(
+              this.dataset.attemptIndex
+            );
+
+          const moveIndex =
+            Number(
+              this.dataset.moveIndex
+            );
+
+
+          const selectedAttempt =
+            answer.tries[
+              attemptIndex
+            ];
+
+
+          if (
+            !Array.isArray(
+              selectedAttempt
+            )
+          ) {
+            return;
+          }
+
+
+          // ----------------------------------------------
+          // Rebuild board from the EXACT saved starting FEN
+          // ----------------------------------------------
+
+          const reviewGame =
+            new Chess(
+              startingFen
+            );
+
+
+          // Play every move up to the clicked move.
+          for (
+            let i = 0;
+            i <= moveIndex;
+            i++
+          ) {
+
+            const san =
+              selectedAttempt[i];
+
+            if (!san) {
+              continue;
+            }
+
+
+            const played =
+              reviewGame.move(
+                san
+              );
+
+
+            if (!played) {
+
+              console.warn(
+                "⚠️ Could not replay student review move:",
+                {
+                  puzzle:
+                    puzzleNumber,
+
+                  attempt:
+                    attemptIndex + 1,
+
+                  move:
+                    i + 1,
+
+                  san
+                }
+              );
+
+              break;
+            }
+
+          }
+
+
+          // ----------------------------------------------
+          // Find the board belonging to this puzzle.
+          // ----------------------------------------------
+
+          const board =
+            boardDiv;
+
+
+          if (!board) {
+            return;
+          }
+
+
+          // ----------------------------------------------
+          // Update the exact puzzle board.
+          // ----------------------------------------------
+
+          Chessboard(
+            board,
+            {
+              position:
+                reviewGame.fen(),
+
+              draggable:
+                false,
+
+              showNotation:
+                false,
+
+              pieceTheme:
+                getPieceThemePath(
+                  currentPieceTheme
+                )
+            }
+          );
+
+
+          // ----------------------------------------------
+          // Highlight ONLY the clicked move.
+          // ----------------------------------------------
+
+          details
+            .querySelectorAll(
+              ".student-puzzle-review-move"
+            )
+            .forEach(
+              element => {
+
+                element.style.background =
+                  "";
+
+                element.style.boxShadow =
+                  "none";
+
+              }
+            );
+
+
+          this.style.background =
+            "rgba(250,204,21,0.18)";
+
+          this.style.boxShadow =
+            "0 0 0 2px rgba(250,204,21,0.75)";
+
+        }
+      );
+
+
+      // ----------------------------------------------
+      // Hover
+      // ----------------------------------------------
+
+      moveElement.addEventListener(
+        "mouseenter",
+        function () {
+
+          if (
+            this.style.boxShadow
+          ) {
+            return;
+          }
+
+          this.style.background =
+            "rgba(255,255,255,0.10)";
+
+        }
+      );
+
+
+      moveElement.addEventListener(
+        "mouseleave",
+        function () {
+
+          if (
+            this.style.boxShadow
+          ) {
+            return;
+          }
+
+          this.style.background =
+            "";
+
+        }
+      );
+
+    }
+  );
 
         } else {
 
