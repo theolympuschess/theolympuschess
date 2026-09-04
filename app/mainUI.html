@@ -4160,6 +4160,28 @@ height: 730px;      /* same height as board */
   cursor: pointer;
   transition: all 0.15s ease;
 }
+/* =========================================================
+   🟢 QUIZ ANSWER REVEAL
+   ========================================================= */
+
+.quiz-option.quiz-correct {
+  background: #22c55e !important;
+  background-image: none !important;
+  border-color: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.35) !important;
+  transform: none !important;
+}
+
+/* 🔴 Selected wrong answer */
+.quiz-option.quiz-wrong {
+  background: #ef4444 !important;
+  background-image: none !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35) !important;
+  transform: none !important;
+}
 
 .quiz-option:hover {
   background: linear-gradient(180deg, #2563eb, #1d4ed8);
@@ -45197,12 +45219,11 @@ document.querySelectorAll(".quiz-option").forEach(btn => {
 
   btn.onclick = () => {
 
-    // 🚫 prevent double clicks / race condition
+    // 🚫 Prevent double clicks / race condition
     if (!quizActive) return;
 
-    // 🔒 instantly lock
+    // 🔒 Instantly lock the question
     quizActive = false;
-
     clearInterval(quizTimer);
 
     const isCorrect = btn.dataset.correct === "1";
@@ -45225,7 +45246,7 @@ document.querySelectorAll(".quiz-option").forEach(btn => {
 
         loadQuizPuzzle();
 
-      }, 300);
+      }, 2000);
 
     }
 
@@ -45236,38 +45257,49 @@ document.querySelectorAll(".quiz-option").forEach(btn => {
 
       playQuizSound("wrong");
 
-      // 🔥 ALWAYS REMOVE LIFE FIRST
+      // 🔥 Remove one life
       quizLives = Math.max(0, quizLives - 1);
-
       updateLivesUI();
 
+      // ❌ Highlight student's wrong answer
       btn.classList.add("quiz-wrong");
 
-      // 💀 GAME OVER
-      if (quizLives <= 0) {
+      // ✅ Find and reveal the correct answer
+      const correctBtn = document.querySelector(
+        '.quiz-option[data-correct="1"]'
+      );
 
-        setTimeout(() => {
-
-          btn.classList.remove("quiz-wrong");
-
-          endQuiz("❌ No lives left!");
-
-        }, 300);
-
-        return;
+      if (correctBtn) {
+        correctBtn.classList.add("quiz-correct");
       }
 
-      // 🔁 CONTINUE GAME
+      // ⏳ Keep both answers visible for 2.5 seconds
       setTimeout(() => {
 
+        // Remove wrong-answer highlight
         btn.classList.remove("quiz-wrong");
 
+        // Remove correct-answer highlight
+        if (correctBtn) {
+          correctBtn.classList.remove("quiz-correct");
+        }
+
+        // 💀 GAME OVER after revealing the answer
+        if (quizLives <= 0) {
+
+          endQuiz("❌ No lives left!");
+          return;
+        }
+
+        // 🔁 Continue to the next puzzle
         loadQuizPuzzle();
 
-      }, 300);
+      }, 3000);
     }
   };
 });
+
+
 
 
 
@@ -58754,15 +58786,15 @@ kingStartBtn.onclick = startKingGame;
 
 
 const memoryNextSound = new Audio("sounds/next.mp3");
-memoryNextSound.volume = 0.5;
+memoryNextSound.volume = 0.1;
 
 const memoryPartySound = new Audio("sounds/party.mp3");
-memoryPartySound.volume = 0.7;
+memoryPartySound.volume = 0.1;
 
 const memoryStartSound = new Audio("sounds/puzzle-rush-start.mp3");
-memoryStartSound.volume = 0.6;
+memoryStartSound.volume = 0.1;
 const memoryWrongSound = new Audio("sounds/wrong.mp3");
-memoryWrongSound.volume = 0.6;
+memoryWrongSound.volume = 0.07;
 
 
 
