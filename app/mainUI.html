@@ -71435,10 +71435,24 @@ Object.assign(
   }
 </span>
 
-              <strong>Time:</strong>
-              <span>
-                ${answer.time_taken ?? 0}s
-              </span>
+             <strong>Time:</strong>
+<span>
+  ${(() => {
+    const totalSeconds = Math.max(
+      0,
+      Math.floor(Number(answer.time_taken) || 0)
+    );
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    if (minutes === 0) {
+      return `${seconds}s`;
+    }
+
+    return `${minutes}m ${seconds}s`;
+  })()}
+</span>
 
             </div>
 
@@ -93313,7 +93327,7 @@ async function loadMiniStats() {
 
   if (error || !data || data.length === 0) {
     document.getElementById("miniAccuracy").textContent = "--%";
-    document.getElementById("miniAvgTime").textContent = "--s";
+   document.getElementById("miniAvgTime").textContent = "--";
     document.getElementById("miniSolved").textContent = "--";
      document.getElementById("miniAssignments").textContent = "--"; // ✅ add
     return;
@@ -93322,7 +93336,21 @@ async function loadMiniStats() {
   const stats = calculateMiniStats(data);
 
   document.getElementById("miniAccuracy").textContent = stats.accuracy + "%";
-  document.getElementById("miniAvgTime").textContent = stats.avgTime + "s";
+  const totalSeconds = Math.max(
+  0,
+  Math.floor(Number(stats.avgTime) || 0)
+);
+
+const minutes = Math.floor(
+  totalSeconds / 60
+);
+
+const seconds = totalSeconds % 60;
+
+document.getElementById("miniAvgTime").textContent =
+  minutes > 0
+    ? `${minutes}m ${seconds}s`
+    : `${seconds}s`;
   document.getElementById("miniSolved").textContent = stats.solved;
    document.getElementById("miniAssignments").textContent = stats.totalAssignments; // ✅ add
 }
@@ -102835,8 +102863,22 @@ if (!startingFen) {
           timeBadge.style.opacity =
             "0.9";
 
-          timeBadge.textContent =
-            `⏰ Time: ${time}s`;
+          const totalSeconds = Math.max(
+  0,
+  Math.floor(time)
+);
+
+const minutes = Math.floor(
+  totalSeconds / 60
+);
+
+const seconds = totalSeconds % 60;
+
+timeBadge.textContent =
+  minutes > 0
+    ? `⏰ Time: ${minutes}m ${seconds}s`
+    : `⏰ Time: ${seconds}s`;
+          
 
           container.appendChild(
             timeBadge
