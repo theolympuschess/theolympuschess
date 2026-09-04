@@ -71604,6 +71604,82 @@ Object.assign(
                   Attempt History
                 </strong>
 
+               <div style="
+  margin-top:8px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+  font-size:12px;
+  color:#cbd5e1;
+  white-space:nowrap;
+">
+
+  <span style="
+    font-weight:800;
+  ">Add Marks:</span>
+
+  <input
+    id="coachMarksInput-${answer.index}"
+    type="number"
+    min="1"
+    max="10"
+    step="1"
+    value="${(
+      Number.isFinite(Number(answer.marks)) &&
+      Number(answer.marks) >= 1 &&
+      Number(answer.marks) <= 10
+    ) ? Number(answer.marks) : ""}"
+    placeholder=""
+    style="
+      width:52px;
+      height:26px;
+      padding:2px 5px;
+      border:1px solid rgba(148,163,184,0.45);
+      border-radius:6px;
+      background:rgba(15,23,42,0.75);
+      color:#fff;
+      font-size:12px;
+      font-weight:800;
+      text-align:center;
+      outline:none;
+      box-sizing:border-box;
+    "
+  >
+
+  <span style="
+    font-weight:800;
+    color:#94a3b8;
+  ">/ 10</span>
+
+  <button
+    id="saveCoachMarks-${answer.index}"
+    type="button"
+    style="
+      height:26px;
+      padding:2px 9px;
+      border:none;
+      border-radius:6px;
+      background:#22c55e;
+      color:#052e16;
+      font-size:11px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
+    "
+  >Save</button>
+
+  <span
+    id="coachMarksStatus-${answer.index}"
+    style="
+      font-size:11px;
+      font-weight:700;
+      color:#86efac;
+    "
+  ></span>
+
+</div>
+
 
                 <!-- ============================================= -->
                 <!-- 👨‍🎓 STUDENT ATTEMPTS -->
@@ -71635,6 +71711,7 @@ Object.assign(
                     display:none;
                   "
                 ></div>
+                
 
               </div>
 
@@ -71648,11 +71725,15 @@ Object.assign(
           `;
 
 
-          content.appendChild(
-            card
-          );
+         content.appendChild(
+  card
+);
 
-        }
+
+
+
+
+        } 
       );
 
 
@@ -71689,6 +71770,225 @@ Object.assign(
 
           attempt.bulk_answers.forEach(
             answer => {
+            // ==========================================================
+// ⭐ COACH MARKS — SAVE INDIVIDUAL PUZZLE MARK
+// ==========================================================
+
+const coachMarksInput =
+  document.getElementById(
+    `coachMarksInput-${answer.index}`
+  );
+
+const saveCoachMarksButton =
+  document.getElementById(
+    `saveCoachMarks-${answer.index}`
+  );
+
+const coachMarksStatus =
+  document.getElementById(
+    `coachMarksStatus-${answer.index}`
+  );
+
+
+if (
+  coachMarksInput &&
+  saveCoachMarksButton
+) {
+
+  saveCoachMarksButton.addEventListener(
+    "click",
+    async function (event) {
+
+      event.preventDefault();
+      event.stopPropagation();
+
+
+      const rawValue =
+        coachMarksInput.value.trim();
+
+      const marks =
+        Number(rawValue);
+
+
+      // ----------------------------------------------------
+      // VALIDATE 1–10
+      // ----------------------------------------------------
+
+      if (
+        rawValue === "" ||
+       !Number.isFinite(marks) ||
+        marks < 1 ||
+        marks > 10
+      ) {
+
+        if (coachMarksStatus) {
+
+          coachMarksStatus.textContent =
+            "Enter 1–10";
+
+          coachMarksStatus.style.color =
+            "#f87171";
+
+        }
+
+        coachMarksInput.focus();
+
+        return;
+
+      }
+
+
+      // ----------------------------------------------------
+      // SAVING STATE
+      // ----------------------------------------------------
+
+      saveCoachMarksButton.disabled =
+        true;
+
+      saveCoachMarksButton.style.opacity =
+        "0.6";
+
+      saveCoachMarksButton.textContent =
+        "Saving...";
+
+
+      try {
+
+        // --------------------------------------------------
+        // COPY EXISTING BULK ANSWERS
+        // --------------------------------------------------
+
+        const updatedBulkAnswers =
+          Array.isArray(
+            attempt.bulk_answers
+          )
+            ? attempt.bulk_answers.map(
+                item => ({
+                  ...item
+                })
+              )
+            : [];
+
+
+        // --------------------------------------------------
+        // FIND THIS EXACT PUZZLE
+        // --------------------------------------------------
+
+        const targetAnswer =
+          updatedBulkAnswers.find(
+            item =>
+              Number(item.index) ===
+              Number(answer.index)
+          );
+
+
+        if (!targetAnswer) {
+
+          throw new Error(
+            `Puzzle ${answer.index} was not found in bulk_answers.`
+          );
+
+        }
+
+
+        // --------------------------------------------------
+        // SAVE MARK INSIDE THIS PUZZLE
+        // --------------------------------------------------
+
+        targetAnswer.marks =
+          marks;
+
+
+        // --------------------------------------------------
+        // UPDATE EXISTING ATTEMPT ROW
+        // --------------------------------------------------
+
+        const {
+          error: updateError
+        } = await supabase
+
+          .from("attempts")
+
+          .update({
+            bulk_answers:
+              updatedBulkAnswers
+          })
+
+          .eq(
+            "id",
+            attempt.id
+          );
+
+
+        if (updateError) {
+
+          throw updateError;
+
+        }
+
+
+        // --------------------------------------------------
+        // KEEP CURRENT UI DATA SYNCHRONIZED
+        // --------------------------------------------------
+
+        answer.marks =
+          marks;
+
+        attempt.bulk_answers =
+          updatedBulkAnswers;
+
+
+        // --------------------------------------------------
+        // SUCCESS
+        // --------------------------------------------------
+
+        if (coachMarksStatus) {
+
+          coachMarksStatus.textContent =
+            "Saved ✓";
+
+          coachMarksStatus.style.color =
+            "#86efac";
+
+        }
+
+
+      } catch (error) {
+
+        console.error(
+          "❌ Failed to save coach marks:",
+          error
+        );
+
+
+        if (coachMarksStatus) {
+
+          coachMarksStatus.textContent =
+            "Save failed";
+
+          coachMarksStatus.style.color =
+            "#f87171";
+
+        }
+
+
+      } finally {
+
+        saveCoachMarksButton.disabled =
+          false;
+
+        saveCoachMarksButton.style.opacity =
+          "1";
+
+        saveCoachMarksButton.textContent =
+          "Save";
+
+      }
+
+    }
+  );
+
+}
 
               const idx =
                 answer.index;
@@ -102705,6 +103005,29 @@ details.innerHTML += `
 
           })()
         : 0
+    }
+  </div>
+`;
+// ----------------------------------------------------
+// ⭐ COACH MARKS
+// ----------------------------------------------------
+
+details.innerHTML += `
+  <div style="
+    margin-bottom:6px;
+    font-weight:800;
+  ">
+    <strong style="color:#facc15;">Coach Marks:</strong>
+    ${
+      Number.isFinite(Number(answer.marks)) &&
+      Number(answer.marks) >= 1 &&
+      Number(answer.marks) <= 10
+        ? `<span style="color:#4ade80;font-weight:900;">
+             ${Number(answer.marks)} / 10
+           </span>`
+        : `<span style="color:#94a3b8;font-weight:700;">
+             Not graded / 10
+           </span>`
     }
   </div>
 `;
