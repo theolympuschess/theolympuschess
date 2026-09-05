@@ -38487,25 +38487,28 @@ function showRatingDelta(delta) {
 
 
 async function applyPuzzleRushRating(prScore) {
-  if (!currentProfile || prScore <= 0) return;
+  if (!currentProfile || prScore < 10) return;
 
-  // 🔻 CUT DOWN: 1/2 factor
-  const ratingGain = Math.floor(prScore / 2);
-
-  if (ratingGain <= 0) return;
+  // ⭐ PUZZLE RUSH: 2 points only when score is 10 or higher
+  const ratingGain = 2;
 
   currentProfile.puzzle_current_score =
     (currentProfile.puzzle_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
   showRatingDelta(ratingGain);
-  addDailyXP(ratingGain);   // ⭐ ADD THIS
-    // ✅ XP HISTORY LOG (THIS WAS MISSING)
-  window.logRatingEvent({
-    source: "Puzzle Rush",
-     reason: `Final Score  ${prScore}`,
-    xp: ratingGain
-  });
+
+  // ⭐ Give exactly 2 daily XP
+  addDailyXP(2);
+
+  // 📜 XP HISTORY LOG
+  if (window.logRatingEvent) {
+    window.logRatingEvent({
+      source: "Puzzle Rush",
+      reason: `Final Score ${prScore}`,
+      xp: 2
+    });
+  }
 
   const { error } = await supabase
     .from("profiles")
@@ -38542,26 +38545,26 @@ window.logRatingEvent = async function ({ source, reason, xp }) {
 
 
 async function applyQuizRating(quizScore) {
-  if (!currentProfile || quizScore <= 0) return;
+  if (!currentProfile || quizScore < 10) return;
 
-  // 🔻 CUT DOWN: 1/2 factor
-  const ratingGain = Math.floor(quizScore / 2);
-
-  if (ratingGain <= 0) return;
+  // ⭐ QUIZ XP: 2 XP only when score is 10 or higher
+  const ratingGain = 2;
 
   currentProfile.quiz_current_score =
     (currentProfile.quiz_current_score || 0) + ratingGain;
 
   updateRatingsFromProfile(currentProfile);
   showRatingDelta(ratingGain);
-  addDailyXP(ratingGain);   // ⭐ ADD THIS
 
-    // 📜 XP HISTORY LOG (NEW)
+  // ⭐ Give exactly 2 daily XP
+  addDailyXP(2);
+
+  // 📜 XP HISTORY LOG
   if (window.logRatingEvent) {
     window.logRatingEvent({
       source: "Quiz",
       reason: `Final Score ${quizScore}`,
-      xp: ratingGain
+      xp: 2
     });
   }
 
@@ -58792,7 +58795,7 @@ memoryPartySound.volume = 0.1;
 const memoryStartSound = new Audio("sounds/puzzle-rush-start.mp3");
 memoryStartSound.volume = 0.1;
 const memoryWrongSound = new Audio("sounds/wrong.mp3");
-memoryWrongSound.volume = 0.07;
+memoryWrongSound.volume = 0.01;
 
 
 
@@ -58811,6 +58814,9 @@ const memoryMenu = document.getElementById("memoryMenu");
 
 let memoryMode = "";
 let memoryTimer = null;
+let memoryCountdownTimer = null;
+let memoryGameTimeRemaining = 0;
+let memoryCountdownActive = false;
 
 let level = 1;
 let round = 1;
@@ -58872,74 +58878,119 @@ function startMemoryRound() {
 
   drawMemoryBoard();
 
-  // 🔦 FLASH
-  document.querySelectorAll(".memory-square").forEach(sq => {
-    if (correctSquares.includes(sq.dataset.key)) {
-      sq.classList.add("flash");
-    }
-  });
-  
+  // ⏸️ Freeze the main game timer during the 3-second countdown
+  clearInterval(memoryTimer);
+  memoryTimer = null;
+  memoryCountdownActive = true;
 
-  // ⏱ hide after 1 sec
-  setTimeout(() => {
-    document.querySelectorAll(".memory-square").forEach(sq =>
-      sq.classList.remove("flash")
-    );
+  // ⏳ 3-second countdown
+  let countdown = 3;
+  memoryTimerEl.textContent = countdown;
+
+  clearInterval(memoryCountdownTimer);
+
+  memoryCountdownTimer = setInterval(() => {
+    countdown--;
+
+    if (countdown > 0) {
+      memoryTimerEl.textContent = countdown;
+      return;
+    }
+
+    // Countdown finished
+    clearInterval(memoryCountdownTimer);
+    memoryCountdownTimer = null;
+    memoryCountdownActive = false;
+
+    // 🔦 Flash the correct squares
+    document.querySelectorAll(".memory-square").forEach(sq => {
+      if (correctSquares.includes(sq.dataset.key)) {
+        sq.classList.add("flash");
+      }
+    });
+
+// ▶️ Resume the main game timer immediately
+if (memoryGameTimeRemaining > 0) {
+  memoryTimerEl.textContent = memoryGameTimeRemaining;
+
+  memoryTimer = setInterval(() => {
+    memoryGameTimeRemaining--;
+    memoryTimerEl.textContent = memoryGameTimeRemaining;
+
+    if (memoryGameTimeRemaining <= 0) {
+      clearInterval(memoryTimer);
+      memoryTimer = null;
+      endMemoryGame();
+    }
   }, 1000);
 }
 
+// Hide flashed squares after 1 second
+setTimeout(() => {
+  document.querySelectorAll(".memory-square").forEach(sq => {
+    sq.classList.remove("flash");
+  });
+}, 1000);
+  }, 1000);
+}
 
 function memoryClick(square) {
   const key = square.dataset.key;
+
+  // Ignore a square that has already been correctly selected
   if (playerClicks.includes(key)) return;
 
-  playerClicks.push(key);
-
+  // ✅ CORRECT SQUARE
   if (correctSquares.includes(key)) {
+    playerClicks.push(key);
     square.classList.add("correct");
-  } else {
-    square.classList.add("wrong");
-    
-    // 🔊 WRONG SOUND
+
+    // ✅ Round is complete only when ALL correct squares are found
+    if (playerClicks.length === correctSquares.length) {
+
+      successfulRounds++;
+
+      score++;
+      memoryScoreEl.textContent = score;
+
+      // 🔊 NEXT ROUND SOUND
+      memoryNextSound.currentTime = 0;
+      memoryNextSound.play().catch(() => {});
+
+      round++;
+
+      if (round > 5) {
+        level++;
+        round = 1;
+        squaresToRemember++;
+      }
+
+      setTimeout(startMemoryRound, 600);
+    }
+
+    return;
+  }
+
+  // ❌ WRONG SQUARE
+  // IMPORTANT: Do NOT add the wrong square to playerClicks.
+  // This allows the player to try again and find the correct square.
+  square.classList.remove("wrong");
+  void square.offsetWidth; // restart wrong animation if clicked again
+  square.classList.add("wrong");
+
+  // 🔊 WRONG SOUND
   memoryWrongSound.currentTime = 0;
   memoryWrongSound.play().catch(() => {});
 
-    lives--;
-    memoryLivesEl.textContent = lives;
+  // ❤️ Lose one life
+  lives--;
+  memoryLivesEl.textContent = lives;
 
-    if (lives <= 0) {
-      endMemoryGame();
-      return;
-    }
+  // 💀 3 mistakes = game over
+  if (lives <= 0) {
+    endMemoryGame();
+    return;
   }
-
-  // ✅ round complete
-if (playerClicks.length === correctSquares.length) {
-
-  const allCorrect =
-    playerClicks.every(k => correctSquares.includes(k));
-
-  if (allCorrect) {
-    successfulRounds++;
-  }
-
-  score++;
-  memoryScoreEl.textContent = score;
-
-  // 🔊 NEXT ROUND SOUND
-  memoryNextSound.currentTime = 0;
-  memoryNextSound.play().catch(() => {});
-
-  round++;
-  if (round > 5) {
-    level++;
-    round = 1;
-    squaresToRemember++;
-  }
-
-  setTimeout(startMemoryRound, 600);
-}
-
 }
 
 
@@ -58964,17 +59015,12 @@ function startMemoryGame(mode, time) {
   memoryGameEl.classList.remove("hidden");
 
   drawMemoryBoard();
-  startMemoryRound();
+ 
 
-  if (time) {
-    let t = time;
-    memoryTimerEl.textContent = t;
-    memoryTimer = setInterval(() => {
-      t--;
-      memoryTimerEl.textContent = t;
-      if (t <= 0) endMemoryGame();
-    }, 1000);
-  }
+ if (time) {
+  memoryGameTimeRemaining = time;
+}
+ startMemoryRound();
 }
 
 
@@ -58996,7 +59042,7 @@ function endMemoryGame() {
     () => {
       exitMemory();
       // ✅ Give XP only after 4 successful rounds
-if (successfulRounds >= 5) {
+if (successfulRounds >= 15) {
   saveMiniGameScore("memory", score);
 }
 
@@ -73579,7 +73625,7 @@ function playPartySound() {
   }
 
   partyAudio = new Audio("./sounds/party.mp3");
-  partyAudio.volume = 0.7; // pleasant, not loud
+  partyAudio.volume = 0.1; // pleasant, not loud
   partyAudio.play().catch(() => {});
 }
 
@@ -73592,7 +73638,7 @@ function playGameStartSound() {
   }
 
   startGameAudio = new Audio("./sounds/puzzle-rush-start.mp3");
-  startGameAudio.volume = 0.7;
+  startGameAudio.volume = 0.2;
   startGameAudio.play().catch(() => {});
 }
 
@@ -73605,7 +73651,7 @@ function playWrongSound() {
   }
 
   wrongAudio = new Audio("./sounds/wrong.mp3");
-  wrongAudio.volume = 0.7;
+  wrongAudio.volume = 0.1;
   wrongAudio.play().catch(() => {});
 }
 
@@ -73618,7 +73664,7 @@ function playNextSound() {
   }
 
   nextAudio = new Audio("./sounds/next.mp3");
-  nextAudio.volume = 0.8;
+  nextAudio.volume = 0.1;
   nextAudio.play().catch(() => {});
 }
 
@@ -73631,7 +73677,7 @@ function playHitSound() {
   }
 
   hitAudio = new Audio("./sounds/hit.mp3");
-  hitAudio.volume = 0.7;
+  hitAudio.volume = 0.2;
   hitAudio.play().catch(() => {});
 }
 
@@ -73776,6 +73822,7 @@ sq.appendChild(home);
   }
 }
 
+
 /* ---------- click ---------- */
 function pfHandleClick(x, y) {
   if (pfPhase !== "play") return;
@@ -73879,10 +73926,30 @@ function startNewPfRound() {
 
 
   // 🎚 difficulty scaling
-  const extra = Math.floor(pfScore / 2);
+// 🎚 ADVANCED DIFFICULTY SCALING
+// Difficulty increases every 2 points, but becomes much harder
+// after each 5-round level.
 
-  generatePfBlocks(BASE_BLOCKS + extra);
-  generatePfBombs(BASE_BOMBS + extra);
+const currentLevel = Math.floor(pfScore / 5) + 1;
+
+// Base increase from score
+const scoreExtra = Math.floor(pfScore / 2);
+
+// Additional pressure from level
+const levelExtra = currentLevel - 1;
+
+// Total obstacles
+const blockCount = BASE_BLOCKS + scoreExtra + levelExtra;
+const bombCount = BASE_BOMBS + scoreExtra + levelExtra;
+
+console.log(
+  "LEVEL:", currentLevel,
+  "BLOCKS:", blockCount,
+  "BOMBS:", bombCount
+);
+
+generatePfBlocks(blockCount);
+generatePfBombs(bombCount);
 
   // 👁 memory flash
   drawPfBoard(true);
