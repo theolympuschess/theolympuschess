@@ -34349,24 +34349,54 @@ data-role="admin-only">
 "></div>
 
 </div>
-<!-- 🔥 IMPORT PGN BUTTON -->
-<button
-  id="lpImportPgnBtn"
-  data-role="admin-only"
-  style="
-    margin-top:10px;
-    width:100%;
-    padding:10px;
-    border:none;
-    border-radius:8px;
-    background:#1d4ed8;
-    color:white;
-    font-weight:700;
-    cursor:pointer;
-  "
->
-  📥 Import PGN / FEN
-</button>
+
+
+<!-- 🔥 PGN ACTION BUTTONS -->
+<div style="
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+">
+
+  <!-- IMPORT PGN -->
+  <button
+    id="lpImportPgnBtn"
+    data-role="admin-only"
+    style="
+      flex:1;
+      padding:10px;
+      border:none;
+      border-radius:8px;
+      background:#1d4ed8;
+      color:white;
+      font-weight:700;
+      cursor:pointer;
+    "
+  >
+    📥 Import PGN / FEN
+  </button>
+
+  <!-- COPY PGN -->
+  <button
+    id="lpCopyPgnBtn"
+    data-role="admin-only"
+    style="
+      flex:1;
+      padding:10px;
+      border:none;
+      border-radius:8px;
+      background:#16a34a;
+      color:white;
+      font-weight:700;
+      cursor:pointer;
+    "
+  >
+    📋 Copy PGN
+  </button>
+
+</div>
+
+
 
 <!-- 🔥 PGN IMPORT MODAL -->
 <div
@@ -128544,7 +128574,347 @@ if (allowAskCoach) {
 
 };
 
+// =====================================================
+// 📋 COPY CURRENT LIVE PUZZLE AS VALID PGN
+// =====================================================
 
+document.getElementById("lpCopyPgnBtn")?.addEventListener(
+  "click",
+  async () => {
+
+    try {
+
+      // =================================================
+      // 1️⃣ CHECK CURRENT PUZZLE
+      // =================================================
+
+      if (
+        !Array.isArray(puzzles) ||
+        !puzzles[currentIndex]
+      ) {
+
+        showToast("❌ No puzzle loaded");
+        return;
+
+      }
+
+
+      // =================================================
+      // 2️⃣ READ ORIGINAL PUZZLE PGN
+      // =================================================
+
+      const originalPGN =
+        puzzles[currentIndex];
+
+      const sourceGame =
+        new Chess();
+
+
+      if (
+        !sourceGame.load_pgn(originalPGN)
+      ) {
+
+        throw new Error(
+          "Could not load original puzzle PGN"
+        );
+
+      }
+
+
+      // =================================================
+      // 3️⃣ GET ORIGINAL PGN HEADERS
+      // =================================================
+
+      const headers =
+        sourceGame.header();
+
+
+      // =================================================
+      // 4️⃣ DETERMINE EXACT MOVE SEQUENCE
+      // =================================================
+
+      let movesToCopy;
+
+
+      if (isAnalysisMode) {
+
+        /*
+          Analysis Mode uses analysisMoves.
+
+          If analysisMoves is empty,
+          your existing renderer falls back
+          to solutionMoves.
+        */
+
+        if (
+          Array.isArray(analysisMoves) &&
+          analysisMoves.length > 0
+        ) {
+
+          movesToCopy = [
+            ...analysisMoves
+          ];
+
+        } else {
+
+          movesToCopy = [
+            ...solutionMoves
+          ];
+
+        }
+
+      } else {
+
+        // Normal mode
+        movesToCopy = [
+          ...solutionMoves
+        ];
+
+      }
+
+
+      // =================================================
+      // 5️⃣ CHECK MOVES
+      // =================================================
+
+      if (
+        !Array.isArray(movesToCopy) ||
+        movesToCopy.length === 0
+      ) {
+
+        showToast(
+          "❌ No moves available"
+        );
+
+        return;
+
+      }
+
+
+      // =================================================
+      // 6️⃣ CREATE NEW EXPORT GAME
+      // =================================================
+
+      const exportGame =
+        new Chess();
+
+
+      // =================================================
+      // 7️⃣ RESTORE ORIGINAL FEN
+      // =================================================
+
+      if (headers.FEN) {
+
+        const loaded =
+          exportGame.load(
+            headers.FEN
+          );
+
+        if (!loaded) {
+
+          throw new Error(
+            "Invalid puzzle FEN"
+          );
+
+        }
+
+        exportGame.header(
+          "SetUp",
+          "1"
+        );
+
+        exportGame.header(
+          "FEN",
+          headers.FEN
+        );
+
+      }
+
+
+      // =================================================
+      // 8️⃣ RESTORE ALL ORIGINAL HEADERS
+      // =================================================
+
+      Object.keys(headers).forEach(
+        key => {
+
+          if (
+            headers[key] !== undefined &&
+            headers[key] !== null &&
+            headers[key] !== ""
+          ) {
+
+            exportGame.header(
+              key,
+              headers[key]
+            );
+
+          }
+
+        }
+      );
+
+
+      // =================================================
+      // 9️⃣ REPLAY EXACT MOVE OBJECTS
+      // =================================================
+
+      for (
+        const move of movesToCopy
+      ) {
+
+        const played =
+          exportGame.move(move);
+
+        if (!played) {
+
+          console.error(
+            "❌ Failed move:",
+            move
+          );
+
+          throw new Error(
+            "Could not rebuild PGN"
+          );
+
+        }
+
+      }
+
+
+      // =================================================
+      // 🔟 GENERATE REAL PGN
+      // =================================================
+
+      const finalPGN =
+        exportGame
+          .pgn()
+          .trim();
+
+
+      if (!finalPGN) {
+
+        showToast(
+          "❌ PGN generation failed"
+        );
+
+        return;
+
+      }
+
+
+      // =================================================
+      // 📋 COPY
+      // =================================================
+
+      try {
+
+        await navigator
+          .clipboard
+          .writeText(finalPGN);
+
+      } catch (clipboardError) {
+
+        // ---------------------------------------------
+        // FALLBACK COPY
+        // ---------------------------------------------
+
+        const textarea =
+          document.createElement(
+            "textarea"
+          );
+
+        textarea.value =
+          finalPGN;
+
+        textarea.style.position =
+          "fixed";
+
+        textarea.style.left =
+          "-9999px";
+
+        textarea.style.top =
+          "0";
+
+        textarea.style.opacity =
+          "0";
+
+        document.body.appendChild(
+          textarea
+        );
+
+        textarea.focus();
+        textarea.select();
+
+        document.execCommand(
+          "copy"
+        );
+
+        textarea.remove();
+
+      }
+
+
+      // =================================================
+      // ✅ SUCCESS
+      // =================================================
+
+      console.log(
+        "📋 COPIED PGN:\n\n" +
+        finalPGN
+      );
+
+      showToast(
+        "✅ PGN copied!"
+      );
+
+
+      // =================================================
+      // BUTTON FEEDBACK
+      // =================================================
+
+      const btn =
+        document.getElementById(
+          "lpCopyPgnBtn"
+        );
+
+
+      if (btn) {
+
+        const originalText =
+          btn.innerHTML;
+
+        btn.innerHTML =
+          "✅ Copied!";
+
+        setTimeout(
+          () => {
+
+            btn.innerHTML =
+              originalText;
+
+          },
+          1200
+        );
+
+      }
+
+
+    } catch (error) {
+
+      console.error(
+        "❌ COPY PGN ERROR:",
+        error
+      );
+
+      showToast(
+        "❌ Could not create PGN"
+      );
+
+    }
+
+  }
+);
 
 document.getElementById(
   "lpImportPgnBtn"
