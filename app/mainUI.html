@@ -71133,46 +71133,71 @@ Object.assign(
 
     const summaryItems = [
 
-  [
-    "👨‍🎓 Student",
-    attempt.profiles?.username ||
-    "Unknown"
-  ],
+[
+  "👨‍🎓 Student",
+  `<span style="
+    color:#22c55e;
+    font-weight:800;
+  ">
+    ${attempt.profiles?.username || "Unknown"}
+  </span>`
+],
 
-  [
-    "📅 Submitted",
-    attempt.submitted_at
-      ? new Date(
+[
+  "📅 Submitted",
+  attempt.submitted_at
+    ? `<span style="
+        color:#eab308;
+        font-weight:800;
+      ">
+        ${new Date(
           attempt.submitted_at
-        ).toLocaleString()
-      : "Unknown"
-  ],
+        ).toLocaleString()}
+      </span>`
+    : `<span style="
+        color:#eab308;
+        font-weight:800;
+      ">
+        Unknown
+      </span>`
+],
 
-  [
-    "⏰ Total Time",
-    formatTime(
+[
+  "⏰ Total Time",
+  `<span style="
+    color:#22c55e;
+    font-weight:800;
+  ">
+    ${formatTime(
       attempt.time_spent || 0
-    )
-  ],
+    )}
+  </span>`
+],
 
- [
-  "❌ Total Wrong Moves",
-
-  Array.isArray(attempt.bulk_answers)
-    ? attempt.bulk_answers.reduce(
-        (total, answer) =>
-          total +
-          (
-            Array.isArray(answer.tries)
-              ? Math.max(
-                  0,
-                  answer.tries.length - 1
-                )
-              : 0
-          ),
-        0
-      )
-    : 0
+[
+  "Total Wrong Moves",
+  `<span style="
+    color:#ef4444;
+    font-weight:900;
+  ">
+    ${
+      Array.isArray(attempt.bulk_answers)
+        ? attempt.bulk_answers.reduce(
+            (total, answer) =>
+              total +
+              (
+                Array.isArray(answer.tries)
+                  ? Math.max(
+                      0,
+                      answer.tries.length - 1
+                    )
+                  : 0
+              ),
+            0
+          )
+        : 0
+    }
+  </span>`
 ],
 
   // ========================================================
@@ -71181,27 +71206,41 @@ Object.assign(
   // ========================================================
 
   
-  [
+[
   "📅 Due Date",
-  attempt.assignments?.due_at
-    ? new Date(
-        attempt.assignments.due_at
-      ).toLocaleString()
-    : "No deadline"
+  `<span style="
+    color:#eab308;
+    font-weight:800;
+  ">
+    ${
+      attempt.assignments?.due_at
+        ? new Date(
+            attempt.assignments.due_at
+          ).toLocaleString()
+        : "No deadline"
+    }
+  </span>`
 ],
 [
-    "🎯 Correct Puzzles",
-    (() => {
+  "🎯 Correct Puzzles",
+  `<span style="
+    color:#22c55e;
+    font-weight:900;
+  ">
+    ${
+      (() => {
 
-      const stats =
-        getCorrectPuzzleStats(
-          attempt.bulk_answers || []
-        );
+        const stats =
+          getCorrectPuzzleStats(
+            attempt.bulk_answers || []
+          );
 
-      return `${stats.correct} / ${stats.total}`;
+        return `${stats.correct} / ${stats.total}`;
 
-    })()
-  ],
+      })()
+    }
+  </span>`
+],
 
 
   [
@@ -71212,59 +71251,65 @@ Object.assign(
 ],
 
 [
-  "✅ Total Correct Moves",
-  (() => {
+  "Total Correct Moves",
+  `<span style="
+    color:#22c55e;
+    font-weight:900;
+  ">
+    ${
+      (() => {
 
-    if (
-      !Array.isArray(attempt.bulk_answers)
-    ) {
-      return 0;
+        if (
+          !Array.isArray(attempt.bulk_answers)
+        ) {
+          return 0;
+        }
+
+        return attempt.bulk_answers.reduce(
+          (total, answer) => {
+
+            // Only successfully completed puzzles
+            if (
+              answer.result !== "correct"
+            ) {
+              return total;
+            }
+
+            if (
+              !Array.isArray(answer.tries) ||
+              answer.tries.length === 0
+            ) {
+              return total;
+            }
+
+            // The LAST try is the successful try.
+            const successfulTry =
+              answer.tries[
+                answer.tries.length - 1
+              ];
+
+            if (
+              !Array.isArray(successfulTry)
+            ) {
+              return total;
+            }
+
+            // Every student's move in the successful try.
+            return (
+              total +
+              successfulTry.filter(
+                (_, moveIndex) =>
+                  moveIndex % 2 === 0
+              ).length
+            );
+
+          },
+          0
+        );
+
+      })()
     }
-
-    return attempt.bulk_answers.reduce(
-      (total, answer) => {
-
-        // Only successfully completed puzzles
-        if (
-          answer.result !== "correct"
-        ) {
-          return total;
-        }
-
-        if (
-          !Array.isArray(answer.tries) ||
-          answer.tries.length === 0
-        ) {
-          return total;
-        }
-
-        // The LAST try is the successful try.
-        const successfulTry =
-          answer.tries[
-            answer.tries.length - 1
-          ];
-
-        if (
-          !Array.isArray(successfulTry)
-        ) {
-          return total;
-        }
-
-        // Every move inside the successful try
-        // is a student's correct move.
-       return (
-  total +
-  successfulTry.filter(
-    (_, moveIndex) =>
-      moveIndex % 2 === 0
-  ).length
-);
-
-      },
-      0
-    );
-
-  })()
+  </span>`
 ],
 
 ];
@@ -71478,19 +71523,90 @@ Object.assign(
               margin-bottom:9px;
             ">
 
-              <strong>Student:</strong>
-              <span>
-                ${answer.student_move || "-"}
+             <strong>Student:</strong>
+<span>
+  ${
+    answer.student_move
+      ? (() => {
+
+          const moves =
+            String(answer.student_move)
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean);
+
+          let formattedMoves = "";
+
+          for (
+            let i = 0;
+            i < moves.length;
+            i += 2
+          ) {
+
+            const moveNumber =
+              Math.floor(i / 2) + 1;
+
+            const whiteMove =
+              moves[i] || "";
+
+            const blackMove =
+              moves[i + 1] || "";
+
+            formattedMoves += `
+              <span style="
+                color:#ffffff;
+                font-weight:800;
+              ">
+                ${moveNumber}.
               </span>
 
+              <span style="
+                color:#22d3ee;
+                font-weight:800;
+              ">
+                ${whiteMove}
+              </span>
+
+              ${
+                blackMove
+                  ? `
+                    <span style="
+                      color:#22d3ee;
+                      font-weight:800;
+                    ">
+                      ${blackMove}
+                    </span>
+                  `
+                  : ""
+              }
+
+              ${
+                i + 2 < moves.length
+                  ? " "
+                  : ""
+              }
+            `;
+          }
+
+          return formattedMoves;
+
+        })()
+      : "-"
+  }
+</span>
+
               <strong>Wrong Moves:</strong>
-<span>
+<span style="
+  color:#ef4444;
+  font-weight:900;
+">
   ${
     Array.isArray(answer.tries)
       ? answer.tries.reduce(
           (total, attemptLine) => {
 
             const isFinalCorrect =
+              Array.isArray(attemptLine) &&
               attemptLine.join(" ").trim() ===
               (answer.correct_move || "").trim();
 
@@ -71505,15 +71621,22 @@ Object.assign(
 </span>
 
              <strong>Time:</strong>
-<span>
+<span style="
+  color:#22c55e;
+  font-weight:900;
+">
   ${(() => {
     const totalSeconds = Math.max(
       0,
       Math.floor(Number(answer.time_taken) || 0)
     );
 
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(
+      totalSeconds / 60
+    );
+
+    const seconds =
+      totalSeconds % 60;
 
     if (minutes === 0) {
       return `${seconds}s`;
