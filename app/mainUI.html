@@ -70464,32 +70464,47 @@ function startAttemptsBadgeRealtime() {
   font-weight:700;
 ">
 
-       <p style="
+      <p style="
   margin:9px 0;
   font-size:16px;
   font-weight:700;
 ">
-          <strong>Student:</strong>
-          ${attempt.profiles?.username || attempt.student_id || 'Unknown'}
-        </p>
+  <strong>Student:</strong>
+  <span style="
+    color:#22c55e;
+    font-weight:800;
+  ">
+    ${attempt.profiles?.username || attempt.student_id || 'Unknown'}
+  </span>
+</p>
 
-       <p style="
+      <p style="
   margin:9px 0;
   font-size:16px;
   font-weight:700;
 ">
-          <strong>Submitted:</strong>
-          ${new Date(attempt.submitted_at).toLocaleString()}
-        </p>
+  <strong>Submitted:</strong>
+  <span style="
+    color:#eab308;
+    font-weight:800;
+  ">
+    ${new Date(attempt.submitted_at).toLocaleString()}
+  </span>
+</p>
 
-       <p style="
+<p style="
   margin:9px 0;
   font-size:16px;
   font-weight:700;
 ">
-          <strong>Time Spent:</strong>
-          ${formatTime(attempt.time_spent || 0)}
-        </p>
+  <strong>Time Spent:</strong>
+  <span style="
+    color:#eab308;
+    font-weight:800;
+  ">
+    ${formatTime(attempt.time_spent || 0)}
+  </span>
+</p>
 
       <p style="
   margin:9px 0;
@@ -70497,30 +70512,40 @@ function startAttemptsBadgeRealtime() {
   font-weight:700;
 ">
   <strong>Total Wrong Moves:</strong>
-  ${
-    Array.isArray(attempt.bulk_answers)
-      ? attempt.bulk_answers.reduce(
-          (total, answer) =>
-            total +
-            (
-              Array.isArray(answer.tries)
-                ? Math.max(0, answer.tries.length - 1)
-                : 0
-            ),
-          0
-        )
-      : 0
-  }
+  <span style="
+    color:#ef4444;
+    font-weight:900;
+  ">
+    ${
+      Array.isArray(attempt.bulk_answers)
+        ? attempt.bulk_answers.reduce(
+            (total, answer) =>
+              total +
+              (
+                Array.isArray(answer.tries)
+                  ? Math.max(0, answer.tries.length - 1)
+                  : 0
+              ),
+            0
+          )
+        : 0
+    }
+  </span>
 </p>
 
-       <p style="
+      <p style="
   margin:9px 0;
   font-size:16px;
   font-weight:700;
 ">
-          <strong>Correct Puzzles:</strong>
-          ${stats.correct} / ${stats.total}
-        </p>
+  <strong>Correct Puzzles:</strong>
+  <span style="
+    color:#22c55e;
+    font-weight:900;
+  ">
+    ${stats.correct} / ${stats.total}
+  </span>
+</p>
 
        <p style="
   margin:9px 0;
@@ -103033,18 +103058,83 @@ requestAnimationFrame(() => {
             "1.5";
 
 
-          // ----------------------------------------------------
-          // STUDENT MOVES
-          // ----------------------------------------------------
+      // ----------------------------------------------------
+// STUDENT MOVES
+// ----------------------------------------------------
 
-          details.innerHTML += `
-            <div style="margin-bottom:6px;">
-              <strong>My Answer:</strong>
-              ${answer.student_move || "-"}
-            </div>
-          `;
+details.innerHTML += `
+  <div style="margin-bottom:6px;">
+    <strong>My Answer:</strong>
+    ${
+      answer.student_move
+        ? (() => {
 
+            const moves =
+              String(answer.student_move)
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
 
+            let formattedMoves = "";
+
+            for (
+              let i = 0;
+              i < moves.length;
+              i += 2
+            ) {
+
+              const moveNumber =
+                Math.floor(i / 2) + 1;
+
+              const whiteMove =
+                moves[i] || "";
+
+              const blackMove =
+                moves[i + 1] || "";
+
+              formattedMoves += `
+                <span style="
+                  color:#ffffff;
+                  font-weight:800;
+                ">
+                  ${moveNumber}.
+                </span>
+
+                <span style="
+                  color:#22d3ee;
+                  font-weight:800;
+                ">
+                  ${whiteMove}
+                </span>
+
+                ${
+                  blackMove
+                    ? `
+                      <span style="
+                        color:#22d3ee;
+                        font-weight:800;
+                      ">
+                        ${blackMove}
+                      </span>
+                    `
+                    : ""
+                }
+
+                ${
+                  i + 2 < moves.length
+                    ? " "
+                    : ""
+                }
+              `;
+            }
+
+            return formattedMoves;
+
+          })()
+        : "-"
+    }
+  </div>
+`;
       
 
 
@@ -103056,25 +103146,40 @@ details.innerHTML += `
   <div style="margin-bottom:6px;">
     <strong>Wrong Moves:</strong>
     ${
-      Array.isArray(answer.tries)
-        ? answer.tries.reduce(
-            (total, attemptLine) => {
+      (() => {
 
-              const isFinalCorrect =
-                attemptLine.join(" ").trim() ===
-                (answer.correct_move || "").trim();
+        const wrongMoves =
+          Array.isArray(answer.tries)
+            ? answer.tries.reduce(
+                (total, attemptLine) => {
 
-              return total +
-                (
-                  isFinalCorrect
-                    ? 0
-                    : 1
-                );
+                  const isFinalCorrect =
+                    Array.isArray(attemptLine) &&
+                    attemptLine.join(" ").trim() ===
+                    (answer.correct_move || "").trim();
 
-            },
-            0
-          )
-        : 0
+                  return total +
+                    (
+                      isFinalCorrect
+                        ? 0
+                        : 1
+                    );
+
+                },
+                0
+              )
+            : 0;
+
+        return `
+          <span style="
+            color:#ef4444;
+            font-weight:900;
+          ">
+            ${wrongMoves}
+          </span>
+        `;
+
+      })()
     }
   </div>
 `;
@@ -103101,17 +103206,39 @@ details.innerHTML += `
             if (
               !Array.isArray(successfulTry)
             ) {
-              return 0;
+              return `
+                <span style="
+                  color:#4ade80;
+                  font-weight:900;
+                ">0</span>
+              `;
             }
 
             // Count ONLY student's moves.
-            return successfulTry.filter(
-              (_, moveIndex) =>
-                moveIndex % 2 === 0
-            ).length;
+            const correctMoves =
+              successfulTry.filter(
+                (_, moveIndex) =>
+                  moveIndex % 2 === 0
+              ).length;
+
+            return `
+              <span style="
+                color:#4ade80;
+                font-weight:900;
+              ">
+                ${correctMoves}
+              </span>
+            `;
 
           })()
-        : 0
+        : `
+          <span style="
+            color:#4ade80;
+            font-weight:900;
+          ">
+            0
+          </span>
+        `
     }
   </div>
 `;
@@ -103124,17 +103251,54 @@ details.innerHTML += `
     margin-bottom:6px;
     font-weight:800;
   ">
-    <strong style="color:#facc15;">Coach Marks:</strong>
+    <strong style="color:#ffffff;">Coach Marks:</strong>
     ${
       Number.isFinite(Number(answer.marks)) &&
       Number(answer.marks) >= 1 &&
       Number(answer.marks) <= 10
-        ? `<span style="color:#4ade80;font-weight:900;">
-             ${Number(answer.marks)} / 10
-           </span>`
-        : `<span style="color:#94a3b8;font-weight:700;">
-             Not graded / 10
-           </span>`
+        ? (() => {
+            const marks = Number(answer.marks);
+
+            let markColor;
+
+            if (marks < 5) {
+              // 1.0 – 4.9 → RED
+              markColor = "#ef4444";
+            } else if (marks < 8) {
+              // 5.0 – 7.9 → DEEP YELLOW
+              markColor = "#eab308";
+            } else {
+              // 8.0 – 10.0 → GREEN
+              markColor = "#22c55e";
+            }
+
+            return `
+              <span style="
+                color:${markColor};
+                font-weight:900;
+              ">
+                ${marks}
+              </span>
+              <span style="
+                color:#ffffff;
+                font-weight:900;
+              ">
+                / 10
+              </span>
+            `;
+          })()
+        : `<span style="
+            color:#94a3b8;
+            font-weight:700;
+          ">
+            Not graded
+          </span>
+          <span style="
+            color:#ffffff;
+            font-weight:900;
+          ">
+            / 10
+          </span>`
     }
   </div>
 `;
