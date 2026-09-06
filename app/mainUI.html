@@ -31777,6 +31777,31 @@ transform: translateY(-50%);
   }
 }
 
+/* ============================================
+   👇 MY RESULTS MESSAGE CONTINUOUS BOUNCE
+============================================ */
+
+@keyframes myResultsMessageBounce {
+  0% {
+    transform: translateY(0);
+  }
+
+  25% {
+    transform: translateY(-4px);
+  }
+
+  50% {
+    transform: translateY(0);
+  }
+
+  75% {
+    transform: translateY(-4px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
   </style>
 </head>
 <body>
@@ -56535,17 +56560,20 @@ async function loadStudentProgress() {
 
   list.innerHTML = "<p class='muted'>Loading progress...</p>";
 
-  const { data, error } = await supabase
-    .from("attempts")
-    .select(`
-  assignment_id,
-  time_spent,
-  is_correct,
-  submitted_at,
+ const { data, error } = await supabase 
+  .from("attempts") 
+  .select(` 
+  id,
+  assignment_id, 
+  time_spent, 
+  is_correct, 
+  submitted_at, 
   grade_letter,
-  bulk_answers,  
-  assignments ( title )
-`)
+  graded_at,
+  grade_seen_at,
+  bulk_answers,   
+  assignments ( title ) 
+`) 
     .eq("student_id", currentUser.id)
     .order("submitted_at", { ascending: false });
 
@@ -56576,7 +56604,12 @@ async function loadStudentProgress() {
     time: row.time_spent,
     lastPlayed: row.submitted_at,
     grade: row.grade_letter || null,
-     // ✅ ADD THIS
+
+    // 🟢 ADMIN GRADING STATUS
+    gradedAt: row.graded_at || null,
+    gradeSeenAt: row.grade_seen_at || null,
+
+    // 🎯 BULK PUZZLE DATA
     bulk_answers: row.bulk_answers || null
   };
 }
@@ -56683,11 +56716,47 @@ orderedProgress.forEach(p => {
     getCorrectPuzzleStats(
       p.bulk_answers
     );
+    const showCheckedBadge =
+  Boolean(p.gradedAt) &&
+  !p.gradeSeenAt;
 
   list.innerHTML += `
     <div class="progress-item">
 
-      <strong>${p.title}</strong>
+     <div style="
+  display:flex;
+  align-items:center;
+  gap:3px;
+  flex-wrap:wrap;
+">
+  <strong>${p.title}</strong>
+
+  ${
+    showCheckedBadge
+      ? `
+        <span style="
+          display:inline-flex;
+          align-items:center;
+          gap:4px;
+          
+          padding:3px 8px;
+          border-radius:999px;
+          background:rgba(34,197,94,0.14);
+          border:1px solid rgba(74,222,128,0.55);
+          color:#4ade80;
+          font-size:13px;
+          font-weight:900;
+          line-height:1;
+          white-space:nowrap;
+          box-shadow:0 1px 5px rgba(34,197,94,0.18);
+          animation:myResultsMessageBounce 1.8s ease-in-out infinite;
+        ">
+          👇👇 Click "My Results" to See Marks
+        </span>
+      `
+      : ""
+  }
+</div>
 
       <div class="progress-meta">
 
@@ -100795,7 +100864,142 @@ PGN_VIEWER.annotationHistory = [];
 PGN_VIEWER.moveObjectHistory = [];
 };
 
+// ============================================================
+// 🟢 MARK STUDENT ASSIGNMENT GRADE AS SEEN
+// ============================================================
 
+async function markStudentAssignmentGradeSeen(assignmentId) {
+
+  const studentId =
+    currentUser?.id ||
+    currentProfile?.id;
+
+  if (!studentId || !assignmentId) {
+    return;
+  }
+
+  try {
+
+    // ----------------------------------------------------------
+    // Find the latest graded attempt for this assignment
+    // ----------------------------------------------------------
+
+    const {
+      data: gradedAttempt,
+      error: findError
+    } = await supabase
+
+      .from("attempts")
+
+      .select(`
+        id,
+        grade_seen_at,
+        graded_at
+      `)
+
+      .eq(
+        "assignment_id",
+        assignmentId
+      )
+
+      .eq(
+        "student_id",
+        studentId
+      )
+
+      .not(
+        "graded_at",
+        "is",
+        null
+      )
+
+      .order(
+        "graded_at",
+        {
+          ascending: false
+        }
+      )
+
+      .limit(1)
+
+      .maybeSingle();
+
+
+    if (findError) {
+      console.error(
+        "❌ Failed to find graded attempt:",
+        findError
+      );
+
+      return;
+    }
+
+
+    // ----------------------------------------------------------
+    // Nothing graded yet
+    // ----------------------------------------------------------
+
+    if (!gradedAttempt) {
+      return;
+    }
+
+
+    // ----------------------------------------------------------
+    // Already seen — nothing to update
+    // ----------------------------------------------------------
+
+    if (gradedAttempt.grade_seen_at) {
+      return;
+    }
+
+
+    // ----------------------------------------------------------
+    // Mark the grade as seen
+    // ----------------------------------------------------------
+
+    const {
+      error: updateError
+    } = await supabase
+
+      .from("attempts")
+
+      .update({
+        grade_seen_at:
+          new Date().toISOString()
+      })
+
+      .eq(
+        "id",
+        gradedAttempt.id
+      );
+
+
+    if (updateError) {
+
+      console.error(
+        "❌ Failed to mark grade as seen:",
+        updateError
+      );
+
+      return;
+    }
+
+
+    console.log(
+      "✅ Assignment grade marked as seen:",
+      assignmentId
+    );
+
+  } catch (error) {
+
+    console.error(
+      "❌ markStudentAssignmentGradeSeen failed:",
+      error
+    );
+
+  }
+
+}
 /* ============================================
    🔥 STUDENT MY RESULTS BUTTON HANDLER
    Results available only after Admin grading
@@ -101137,6 +101341,12 @@ overlay.addEventListener(
 
 return;
       }
+
+      // ======================================================
+// ✅ GRADED — MARK RESULT AS SEEN
+// ======================================================
+
+await markStudentAssignmentGradeSeen(id);
 
       // ======================================================
       // ✅ GRADED — OPEN EXISTING RESULTS
