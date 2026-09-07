@@ -71673,6 +71673,99 @@ Object.assign(
               </strong>
 
             </div>
+            <div style="
+  margin-top:8px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+  font-size:12px;
+  color:#cbd5e1;
+  white-space:nowrap;
+">
+
+<span style="
+  font-weight:800;
+">Add Marks:</span>
+
+<button
+  id="autoCoachMarks-${answer.index}"
+  type="button"
+  style="
+    height:26px;
+    padding:2px 8px;
+    border:1px solid rgba(96,165,250,0.55);
+    border-radius:6px;
+    background:rgba(59,130,246,0.18);
+    color:#93c5fd;
+    font-size:11px;
+    font-weight:900;
+    cursor:pointer;
+    white-space:nowrap;
+    box-sizing:border-box;
+  "
+>Auto Marks</button>
+
+  <input
+    id="coachMarksInput-${answer.index}"
+    type="number"
+    min="1"
+    max="10"
+    step="1"
+    value="${(
+      Number.isFinite(Number(answer.marks)) &&
+      Number(answer.marks) >= 1 &&
+      Number(answer.marks) <= 10
+    ) ? Number(answer.marks) : ""}"
+    placeholder=""
+    style="
+      width:52px;
+      height:26px;
+      padding:2px 5px;
+      border:1px solid rgba(148,163,184,0.45);
+      border-radius:6px;
+      background:rgba(15,23,42,0.75);
+      color:#fff;
+      font-size:12px;
+      font-weight:800;
+      text-align:center;
+      outline:none;
+      box-sizing:border-box;
+    "
+  >
+
+  <span style="
+    font-weight:800;
+    color:#94a3b8;
+  ">/ 10</span>
+
+  <button
+    id="saveCoachMarks-${answer.index}"
+    type="button"
+    style="
+      height:26px;
+      padding:2px 9px;
+      border:none;
+      border-radius:6px;
+      background:#22c55e;
+      color:#052e16;
+      font-size:11px;
+      font-weight:900;
+      cursor:pointer;
+      white-space:nowrap;
+    "
+  >Save</button>
+
+  <span
+    id="coachMarksStatus-${answer.index}"
+    style="
+      font-size:11px;
+      font-weight:700;
+      color:#86efac;
+    "
+  ></span>
+
+</div>
 
 
             <div style="
@@ -71970,81 +72063,7 @@ Object.assign(
                   Attempt History
                 </strong>
 
-               <div style="
-  margin-top:8px;
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  gap:6px;
-  font-size:12px;
-  color:#cbd5e1;
-  white-space:nowrap;
-">
-
-  <span style="
-    font-weight:800;
-  ">Add Marks:</span>
-
-  <input
-    id="coachMarksInput-${answer.index}"
-    type="number"
-    min="1"
-    max="10"
-    step="1"
-    value="${(
-      Number.isFinite(Number(answer.marks)) &&
-      Number(answer.marks) >= 1 &&
-      Number(answer.marks) <= 10
-    ) ? Number(answer.marks) : ""}"
-    placeholder=""
-    style="
-      width:52px;
-      height:26px;
-      padding:2px 5px;
-      border:1px solid rgba(148,163,184,0.45);
-      border-radius:6px;
-      background:rgba(15,23,42,0.75);
-      color:#fff;
-      font-size:12px;
-      font-weight:800;
-      text-align:center;
-      outline:none;
-      box-sizing:border-box;
-    "
-  >
-
-  <span style="
-    font-weight:800;
-    color:#94a3b8;
-  ">/ 10</span>
-
-  <button
-    id="saveCoachMarks-${answer.index}"
-    type="button"
-    style="
-      height:26px;
-      padding:2px 9px;
-      border:none;
-      border-radius:6px;
-      background:#22c55e;
-      color:#052e16;
-      font-size:11px;
-      font-weight:900;
-      cursor:pointer;
-      white-space:nowrap;
-    "
-  >Save</button>
-
-  <span
-    id="coachMarksStatus-${answer.index}"
-    style="
-      font-size:11px;
-      font-weight:700;
-      color:#86efac;
-    "
-  ></span>
-
-</div>
+               
 
 
                 <!-- ============================================= -->
@@ -72354,6 +72373,72 @@ if (
     }
   );
 
+}
+// ==========================================
+// 🤖 AUTO MARKS
+// Calculates marks from existing Wrong Moves
+// and saves through the existing Save button.
+// ==========================================
+
+const autoCoachMarksButton =
+  document.getElementById(
+    `autoCoachMarks-${answer.index}`
+  );
+
+if (
+  autoCoachMarksButton &&
+  coachMarksInput &&
+  saveCoachMarksButton
+) {
+  autoCoachMarksButton.addEventListener(
+    "click",
+    function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Use the EXACT same wrong-attempt
+      // calculation already used by Wrong Moves.
+      const wrongCount =
+        Array.isArray(answer.tries)
+          ? answer.tries.reduce(
+              (total, attemptLine) => {
+
+                const isFinalCorrect =
+                  Array.isArray(attemptLine) &&
+                  attemptLine.join(" ").trim() ===
+                  (answer.correct_move || "").trim();
+
+                return total +
+                  (isFinalCorrect ? 0 : 1);
+
+              },
+              0
+            )
+          : 0;
+
+      // 0 wrong  = 10
+      // 1 wrong  = 9
+      // 2 wrong  = 8
+      // ...
+      // 9 wrong  = 1
+      // 10+ wrong = 1
+      const marks =
+        Math.max(
+          1,
+          10 - wrongCount
+        );
+
+      // Put the calculated marks
+      // directly into the existing input.
+      coachMarksInput.value =
+        String(marks);
+
+      // Immediately use the existing Save
+      // button so the same Supabase logic
+      // handles the update.
+      saveCoachMarksButton.click();
+    }
+  );
 }
 
               const idx =
@@ -73576,27 +73661,247 @@ function renderStudentHistory() {
       document.createElement("div");
 
 
-    Object.assign(
-      footer.style,
-      {
+   Object.assign(
+  footer.style,
+  {
 
-        padding:
-          "10px 16px",
+    padding:
+      "10px 16px",
 
-        borderTop:
-          "1px solid rgba(255,255,255,0.10)",
+    borderTop:
+      "1px solid rgba(255,255,255,0.10)",
 
-        display:
-          "flex",
+    display:
+      "flex",
 
-        justifyContent:
-          "flex-end",
+    justifyContent:
+      "space-between",
 
-        flexShrink:
-          "0"
+    alignItems:
+      "center",
 
+    flexShrink:
+      "0"
+
+  }
+);
+// ========================================================
+// 🤖 GLOBAL AUTO MARKS BUTTON
+// ========================================================
+
+const autoMarksGlobalButton =
+  document.createElement("button");
+
+autoMarksGlobalButton.type =
+  "button";
+
+autoMarksGlobalButton.textContent =
+  "Auto Marks Global";
+
+Object.assign(
+  autoMarksGlobalButton.style,
+  {
+
+    padding:
+      "8px 14px",
+
+    borderRadius:
+      "8px",
+
+    border:
+      "1px solid #60a5fa",
+
+    background:
+      "#1e3a8a",
+
+    color:
+      "#ffffff",
+
+    fontSize:
+      "13px",
+
+    fontWeight:
+      "800",
+
+    cursor:
+      "pointer"
+
+  }
+);
+
+footer.appendChild(
+  autoMarksGlobalButton
+);
+
+// ========================================================
+// 🤖 GLOBAL AUTO MARKS LOGIC
+// ========================================================
+
+autoMarksGlobalButton.onclick =
+  async () => {
+
+    if (
+      !Array.isArray(
+        attempt.bulk_answers
+      )
+    ) {
+      return;
+    }
+
+    autoMarksGlobalButton.disabled =
+      true;
+
+    autoMarksGlobalButton.style.opacity =
+      "0.6";
+
+    autoMarksGlobalButton.textContent =
+      "Calculating...";
+
+    try {
+
+      // ----------------------------------------------------
+      // Calculate marks for EVERY puzzle
+      // using the exact same pipeline as individual Auto Marks.
+      // ----------------------------------------------------
+
+      const updatedBulkAnswers =
+        attempt.bulk_answers.map(
+          answer => {
+
+            const wrongCount =
+              Array.isArray(answer.tries)
+                ? answer.tries.reduce(
+                    (
+                      total,
+                      attemptLine
+                    ) => {
+
+                      const isFinalCorrect =
+                        Array.isArray(
+                          attemptLine
+                        ) &&
+                        attemptLine
+                          .join(" ")
+                          .trim() ===
+                        (
+                          answer.correct_move ||
+                          ""
+                        )
+                          .trim();
+
+                      return total +
+                        (
+                          isFinalCorrect
+                            ? 0
+                            : 1
+                        );
+
+                    },
+                    0
+                  )
+                : 0;
+
+            const marks =
+              Math.max(
+                1,
+                10 - wrongCount
+              );
+
+            return {
+              ...answer,
+              marks:
+                marks
+            };
+
+          }
+        );
+
+      // ----------------------------------------------------
+      // Save ALL puzzle marks together
+      // ----------------------------------------------------
+
+      const {
+        error:
+          updateError
+      } = await supabase
+        .from("attempts")
+        .update({
+          bulk_answers:
+            updatedBulkAnswers
+        })
+        .eq(
+          "id",
+          attempt.id
+        );
+
+      if (updateError) {
+        throw updateError;
       }
-    );
+
+      // Keep the in-memory attempt
+      // synchronized with Supabase.
+      attempt.bulk_answers =
+        updatedBulkAnswers;
+
+      // ----------------------------------------------------
+      // Update every visible marks input
+      // ----------------------------------------------------
+
+      updatedBulkAnswers.forEach(
+        answer => {
+
+          const input =
+            document.getElementById(
+              `coachMarksInput-${answer.index}`
+            );
+
+          if (input) {
+            input.value =
+              String(
+                answer.marks
+              );
+          }
+
+        }
+      );
+
+      autoMarksGlobalButton.textContent =
+        "Saved ✓";
+
+      autoMarksGlobalButton.style.opacity =
+        "1";
+
+    } catch (error) {
+
+      console.error(
+        "❌ Global Auto Marks failed:",
+        error
+      );
+
+      autoMarksGlobalButton.textContent =
+        "Save failed";
+
+      autoMarksGlobalButton.style.opacity =
+        "1";
+
+    } finally {
+
+      setTimeout(
+        () => {
+
+          autoMarksGlobalButton.disabled =
+            false;
+
+          autoMarksGlobalButton.textContent =
+            "Auto Marks Global";
+
+        },
+        1200
+      );
+
+    }
+
+  };
 
 
     const doneButton =
@@ -73788,13 +74093,13 @@ function renderStudentHistory() {
 function getFriendlyGradeLabel(grade) {
 
 const labels = {
-  "AA": "🏆 WOW, You're a SUPERSTAR!, Grade = AA, Marks = 100/100",
-  "A+": "⭐ Fantastic Job!, Grade = A+, Marks = 90/100",
-  "A":  "🎉 Great Work!, Grade = A, Marks = 80/100",
-  "B+": "😊 Well Done! Keep Going!, Grade = B+, Marks = 65/100",
-  "B":  "🙂 Good Try! You Can Do It!, Grade = B, Marks = 50/100",
-  "C+": "👍🏻 Almost There! Try Again!, Grade = C+, Marks = 35/100",
-  "C":  "👌🏻 Keep Practicing! You'll Get It!, Try Again!, Grade = C, Marks = 20/100"
+  "AA": "🥇 Perfect!, Well Played!, Grade = AA, Marks = 100/100",
+  "A+": "🥈 Fantastic, Nice Played!, Grade = A+, Marks = 90/100",
+  "A":  "🥉 Great Work!, Good Played!, Grade = A, Marks = 80/100",
+  "B+": "🏅 Well Done! Keep Going!, Grade = B+, Marks = 65/100",
+  "B":  "🎖️ Good Try!, You Can Do It!, Grade = B, Marks = 50/100",
+  "C+": "👏 Almost There! Try Again!, Grade = C+, Marks = 35/100",
+  "C":  "👌🏻 Keep Practicing!, Try Again!, Grade = C, Marks = 20/100"
 };
 
   return labels[grade] || "";
