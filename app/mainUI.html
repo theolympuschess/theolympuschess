@@ -1491,7 +1491,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 2147483647!important;
 }
 
 .modal-overlay.hidden {
@@ -44386,6 +44386,7 @@ if (profile.role === "admin") {
 if (profile.role === "student") {
   await loadStudentProgress();
   startStudentGradeRealtime();
+   await startStudentAccountStatusRealtime();
 }
 // 🔒 Hide Upload PGN for Students
 if (profile.role === "student") {
@@ -56942,6 +56943,205 @@ function startStudentGradeRealtime() {
 
         }
       );
+}
+
+// ============================================================
+// 🚫 STUDENT — ACCOUNT STATUS REALTIME
+// Immediately detect when an admin activates/deactivates
+// the currently logged-in student's account.
+// ============================================================
+
+let studentAccountStatusRealtimeChannel = null;
+
+function startStudentAccountStatusRealtime() {
+
+  return new Promise((resolve, reject) => {
+
+    // ==========================================================
+    // STUDENTS ONLY
+    // ==========================================================
+
+    if (currentProfile?.role !== "student") {
+      resolve();
+      return;
+    }
+
+    // ==========================================================
+    // PREVENT DUPLICATE SUBSCRIPTIONS
+    // ==========================================================
+
+    if (studentAccountStatusRealtimeChannel) {
+      resolve();
+      return;
+    }
+
+    const studentId = currentProfile.id;
+
+    // ==========================================================
+    // CREATE DEDICATED ACCOUNT STATUS CHANNEL
+    // ==========================================================
+
+    studentAccountStatusRealtimeChannel =
+      supabase
+        .channel(
+          `olympus-student-account-status-${studentId}`
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${studentId}`
+          },
+          async (payload) => {
+
+            console.log(
+              "🚨 Student account status changed:",
+              payload.new
+            );
+
+            // ==================================================
+            // ACCOUNT DEACTIVATED
+            // ==================================================
+
+            if (payload.new?.active === false) {
+
+              console.log(
+                "🚫 ACCOUNT DEACTIVATED — SIGNING OUT STUDENT"
+              );
+
+              // Prevent duplicate handling
+              const channel =
+                studentAccountStatusRealtimeChannel;
+
+              studentAccountStatusRealtimeChannel = null;
+
+              // Stop realtime listener
+              if (channel) {
+
+                try {
+
+                  await supabase.removeChannel(
+                    channel
+                  );
+
+                } catch (channelError) {
+
+                  console.error(
+                    "❌ Error removing account status channel:",
+                    channelError
+                  );
+
+                }
+              }
+
+              // =================================================
+              // SHOW DEACTIVATION MESSAGE
+              // =================================================
+
+showModal(
+  "⚠️ Account Alert!",
+  "<p>There seems to be a problem with your account.<br>Please contact the administrator.</p>",
+  () => {
+    window.location.href = "login.html";
+  }
+);
+
+              // =================================================
+              // SIGN OUT IMMEDIATELY
+              // =================================================
+
+              try {
+
+                const {
+                  error: signOutError
+                } = await supabase.auth.signOut();
+
+                if (signOutError) {
+
+                  console.error(
+                    "❌ Student sign-out error:",
+                    signOutError
+                  );
+
+                }
+
+              } catch (signOutException) {
+
+                console.error(
+                  "❌ Student sign-out exception:",
+                  signOutException
+                );
+
+              }
+
+              
+            }
+          }
+        )
+        .subscribe(
+          (status) => {
+
+            console.log(
+              "🚫 Student account status realtime:",
+              status
+            );
+
+            // ==================================================
+            // LOADING GATE — REALTIME IS READY
+            // ==================================================
+
+            if (status === "SUBSCRIBED") {
+
+              console.log(
+                "✅ Student account status realtime SUBSCRIBED"
+              );
+
+              resolve();
+
+              return;
+            }
+
+            // ==================================================
+            // SUBSCRIPTION ERROR
+            // ==================================================
+
+            if (
+              status === "CHANNEL_ERROR" ||
+              status === "TIMED_OUT"
+            ) {
+
+              console.error(
+                "❌ Student account status realtime failed:",
+                status
+              );
+
+              const failedChannel =
+                studentAccountStatusRealtimeChannel;
+
+              studentAccountStatusRealtimeChannel =
+                null;
+
+              if (failedChannel) {
+
+                supabase
+                  .removeChannel(
+                    failedChannel
+                  )
+                  .catch(() => {});
+
+              }
+
+              reject(
+                new Error(
+                  `Student account status realtime failed: ${status}`
+                )
+              );
+            }
+          }
+        );
+  });
 }
 
 
@@ -150627,7 +150827,7 @@ document.addEventListener("DOMContentLoaded", startApp);
 <!-- Floating Modal -->
 <div id="floatingModal" class="modal-overlay hidden">
   <div class="modal-card">
-    <h3 id="modalTitle">Title</h3>
+    <h3 id="modalTitle">⚠️ Alert</h3>
     <p id="modalBody">Message</p>
     <button id="modalOkBtn" class="btn-success">OK</button>
   </div>
