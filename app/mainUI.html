@@ -31802,6 +31802,28 @@ transform: translateY(-50%);
     transform: translateY(0);
   }
 }
+
+
+/* ==========================================
+   ACTION LOADING BAR ANIMATION
+   ========================================== */
+
+@keyframes actionLoadingPulse {
+  0% {
+    transform: translateX(-30%);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: translateX(0%);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(30%);
+    opacity: 0.55;
+  }
+}
   </style>
 </head>
 <body>
@@ -31933,7 +31955,71 @@ transform: translateY(-50%);
 
 </div>
 
+<!-- ==========================================
+     ACTION LOADING OVERLAY
+     Used for long-running Study operations:
+     Save / Update / Delete / Assign
+     
+     IMPORTANT:
+     This is separate from the startup Welcome Gate.
+     ========================================== -->
+<div id="actionLoadingOverlay" class="welcome-overlay">
 
+  <div class="welcome-card">
+
+    <h3 id="actionLoadingTitle">
+      Please wait...
+    </h3>
+
+    <p id="actionLoadingMessage">
+      Processing...
+    </p>
+
+    <div
+      style="
+        margin-top:16px;
+        width:100%;
+      "
+    >
+
+      <div style="
+        width:100%;
+        height:14px;
+        background:rgba(255,255,255,.15);
+        border-radius:999px;
+        overflow:hidden;
+      ">
+
+        <div
+          id="actionLoadingFill"
+          style="
+            height:100%;
+            width:100%;
+            background:#4ade80;
+            border-radius:999px;
+            animation: actionLoadingPulse 1.2s ease-in-out infinite;
+          "
+        ></div>
+
+      </div>
+
+      <div
+        id="actionLoadingStatus"
+        style="
+          margin-top:8px;
+          font-size:12px;
+          opacity:.8;
+          text-align:center;
+        "
+      >
+        Working...
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
 
 <!-- Floating Drawing Toolbox -->
 <div id="drawToolbox" class="draw-toolbox hidden">
@@ -56423,16 +56509,87 @@ window.deletePGNFromLibrary = function (pgnId) {
     "<p>Are you sure you want to delete this PGN?</p>",
     async () => {
 
-      const response = await supabase
-        .from("bulk_pgn_library")
-        .update({ is_active: false })
-        .eq("id", pgnId)
-        .select();
+      showActionLoading(
+        "Deleting PGN...",
+        "Removing the PGN and refreshing your library..."
+      );
 
-      console.log("DELETE RESPONSE:", response);
+      // Give the browser one rendering opportunity to
+      // display the loading overlay before the real operation starts.
+      await new Promise(resolve => requestAnimationFrame(resolve));
 
-      if (response.error) {
-        console.error(response.error);
+      try {
+
+        // ==========================================
+        // 🗑️ ACTUAL DELETE OPERATION
+        // ==========================================
+
+        const response = await supabase
+          .from("bulk_pgn_library")
+          .update({ is_active: false })
+          .eq("id", pgnId)
+          .select();
+
+        console.log("DELETE RESPONSE:", response);
+
+        if (response.error) {
+          console.error(response.error);
+
+          hideActionLoading();
+
+          showModal(
+            "❌ Error",
+            "<p>Delete failed.</p>"
+          );
+
+          setTimeout(closeModal, 2000);
+          return;
+        }
+
+        if (!response.data || response.data.length === 0) {
+
+          hideActionLoading();
+
+          showModal(
+            "⚠️ Warning",
+            "<p>No row updated.</p>"
+          );
+
+          setTimeout(closeModal, 2000);
+          return;
+        }
+
+        // ==========================================
+        // 🔄 REFRESH ALL AFFECTED UI
+        // ==========================================
+
+        await loadPGNLibrary();
+
+        await loadStudyDropdown();
+
+        // 🔥 LOAD SAVED STUDY AFTER LIBRARY REFRESH
+        if (typeof loadSavedStudyChapters === "function") {
+          await loadSavedStudyChapters();
+        }
+
+        // ==========================================
+        // ✅ OPERATION COMPLETELY FINISHED
+        // ==========================================
+
+        hideActionLoading();
+
+        showModal(
+          "✅ PGN Deleted",
+          "<p>The PGN has been deleted successfully.</p>"
+        );
+
+        setTimeout(closeModal, 1200);
+
+      } catch (err) {
+
+        console.error("❌ Delete PGN operation failed:", err);
+
+        hideActionLoading();
 
         showModal(
           "❌ Error",
@@ -56440,35 +56597,7 @@ window.deletePGNFromLibrary = function (pgnId) {
         );
 
         setTimeout(closeModal, 2000);
-        return;
       }
-
-      if (!response.data || response.data.length === 0) {
-        showModal(
-          "⚠️ Warning",
-          "<p>No row updated.</p>"
-        );
-        setTimeout(closeModal, 2000);
-        return;
-      }
-
-      // ✅ SUCCESS
-      showModal(
-        "✅ PGN Deleted",
-        "<p>The PGN has been deleted successfully.</p>"
-      );
-
- 
-
-      setTimeout(closeModal, 1200);
-
-      // 🔥 refresh WITHOUT await
-      loadPGNLibrary();
-      loadStudyDropdown();
-      // 🔥 LOAD SAVED STUDY AFTER PAGE LOAD
-if (typeof loadSavedStudyChapters === "function") {
-  loadSavedStudyChapters();
-}
 
     }
   );
@@ -60713,7 +60842,58 @@ if (variation.annotation) {
 
   return recurse(root, 1).trim();
 }
+// ==========================================
+// ⏳ ACTION LOADING OVERLAY
+// Used for long-running app actions only.
+// Separate from the startup Welcome Ready Gate.
+// ==========================================
 
+// ==========================================
+// ⏳ ACTION LOADING OVERLAY
+// GLOBAL FUNCTIONS
+// Used for long-running app actions only.
+// Separate from the startup Welcome Ready Gate.
+// ==========================================
+
+window.showActionLoading = function (
+  title = "Please wait...",
+  message = "Processing..."
+) {
+
+  const overlay = document.getElementById("actionLoadingOverlay");
+  const titleEl = document.getElementById("actionLoadingTitle");
+  const messageEl = document.getElementById("actionLoadingMessage");
+  const statusEl = document.getElementById("actionLoadingStatus");
+
+  if (!overlay) {
+    console.warn("⚠️ Action Loading Overlay not found.");
+    return;
+  }
+
+  if (titleEl) {
+    titleEl.textContent = title;
+  }
+
+  if (messageEl) {
+    messageEl.textContent = message;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = "Working...";
+  }
+
+  overlay.classList.add("active");
+};
+
+
+window.hideActionLoading = function () {
+
+  const overlay = document.getElementById("actionLoadingOverlay");
+
+  if (!overlay) return;
+
+  overlay.classList.remove("active");
+};
 // ============================================
 // 💾 SAVE STUDY (ALL CHAPTERS)
 // ============================================
@@ -60804,13 +60984,36 @@ if (studyState.studyId) {
     }
   }
 
+showActionLoading(
+  "Updating Study...",
+  "Saving your latest changes..."
+);
+
+let updateError = null;
+
+try {
+
   const { error } = await supabase
     .from("bulk_pgn_library")
     .update({
       pgn: combinedPgn,
-      title: newTitle   // 🔥 IMPORTANT ADD
+      title: newTitle
     })
     .eq("id", studyState.studyId);
+
+  updateError = error;
+
+} finally {
+
+  hideActionLoading();
+
+}
+
+if (updateError) {
+  console.error(updateError);
+  alert("❌ Study update failed.");
+  return;
+}
 
   if (error) {
     console.error(error);
@@ -60831,40 +61034,70 @@ await loadPGNLibrary();
   return;
 }
 
-  // =============================
+    // =============================
   // 🔵 CREATE NEW STUDY
   // =============================
 
   const studyTitle = prompt("Enter study name:");
+
   if (!studyTitle || !studyTitle.trim()) return;
 
-  const { data, error } = await supabase
-    .from("bulk_pgn_library")
-    .insert({
-      title: studyTitle.trim(),
-      pgn: combinedPgn,
-      source: "study",
-      created_by: user.id,
-      is_active: true
-    })
-    .select()
-    .single();
+  showActionLoading(
+    "Saving Study...",
+    "Creating your new study..."
+  );
 
-  if (error) {
-    console.error(error);
-    alert("❌ Study save failed.");
-    return;
+  // Allow the browser to paint the loading overlay
+  // before starting the actual operation.
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
+  let saveData = null;
+  let saveError = null;
+
+  try {
+
+    // ==========================================
+    // 💾 ACTUAL SUPABASE STUDY INSERT
+    // ==========================================
+
+    const result = await supabase
+      .from("bulk_pgn_library")
+      .insert({
+        title: studyTitle.trim(),
+        pgn: combinedPgn,
+        source: "study",
+        created_by: user.id,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    saveData = result.data;
+    saveError = result.error;
+
+    if (saveError) {
+      console.error(saveError);
+      alert("❌ Study save failed.");
+      return;
+    }
+
+    studyState.studyId = saveData.id;
+    currentStudyTitle = saveData.title;
+
+    // 🔄 Refresh Live Puzzle library
+    await loadLibraryDropdown();
+
+    // 🔄 Reload PGN library
+    await loadPGNLibrary();
+
+  } finally {
+
+    // Hide ONLY after the entire save + refresh process finishes
+    hideActionLoading();
+
   }
 
-  studyState.studyId = data.id;
-  currentStudyTitle = data.title;
-  // 🔄 Immediately refresh Live Puzzle library
-await loadLibraryDropdown();
-
-
-
   alert("✅ Study created and saved!");
-  await loadPGNLibrary();
 };
 // ============================================
 // ➕ CREATE NEW STUDY CHAPTER
@@ -86658,75 +86891,114 @@ mpArchiveSaved = true
 
 
 async function mpLoadArchive() {
-  console.log("Loading archive...")
 
-  const grid = document.getElementById('mpArchiveGrid')
-  grid.innerHTML = 'Loading...'
+  // ==========================================
+  // ⏳ SHOW LOADING SCREEN
+  // ==========================================
 
-  const { data, error } = await supabase
-  .from('live_match_archive')
-  .select('*')
-  .order('ended_at', { ascending: false })
-  .range(0, 50); // 🔥 fetch up to 10,000 rows
+  showActionLoading(
+    "Loading All Games...",
+    "Fetching archived games and preparing the boards..."
+  );
 
-  if (error || !data) {
-    grid.innerHTML = "Failed to load"
-    console.error(error)
-    return
-  }
+  // Give the browser one rendering opportunity
+  // so the loading overlay is visible before
+  // the actual archive-loading work begins.
+  await new Promise(resolve => requestAnimationFrame(resolve));
 
-  grid.innerHTML = ''
+  try {
 
-  data.forEach(g => {
+    console.log("Loading archive...");
 
-    const card = document.createElement('div')
-    card.className = 'mp-archive-card'
+    const grid = document.getElementById('mpArchiveGrid');
 
-    const boardDiv = document.createElement('div')
-    boardDiv.style.height = '120px'
+    grid.innerHTML = 'Loading...';
 
-    const names = document.createElement('div')
-    names.className = 'mp-archive-names'
-    names.textContent = `${g.white_name || 'White'} vs ${g.black_name || 'Black'}`
+    const { data, error } = await supabase
+      .from('live_match_archive')
+      .select('*')
+      .order('ended_at', { ascending: false })
+      .range(0, 50); // 🔥 fetch up to 10,000 rows
 
-    // 🏆 WINNER
-    const winnerDiv = document.createElement('div')
-    winnerDiv.className = 'mp-archive-winner'
-
-    if (g.winner === 'draw') {
-      winnerDiv.textContent = 'Draw'
-      winnerDiv.classList.add('draw')
-    } else if (g.winner === 'w') {
-      winnerDiv.textContent = `Winner: ${g.white_name || 'White'}`
-      winnerDiv.classList.add('white-win')
-    } else if (g.winner === 'b') {
-      winnerDiv.textContent = `Winner: ${g.black_name || 'Black'}`
-      winnerDiv.classList.add('black-win')
+    if (error || !data) {
+      grid.innerHTML = "Failed to load";
+      console.error(error);
+      return;
     }
 
-    // 📅 DATE
-    const dateDiv = document.createElement('div')
-    dateDiv.className = 'mp-archive-date'
-    dateDiv.textContent = formatLiveArchiveDate(g.ended_at)
+    grid.innerHTML = '';
 
-    // APPEND
-    card.appendChild(boardDiv)
-    card.appendChild(names)
-    card.appendChild(winnerDiv)
-    card.appendChild(dateDiv)
+    data.forEach(g => {
 
-    grid.appendChild(card)
+      const card = document.createElement('div');
+      card.className = 'mp-archive-card';
 
-    // MINI BOARD
-    Chessboard(boardDiv, {
-      position: g.final_fen,
-      draggable: false,
-      pieceTheme: getPieceThemePath(currentPieceTheme)
-    })
+      const boardDiv = document.createElement('div');
+      boardDiv.style.height = '120px';
 
-    // CLICK → REPLAY
-    card.onclick = () => mpOpenReplay(g)
-  })
+      const names = document.createElement('div');
+      names.className = 'mp-archive-names';
+      names.textContent =
+        `${g.white_name || 'White'} vs ${g.black_name || 'Black'}`;
+
+      // 🏆 WINNER
+      const winnerDiv = document.createElement('div');
+      winnerDiv.className = 'mp-archive-winner';
+
+      if (g.winner === 'draw') {
+
+        winnerDiv.textContent = 'Draw';
+        winnerDiv.classList.add('draw');
+
+      } else if (g.winner === 'w') {
+
+        winnerDiv.textContent =
+          `Winner: ${g.white_name || 'White'}`;
+
+        winnerDiv.classList.add('white-win');
+
+      } else if (g.winner === 'b') {
+
+        winnerDiv.textContent =
+          `Winner: ${g.black_name || 'Black'}`;
+
+        winnerDiv.classList.add('black-win');
+      }
+
+      // 📅 DATE
+      const dateDiv = document.createElement('div');
+      dateDiv.className = 'mp-archive-date';
+      dateDiv.textContent = formatLiveArchiveDate(g.ended_at);
+
+      // APPEND
+      card.appendChild(boardDiv);
+      card.appendChild(names);
+      card.appendChild(winnerDiv);
+      card.appendChild(dateDiv);
+
+      grid.appendChild(card);
+
+      // MINI BOARD
+      Chessboard(boardDiv, {
+        position: g.final_fen,
+        draggable: false,
+        pieceTheme: getPieceThemePath(currentPieceTheme)
+      });
+
+      // CLICK → REPLAY
+      card.onclick = () => mpOpenReplay(g);
+
+    });
+
+  } finally {
+
+    // ==========================================
+    // ✅ ARCHIVE LOADING COMPLETELY FINISHED
+    // ==========================================
+
+    hideActionLoading();
+
+  }
 }
 
 
@@ -92863,65 +93135,102 @@ function formatVsGameDate(dateString) {
 }
 
 async function loadVsBotHistory() {
-  const { data, error } = await supabase
-  .from("vs_bot_games")
-  .select("id, pgn, result, student_name, bot_name, difficulty, created_at, player_color")
-  .order("created_at", { ascending: false })
-  .range(0, 50); // 🔥 REMOVE LIMIT, FETCH ALL
 
-  if (error) {
-    console.error(error);
-    return;
-  }
+  // ==========================================
+  // ⏳ SHOW LOADING SCREEN
+  // ==========================================
 
-  const grid = document.getElementById("vsHistoryGrid");
-  grid.innerHTML = "";
+  showActionLoading(
+    "Loading Game History...",
+    "Fetching your games and preparing the history..."
+  );
 
-  data.forEach(game => {
-    // ♟️ Build final position from PGN
-    const replayChess = new Chess();
-    replayChess.load_pgn(game.pgn);
-    const finalFen = replayChess.fen();
+  // Give the browser one rendering opportunity
+  // so the loading overlay is visible before
+  // the actual history-loading work begins.
+  await new Promise(resolve => requestAnimationFrame(resolve));
 
-    const card = document.createElement("div");
-    card.className = "vs-history-card";
+  try {
 
-card.innerHTML = `
-  <div class="vs-mini-board" id="mini-${game.id}"></div>
+    // ==========================================
+    // 📚 LOAD GAME HISTORY
+    // ==========================================
 
-  <div class="vs-history-meta">
-   <div class="vs-history-player">
-  ${game.student_name} (${game.player_color === "white" ? "White" : "Black"})
-</div>
+    const { data, error } = await supabase
+      .from("vs_bot_games")
+      .select("id, pgn, result, student_name, bot_name, difficulty, created_at, player_color")
+      .order("created_at", { ascending: false })
+      .range(0, 50); // 🔥 REMOVE LIMIT, FETCH ALL
 
+    if (error) {
+      console.error(error);
+      return;
+    }
 
-    <div class="vs-history-bot">
-      vs ${game.bot_name} (${game.difficulty})
-    </div>
+    const grid = document.getElementById("vsHistoryGrid");
 
-    <div class="vs-history-result ${game.result}">
-      ${game.result.toUpperCase()}
-    </div>
+    grid.innerHTML = "";
 
-    <div class="vs-history-date">
-      ${formatVsGameDate(game.created_at)}
-    </div>
-  </div>
-`;
+    data.forEach(game => {
 
+      // ♟️ Build final position from PGN
+      const replayChess = new Chess();
 
-    card.onclick = () => openVsReplay(game)
-;
+      replayChess.load_pgn(game.pgn);
 
-    grid.appendChild(card);
+      const finalFen = replayChess.fen();
 
-    Chessboard(`mini-${game.id}`, {
-      position: finalFen,               // ✅ FINAL POSITION
-      pieceTheme: getPieceThemePath(currentPieceTheme),
-      draggable: false,
-      showNotation: false
+      const card = document.createElement("div");
+
+      card.className = "vs-history-card";
+
+      card.innerHTML = `
+        <div class="vs-mini-board" id="mini-${game.id}"></div>
+
+        <div class="vs-history-meta">
+
+          <div class="vs-history-player">
+            ${game.student_name}
+            (${game.player_color === "white" ? "White" : "Black"})
+          </div>
+
+          <div class="vs-history-bot">
+            vs ${game.bot_name} (${game.difficulty})
+          </div>
+
+          <div class="vs-history-result ${game.result}">
+            ${game.result.toUpperCase()}
+          </div>
+
+          <div class="vs-history-date">
+            ${formatVsGameDate(game.created_at)}
+          </div>
+
+        </div>
+      `;
+
+      card.onclick = () => openVsReplay(game);
+
+      grid.appendChild(card);
+
+      Chessboard(`mini-${game.id}`, {
+        position: finalFen,
+        pieceTheme: getPieceThemePath(currentPieceTheme),
+        draggable: false,
+        showNotation: false
+      });
+
     });
-  });
+
+  } finally {
+
+    // ==========================================
+    // ✅ HISTORY LOADING COMPLETELY FINISHED
+    // ==========================================
+
+    hideActionLoading();
+
+  }
 }
 
 
