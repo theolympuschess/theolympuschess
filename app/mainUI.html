@@ -95504,13 +95504,17 @@ function listenForRealtimeChanges() {
 
   supabase
     .channel("global-lock-channel")
-    .on("postgres_changes", {
+    .on(
+      "postgres_changes",
+      {
         event: "UPDATE",
         schema: "public",
         table: "class_settings"
       },
       payload => {
+
         globalClassLocked = payload.new.class_locked;
+
         applyLockToStudentUI();
       }
     )
@@ -95518,31 +95522,140 @@ function listenForRealtimeChanges() {
 
 
   // =========================
-  // INDIVIDUAL LOCK LISTENER
-  // (NO FILTER — WE CHECK MANUALLY)
+  // PROFILE LISTENER
+  // Handles:
+  // 1. Individual lock changes
+  // 2. Student activation
+  // 3. Student deactivation
   // =========================
 
   supabase
     .channel("profile-lock-channel")
-    .on("postgres_changes", {
+    .on(
+      "postgres_changes",
+      {
         event: "UPDATE",
         schema: "public",
         table: "profiles"
       },
       payload => {
 
-        // Only react if THIS student was updated
+        // =========================================
+        // CURRENT USER — INDIVIDUAL LOCK
+        // =========================================
+
         if (payload.new.id === currentUserId) {
 
           individualLocked = payload.new.ui_locked;
-          applyLockToStudentUI();
 
+          applyLockToStudentUI();
+        }
+
+
+        // =========================================
+        // ADMIN — LIVE LOCK DROPDOWN UPDATE
+        // =========================================
+
+        if (currentUserRole === "admin") {
+
+          const select =
+            document.getElementById("lockStudentSelect");
+
+          if (!select) return;
+
+
+          const studentId = payload.new.id;
+
+
+          // =========================================
+          // STUDENT DEACTIVATED
+          // Remove immediately from dropdown
+          // =========================================
+
+          if (
+            payload.new.role === "student" &&
+            payload.new.active === false
+          ) {
+
+            const option =
+              select.querySelector(
+                `option[value="${studentId}"]`
+              );
+
+            if (option) {
+
+              // If this student was selected,
+              // return dropdown to Entire Class
+              if (select.value === studentId) {
+                select.value = "all";
+              }
+
+              option.remove();
+            }
+
+            updateOlympusStudentPresenceUI();
+
+            return;
+          }
+
+
+          // =========================================
+          // STUDENT ACTIVATED
+          // Add immediately to dropdown
+          // =========================================
+
+          if (
+            payload.new.role === "student" &&
+            payload.new.active === true
+          ) {
+
+            let option =
+              select.querySelector(
+                `option[value="${studentId}"]`
+              );
+
+
+            // -----------------------------------------
+            // Student does not exist yet
+            // Add them immediately
+            // -----------------------------------------
+
+            if (!option) {
+
+              option = document.createElement("option");
+
+              option.value = studentId;
+
+              option.dataset.studentName =
+                payload.new.username || "Student";
+
+              option.dataset.locked =
+                payload.new.ui_locked ? "true" : "false";
+
+              select.appendChild(option);
+
+            } else {
+
+              // -----------------------------------------
+              // Student already exists
+              // Update latest information
+              // -----------------------------------------
+
+              option.dataset.studentName =
+                payload.new.username || "Student";
+
+              option.dataset.locked =
+                payload.new.ui_locked ? "true" : "false";
+            }
+
+
+            updateOlympusStudentPresenceUI();
+          }
         }
       }
     )
     .subscribe();
 }
-
 /* =========================================================
    🟢🔴 OLYMPUS STUDENT LIVE PRESENCE
    =========================================================
