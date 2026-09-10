@@ -55661,6 +55661,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 async function deleteAssignmentFromDB(assignmentId) {
+
+  showActionLoading(
+    "Deleting Assignment...",
+    "Deleting the assignment and refreshing your list..."
+  );
+
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
   try {
     const { error } = await supabase
       .from("assignments")
@@ -55674,11 +55682,18 @@ async function deleteAssignmentFromDB(assignmentId) {
       "Assignment Deleted Successfully",
       false
     );
-    loadAssignments();
+    await loadAssignments();
 
-  } catch (err) {
+    } catch (err) {
+
     console.error(err);
+
     showStatus("❌ Failed to delete assignment", "error");
+
+  } finally {
+
+    hideActionLoading();
+
   }
 }
 
@@ -55690,10 +55705,14 @@ document.getElementById("cancelDeleteBtn").onclick = () => {
 document.getElementById("confirmDeleteBtn").onclick = async () => {
   if (!pendingDeleteAssignmentId) return;
 
-  await deleteAssignmentFromDB(pendingDeleteAssignmentId);
+  const assignmentId = pendingDeleteAssignmentId;
 
+  // Close confirmation window immediately
   pendingDeleteAssignmentId = null;
   document.getElementById("deleteModal").classList.add("hidden");
+
+  // Now perform the actual deletion
+  await deleteAssignmentFromDB(assignmentId);
 };
 
 
@@ -68028,9 +68047,20 @@ let editingAssignmentId = null;
   // 🧠 FINAL FEN PRIORITY
   // User FEN > PGN FEN > null
   // -------------------------------------------------------
-  const finalFEN = fenInput || autoFEN || null;
+ const finalFEN = fenInput || autoFEN || null;
 
-  try {
+showActionLoading(
+  editingAssignmentId
+    ? "Updating Assignment..."
+    : "Creating Assignment...",
+  editingAssignmentId
+    ? "Saving your assignment changes..."
+    : "Creating the new assignment..."
+);
+
+await new Promise(resolve => requestAnimationFrame(resolve));
+
+try {
   let error;
 
 if (editingAssignmentId) {
@@ -68098,14 +68128,21 @@ if (editingAssignmentId) {
       if (el) el.value = "";
     });
 
-    // 🔄 Reload list
-    loadAssignments();
-    editingAssignmentId = null;
+   // 🔄 Reload list
+await loadAssignments();
+editingAssignmentId = null;
 
-  } catch (err) {
+   } catch (err) {
+
     console.error("Error creating assignment:", err);
     alert("❌ Error creating assignment: " + err.message);
+
+  } finally {
+
+    hideActionLoading();
+
   }
+
 };
 
 window.showPromotionDialog = function(from, to) {
@@ -103953,6 +103990,13 @@ audioSource.close();
 
 window.viewStudentAssignmentPuzzles = async function(assignmentId) {
 
+  showActionLoading(
+    "Loading Assignment...",
+    "Fetching puzzles and preparing the results..."
+  );
+
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
   try {
 
     // ==========================================================
@@ -105113,7 +105157,7 @@ details
       "flex";
 
 
-  } catch (error) {
+    } catch (error) {
 
     console.error(
       "❌ Student puzzle viewer error:",
@@ -105125,10 +105169,13 @@ details
       "<p>Could not load puzzle details.</p>"
     );
 
+  } finally {
+
+    hideActionLoading();
+
   }
 
 };
-
 
 window.closeStudentPuzzleViewer = function() {
   document.getElementById("studentPuzzleOverlay").style.display = "none";
