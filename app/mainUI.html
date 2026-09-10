@@ -60986,70 +60986,124 @@ ${chapterMoves} *
   });
 
   // =============================
-  // 🟢 UPDATE EXISTING STUDY
-  // =============================
+// 🟢 UPDATE EXISTING STUDY
+// =============================
 if (studyState.studyId) {
 
   // 🟡 Ask user if they want to rename
   let newTitle = currentStudyTitle;
 
-  const wantRename = confirm("Do you want to rename this study?");
+  const wantRename = confirm(
+    "Do you want to rename this study?"
+  );
 
   if (wantRename) {
-    const input = prompt("Enter new study name:", currentStudyTitle);
+
+    const input = prompt(
+      "Enter new study name:",
+      currentStudyTitle
+    );
 
     if (input && input.trim()) {
       newTitle = input.trim();
     }
   }
 
-showActionLoading(
-  "Updating Study...",
-  "Saving your latest changes..."
-);
 
-let updateError = null;
+  showActionLoading(
+    "Updating Study...",
+    "Saving your latest changes..."
+  );
 
-try {
+  let updateError = null;
 
-  const { error } = await supabase
-    .from("bulk_pgn_library")
-    .update({
-      pgn: combinedPgn,
-      title: newTitle
-    })
-    .eq("id", studyState.studyId);
+  try {
 
-  updateError = error;
+    // ==========================================
+    // 💾 ACTUAL SUPABASE UPDATE
+    // ==========================================
 
-} finally {
+    const { error } = await supabase
+      .from("bulk_pgn_library")
+      .update({
+        pgn: combinedPgn,
+        title: newTitle
+      })
+      .eq("id", studyState.studyId);
 
-  hideActionLoading();
+    updateError = error;
 
-}
 
-if (updateError) {
-  console.error(updateError);
-  alert("❌ Study update failed.");
-  return;
-}
+    // ==========================================
+    // ❌ UPDATE FAILED
+    // ==========================================
 
-  if (error) {
-    console.error(error);
-    alert("❌ Study update failed.");
-    return;
+    if (updateError) {
+
+      console.error(updateError);
+
+      showModal(
+        "❌ Study Update Failed",
+        "<p>Could not update the study.</p>"
+      );
+
+      return;
+    }
+
+
+    // ==========================================
+    // 🔥 UPDATE LOCAL TITLE
+    // ==========================================
+
+    currentStudyTitle = newTitle;
+
+    document.getElementById(
+      "studyTitle"
+    ).textContent = newTitle;
+
+
+    // ==========================================
+    // 🔄 REFRESH LIBRARIES
+    // Keep loading screen visible until BOTH
+    // operations finish.
+    // ==========================================
+
+    await loadLibraryDropdown();
+
+    await loadPGNLibrary();
+
+
+  } finally {
+
+    // ==========================================
+    // ✅ EVERYTHING FINISHED
+    // ==========================================
+
+    hideActionLoading();
+
   }
 
-  // 🔥 Update local title also
-  currentStudyTitle = newTitle;
-  document.getElementById("studyTitle").textContent = newTitle;
 
-// 🔄 Immediately refresh Live Puzzle library
-await loadLibraryDropdown();
+  // ==========================================
+  // Give browser one frame to visually remove
+  // the loading overlay before showing modal.
+  // ==========================================
+
+  await new Promise(
+    resolve =>
+      requestAnimationFrame(resolve)
+  );
 
 
-alert("✅ Study updated successfully!");
-await loadPGNLibrary();
+  // ==========================================
+  // ✅ SUCCESS MODAL
+  // ==========================================
+
+  showModal(
+    "✅ Study Updated",
+    "<p>Your study has been updated successfully.</p>"
+  );
+
   return;
 }
 
@@ -61109,14 +61163,23 @@ await loadPGNLibrary();
     // 🔄 Reload PGN library
     await loadPGNLibrary();
 
-  } finally {
+   } finally { 
 
-    // Hide ONLY after the entire save + refresh process finishes
-    hideActionLoading();
+    // Hide ONLY after the entire save + refresh process finishes 
+    hideActionLoading(); 
 
   }
 
-  alert("✅ Study created and saved!");
+  // Give the browser one frame to visually remove
+  // the loading screen before showing the success modal.
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
+  // Use the app's custom modal instead of browser alert.
+  showModal(
+    "✅ Study Saved",
+    "<p>Your study has been saved successfully.</p>"
+  );
+
 };
 // ============================================
 // ➕ CREATE NEW STUDY CHAPTER
