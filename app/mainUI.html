@@ -69665,41 +69665,231 @@ window.refreshStudentList = function () {
   }
 };
 
-    window.toggleStudentStatus = function (studentId, activate) {
+   window.toggleStudentStatus = function (studentId, activate) {
   if (currentProfile.role !== 'admin') return;
 
   const action = activate ? 'activate' : 'deactivate';
 
+  // ============================================================
+  // 🔄 ACTIVATE
+  // No assignment changes are ever made when activating.
+  // ============================================================
+  if (activate) {
+
+    openGradeConfirm(
+      "Confirm Activate",
+      `
+        <p>
+          Are you sure you want to
+          <strong>activate</strong> this student?
+        </p>
+      `,
+   async () => {
+
+  showActionLoading(
+    "Activating Student...",
+    "Updating the student and refreshing the lists..."
+  );
+
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
+  try {
+
+    const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ active: true })
+            .eq('id', studentId);
+
+          if (profileError) throw profileError;
+
+          // ======================================================
+          // 🔄 IMMEDIATE UI REFRESH
+          // ======================================================
+
+          await loadStudents();
+
+          if (typeof loadStudentsForAssignment2 === "function") {
+            await loadStudentsForAssignment2();
+          }
+
+          if (typeof loadAssignments === "function") {
+            await loadAssignments();
+          }
+
+          showModal(
+            "✅ Success",
+            "<p>Student activated successfully!</p>"
+          );
+
+          setTimeout(() => {
+            closeModal();
+          }, 1500);
+
+                } catch (error) {
+
+          console.error('Error activating student:', error);
+
+          showModal(
+            "❌ Error",
+            `<p>${error.message}</p>`
+          );
+
+          setTimeout(() => {
+            closeModal();
+          }, 2000);
+
+        } finally {
+
+          hideActionLoading();
+
+        }
+      }
+    );
+
+    return;
+  }
+
+  // ============================================================
+  // ❌ DEACTIVATE
+  // Show optional assignment-removal toggle.
+  // ============================================================
+
   openGradeConfirm(
-    `Confirm ${action}`,
-    `<p>Are you sure you want to <strong>${action}</strong> this student?</p>`,
-    async () => {
-      try {
+    "Confirm Deactivate",
+    `
+      <p>
+        Are you sure you want to
+        <strong>deactivate</strong> this student?
+      </p>
+
+      <div
+        style="
+          margin-top:16px;
+          padding:12px 14px;
+          border-radius:10px;
+          background:rgba(255,255,255,0.06);
+          border:1px solid rgba(255,255,255,0.10);
+        "
+      >
+        <label
+          style="
+            display:flex;
+            align-items:center;
+            gap:10px;
+            cursor:pointer;
+            user-select:none;
+          "
+        >
+          <input
+            type="checkbox"
+            id="removeStudentAssignmentsToggle"
+            style="
+              width:18px;
+              height:18px;
+              cursor:pointer;
+              accent-color:#ff4757;
+            "
+          >
+
+          <span>
+            <strong>Remove from assignments</strong>
+          </span>
+        </label>
+
+        <p
+          style="
+            margin:8px 0 0 28px;
+            font-size:13px;
+            opacity:0.75;
+            line-height:1.4;
+          "
+        >
+          If enabled, this student will be removed from all
+          private/joint assignments. This cannot be restored automatically
+          by activating the student again.
+        </p>
+      </div>
+    `,
+   async () => {
+
+  showActionLoading(
+    "Deactivating Student...",
+    "Updating the student and refreshing the lists..."
+  );
+
+  await new Promise(resolve => requestAnimationFrame(resolve));
+
+  try {
+
+    // ========================================================
+    // 🔎 READ THE TOGGLE BEFORE THE MODAL CLOSES
+
+        const removeFromAssignments =
+          document.getElementById(
+            "removeStudentAssignmentsToggle"
+          )?.checked === true;
+
+        // ========================================================
+        // 1️⃣ DEACTIVATE STUDENT
+        // ========================================================
+
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({ active: activate })
+          .update({ active: false })
           .eq('id', studentId);
 
         if (profileError) throw profileError;
-        if (!activate) {
-  await removeStudentFromAssignments(studentId);
-}
-        // 🔥 ADD THIS
-loadStudentsForAssignment2();
+
+        // ========================================================
+        // 2️⃣ ONLY REMOVE ASSIGNMENTS IF TOGGLE IS ON
+        // ========================================================
+
+        if (removeFromAssignments) {
+
+          await removeStudentFromAssignments(studentId);
+
+        }
+
+        // ========================================================
+        // 3️⃣ IMMEDIATE UI REFRESH
+        // ========================================================
+
+        await loadStudents();
+
+        // Refresh active-student selector immediately.
+        // This removes the deactivated student without
+        // requiring an application refresh.
+        if (typeof loadStudentsForAssignment2 === "function") {
+          await loadStudentsForAssignment2();
+        }
+
+        // Refresh the assignment list immediately so that
+        // removed assignment relationships are reflected at once.
+        if (typeof loadAssignments === "function") {
+          await loadAssignments();
+        }
+
+        // ========================================================
+        // 4️⃣ SUCCESS MESSAGE
+        // ========================================================
 
         showModal(
           "✅ Success",
-          `<p>Student ${action}d successfully!</p>`
+          removeFromAssignments
+            ? "<p>Student deactivated and removed from assignments successfully!</p>"
+            : "<p>Student deactivated successfully. Their assignments were kept.</p>"
         );
 
         setTimeout(() => {
           closeModal();
-        }, 1500);
+        }, 1800);
 
-        loadStudents();
+            } catch (error) {
 
-      } catch (error) {
-        console.error('Error toggling student status:', error);
+        console.error(
+          'Error deactivating student:',
+          error
+        );
 
         showModal(
           "❌ Error",
@@ -69708,7 +69898,12 @@ loadStudentsForAssignment2();
 
         setTimeout(() => {
           closeModal();
-        }, 2000);
+        }, 2200);
+
+      } finally {
+
+        hideActionLoading();
+
       }
     }
   );
@@ -69721,36 +69916,70 @@ async function removeStudentFromAssignments(studentId) {
     .select("id, assigned_to, is_public");
 
   if (error) {
-    console.error(error);
-    return;
+    console.error(
+      "❌ Failed to load assignments while removing student:",
+      error
+    );
+    throw error;
   }
 
-  for (const assign of assignments) {
+  for (const assign of assignments || []) {
 
+    // Public assignments are available to everyone.
+    // Never modify them.
     if (assign.is_public) continue;
 
+    // Nothing to process if assigned_to is not an array.
     if (!Array.isArray(assign.assigned_to)) continue;
 
+    // Student is not assigned to this assignment.
     if (!assign.assigned_to.includes(studentId)) continue;
 
-    const updated = assign.assigned_to.filter(id => id !== studentId);
+    // Remove only this student.
+    const updated = assign.assigned_to.filter(
+      id => id !== studentId
+    );
+
+    // ==========================================================
+    // If nobody remains assigned, delete the private assignment.
+    // ==========================================================
 
     if (updated.length === 0) {
 
-      await supabase
+      const { error: deleteError } = await supabase
         .from("assignments")
         .delete()
         .eq("id", assign.id);
 
+      if (deleteError) {
+        console.error(
+          `❌ Failed to delete assignment ${assign.id}:`,
+          deleteError
+        );
+        throw deleteError;
+      }
+
     } else {
 
-      await supabase
+      // ========================================================
+      // Otherwise keep the assignment and remove only this
+      // student's UUID from assigned_to.
+      // ========================================================
+
+      const { error: updateError } = await supabase
         .from("assignments")
         .update({
           assigned_to: updated
         })
         .eq("id", assign.id);
 
+      if (updateError) {
+        console.error(
+          `❌ Failed to update assignment ${assign.id}:`,
+          updateError
+        );
+        throw updateError;
+      }
     }
   }
 }
@@ -158071,7 +158300,6 @@ style="
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
