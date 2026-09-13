@@ -115414,11 +115414,36 @@ addBtn.onclick = ()=>{
   const name = nameInput.value.trim();
   if(!name) return;
 
-  state.players.push({
-  id: crypto.randomUUID(),
-  name,
-  points:0
-});
+  const newPlayer = {
+    id: crypto.randomUUID(),
+    name,
+    points:0
+  };
+
+  // Add student to the main player array
+  state.players.push(newPlayer);
+
+  /*
+     If a round is already in progress,
+     add the new student to the REMAINING
+     current-round queue.
+
+     Do NOT reshuffle the existing queue.
+  */
+  if(pickQueue.length > 0){
+
+    const insertAt =
+      Math.floor(
+        Math.random() * (pickQueue.length + 1)
+      );
+
+    pickQueue.splice(
+      insertAt,
+      0,
+      newPlayer.id
+    );
+  }
+
   nameInput.value = "";
 
   save();
@@ -115438,14 +115463,19 @@ const resetScoreBtn = document.getElementById("os-reset-score");
 
 if(resetScoreBtn){
   resetScoreBtn.onclick = ()=>{
-    if(confirm("Reset all scores to 0?")){
-      state.players.forEach(p=>{
-        p.points = 0;
-      });
-      pickQueue = [];
-      save();
-      render();
-    }
+   if(confirm("Reset all scores to 0?")){
+  state.players.forEach(p=>{
+    p.points = 0;
+  });
+
+  // IMPORTANT:
+  // Do NOT clear pickQueue.
+  // Score changes must never affect the
+  // current random-pick round.
+
+  save();
+  render();
+}
   };
 }
 
@@ -115468,9 +115498,24 @@ if(e.target.classList.contains("add")){
     state.players[i].points--;
   }
 
-  if(e.target.classList.contains("os-remove")){
+if(e.target.classList.contains("os-remove")){
+
+  const removedPlayer = state.players[i];
+
+  if(removedPlayer){
+
+    const removedId = removedPlayer.id;
+
+    // Remove from the main player array
     state.players.splice(i,1);
+
+    // Remove from the current random-pick queue
+    // WITHOUT reshuffling the remaining students
+    pickQueue = pickQueue.filter(
+      id => id !== removedId
+    );
   }
+}
 
   save();
   render();
@@ -139535,32 +139580,115 @@ supabase.channel(
 
 async function checkForAdminRejoin(){
 
-    if(currentUserRole !== "admin") return;
+    // ==========================================
+    // 🚫 Already inside a classroom
+    // ==========================================
 
     if(roomCode) return;
 
+
+    // ==========================================
+    // 🔘 GET REJOIN BUTTON
+    // ==========================================
+
     const btn =
-    document.getElementById(
+      document.getElementById(
         "lpAdminRejoinBtn"
-    );
+      );
 
     if(!btn) return;
 
+
+    // Hide first while checking
     btn.style.display = "none";
-const {
-  data: { user }
-} = await supabase.auth.getUser();
 
-if (!user) return;
 
-const { data } = await supabase
-  .from("live_puzzle_rooms")
-  .select("code")
-  .eq(
-    "admin_id",
-    user.id
-  )
-  .maybeSingle();
+    // ==========================================
+    // 🔐 GET CURRENT USER
+    // ==========================================
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if(!user) return;
+
+
+    // ==========================================
+    // 🔐 CHECK ADMIN ROLE
+    //
+    // Use currentUserRole if already loaded.
+    // If it is not ready yet, fetch the role
+    // directly from profiles.
+    // ==========================================
+
+    let role = currentUserRole;
+
+    if(role !== "admin"){
+
+        const {
+          data: profile,
+          error: profileError
+        } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if(profileError){
+
+          console.error(
+            "❌ Admin role check failed:",
+            profileError
+          );
+
+          return;
+        }
+
+        role = profile?.role;
+
+    }
+
+
+    // ==========================================
+    // 🚫 NOT ADMIN
+    // ==========================================
+
+    if(role !== "admin") return;
+
+
+    // ==========================================
+    // 🔄 FIND ADMIN'S ACTIVE CLASSROOM
+    // ==========================================
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from("live_puzzle_rooms")
+      .select("code")
+      .eq(
+        "admin_id",
+        user.id
+      )
+      .maybeSingle();
+
+
+    if(error){
+
+      console.error(
+        "❌ Admin Rejoin classroom check failed:",
+        error
+      );
+
+      return;
+
+    }
+
+
+    // ==========================================
+    // ♻️ CLASSROOM FOUND
+    // ==========================================
 
     if(data){
 
