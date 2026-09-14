@@ -48953,9 +48953,40 @@ async function getStudentCompletedAssignmentIds() {
   }
 }
 
-    async function loadAssignments() {
-    
-  const listEl = document.getElementById('assignmentsList');
+async function loadAssignments() {
+
+  // ==========================================================
+  // ⏳ ACTION LOADING
+  // Do NOT show the secondary loading screen during
+  // the initial application startup.
+  // The main Welcome/Ready loading gate handles that.
+  // ==========================================================
+
+  const welcomeModal =
+    document.getElementById("welcomeModal");
+
+  const isInitialAppLoading =
+    welcomeModal &&
+    welcomeModal.classList.contains("active");
+
+  if (!isInitialAppLoading) {
+
+    showActionLoading(
+      "Loading Assignments...",
+      "Fetching assignments and preparing the list..."
+    );
+
+    // Give the browser one rendering opportunity
+    // to display the loading overlay first.
+    await new Promise(
+      resolve =>
+        requestAnimationFrame(resolve)
+    );
+
+  }
+
+  const listEl =
+    document.getElementById('assignmentsList');
   listEl.innerHTML = '<div class="loading">Loading assignments...</div>';
 
   try {
@@ -49462,9 +49493,15 @@ if (
   } catch (error) {
     console.error('Error loading assignments:', error);
     listEl.innerHTML = '<div class="card"><p style="color: #ff4757;">Error loading assignments. Please try again later.</p></div>';
-  }
-}
 
+} finally {
+
+  if (!isInitialAppLoading) {
+    hideActionLoading();
+  }
+
+}
+}
 // ============================================================
 // 👨‍🎓 STUDENT — ASSIGNMENT STATUS CARD FILTER
 // ============================================================
@@ -53346,6 +53383,205 @@ document
       ) {
         return;
       }
+      // ============================================================
+// 🟡 DUE / 🔴 OVERDUE
+// OPEN EXACT ASSIGNMENT IN ASSIGNMENTS TAB
+// ============================================================
+//
+// When the Admin has filtered Assignment Status to Due or
+// Overdue, clicking a specific student/assignment row should
+// open that exact assignment in the Assignments tab.
+//
+// Completed / Submitted / Re-attempt rows continue using
+// the existing Check HW → Attempts flow below.
+// ============================================================
+
+const selectedAdminStatus =
+  window.adminAssignmentStatusState?.status;
+
+
+if (
+  selectedAdminStatus === "due" ||
+  selectedAdminStatus === "overdue"
+) {
+
+  // ----------------------------------------------------------
+  // Stop this row click from continuing into another handler
+  // ----------------------------------------------------------
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+
+  // ----------------------------------------------------------
+  // Find the existing Assignments navigation button
+  // ----------------------------------------------------------
+
+  const assignmentsTab =
+    document.querySelector(
+      '.nav-btn[data-tab="assignments"]'
+    );
+
+
+  if (!assignmentsTab) {
+
+    console.warn(
+      "❌ Assignments navigation button not found."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // Open the existing Assignments tab
+  // ----------------------------------------------------------
+
+  assignmentsTab.click();
+
+
+  // ----------------------------------------------------------
+  // Wait for normal tab navigation to finish
+  // ----------------------------------------------------------
+
+  await new Promise(resolve => {
+
+    requestAnimationFrame(() => {
+
+      requestAnimationFrame(resolve);
+
+    });
+
+  });
+
+
+  // ----------------------------------------------------------
+  // Load Assignments
+  // ----------------------------------------------------------
+
+  await loadAssignments();
+
+
+  // ----------------------------------------------------------
+  // Wait for assignment cards to render
+  // ----------------------------------------------------------
+
+  await new Promise(resolve => {
+
+    requestAnimationFrame(resolve);
+
+  });
+
+
+  // ----------------------------------------------------------
+  // Find the EXACT assignment card
+  // ----------------------------------------------------------
+
+  const assignmentsList =
+    document.getElementById(
+      "assignmentsList"
+    );
+
+
+  if (!assignmentsList) {
+
+    console.warn(
+      "❌ assignmentsList not found."
+    );
+
+    return;
+  }
+
+
+  const exactAssignmentCard =
+    Array.from(
+      assignmentsList.querySelectorAll(
+        ".card[data-assignment-id]"
+      )
+    ).find(card =>
+      String(
+        card.dataset.assignmentId
+      ) === String(
+        assignmentId
+      )
+    );
+
+
+  // ----------------------------------------------------------
+  // Exact assignment card not found
+  // ----------------------------------------------------------
+
+  if (!exactAssignmentCard) {
+
+    console.warn(
+      "⚠️ Exact assignment card not found:",
+      assignmentId
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // Scroll directly to the EXACT assignment
+  // ----------------------------------------------------------
+
+  exactAssignmentCard.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+
+  // ----------------------------------------------------------
+  // Highlight the exact assignment temporarily
+  // ----------------------------------------------------------
+
+  exactAssignmentCard.style.transition =
+    "box-shadow 0.25s ease, border-color 0.25s ease";
+
+
+  exactAssignmentCard.style.boxShadow =
+    "0 0 0 4px #facc15, 0 8px 25px rgba(0,0,0,0.35)";
+
+
+  exactAssignmentCard.style.borderColor =
+    "#facc15";
+
+
+  // ----------------------------------------------------------
+  // Keep highlight for 4 seconds
+  // ----------------------------------------------------------
+
+  setTimeout(() => {
+
+    if (exactAssignmentCard) {
+
+      exactAssignmentCard.style.boxShadow =
+        "";
+
+      exactAssignmentCard.style.borderColor =
+        "";
+
+    }
+
+  }, 4000);
+
+
+  console.log(
+    "✅ OPENED EXACT ASSIGNMENT:",
+    assignmentId,
+    "STATUS:",
+    selectedAdminStatus
+  );
+
+
+  // ----------------------------------------------------------
+  // IMPORTANT:
+  // Do NOT continue into Check HW / Attempts.
+  // ----------------------------------------------------------
+
+  return;
+}
 
 
       try {
@@ -159563,7 +159799,6 @@ style="
 <img id="academyLogo" src="favicons.png" style="display:none;" />
 
 </html>
-
 
 
 
