@@ -105361,24 +105361,36 @@ window.viewStudentAssignmentPuzzles = async function(assignmentId) {
     // LOAD ASSIGNMENT + ATTEMPTS
     // ==========================================================
 
-    const { data, error } = await supabase
+    // ==========================================================
+    // LOAD ASSIGNMENT
+    // ==========================================================
+
+    const {
+      data,
+      error
+    } = await supabase
       .from("assignments")
       .select(`
         title,
         pgn,
-        is_bulk,
-        attempts (
-          id,
-          bulk_answers,
-          submitted_at,
-          time_spent,
-          attempt_count
-        )
+        is_bulk
       `)
-      .eq("id", assignmentId)
+      .eq(
+        "id",
+        assignmentId
+      )
       .single();
 
-    if (error || !data) {
+
+    if (
+      error ||
+      !data
+    ) {
+
+      console.error(
+        "❌ Failed to load assignment:",
+        error
+      );
 
       showModal(
         "❌ Error",
@@ -105388,6 +105400,105 @@ window.viewStudentAssignmentPuzzles = async function(assignmentId) {
       return;
     }
 
+
+    // ==========================================================
+    // 🔒 LOAD ONLY THIS STUDENT'S ATTEMPTS
+    // ==========================================================
+    //
+    // CRITICAL:
+    //
+    // The same assignment can be given to many students.
+    //
+    // Therefore an attempt is identified by:
+    //
+    //      assignment_id
+    //          +
+    //      student_id
+    //
+    // NEVER load every student's attempts here.
+    // ==========================================================
+
+    const {
+      data: studentAttempts,
+      error: attemptsError
+    } = await supabase
+      .from("attempts")
+      .select(`
+        id,
+        bulk_answers,
+        submitted_at,
+        time_spent,
+        attempt_count
+      `)
+      .eq(
+        "assignment_id",
+        assignmentId
+      )
+      .eq(
+        "student_id",
+        currentProfile.id
+      )
+      .order(
+        "submitted_at",
+        {
+          ascending: false
+        }
+      );
+
+
+    if (
+      attemptsError
+    ) {
+
+      console.error(
+        "❌ Failed to load student's attempts:",
+        attemptsError
+      );
+
+      showModal(
+        "❌ Error",
+        "<p>Could not load your assignment attempt.</p>"
+      );
+
+      return;
+    }
+
+
+    // ==========================================================
+    // 🔐 SAFETY DEBUG
+    // ==========================================================
+
+    console.log(
+      "🔐 Student Assignment Viewer:",
+      {
+        student_id:
+          currentProfile.id,
+
+        assignment_id:
+          assignmentId,
+
+        attempts_found:
+          studentAttempts?.length || 0,
+
+        latest_attempt_id:
+          studentAttempts?.[0]?.id || null
+      }
+    );
+
+
+    // ==========================================================
+    // KEEP THE EXISTING FUNCTION STRUCTURE
+    // ==========================================================
+    //
+    // The rest of your existing code expects:
+    //
+    //      data.attempts
+    //
+    // So attach ONLY THIS STUDENT'S attempts to data.
+    // ==========================================================
+
+    data.attempts =
+      studentAttempts || [];
     
 
 
