@@ -31824,6 +31824,47 @@ transform: translateY(-50%);
     opacity: 0.55;
   }
 }
+
+/* 📁 CHOOSE PGN FILE BUTTON */
+.study-pgn-computer-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 10px 18px;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+
+  background: #2563eb;
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+/* 🖱️ HOVER */
+.study-pgn-computer-file-btn:hover {
+  background: #1d4ed8;
+  border-color: #60a5fa;
+
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+/* 👆 CLICK */
+.study-pgn-computer-file-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
   </style>
 </head>
 <body>
@@ -62290,6 +62331,15 @@ function initStudyPgnImportModal() {
   const closeBtn = document.getElementById("studyPgnImportClose");
   const cancelBtn = document.getElementById("studyPgnImportCancel");
   const importBtn = document.getElementById("studyPgnImportConfirm");
+  // =====================================================
+// 💻 COMPUTER PGN FILE PICKER — ISOLATED
+// =====================================================
+
+const computerFileInput =
+  document.getElementById("studyPgnComputerFile");
+
+const computerFileBtn =
+  document.getElementById("studyPgnComputerFileBtn");
 
   if (
     !modal ||
@@ -62316,6 +62366,105 @@ function initStudyPgnImportModal() {
   cancelBtn.addEventListener("click", () => {
     closeStudyPgnImportModal();
   });
+    // =====================================================
+  // 💻 CHOOSE PGN FILE FROM COMPUTER
+  // =====================================================
+
+  if (computerFileBtn && computerFileInput) {
+
+    computerFileBtn.addEventListener("click", (e) => {
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      computerFileInput.click();
+
+    });
+
+
+    computerFileInput.addEventListener("change", async () => {
+
+      const file = computerFileInput.files?.[0];
+
+      if (!file) return;
+
+      const name = file.name.toLowerCase();
+
+      // ---------------------------------------------
+      // 🔒 ONLY PGN / TXT
+      // ---------------------------------------------
+
+      if (
+        !name.endsWith(".pgn") &&
+        !name.endsWith(".txt")
+      ) {
+
+        alert("Please choose a .pgn or .txt file.");
+
+        computerFileInput.value = "";
+
+        return;
+      }
+
+
+      try {
+
+        const raw = await file.text();
+
+
+        // ---------------------------------------------
+        // 🚫 EMPTY FILE
+        // ---------------------------------------------
+
+        if (!raw.trim()) {
+
+          alert("The file is empty.");
+
+          computerFileInput.value = "";
+
+          return;
+        }
+
+
+        // ---------------------------------------------
+        // 📥 LOAD INTO EXISTING PGN TEXTAREA
+        // ---------------------------------------------
+
+        textarea.value = raw;
+
+        studyPgnDroppedFileName = file.name;
+
+        fileName.textContent =
+          `📄 Loaded: ${file.name}`;
+
+
+        console.log(
+          "💻 Study PGN file selected:",
+          file.name
+        );
+
+
+      } catch (err) {
+
+        console.error(
+          "❌ Failed to read Study PGN file:",
+          err
+        );
+
+        alert("Could not read this file.");
+
+      }
+
+
+      // ---------------------------------------------
+      // 🔄 ALLOW SAME FILE TO BE SELECTED AGAIN
+      // ---------------------------------------------
+
+      computerFileInput.value = "";
+
+    });
+
+  }
 
 
   // -------------------------
@@ -158842,6 +158991,28 @@ cursor:pointer;
         placeholder="Paste full PGN here..."
         spellcheck="false"
       ></textarea>
+      <!-- =====================================================
+     💻 CHOOSE PGN FILE FROM COMPUTER — ISOLATED
+===================================================== -->
+
+<div class="study-pgn-file-picker">
+
+  <input
+    type="file"
+    id="studyPgnComputerFile"
+    accept=".pgn,.txt"
+    hidden
+  >
+
+  <button
+    type="button"
+    id="studyPgnComputerFileBtn"
+    class="study-pgn-computer-file-btn"
+  >
+    📁 Choose PGN File
+  </button>
+
+</div>
     </div>
 
     <div
