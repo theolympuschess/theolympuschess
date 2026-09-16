@@ -22892,10 +22892,11 @@ body.student-view .nav-btn[data-tab="attendance"] {
 }
 
 .lpsa-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:12px;
+  width:100%;
+  margin-bottom:18px;
 }
 
 .lpsa-summary-card {
@@ -146497,6 +146498,78 @@ const LPStudentAttendance = (() => {
   let realtimeChannels = [];
   let initialized = false;
   let loading = false;
+    // ============================================================
+  // 📅 WEEKLY CLASS SCHEDULE
+  // ============================================================
+
+  let scheduleRows = [];
+
+
+  // ------------------------------------------------------------
+  // LOAD STUDENT WEEKLY CLASS SCHEDULE
+  // ------------------------------------------------------------
+  async function loadSchedule() {
+
+    const identity = getStudentIdentity();
+
+    if (
+      !identity ||
+      !identity.username
+    ) {
+      scheduleRows = [];
+      return;
+    }
+
+    try {
+
+      const {
+        data,
+        error
+      } = await supabase
+        .from("student_class_schedule")
+        .select("id, username, weekday, class_time")
+        .eq(
+          "username",
+          identity.username
+        )
+        .order(
+          "weekday",
+          {
+            ascending: true
+          }
+        )
+        .order(
+          "class_time",
+          {
+            ascending: true
+          }
+        );
+
+      if (error) {
+
+        console.error(
+          "❌ Student class schedule load failed:",
+          error
+        );
+
+        scheduleRows = [];
+
+        return;
+      }
+
+      scheduleRows =
+        data || [];
+
+    } catch (error) {
+
+      console.error(
+        "❌ Unexpected student schedule error:",
+        error
+      );
+
+      scheduleRows = [];
+    }
+  }
 
 
   /* =========================================================
@@ -146797,6 +146870,8 @@ const LPStudentAttendance = (() => {
 
     totalClasses =
       Number(subscriptionData?.total_classes ?? 24);
+            // 📅 Load weekly class schedule
+      await loadSchedule();
 
 
     // =========================================================
@@ -146817,6 +146892,115 @@ const LPStudentAttendance = (() => {
     loading = false;
 
   }
+}
+
+// ============================================================
+// 📅 FORMAT SCHEDULE TIME
+// ============================================================
+
+function formatScheduleTime(timeValue) {
+
+  if (!timeValue) {
+    return "—";
+  }
+
+  const parts =
+    String(timeValue).split(":");
+
+  if (parts.length < 2) {
+    return timeValue;
+  }
+
+  const hour =
+    Number(parts[0]);
+
+  const minute =
+    Number(parts[1]);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return timeValue;
+  }
+
+  const period =
+    hour >= 12 ? "PM" : "AM";
+
+  let displayHour =
+    hour % 12;
+
+  if (displayHour === 0) {
+    displayHour = 12;
+  }
+
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+// ============================================================
+// 📅 SCHEDULE DATE HELPERS
+// ============================================================
+
+function getScheduleRowsForDate(dateKey) {
+
+  if (!dateKey || !scheduleRows.length) {
+    return [];
+  }
+
+  // dateKey is YYYY-MM-DD.
+  // Using UTC here is intentional only to obtain the weekday
+  // represented by the calendar date without browser timezone
+  // shifting.
+  const date =
+    new Date(`${dateKey}T00:00:00Z`);
+
+  const weekday =
+    date.getUTCDay();
+
+  return scheduleRows.filter(row =>
+    Number(row.weekday) === weekday
+  );
+}
+
+
+// ------------------------------------------------------------
+// GET CURRENT IST DATE/TIME
+// ------------------------------------------------------------
+function getCurrentISTDateTime() {
+
+  return new Date(
+    new Date().toLocaleString(
+      "en-US",
+      {
+        timeZone: "Asia/Kolkata"
+      }
+    )
+  );
+}
+
+
+// ------------------------------------------------------------
+// CHECK WHETHER A SCHEDULED CLASS TIME HAS PASSED
+// ------------------------------------------------------------
+function isScheduledClassPast(
+  dateKey,
+  classTime
+) {
+
+  if (!dateKey || !classTime) {
+    return false;
+  }
+
+  const scheduledDate =
+    new Date(
+      `${dateKey}T${classTime}:00+05:30`
+    );
+
+  const nowIST =
+    getCurrentISTDateTime();
+
+  return scheduledDate.getTime()
+    <= nowIST.getTime();
 }
 
 
@@ -146931,82 +147115,229 @@ const LPStudentAttendance = (() => {
 
 
     for (
-      let day = 1;
-      day <= daysInMonth;
-      day++
-    ) {
+  let day = 1;
+  day <= daysInMonth;
+  day++
+) {
 
-      const dateKey =
-        `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
-      const entries =
-        attendanceByDate[dateKey] || [];
-
-      const isToday =
-        dateKey === todayKey;
-
-      let entryHTML = "";
+  const dateKey =
+    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
 
-      /*
-        Show the first attendance entry for the day
-        because Admin Attendance counts one class/day.
-      */
+  // ========================================================
+  // ACTUAL ATTENDANCE
+  // ========================================================
 
-     if (entries.length) {
+  const entries =
+    attendanceByDate[dateKey] || [];
 
-  // Use the attendance entry that actually contains
-  // the classroom topic. This is important when a
-  // student joins/rejoins the same class and multiple
-  // attendance rows exist for the same date.
-  const row =
-    [...entries]
-      .reverse()
-      .find(entry =>
-        String(entry.classroom_title || "").trim()
-      ) || entries[entries.length - 1];
 
-  const time = formatAttendanceTime(row.started_at);
+  const isToday =
+    dateKey === todayKey;
 
-  const topic =
-    String(row.classroom_title || "").trim() ||
-    "Gameplay";
 
-  entryHTML = `
-          <div class="lpsa-attendance-entry">
-            <div>
-              <span class="lpsa-attendance-dot"></span>
-              <span class="lpsa-attendance-time">
-                ${time}
+  // ========================================================
+  // SCHEDULED CLASSES FOR THIS DATE
+  // ========================================================
+
+  const scheduledRows =
+    getScheduleRowsForDate(dateKey);
+
+
+  let entryHTML = "";
+
+
+  // ========================================================
+  // ACTUAL ATTENDANCE DISPLAY
+  // ========================================================
+
+  /*
+    Show the first attendance entry for the day
+    because Admin Attendance counts one class/day.
+  */
+
+  if (entries.length) {
+
+    // Use the attendance entry that actually contains
+    // the classroom topic. This is important when a
+    // student joins/rejoins the same class and multiple
+    // attendance rows exist for the same date.
+    const row =
+      [...entries]
+        .reverse()
+        .find(entry =>
+          String(
+            entry.classroom_title || ""
+          ).trim()
+        ) ||
+      entries[entries.length - 1];
+
+
+    const time =
+      formatAttendanceTime(
+        row.started_at
+      );
+
+
+    const topic =
+      String(
+        row.classroom_title || ""
+      ).trim() ||
+      "Gameplay";
+
+
+    entryHTML = `
+      <div class="lpsa-attendance-entry">
+
+        <div>
+          <span class="lpsa-attendance-dot"></span>
+
+          <span class="lpsa-attendance-time">
+            ${time}
+          </span>
+        </div>
+
+        <div
+          class="lpsa-attendance-topic"
+          title="${escapeHtml(topic)}"
+        >
+          ${escapeHtml(topic)}
+        </div>
+
+      </div>
+    `;
+
+  }
+
+
+  // ========================================================
+  // SCHEDULE DISPLAY
+  // ========================================================
+
+  let scheduleHTML = "";
+
+
+  if (scheduledRows.length) {
+
+    scheduleHTML =
+      scheduledRows
+        .map(schedule => {
+
+          const scheduleTime =
+         formatScheduleTime(
+  schedule.class_time
+)
+
+
+          // --------------------------------------------------
+          // If there is actual attendance on this date,
+          // the scheduled class is considered attended.
+          // The attendance system remains the source of truth.
+          // --------------------------------------------------
+
+          if (entries.length) {
+
+            return `
+              <div style="
+                margin-top:5px;
+                font-size:11px;
+                line-height:1.3;
+                color:#7CFC00;
+              ">
+                ✅ Attended
+                <span style="
+                  opacity:0.8;
+                  color:inherit;
+                ">
+                  • ${scheduleTime}
+                </span>
+              </div>
+            `;
+
+          }
+
+
+          // --------------------------------------------------
+          // No attendance yet.
+          // Determine Upcoming vs Not Attended.
+          // --------------------------------------------------
+
+          const past =
+            isScheduledClassPast(
+              dateKey,
+              schedule.class_time
+            );
+
+
+          if (past) {
+
+            return `
+              <div style="
+                margin-top:5px;
+                font-size:11px;
+                line-height:1.3;
+                color:#ff7676;
+                font-weight:600;
+              ">
+                ❌ Absent
+                <span style="
+                  opacity:0.8;
+                  font-weight:400;
+                ">
+                  • ${scheduleTime}
+                </span>
+              </div>
+            `;
+
+          }
+
+
+          return `
+            <div style="
+              margin-top:5px;
+              font-size:11px;
+              line-height:1.3;
+              color:#FFD700;
+              font-weight:600;
+            ">
+              ⏰ Upcoming 
+              <span style="
+                opacity:0.85;
+                font-weight:400;
+              ">
+                • ${scheduleTime}
               </span>
             </div>
+          `;
 
-            <div class="lpsa-attendance-topic"
-                 title="${escapeHtml(topic)}">
-              ${escapeHtml(topic)}
-            </div>
-          </div>
-        `;
+        })
+        .join("");
 
-      }
+  }
 
 
-      calendarCells += `
-        <div
-          class="lpsa-calendar-day${isToday ? " is-today" : ""}"
-          data-date="${dateKey}"
-        >
+  // ========================================================
+  // CALENDAR CELL
+  // ========================================================
 
-          <div class="lpsa-calendar-day-number">
-            ${day}
-          </div>
+  calendarCells += `
+    <div
+      class="lpsa-calendar-day${isToday ? " is-today" : ""}"
+      data-date="${dateKey}"
+    >
 
-          ${entryHTML}
+      <div class="lpsa-calendar-day-number">
+        ${day}
+      </div>
 
-        </div>
-      `;
+      ${entryHTML}
 
-    }
+      ${scheduleHTML}
+
+    </div>
+  `;
+
+}
 
 
     /* =====================================================
@@ -147044,40 +147375,126 @@ const LPStudentAttendance = (() => {
 
       <div class="lpsa-summary">
 
-        <div class="lpsa-summary-card">
-          <div class="lpsa-summary-label">
-            📚 Batch Name & ⏰ Batch Time
-          </div>
+  <!-- =====================================================
+       📚 BATCH NAME
+  ====================================================== -->
+  <div class="lpsa-summary-card">
 
-          <div class="lpsa-summary-value"
-               style="font-size:16px;">
-            ${escapeHtml(batchName || "Not assigned")}
-          </div>
-        </div>
+    <div class="lpsa-summary-label">
+      📚 Batch Name
+    </div>
 
+    <div
+      class="lpsa-summary-value"
+      style="font-size:16px;"
+    >
+      ${escapeHtml(
+        batchName || "Not assigned"
+      )}
+    </div>
 
-        <div class="lpsa-summary-card">
-          <div class="lpsa-summary-label">
-            ✅ Classes Completed
-          </div>
-
-          <div class="lpsa-summary-value">
-            ${completed}
-          </div>
-        </div>
+  </div>
 
 
-        <div class="lpsa-summary-card">
-          <div class="lpsa-summary-label">
-            ⏳ Classes Remaining
-          </div>
+ <!-- =====================================================
+     📅 SCHEDULED TIME
+====================================================== -->
+<div class="lpsa-summary-card">
 
-          <div class="lpsa-summary-value">
-            ${remaining}
-          </div>
-        </div>
+  <div class="lpsa-summary-label">
+    📅 Scheduled Class (Indian Standard Time)
+  </div>
 
-      </div>
+  <div
+    class="lpsa-summary-value"
+    style="
+      font-size:13px;
+      line-height:1.5;
+      white-space:nowrap;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      overflow:hidden;
+    "
+  >
+
+    ${
+      scheduleRows.length
+        ? scheduleRows
+            .map(row => `
+              <span style="
+                white-space:nowrap;
+                flex:0 0 auto;
+              ">
+                ${escapeHtml(
+                  [
+                    "Sunday",
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday"
+                  ][Number(row.weekday)] || "Unknown"
+                )}
+                •
+                ${escapeHtml(
+                  formatScheduleTime(
+                    row.class_time
+                  )
+                )}
+              </span>
+            `)
+            .join("")
+        : `
+          <span style="
+            opacity:0.6;
+            font-size:13px;
+            white-space:nowrap;
+          ">
+            No schedule set
+          </span>
+        `
+    }
+
+  </div>
+
+</div>
+
+
+  <!-- =====================================================
+       ✅ CLASSES COMPLETED
+  ====================================================== -->
+  <div class="lpsa-summary-card">
+
+    <div class="lpsa-summary-label">
+      ✅ Classes Completed
+    </div>
+
+    <div class="lpsa-summary-value">
+      ${completed}
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       ⏳ CLASSES REMAINING
+  ====================================================== -->
+  <div class="lpsa-summary-card">
+
+    <div class="lpsa-summary-label">
+      ⏳ Classes Remaining
+    </div>
+
+    <div class="lpsa-summary-value">
+      ${remaining}
+    </div>
+
+  </div>
+
+</div>
 
 
       <div class="lpsa-calendar-card">
@@ -147753,7 +148170,88 @@ realtimeChannels.push(
   subscriptionChannel
 );
 
-    }
+
+/* ===================================================
+   📅 CLASS SCHEDULE
+   Live update when admin adds/edits/deletes schedule
+=================================================== */
+
+const scheduleChannel =
+  supabase
+    .channel(
+      `student-schedule-${identity.id}`
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "student_class_schedule",
+        filter: `username=eq.${identity.username}`
+      },
+      async (payload) => {
+
+        console.log(
+          "📅 Student class schedule realtime update:",
+          payload
+        );
+
+        /*
+         * Reload the schedule from Supabase.
+         * The database remains the source of truth.
+         */
+        await loadSchedule();
+
+        /*
+         * Immediately redraw the calendar.
+         */
+        render();
+
+      }
+    )
+    .subscribe((status) => {
+
+      console.log(
+        "📡 Student class schedule realtime status:",
+        status
+      );
+
+      if (status === "SUBSCRIBED") {
+
+        console.log(
+          "✅ Student class schedule realtime connected"
+        );
+
+      }
+
+      if (status === "CHANNEL_ERROR") {
+
+        console.error(
+          "❌ Student class schedule realtime channel error"
+        );
+
+      }
+
+      if (status === "TIMED_OUT") {
+
+        console.error(
+          "⏱️ Student class schedule realtime timed out"
+        );
+
+      }
+
+    });
+
+
+realtimeChannels.push(
+  scheduleChannel
+);
+
+    } 
+
+
+    /* =====================================================
+       PROFILE
 
 
     /* =====================================================
@@ -147788,6 +148286,8 @@ realtimeChannels.push(
     );
 
   }
+
+  
 
 
   /* =========================================================
@@ -147866,6 +148366,8 @@ let allBatchNames = [];
 let subscriptionMap = {};
 let attendanceView = "students";
 let profileIdMap = {}; 
+let scheduleMap = {};
+let scheduleRealtimeChannel = null;
 
 function initAttendanceFilters() {
 
@@ -147978,7 +148480,79 @@ async function markAttendance(username) {
   // ==========================================
   await loadAttendance();
 }
+// ============================================================
+// 📅 ADMIN — SCHEDULE REALTIME
+// ============================================================
 
+function startScheduleRealtime() {
+
+  // Prevent duplicate realtime channels.
+  if (scheduleRealtimeChannel) {
+    return;
+  }
+
+  scheduleRealtimeChannel =
+    supabase
+      .channel(
+        "admin-student-class-schedule"
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "student_class_schedule"
+        },
+        async (payload) => {
+
+          console.log(
+            "📅 Admin schedule realtime update:",
+            payload
+          );
+
+          /*
+           * Reload the complete Admin Attendance data.
+           * This rebuilds scheduleMap and therefore
+           * refreshes every student's schedule display.
+           */
+          await loadAttendance();
+
+        }
+      )
+      .subscribe((status) => {
+
+        console.log(
+          "📡 Admin schedule realtime status:",
+          status
+        );
+
+        if (status === "SUBSCRIBED") {
+
+          console.log(
+            "✅ Admin schedule realtime connected"
+          );
+
+        }
+
+        if (status === "CHANNEL_ERROR") {
+
+          console.error(
+            "❌ Admin schedule realtime channel error"
+          );
+
+        }
+
+        if (status === "TIMED_OUT") {
+
+          console.error(
+            "⏱️ Admin schedule realtime timed out"
+          );
+
+        }
+
+      });
+
+}
 // ===============================
 // LOAD ATTENDANCE
 // ===============================
@@ -148126,15 +148700,71 @@ async function loadAttendance() {
         subError
       );
     }
-
     // =====================================================
-    // RESET LOCAL MAPS
-    // =====================================================
+// 📅 LOAD STUDENT CLASS SCHEDULES
+// =====================================================
 
-    batchMap = {};
-    allBatchNames = [];
-    subscriptionMap = {};
-    attendanceMap = {};
+const {
+  data: scheduleData,
+  error: scheduleError
+} = await supabase
+  .from("student_class_schedule")
+  .select(
+    "id, username, weekday, class_time"
+  )
+  .order(
+    "weekday",
+    {
+      ascending: true
+    }
+  )
+  .order(
+    "class_time",
+    {
+      ascending: true
+    }
+  );
+
+if (scheduleError) {
+
+  console.error(
+    "❌ Schedule load failed:",
+    scheduleError
+  );
+
+}
+
+// =====================================================
+// RESET LOCAL MAPS
+// =====================================================
+
+batchMap = {};
+allBatchNames = [];
+subscriptionMap = {};
+attendanceMap = {};
+scheduleMap = {};
+// =====================================================
+// 📅 BUILD SCHEDULE MAP
+// =====================================================
+
+(scheduleData || []).forEach(schedule => {
+
+  if (
+    !schedule.username ||
+    schedule.username === "Unknown"
+  ) {
+    return;
+  }
+
+  if (!scheduleMap[schedule.username]) {
+    scheduleMap[schedule.username] = [];
+  }
+
+  scheduleMap[schedule.username].push(
+    schedule
+  );
+
+});
 
     // =====================================================
     // 📚 BUILD BATCH MAP
@@ -148248,6 +148878,8 @@ async function loadAttendance() {
     // =====================================================
 
     renderStudentList();
+
+    startScheduleRealtime();
 
     initBatchAutocomplete();
 
@@ -148707,12 +149339,61 @@ LPPayment.openPaymentModal('${name}');
 
 
 
-     <div class="lp-att-count">
+   <div class="lp-att-count">
+
   📚 ${batchMap[name] || "No Batch"}
+
+  ${
+    (scheduleMap[name] || []).length
+      ? `
+        <div style="
+          margin-top:6px;
+          font-size:12px;
+          line-height:1.6;
+          font-weight:600;
+        ">
+
+          📅 ${
+            (scheduleMap[name] || [])
+              .map(schedule => `
+                <span style="
+                  display:inline-block;
+                  margin-right:8px;
+                  white-space:nowrap;
+                ">
+                  ${lpScheduleWeekdayName(
+                    schedule.weekday
+                  )}
+                  •
+                  ${lpFormatScheduleTime(
+                    schedule.class_time
+                  )}
+                </span>
+              `)
+              .join("")
+          }
+
+        </div>
+      `
+      : `
+        <div style="
+          margin-top:5px;
+          font-size:11px;
+          opacity:0.55;
+        ">
+          📅 No Class Schedule
+        </div>
+      `
+  }
+
   <br>
+
   📅 ${count}/${totalSub} Class Completed
-<br>
-✨ ${remaining} Class Remaining
+
+  <br>
+
+  ✨ ${remaining} Class Remaining
+
 </div>
 
       </div>
@@ -148720,8 +149401,702 @@ LPPayment.openPaymentModal('${name}');
 
   }).join("");
 }
+// ============================================================
+// 📅 STUDENT CLASS SCHEDULE — ADMIN HELPERS
+// ============================================================
 
+let lpCurrentScheduleStudentName = "";
+
+// ------------------------------------------------------------
+// GET STUDENT WEEKLY SCHEDULE
+// ------------------------------------------------------------
+async function loadStudentSchedule(name) {
+
+  try {
+
+    const { data, error } = await supabase
+      .from("student_class_schedule")
+      .select("*")
+      .eq("username", name)
+      .order("weekday", { ascending: true })
+      .order("class_time", { ascending: true });
+
+    if (error) {
+      console.error(
+        "❌ Failed to load student class schedule:",
+        error
+      );
+      return [];
+    }
+
+    return data || [];
+
+  } catch (error) {
+
+    console.error(
+      "❌ Unexpected error loading student class schedule:",
+      error
+    );
+
+    return [];
+  }
+}
+
+
+// ------------------------------------------------------------
+// WEEKDAY NAME
+// ------------------------------------------------------------
+function lpScheduleWeekdayName(weekday) {
+
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+  ];
+
+  return days[Number(weekday)] || "Unknown";
+}
+
+
+// ------------------------------------------------------------
+// FORMAT 24-HOUR TIME → 12-HOUR DISPLAY
+// Example: 20:30 → 8:30 PM
+// ------------------------------------------------------------
+function lpFormatScheduleTime(timeValue) {
+
+  if (!timeValue) return "—";
+
+  const parts = String(timeValue).split(":");
+
+  if (parts.length < 2) {
+    return timeValue;
+  }
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return timeValue;
+  }
+
+  const period = hour >= 12 ? "PM" : "AM";
+
+  let displayHour = hour % 12;
+
+  if (displayHour === 0) {
+    displayHour = 12;
+  }
+
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+
+// ------------------------------------------------------------
+// ADD NEW WEEKLY SCHEDULE
+// ------------------------------------------------------------
+async function addStudentSchedule() {
+
+  const name = lpCurrentScheduleStudentName;
+
+  if (!name) {
+    console.error(
+      "❌ No student selected for schedule."
+    );
+    return;
+  }
+
+  const dayEl =
+    document.getElementById(
+      "lpScheduleNewDay"
+    );
+
+  const timeEl =
+    document.getElementById(
+      "lpScheduleNewTime"
+    );
+
+  if (!dayEl || !timeEl) {
+    console.error(
+      "❌ Schedule input elements not found."
+    );
+    return;
+  }
+
+  const weekday = Number(dayEl.value);
+  const classTime = timeEl.value;
+
+  if (
+    !Number.isInteger(weekday) ||
+    weekday < 0 ||
+    weekday > 6
+  ) {
+
+    alert("Please select a class day.");
+
+    return;
+  }
+
+  if (!classTime) {
+
+    alert("Please select a class time.");
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // PREVENT EXACT DUPLICATE
+  // ----------------------------------------------------------
+
+  const { data: existing, error: existingError } =
+    await supabase
+      .from("student_class_schedule")
+      .select("id")
+      .eq("username", name)
+      .eq("weekday", weekday)
+      .eq("class_time", classTime)
+      .limit(1);
+
+  if (existingError) {
+
+    console.error(
+      "❌ Failed to check existing schedule:",
+      existingError
+    );
+
+    alert(
+      "Unable to check the existing schedule."
+    );
+
+    return;
+  }
+
+  if (existing && existing.length > 0) {
+
+    alert(
+      "This exact class schedule already exists."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // INSERT
+  // ----------------------------------------------------------
+
+  const { error } = await supabase
+    .from("student_class_schedule")
+    .insert({
+      username: name,
+      weekday: weekday,
+      class_time: classTime
+    });
+
+  if (error) {
+
+    console.error(
+      "❌ Failed to add student schedule:",
+      error
+    );
+
+    alert(
+      "Failed to add the class schedule."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // IMMEDIATELY REFRESH ONLY THE SCHEDULE PANEL
+  // ----------------------------------------------------------
+
+  await renderStudentSchedule(name);
+}
+
+
+// ------------------------------------------------------------
+// SAVE / EDIT EXISTING SCHEDULE
+// ------------------------------------------------------------
+async function saveStudentScheduleRow(scheduleId) {
+
+  const name = lpCurrentScheduleStudentName;
+
+  if (!name || !scheduleId) {
+    return;
+  }
+
+  const dayEl =
+    document.getElementById(
+      `lpScheduleDay_${scheduleId}`
+    );
+
+  const timeEl =
+    document.getElementById(
+      `lpScheduleTime_${scheduleId}`
+    );
+
+  if (!dayEl || !timeEl) {
+
+    console.error(
+      "❌ Schedule edit fields not found."
+    );
+
+    return;
+  }
+
+  const weekday = Number(dayEl.value);
+  const classTime = timeEl.value;
+
+  if (
+    !Number.isInteger(weekday) ||
+    weekday < 0 ||
+    weekday > 6
+  ) {
+
+    alert("Please select a valid class day.");
+
+    return;
+  }
+
+  if (!classTime) {
+
+    alert("Please select a class time.");
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // PREVENT DUPLICATE AFTER EDIT
+  // ----------------------------------------------------------
+
+  const { data: duplicateRows, error: duplicateError } =
+    await supabase
+      .from("student_class_schedule")
+      .select("id")
+      .eq("username", name)
+      .eq("weekday", weekday)
+      .eq("class_time", classTime)
+      .neq("id", scheduleId)
+      .limit(1);
+
+  if (duplicateError) {
+
+    console.error(
+      "❌ Failed to check duplicate schedule:",
+      duplicateError
+    );
+
+    alert(
+      "Unable to check the existing schedule."
+    );
+
+    return;
+  }
+
+  if (
+    duplicateRows &&
+    duplicateRows.length > 0
+  ) {
+
+    alert(
+      "This exact class schedule already exists."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // UPDATE
+  // ----------------------------------------------------------
+
+  const { error } = await supabase
+    .from("student_class_schedule")
+    .update({
+      weekday: weekday,
+      class_time: classTime
+    })
+    .eq("id", scheduleId)
+    .eq("username", name);
+
+  if (error) {
+
+    console.error(
+      "❌ Failed to update student schedule:",
+      error
+    );
+
+    alert(
+      "Failed to update the class schedule."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // REFRESH SCHEDULE PANEL
+  // ----------------------------------------------------------
+
+  await renderStudentSchedule(name);
+}
+
+
+// ------------------------------------------------------------
+// DELETE WEEKLY SCHEDULE
+// ------------------------------------------------------------
+async function deleteStudentSchedule(scheduleId) {
+
+  const name = lpCurrentScheduleStudentName;
+
+  if (!name || !scheduleId) {
+    return;
+  }
+
+  const confirmed = confirm(
+    "Remove this weekly class schedule?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  const { error } = await supabase
+    .from("student_class_schedule")
+    .delete()
+    .eq("id", scheduleId)
+    .eq("username", name);
+
+  if (error) {
+
+    console.error(
+      "❌ Failed to delete student schedule:",
+      error
+    );
+
+    alert(
+      "Failed to remove the class schedule."
+    );
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // REFRESH SCHEDULE PANEL
+  // ----------------------------------------------------------
+
+  await renderStudentSchedule(name);
+}
+
+
+// ------------------------------------------------------------
+// RENDER ADMIN SCHEDULE PANEL
+// ------------------------------------------------------------
+async function renderStudentSchedule(name) {
+
+  lpCurrentScheduleStudentName = name;
+
+  const panel =
+    document.getElementById(
+      "lpStudentSchedulePanel"
+    );
+
+  if (!panel) {
+    return;
+  }
+
+  // Loading state
+  panel.innerHTML = `
+    <div style="
+      padding:12px;
+      text-align:center;
+      opacity:0.7;
+    ">
+      Loading class schedule...
+    </div>
+  `;
+
+
+  const rows =
+    await loadStudentSchedule(name);
+
+
+  // ----------------------------------------------------------
+  // IMPORTANT:
+  // If admin opened another student while this query
+  // was running, don't overwrite that student's panel.
+  // ----------------------------------------------------------
+
+  if (
+    lpCurrentScheduleStudentName !== name
+  ) {
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // EXISTING SCHEDULE ROWS
+  // ----------------------------------------------------------
+
+  const scheduleHTML = rows.length
+    ? rows.map(row => {
+
+        const day =
+          Number(row.weekday);
+
+        return `
+          <div style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            margin-bottom:8px;
+            padding:8px;
+            border-radius:8px;
+            background:rgba(255,255,255,0.05);
+          ">
+
+            <select
+              id="lpScheduleDay_${row.id}"
+              style="
+                flex:1;
+                min-width:0;
+                padding:7px 8px;
+                border-radius:6px;
+                border:1px solid rgba(255,255,255,0.15);
+                background:#111;
+                color:#fff;
+              "
+            >
+
+              ${[
+                [0, "Sunday"],
+                [1, "Monday"],
+                [2, "Tuesday"],
+                [3, "Wednesday"],
+                [4, "Thursday"],
+                [5, "Friday"],
+                [6, "Saturday"]
+              ].map(([value, label]) => `
+                <option
+                  value="${value}"
+                  ${day === value ? "selected" : ""}
+                >
+                  ${label}
+                </option>
+              `).join("")}
+
+            </select>
+
+
+            <input
+              type="time"
+              id="lpScheduleTime_${row.id}"
+              value="${row.class_time || ""}"
+              style="
+                width:115px;
+                padding:7px 8px;
+                border-radius:6px;
+                border:1px solid rgba(255,255,255,0.15);
+                background:#111;
+                color:#fff;
+              "
+            />
+
+
+            <button
+              type="button"
+              onclick="
+                saveStudentScheduleRow('${row.id}')
+              "
+              style="
+                padding:7px 10px;
+                border:none;
+                border-radius:6px;
+                cursor:pointer;
+                background:#2e7d32;
+                color:#fff;
+                font-weight:600;
+              "
+            >
+              Save
+            </button>
+
+
+            <button
+              type="button"
+              onclick="
+                deleteStudentSchedule('${row.id}')
+              "
+              style="
+                padding:7px 10px;
+                border:none;
+                border-radius:6px;
+                cursor:pointer;
+                background:#8b1e1e;
+                color:#fff;
+                font-weight:600;
+              "
+            >
+              Delete
+            </button>
+
+          </div>
+        `;
+
+      }).join("")
+    : `
+      <div style="
+        padding:10px 0;
+        opacity:0.7;
+        font-size:13px;
+      ">
+        No weekly class schedule set.
+      </div>
+    `;
+
+
+  // ----------------------------------------------------------
+  // COMPLETE PANEL
+  // ----------------------------------------------------------
+
+  panel.innerHTML = `
+
+    <div style="
+      font-size:15px;
+      font-weight:700;
+      margin-bottom:10px;
+    ">
+      📅 Weekly Class Schedule
+    </div>
+
+
+    <div style="
+      font-size:12px;
+      opacity:0.7;
+      margin-bottom:12px;
+      line-height:1.5;
+    ">
+      Set the student's recurring weekly class days and times.
+    </div>
+
+
+    ${scheduleHTML}
+
+
+    <div style="
+      margin-top:14px;
+      padding-top:12px;
+      border-top:1px solid rgba(255,255,255,0.1);
+    ">
+
+      <div style="
+        font-size:13px;
+        font-weight:600;
+        margin-bottom:8px;
+      ">
+        ➕ Add Class Day
+      </div>
+
+
+      <div style="
+        display:flex;
+        gap:8px;
+        align-items:center;
+      ">
+
+        <select
+          id="lpScheduleNewDay"
+          style="
+            flex:1;
+            min-width:0;
+            padding:7px 8px;
+            border-radius:6px;
+            border:1px solid rgba(255,255,255,0.15);
+            background:#111;
+            color:#fff;
+          "
+        >
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3" selected>Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+
+
+        <input
+          type="time"
+          id="lpScheduleNewTime"
+          style="
+            width:115px;
+            padding:7px 8px;
+            border-radius:6px;
+            border:1px solid rgba(255,255,255,0.15);
+            background:#111;
+            color:#fff;
+          "
+        />
+
+
+        <button
+          type="button"
+          onclick="addStudentSchedule()"
+          style="
+            padding:7px 12px;
+            border:none;
+            border-radius:6px;
+            cursor:pointer;
+            background:#b8860b;
+            color:#fff;
+            font-weight:700;
+          "
+        >
+          Add
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+// ============================================================
+// 🌐 EXPOSE SCHEDULE FUNCTIONS TO HTML ONCLICK HANDLERS
+// ============================================================
+
+window.loadStudentSchedule =
+  loadStudentSchedule;
+
+window.addStudentSchedule =
+  addStudentSchedule;
+
+window.saveStudentScheduleRow =
+  saveStudentScheduleRow;
+
+window.deleteStudentSchedule =
+  deleteStudentSchedule;
+
+window.renderStudentSchedule =
+  renderStudentSchedule;
   // ===============================
+// SHOW STUDENT
+// ===============================
+// ===============================
 // SHOW STUDENT
 // ===============================
 function showStudent(name) {
@@ -148731,17 +150106,31 @@ function showStudent(name) {
       "lpAttendanceDetails"
     );
 
-  const rows = attendanceMap[name] || [];
+  const rows =
+    attendanceMap[name] || [];
 
+  // ----------------------------------------------------------
+  // Remember which student's schedule is currently displayed
+  // ----------------------------------------------------------
+  lpCurrentScheduleStudentName = name;
+
+
+  // ----------------------------------------------------------
+  // ACTUAL ATTENDANCE DAYS
+  // ----------------------------------------------------------
   const uniqueDays = new Set(
     rows.map(r =>
       new Date(r.started_at + "Z")
-      .toLocaleDateString("en-CA", {
-        timeZone: "Asia/Kolkata"
-      })
+        .toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata"
+        })
     )
   );
 
+
+  // ----------------------------------------------------------
+  // EXISTING ATTENDANCE UI
+  // ----------------------------------------------------------
   wrap.innerHTML = `
 
     <div style="
@@ -148749,42 +150138,75 @@ function showStudent(name) {
       font-weight:700;
       margin-bottom:12px;
     ">
+
       👨‍🎓 ${name}
 
-     <div style="
-  font-size:13px;
-  opacity:0.85;
-  margin-top:6px;
-  line-height:1.7;
-">
+      <div style="
+        font-size:13px;
+        opacity:0.85;
+        margin-top:6px;
+        line-height:1.7;
+      ">
 
-  📅 ${uniqueDays.size}
-  Actual Attendance Days
+        📅 ${uniqueDays.size}
+        Actual Attendance Days
 
-  <br>
+        <br>
 
-  📚 ${batchMap[name] || "No Batch"}
+        📚 ${batchMap[name] || "No Batch"}
 
-  <br>
+        <br>
 
-  📖 ${
-    uniqueDays.size
-  }/${
-    subscriptionMap[name] || 24
-  } Classes Used
+        📖 ${
+          uniqueDays.size
+        }/${
+          subscriptionMap[name] || 24
+        } Classes Used
 
-  <br>
+        <br>
 
-  ✨ ${
-    Math.max(
-      (subscriptionMap[name] || 24)
-      - uniqueDays.size,
-      0
-    )
-  } Remaining
+        ✨ ${
+          Math.max(
+            (subscriptionMap[name] || 24)
+            - uniqueDays.size,
+            0
+          )
+        } Remaining
 
-</div>
+      </div>
+
     </div>
+
+
+    <!-- ======================================================
+         📅 WEEKLY CLASS SCHEDULE
+         ====================================================== -->
+
+    <div
+      id="lpStudentSchedulePanel"
+      style="
+        margin:14px 0 18px 0;
+        padding:14px;
+        border-radius:10px;
+        border:1px solid rgba(255,215,0,0.25);
+        background:rgba(255,215,0,0.04);
+      "
+    >
+
+      <div style="
+        padding:10px;
+        text-align:center;
+        opacity:0.7;
+      ">
+        Loading class schedule...
+      </div>
+
+    </div>
+
+
+    <!-- ======================================================
+         📚 ACTUAL ATTENDANCE HISTORY
+         ====================================================== -->
 
     ${Object.entries(
 
@@ -148792,12 +150214,12 @@ function showStudent(name) {
 
         const day =
           new Date(r.started_at + "Z")
-          .toLocaleDateString("en-IN", {
-            timeZone: "Asia/Kolkata",
-            day: "2-digit",
-            month: "short",
-            year: "numeric"
-          });
+            .toLocaleDateString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              day: "2-digit",
+              month: "short",
+              year: "numeric"
+            });
 
         if (!acc[day]) {
           acc[day] = [];
@@ -148811,7 +150233,8 @@ function showStudent(name) {
 
     ).map(([day, entries], index) => {
 
-      const dropId = `attDrop_${index}`;
+      const dropId =
+        `attDrop_${index}`;
 
       return `
 
@@ -148828,11 +150251,13 @@ function showStudent(name) {
           >
 
             <div>
+
               📅 ${day}
 
               <span class="lp-att-day-count">
                 (${entries.length} joins)
               </span>
+
             </div>
 
             <div class="lp-att-arrow">
@@ -148840,6 +150265,7 @@ function showStudent(name) {
             </div>
 
           </div>
+
 
           <div
             id="${dropId}"
@@ -148850,48 +150276,55 @@ function showStudent(name) {
 
               const time =
                 new Date(r.started_at + "Z")
-                .toLocaleString("en-IN", {
-                  timeZone: "Asia/Kolkata",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  hour12: true
-                });
+                  .toLocaleString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true
+                  });
+
 
               return `
 
                 <div class="lp-att-date-row">
 
-               <div style="
-  flex:1;
-">
+                  <div style="
+                    flex:1;
+                  ">
 
-<div style="
-  font-size:16px;
-  font-weight:600;
-">
-  🕒 ${time}
-</div>
+                    <div style="
+                      font-size:16px;
+                      font-weight:600;
+                    ">
+                      🕒 ${time}
+                    </div>
 
-  ${r.classroom_title ? `
-    <div style="
-      text-align:center;
-      font-size:15px;
-      color:#FFD700;
-      margin-top:-6px;
-      font-weight:700;
-      width:100%;
-    ">
-      📚 ${r.classroom_title}
-    </div>
-  ` : ""}
 
-</div>
+                    ${
+                      r.classroom_title
+                        ? `
+                          <div style="
+                            text-align:center;
+                            font-size:15px;
+                            color:#FFD700;
+                            margin-top:-6px;
+                            font-weight:700;
+                            width:100%;
+                          ">
+                            📚 ${r.classroom_title}
+                          </div>
+                        `
+                        : ""
+                    }
+
+                  </div>
+
 
                   <button
                     class="lp-att-delete"
                     onclick="
                       LPAttendance
-                      .deleteAttendance('${r.id}')
+                        .deleteAttendance('${r.id}')
                     "
                   >
                     Delete
@@ -148912,6 +150345,13 @@ function showStudent(name) {
     }).join("")}
 
   `;
+
+
+  // ----------------------------------------------------------
+  // LOAD SCHEDULE AFTER THE EXISTING ATTENDANCE UI IS READY
+  // ----------------------------------------------------------
+  renderStudentSchedule(name);
+
 }
 
 // ===============================
