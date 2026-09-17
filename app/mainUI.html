@@ -32796,24 +32796,27 @@ transform: translateY(-50%);
    DATE INPUT
 ========================= */
 
-#classSchedule-section
-#classScheduleDate {
+#classSchedule-section #classScheduleDate {
   background: #20253d;
   color: #ffffff;
-
   border: 1px solid #454d70;
   border-radius: 9px;
 
-  padding: 9px 12px;
+  /* Smaller bar */
+  width: 135px;
+  min-width: 135px;
+
+  /* Bigger date/calendar control */
+  height: 42px;
+  padding: 8px 10px;
 
   font-size: 14px;
   font-weight: 700;
 
-  min-width: 180px;
-
   outline: none;
-
   color-scheme: dark;
+
+  cursor: pointer;
 }
 
 #classSchedule-section
@@ -148067,13 +148070,17 @@ async function loadAdminClassSchedule() {
         // ========================================
 
         return `
-          <div style="
-            margin-bottom:12px;
-            padding:16px 18px;
-            border-radius:12px;
-            background:rgba(255,255,255,.05);
-            border:1px solid rgba(255,255,255,.10);
-          ">
+           <div
+    onclick="openScheduleStudentAttendance('${schedule.username}')"
+    style="
+      margin-bottom:12px;
+      padding:16px 18px;
+      border-radius:12px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
+      cursor:pointer;
+    "
+  >
 
             <div style="
               display:flex;
@@ -153354,6 +153361,123 @@ getAllBatchNames
 
 })();
 window.LPAttendance = LPAttendance;
+// ============================================================
+// 📅 CLASS SCHEDULE → ATTENDANCE STUDENT BRIDGE
+// ISOLATED — DOES NOT MODIFY LPAttendance
+// ============================================================
+
+// ============================================================
+// 📅 CLASS SCHEDULE → ATTENDANCE STUDENT BRIDGE
+// ISOLATED — WAITS FOR ATTENDANCE DATA TO FINISH LOADING
+// ============================================================
+
+window.openScheduleStudentAttendance = function (studentName) {
+
+  if (!studentName) return;
+
+  // ----------------------------------------------------------
+  // 1. Open the existing Attendance Manager tab
+  // ----------------------------------------------------------
+
+  const attendanceNav =
+    document.querySelector(
+      '.nav-btn[data-tab="attendance"]'
+    );
+
+  if (attendanceNav) {
+    attendanceNav.click();
+  }
+
+
+  // ----------------------------------------------------------
+  // 2. Wait until the EXISTING Attendance Manager
+  //    has finished loading its student data.
+  // ----------------------------------------------------------
+
+  const attendanceList =
+    document.getElementById(
+      "lpAttendanceStudentList"
+    );
+
+
+  if (!attendanceList) {
+
+    console.warn(
+      "⚠️ Attendance student list not found."
+    );
+
+    return;
+
+  }
+
+
+  let attempts = 0;
+
+  const waitForAttendanceData =
+    setInterval(() => {
+
+      attempts++;
+
+
+      // ------------------------------------------------------
+      // Attendance loader is still running
+      // ------------------------------------------------------
+
+      const isStillLoading =
+        attendanceList.textContent.trim() ===
+        "Loading...";
+
+
+      if (!isStillLoading) {
+
+        clearInterval(
+          waitForAttendanceData
+        );
+
+
+        // ----------------------------------------------------
+        // 3. NOW the Attendance maps/data are ready.
+        //    Open the exact student.
+        // ----------------------------------------------------
+
+        if (
+          window.LPAttendance &&
+          typeof window.LPAttendance.showStudent ===
+            "function"
+        ) {
+
+          window.LPAttendance.showStudent(
+            studentName
+          );
+
+        }
+
+        return;
+
+      }
+
+
+      // ------------------------------------------------------
+      // Safety timeout
+      // Never leave an interval running forever.
+      // ------------------------------------------------------
+
+      if (attempts >= 100) {
+
+        clearInterval(
+          waitForAttendanceData
+        );
+
+        console.warn(
+          "⚠️ Attendance data loading timeout:",
+          studentName
+        );
+
+      }
+
+    }, 100);
+
+};
 // ======================================================
 // LP INVOICE SYSTEM
 // THE OLYMPUS CHESS ACADEMY
