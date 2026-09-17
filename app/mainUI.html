@@ -149130,6 +149130,27 @@ function isScheduledClassPast(
 
 
   if (scheduledRows.length) {
+    // ========================================================
+  // 📅 STUDENT CLASS START DATE
+  //
+  // The first actual attendance date becomes the student's
+  // attendance starting point.
+  //
+  // Scheduled classes before this date must NOT be marked
+  // as absent.
+  // ========================================================
+
+  const studentStartDate =
+    attendanceRows.length
+      ? attendanceRows
+          .map(row =>
+            getAttendanceDateKey(
+              row.started_at
+            )
+          )
+          .filter(Boolean)
+          .sort()[0]
+      : null;
 
     scheduleHTML =
       scheduledRows
@@ -149139,6 +149160,17 @@ function isScheduledClassPast(
          formatScheduleTime(
   schedule.class_time
 )
+          // --------------------------------------------------
+          // Ignore scheduled classes before the student's
+          // first actual class attendance.
+          // --------------------------------------------------
+
+          if (
+            studentStartDate &&
+            dateKey < studentStartDate
+          ) {
+            return "";
+          }
 
 
           // --------------------------------------------------
