@@ -152976,7 +152976,10 @@ window.renderStudentSchedule =
 // ===============================
 // SHOW STUDENT
 // ===============================
-function showStudent(name) {
+// ===============================
+// SHOW STUDENT
+// ===============================
+async function showStudent(name) {
 
   const wrap =
     document.getElementById(
@@ -153006,24 +153009,656 @@ function showStudent(name) {
 
 
   // ----------------------------------------------------------
+  // LOAD THIS STUDENT'S RECURRING WEEKLY SCHEDULE
+  // ----------------------------------------------------------
+  const scheduleRows =
+    await loadStudentSchedule(name);
+
+
+  // ----------------------------------------------------------
+  // SAFETY:
+  // If admin opened another student while the schedule
+  // was loading, do not overwrite the new student's view.
+  // ----------------------------------------------------------
+  if (
+    lpCurrentScheduleStudentName !== name
+  ) {
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // BUILD ATTENDANCE MAP BY ISO DATE
+  // ----------------------------------------------------------
+  const attendanceByDate = {};
+
+  rows.forEach(r => {
+
+    if (
+      !r ||
+      !r.started_at
+    ) {
+      return;
+    }
+
+    const dateKey =
+      new Date(r.started_at + "Z")
+        .toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata"
+        });
+
+    if (!attendanceByDate[dateKey]) {
+      attendanceByDate[dateKey] = [];
+    }
+
+    attendanceByDate[dateKey].push(r);
+
+  });
+
+
+// ----------------------------------------------------------
+// GET CURRENT IST DATE
+// ----------------------------------------------------------
+const nowIST =
+  new Date(
+    new Date().toLocaleString(
+      "en-US",
+      {
+        timeZone: "Asia/Kolkata"
+      }
+    )
+  );
+
+
+  const todayKey =
+    nowIST.getFullYear() +
+    "-" +
+    String(
+      nowIST.getMonth() + 1
+    ).padStart(2, "0") +
+    "-" +
+    String(
+      nowIST.getDate()
+    ).padStart(2, "0");
+
+
+  // ----------------------------------------------------------
+  // FIND THE FIRST REAL ATTENDANCE DATE
+  //
+  // IMPORTANT:
+  // We only generate historical missed classes from the
+  // student's first known attendance date onward.
+  //
+  // This prevents the system from inventing missed classes
+  // from before we have any evidence that the student had
+  // actually started classes.
+  // ----------------------------------------------------------
+  let firstAttendanceDate = null;
+
+  Object.keys(attendanceByDate)
+    .forEach(dateKey => {
+
+      if (
+        !firstAttendanceDate ||
+        dateKey < firstAttendanceDate
+      ) {
+        firstAttendanceDate = dateKey;
+      }
+
+    });
+
+
+  // ----------------------------------------------------------
+  // BUILD MISSED CLASS DATES
+  // ----------------------------------------------------------
+  const missedClasses = [];
+
+
+  if (
+    scheduleRows &&
+    scheduleRows.length &&
+    firstAttendanceDate
+  ) {
+
+    // Start from the student's first known attendance date.
+    // This is intentionally conservative.
+    const startDate =
+      new Date(
+        firstAttendanceDate +
+        "T00:00:00Z"
+      );
+
+    const endDate =
+      new Date(
+        todayKey +
+        "T00:00:00Z"
+      );
+
+
+    // Walk through every calendar date.
+    for (
+      let cursor = new Date(startDate);
+      cursor <= endDate;
+      cursor.setUTCDate(
+        cursor.getUTCDate() + 1
+      )
+    ) {
+
+      const dateKey =
+        cursor
+          .toISOString()
+          .slice(0, 10);
+
+
+      // ------------------------------------------------------
+      // IF THIS DATE ALREADY HAS REAL ATTENDANCE,
+      // DO NOT CREATE A MISSED CARD.
+      //
+      // This follows your existing "one class/day"
+      // attendance model.
+      // ------------------------------------------------------
+      if (
+        attendanceByDate[dateKey] &&
+        attendanceByDate[dateKey].length
+      ) {
+        continue;
+      }
+
+
+      // ------------------------------------------------------
+      // GET WEEKDAY FOR THIS CALENDAR DATE
+      // ------------------------------------------------------
+      const weekday =
+        cursor.getUTCDay();
+
+
+      // ------------------------------------------------------
+      // GET SCHEDULED CLASSES FOR THIS WEEKDAY
+      // ------------------------------------------------------
+      const scheduledForDate =
+        scheduleRows.filter(
+          schedule =>
+            Number(schedule.weekday) ===
+            weekday
+        );
+
+
+      if (!scheduledForDate.length) {
+        continue;
+      }
+
+
+      // ------------------------------------------------------
+      // CHECK EACH SCHEDULED CLASS
+      // ------------------------------------------------------
+      scheduledForDate.forEach(schedule => {
+
+        if (!schedule.class_time) {
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // CREATE EXACT IST CLASS DATETIME
+        // ----------------------------------------------------
+        const scheduledDateTime =
+          new Date(
+            `${dateKey}T${schedule.class_time}:00+05:30`
+          );
+
+
+        if (
+          isNaN(
+            scheduledDateTime.getTime()
+          )
+        ) {
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // ONLY PAST CLASSES BECOME MISSED.
+        //
+        // Today before class time = NOT MISSED.
+        // Future dates = NOT MISSED.
+        // ----------------------------------------------------
+        if (
+          scheduledDateTime.getTime() >
+          nowIST.getTime()
+        ) {
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // A MISSED CLASS RECORD
+        // ----------------------------------------------------
+        missedClasses.push({
+
+          dateKey: dateKey,
+
+          classTime:
+            schedule.class_time,
+
+          weekday:
+            Number(schedule.weekday)
+
+        });
+
+      });
+
+    }
+
+  }
+
+
+  // ----------------------------------------------------------
+  // REMOVE DUPLICATE MISSED DATE/TIME ENTRIES
+  // ----------------------------------------------------------
+  const missedUniqueMap = {};
+
+  missedClasses.forEach(item => {
+
+    const key =
+      `${item.dateKey}_${item.classTime}`;
+
+    missedUniqueMap[key] =
+      item;
+
+  });
+
+
+  const uniqueMissedClasses =
+    Object.values(
+      missedUniqueMap
+    );
+
+
+  // ----------------------------------------------------------
+  // BUILD COMBINED HISTORY
+  //
+  // REAL ATTENDANCE + MISSED CLASSES
+  // ----------------------------------------------------------
+  const historyItems = [];
+
+
+  // ----------------------------------------------------------
+  // REAL ATTENDANCE DAYS
+  // ----------------------------------------------------------
+  Object.entries(
+    attendanceByDate
+  ).forEach(
+    ([dateKey, entries]) => {
+
+      historyItems.push({
+
+        type: "attended",
+
+        dateKey: dateKey,
+
+        entries: entries
+
+      });
+
+    }
+  );
+
+
+  // ----------------------------------------------------------
+  // MISSED CLASS DAYS
+  // ----------------------------------------------------------
+  uniqueMissedClasses.forEach(
+    missed => {
+
+      historyItems.push({
+
+        type: "missed",
+
+        dateKey:
+          missed.dateKey,
+
+        classTime:
+          missed.classTime,
+
+        weekday:
+          missed.weekday,
+
+        entries: []
+
+      });
+
+    }
+  );
+
+
+  // ----------------------------------------------------------
+  // SORT NEWEST DATE → OLDEST DATE
+  // ----------------------------------------------------------
+  historyItems.sort(
+    (a, b) =>
+      b.dateKey.localeCompare(
+        a.dateKey
+      )
+  );
+
+
+  // ----------------------------------------------------------
+  // BUILD HISTORY HTML
+  // ----------------------------------------------------------
+  let historyHTML = "";
+
+
+  historyItems.forEach(
+    (item, index) => {
+
+      const day =
+        new Date(
+          item.dateKey +
+          "T12:00:00Z"
+        ).toLocaleDateString(
+          "en-IN",
+          {
+            timeZone:
+              "Asia/Kolkata",
+
+            day:
+              "2-digit",
+
+            month:
+              "short",
+
+            year:
+              "numeric"
+          }
+        );
+
+
+      // ======================================================
+      // 🔴 MISSED CLASS
+      // ======================================================
+      if (
+        item.type ===
+        "missed"
+      ) {
+
+        const dropId =
+          `missedDrop_${index}`;
+
+
+        const missedTime =
+          lpFormatScheduleTime(
+            item.classTime
+          );
+
+
+        historyHTML += `
+
+          <div class="lp-att-day-wrap">
+
+            <div
+              class="lp-att-day-head"
+              onclick="
+                const el =
+                  document.getElementById(
+                    '${dropId}'
+                  );
+
+                el.classList.toggle('open');
+              "
+            >
+
+              <div>
+
+                📅 ${day}
+
+                <span
+                  class="lp-att-day-count"
+                  style="
+                    color:#ff6b6b;
+                      font-size:15px;
+                    font-weight:800;
+                  "
+                >
+                  (1 missed)
+                </span>
+
+              </div>
+
+              <div
+                class="lp-att-arrow"
+              >
+                ▼
+              </div>
+
+            </div>
+
+
+            <div
+              id="${dropId}"
+              class="lp-att-day-body"
+            >
+
+              <div
+                class="lp-att-date-row"
+              >
+
+                <div
+                  style="
+                    flex:1;
+                  "
+                >
+
+                  <div
+                    style="
+                      font-size:16px;
+                      font-weight:700;
+                      color:#ff6b6b;
+                    "
+                  >
+                    🔴 MISSED
+                  </div>
+
+
+                  <div
+                    style="
+                      margin-top:5px;
+                      font-size:14px;
+                      opacity:.85;
+                    "
+                  >
+                    🕒 ${missedTime}
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `;
+
+        return;
+      }
+
+
+      // ======================================================
+      // 🟢 REAL ATTENDANCE
+      // ======================================================
+      const entries =
+        item.entries || [];
+
+
+      const dropId =
+        `attDrop_${index}`;
+
+
+      historyHTML += `
+
+        <div class="lp-att-day-wrap">
+
+          <div
+            class="lp-att-day-head"
+            onclick="
+              const el =
+                document.getElementById(
+                  '${dropId}'
+                );
+
+              el.classList.toggle('open');
+            "
+          >
+
+            <div>
+
+              📅 ${day}
+
+         <span
+  class="lp-att-day-count"
+  style="
+    color:#22c55e;
+    font-size:15px;
+    font-weight:800;
+  "
+>
+  (${entries.length} joins)
+</span>
+
+            </div>
+
+            <div
+              class="lp-att-arrow"
+            >
+              ▼
+            </div>
+
+          </div>
+
+
+          <div
+            id="${dropId}"
+            class="lp-att-day-body"
+          >
+
+            ${entries.map(r => {
+
+              const time =
+                new Date(
+                  r.started_at + "Z"
+                ).toLocaleString(
+                  "en-IN",
+                  {
+                    timeZone:
+                      "Asia/Kolkata",
+
+                    hour:
+                      "numeric",
+
+                    minute:
+                      "2-digit",
+
+                    hour12:
+                      true
+                  }
+                );
+
+
+              return `
+
+                <div
+                  class="lp-att-date-row"
+                >
+
+                  <div
+                    style="
+                      flex:1;
+                    "
+                  >
+
+                    <div
+                      style="
+                        font-size:16px;
+                        font-weight:600;
+                      "
+                    >
+                      🕒 ${time}
+                    </div>
+
+
+                    ${
+                      r.classroom_title
+                        ? `
+                          <div
+                            style="
+                              text-align:center;
+                              font-size:15px;
+                              color:#FFD700;
+                              margin-top:-6px;
+                              font-weight:700;
+                              width:100%;
+                            "
+                          >
+                            📚 ${r.classroom_title}
+                          </div>
+                        `
+                        : ""
+                    }
+
+                  </div>
+
+
+                  <button
+                    class="lp-att-delete"
+                    onclick="
+                      LPAttendance
+                        .deleteAttendance(
+                          '${r.id}'
+                        )
+                    "
+                  >
+                    Delete
+                  </button>
+
+                </div>
+
+              `;
+
+            }).join("")}
+
+          </div>
+
+        </div>
+
+      `;
+
+    }
+  );
+
+
+  // ----------------------------------------------------------
   // EXISTING ATTENDANCE UI
   // ----------------------------------------------------------
   wrap.innerHTML = `
 
-    <div style="
-      font-size:18px;
-      font-weight:700;
-      margin-bottom:12px;
-    ">
+    <div
+      style="
+        font-size:18px;
+        font-weight:700;
+        margin-bottom:12px;
+      "
+    >
 
       👨‍🎓 ${name}
 
-      <div style="
-        font-size:13px;
-        opacity:0.85;
-        margin-top:6px;
-        line-height:1.7;
-      ">
+      <div
+        style="
+          font-size:13px;
+          opacity:0.85;
+          margin-top:6px;
+          line-height:1.7;
+        "
+      >
 
         📅 ${uniqueDays.size}
         Actual Attendance Days
@@ -153070,11 +153705,13 @@ function showStudent(name) {
       "
     >
 
-      <div style="
-        padding:10px;
-        text-align:center;
-        opacity:0.7;
-      ">
+      <div
+        style="
+          padding:10px;
+          text-align:center;
+          opacity:0.7;
+        "
+      >
         Loading class schedule...
       </div>
 
@@ -153082,150 +153719,35 @@ function showStudent(name) {
 
 
     <!-- ======================================================
-         📚 ACTUAL ATTENDANCE HISTORY
+         📚 COMPLETE ATTENDANCE HISTORY
+         ACTUAL + MISSED
          ====================================================== -->
 
-    ${Object.entries(
-
-      rows.reduce((acc, r) => {
-
-        const day =
-          new Date(r.started_at + "Z")
-            .toLocaleDateString("en-IN", {
-              timeZone: "Asia/Kolkata",
-              day: "2-digit",
-              month: "short",
-              year: "numeric"
-            });
-
-        if (!acc[day]) {
-          acc[day] = [];
-        }
-
-        acc[day].push(r);
-
-        return acc;
-
-      }, {})
-
-    ).map(([day, entries], index) => {
-
-      const dropId =
-        `attDrop_${index}`;
-
-      return `
-
-        <div class="lp-att-day-wrap">
-
-          <div
-            class="lp-att-day-head"
-            onclick="
-              const el =
-                document.getElementById('${dropId}');
-
-              el.classList.toggle('open');
-            "
-          >
-
-            <div>
-
-              📅 ${day}
-
-              <span class="lp-att-day-count">
-                (${entries.length} joins)
-              </span>
-
-            </div>
-
-            <div class="lp-att-arrow">
-              ▼
-            </div>
-
-          </div>
-
-
-          <div
-            id="${dropId}"
-            class="lp-att-day-body"
-          >
-
-            ${entries.map(r => {
-
-              const time =
-                new Date(r.started_at + "Z")
-                  .toLocaleString("en-IN", {
-                    timeZone: "Asia/Kolkata",
-                    hour: "numeric",
-                    minute: "2-digit",
-                    hour12: true
-                  });
-
-
-              return `
-
-                <div class="lp-att-date-row">
-
-                  <div style="
-                    flex:1;
-                  ">
-
-                    <div style="
-                      font-size:16px;
-                      font-weight:600;
-                    ">
-                      🕒 ${time}
-                    </div>
-
-
-                    ${
-                      r.classroom_title
-                        ? `
-                          <div style="
-                            text-align:center;
-                            font-size:15px;
-                            color:#FFD700;
-                            margin-top:-6px;
-                            font-weight:700;
-                            width:100%;
-                          ">
-                            📚 ${r.classroom_title}
-                          </div>
-                        `
-                        : ""
-                    }
-
-                  </div>
-
-
-                  <button
-                    class="lp-att-delete"
-                    onclick="
-                      LPAttendance
-                        .deleteAttendance('${r.id}')
-                    "
-                  >
-                    Delete
-                  </button>
-
-                </div>
-
-              `;
-
-            }).join("")}
-
-          </div>
-
+    ${
+      historyHTML ||
+      `
+        <div
+          class="lp-att-day-wrap"
+          style="
+            padding:20px;
+            text-align:center;
+            opacity:.65;
+          "
+        >
+          No attendance history found.
         </div>
-
-      `;
-
-    }).join("")}
+      `
+    }
 
   `;
 
 
   // ----------------------------------------------------------
-  // LOAD SCHEDULE AFTER THE EXISTING ATTENDANCE UI IS READY
+  // LOAD EXISTING WEEKLY SCHEDULE PANEL
+  //
+  // IMPORTANT:
+  // This is ONLY the weekly schedule editor.
+  // It does NOT add Upcoming cards to attendance history.
   // ----------------------------------------------------------
   renderStudentSchedule(name);
 
