@@ -41063,51 +41063,511 @@ document.getElementById("studyEngineToggle").onclick = () => {
 
 
 function initEditorBoard() {
+
   if (editorBoard) return;
 
   editorChess = new Chess(); // empty logic holder
 
   editorBoard = Chessboard("editorBoard", {
-  position: "start",
-  draggable: true,
-  sparePieces: true,
-  dropOffBoard: "trash",
- pieceTheme: getPieceThemePath(currentPieceTheme),
-  onDrop: onEditorDrop
-});
-initEditorBoardColorSystem();
+
+    position: "start",
+
+    draggable: true,
+
+    sparePieces: true,
+
+    dropOffBoard: "trash",
+
+    pieceTheme: getPieceThemePath(currentPieceTheme),
+
+    onDrop: onEditorDrop
+
+  });
+
+  initEditorBoardColorSystem();
 
 
-  
+// ==================================================
+// 🖱️ MAIN EDITOR — CLICK-TO-SELECT / CLICK-TO-PLACE
+// ==================================================
+
+let editorSelectedSparePiece = null;
+let editorSelectedPieceEl = null;
+let editorFloatingPiece = null;
+
+
+// ==================================================
+// 🧹 CLEAR SELECTION
+// ==================================================
+
+function clearEditorSpareSelection() {
+
+  editorSelectedSparePiece = null;
+
+  if (editorFloatingPiece) {
+    editorFloatingPiece.remove();
+    editorFloatingPiece = null;
+  }
+
+  if (editorSelectedPieceEl) {
+
+    editorSelectedPieceEl.style.outline = "";
+    editorSelectedPieceEl.style.outlineOffset = "";
+
+    editorSelectedPieceEl = null;
+  }
+
+}
+
+
+// ==================================================
+// 🖱️ SPARE PIECE MOUSE DOWN
+// ==================================================
+
+document.addEventListener(
+  "mousedown",
+  function(e) {
+
+    const pieceEl =
+      e.target.closest(
+        "#editorBoard .spare-pieces-7492f .piece-417db"
+      );
+
+    if (!pieceEl) return;
+
+
+    const piece =
+      pieceEl.getAttribute("data-piece");
+
+    if (!piece) return;
+
+
+    // ----------------------------------------------
+    // Remember the selected spare piece
+    // ----------------------------------------------
+
+    editorSelectedSparePiece = piece;
+
+    editorSelectedPieceEl = pieceEl;
+
+
+    // ----------------------------------------------
+    // Highlight selected spare piece
+    // ----------------------------------------------
+
+    document
+      .querySelectorAll(
+        "#editorBoard .spare-pieces-7492f .piece-417db"
+      )
+      .forEach(el => {
+
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+
+      });
+
+
+    pieceEl.style.outline =
+      "2px solid #2196f3";
+
+    pieceEl.style.outlineOffset =
+      "2px";
+
+
+    // ----------------------------------------------
+    // Create floating piece
+    // ----------------------------------------------
+
+    if (editorFloatingPiece) {
+
+      editorFloatingPiece.remove();
+
+      editorFloatingPiece = null;
+
+    }
+
+
+    const floating =
+      pieceEl.cloneNode(true);
+
+
+    floating.removeAttribute("id");
+
+    floating.style.position = "fixed";
+
+    floating.style.pointerEvents = "none";
+
+    floating.style.zIndex = "2147483647";
+
+    floating.style.margin = "0";
+
+    floating.style.outline = "none";
+
+    floating.style.outlineOffset = "0";
+
+
+    const rect =
+      pieceEl.getBoundingClientRect();
+
+
+    floating.style.width =
+      rect.width + "px";
+
+    floating.style.height =
+      rect.height + "px";
+
+
+    document.body.appendChild(floating);
+
+
+    editorFloatingPiece = floating;
+
+
+    // ----------------------------------------------
+    // Position floating piece
+    // ----------------------------------------------
+
+    floating.style.left =
+      (
+        e.clientX -
+        rect.width / 2
+      ) + "px";
+
+
+    floating.style.top =
+      (
+        e.clientY -
+        rect.height / 2
+      ) + "px";
+
+  },
+  true
+);
+
+
+// ==================================================
+// 🖱️ FLOATING PIECE FOLLOWS CURSOR
+// ==================================================
+
+document.addEventListener(
+  "mousemove",
+  function(e) {
+
+    if (!editorSelectedSparePiece) return;
+
+    if (!editorFloatingPiece) return;
+
+
+    const rect =
+      editorFloatingPiece.getBoundingClientRect();
+
+
+    editorFloatingPiece.style.left =
+      (
+        e.clientX -
+        rect.width / 2
+      ) + "px";
+
+
+    editorFloatingPiece.style.top =
+      (
+        e.clientY -
+        rect.height / 2
+      ) + "px";
+
+  },
+  true
+);
+
+
+// ==================================================
+// 🖱️ BOARD SQUARE MOUSE DOWN
+// ==================================================
+
+document.addEventListener(
+  "mousedown",
+  function(e) {
+
+    // ==============================================
+    // 🚫 RIGHT CLICK — NEVER PLACE A PIECE
+    // ==============================================
+
+    if (e.button === 2) {
+      return;
+    }
+
+
+    // ==============================================
+    // NORMAL LEFT CLICK
+    // ==============================================
+
+    if (e.button !== 0) {
+      return;
+    }
+
+
+    if (!editorSelectedSparePiece) {
+      return;
+    }
+
+
+    const squareEl =
+      e.target.closest(
+        "#editorBoard .square-55d63"
+      );
+
+    if (!squareEl) {
+      return;
+    }
+
+
+    const targetSquare =
+      squareEl.getAttribute("data-square");
+
+    if (!targetSquare) {
+      return;
+    }
+
+
+    const piece =
+      editorSelectedSparePiece;
+
+
+    const color =
+      piece.charAt(0) === "w"
+        ? "w"
+        : "b";
+
+
+    const type =
+      piece.charAt(1).toLowerCase();
+
+
+    // ==============================================
+    // PREVENT CHESSBOARD.JS DEFAULT BOARD DRAG
+    // ==============================================
+
+    e.preventDefault();
+
+
+    // ==============================================
+    // OVERWRITE TARGET SQUARE
+    // ==============================================
+
+    editorChess.remove(targetSquare);
+
+    editorChess.put(
+      {
+        type: type,
+        color: color
+      },
+      targetSquare
+    );
+
+
+    // ==============================================
+    // UPDATE VISIBLE BOARD
+    // ==============================================
+
+    editorBoard.position(
+      editorChess.fen(),
+      false
+    );
+
+
+    // ==============================================
+    // UPDATE FEN
+    // ==============================================
+
+    syncEditorFEN();
+
+
+    // ==============================================
+    // IMPORTANT:
+    // editorSelectedSparePiece IS NOT CLEARED.
+    // ==============================================
+
+  },
+  true
+);
+
+// ==================================================
+// 🖱️ RIGHT CLICK — CHANGE COLOR ONLY
+// ==================================================
+
+document.addEventListener(
+  "contextmenu",
+  function(e) {
+
+    if (!editorSelectedSparePiece) {
+      return;
+    }
+
+
+    const squareEl =
+      e.target.closest(
+        "#editorBoard .square-55d63"
+      );
+
+    if (!squareEl) {
+      return;
+    }
+
+
+    // 🚫 Stop browser menu
+    // 🚫 Stop any context-menu action
+    e.preventDefault();
+    e.stopPropagation();
+
+
+    const currentPiece =
+      editorSelectedSparePiece;
+
+
+    const type =
+      currentPiece.charAt(1);
+
+
+    const newColor =
+      currentPiece.charAt(0) === "w"
+        ? "b"
+        : "w";
+
+
+    editorSelectedSparePiece =
+      newColor + type;
+
+
+    // ----------------------------------------------
+    // Update floating piece ONLY
+    // ----------------------------------------------
+
+    if (editorFloatingPiece) {
+
+      const piecePath =
+        getPieceThemePath(
+          currentPieceTheme
+        );
+
+
+      editorFloatingPiece.src =
+        piecePath.replace(
+          "{piece}",
+          editorSelectedSparePiece
+        );
+
+    }
+
+  },
+  true
+);
+
+
+// ==================================================
+// 🖱️ CLICK ANOTHER SPARE PIECE
+// ==================================================
+//
+// The mousedown handler above automatically changes
+// editorSelectedSparePiece.
+//
+// Therefore:
+//
+// Queen → Queen selected
+// Bishop → Bishop selected
+// Knight → Knight selected
+// etc.
+// ==================================================
+
+
+// ==================================================
+// 🖱️ CLICK OUTSIDE EDITOR → CANCEL
+// ==================================================
+
+document.addEventListener(
+  "mousedown",
+  function(e) {
+
+    if (!editorSelectedSparePiece) return;
+
+
+    // Do nothing when interacting with Main Editor
+    if (
+      e.target.closest("#editorBoard")
+    ) {
+      return;
+    }
+
+
+    clearEditorSpareSelection();
+
+  },
+  true
+);
 
 
   syncEditorFEN();
+
   // ==================================================
   // 🔵 INIT DRAWING SYSTEM FOR EDITOR (DESKTOP ONLY)
   // ==================================================
+
   setTimeout(() => {
-    const wrapper = document.getElementById("editorBoardWrapper");
-    const boardEl = document.getElementById("editorBoard");
-    const canvas  = document.getElementById("editorDrawLayer");
+
+    const wrapper =
+      document.getElementById("editorBoardWrapper");
+
+    const boardEl =
+      document.getElementById("editorBoard");
+
+    const canvas =
+      document.getElementById("editorDrawLayer");
 
     if (wrapper && boardEl && canvas) {
-      initEditorBoardDrawing(wrapper, boardEl, canvas);
+
+      initEditorBoardDrawing(
+        wrapper,
+        boardEl,
+        canvas
+      );
+
     }
+
   }, 200);
+
 }
+
+
 function onEditorDrop(source, target, piece) {
-  // remove piece from source square
+
+  // --------------------------------------------------
+  // Existing drag-and-drop behavior
+  // --------------------------------------------------
+
   editorChess.remove(source);
 
-  // detect color and type from piece string (wP, bQ, etc.)
-  const color = piece[0] === "w" ? "w" : "b";
-  const type = piece[1].toLowerCase();
+  // detect color and type from piece string
+  // (wP, bQ, etc.)
+
+  const color =
+    piece[0] === "w" ? "w" : "b";
+
+  const type =
+    piece[1].toLowerCase();
 
   // place piece on target square
-  editorChess.put({ type, color }, target);
 
-  // 🔥 force FEN update immediately
+  editorChess.put(
+    {
+      type: type,
+      color: color
+    },
+    target
+  );
+
+  // force FEN update immediately
+
   syncEditorFEN();
+
 }
 
 let editorFlipped = false;
@@ -41223,22 +41683,131 @@ document.getElementById("editorTurn").addEventListener("change", () => {
 });
 
 
+// ===========================================
+// ▶️ MAIN EDITOR — START POSITION
+// ===========================================
+
 document
   .getElementById("editorStartPos")
   .addEventListener("click", () => {
+
     if (!editorBoard) return;
 
-    editorBoard.position("start", true);
+
+    // ------------------------------------------
+    // Reset BOTH board systems
+    // ------------------------------------------
+
+    editorChess.reset();
+
+    editorBoard.position(
+      "start",
+      true
+    );
+
+
+    // ------------------------------------------
+    // Keep click-to-place selection available
+    // ------------------------------------------
+
+    if (typeof editorFloatingPiece !== "undefined" &&
+        editorFloatingPiece) {
+
+      editorFloatingPiece.remove();
+
+      editorFloatingPiece = null;
+
+    }
+
+
+    if (typeof editorSelectedPieceEl !== "undefined" &&
+        editorSelectedPieceEl) {
+
+      editorSelectedPieceEl.style.outline = "";
+
+      editorSelectedPieceEl.style.outlineOffset = "";
+
+    }
+
+
+    // IMPORTANT:
+    // Do NOT destroy editorSelectedSparePiece.
+    //
+    // The spare-piece selection system remains
+    // available after Start Position.
+
+
     syncEditorFEN();
+
   });
+
+
+// ===========================================
+// 🧹 MAIN EDITOR — CLEAR BOARD
+// ===========================================
 
 document
   .getElementById("editorClear")
   .addEventListener("click", () => {
+
     if (!editorBoard) return;
 
+
+    // ------------------------------------------
+    // CRITICAL:
+    // Clear the chess.js position too.
+    // ------------------------------------------
+
+    editorChess.clear();
+
+
+    // ------------------------------------------
+    // Clear visible Chessboard.js position
+    // ------------------------------------------
+
     editorBoard.clear(true);
+
+
+    // ------------------------------------------
+    // Remove any floating visual piece
+    // ------------------------------------------
+
+    if (typeof editorFloatingPiece !== "undefined" &&
+        editorFloatingPiece) {
+
+      editorFloatingPiece.remove();
+
+      editorFloatingPiece = null;
+
+    }
+
+
+    // ------------------------------------------
+    // Remove spare-piece highlight
+    // ------------------------------------------
+
+    if (typeof editorSelectedPieceEl !== "undefined" &&
+        editorSelectedPieceEl) {
+
+      editorSelectedPieceEl.style.outline = "";
+
+      editorSelectedPieceEl.style.outlineOffset = "";
+
+    }
+
+
+    // ------------------------------------------
+    // IMPORTANT:
+    // The selected spare-piece TYPE remains stored.
+    //
+    // So after Clear:
+    //
+    // Select Queen → Clear → Queen remains the
+    // selected click-to-place piece.
+    // ------------------------------------------
+
     syncEditorFEN();
+
   });
 
   document.getElementById("editorApply").addEventListener("click", () => {
@@ -112122,7 +112691,14 @@ document.getElementById("studyFlipBoardBtn")?.addEventListener("click", (e) => {
 let fenEditorChess = null;
 let fenEditorBoard = null;
 
+// ==========================================
+// 🖱️ STUDY FEN EDITOR — CLICK-CLICK PIECE
+// SELECTION STATE
+// ==========================================
 
+let fenEditorSelectedSparePiece = null;
+let fenEditorFloatingPiece = null;
+let fenEditorSelectedPieceEl = null;
 // --------------------------------------
 // INIT EDITOR BOARD (only once)
 // --------------------------------------
@@ -112261,7 +112837,438 @@ onDragStart: (source, piece) => {
   setTimeout(syncFenEditorFEN, 50);
 }
 
+// ==========================================
+// 🖱️ STUDY FEN EDITOR — SPARE PIECE CLICK
+// CLICK = SELECT PIECE + FOLLOW CURSOR
+// ==========================================
 
+document.addEventListener(
+  "mousedown",
+  function (e) {
+
+    // Only left-click selects a spare piece.
+    if (e.button !== 0) return;
+
+    // Only Study FEN Editor spare pieces.
+    const sparePiece =
+      e.target.closest(
+        "#studyFenEditor .spare-pieces-7492f .piece-417db"
+      );
+
+    if (!sparePiece) return;
+
+    // ==========================================
+    // GET THE CHESS PIECE CODE
+    // ==========================================
+
+    const piece =
+      sparePiece.getAttribute("data-piece") ||
+      sparePiece.getAttribute("data-piece-code") ||
+      sparePiece.getAttribute("alt");
+
+    if (!piece) return;
+
+    // ==========================================
+    // STORE SELECTED PIECE
+    // ==========================================
+
+    fenEditorSelectedSparePiece = piece;
+
+    fenEditorSelectedPieceEl = sparePiece;
+
+    // ==========================================
+    // REMOVE ANY OLD FLOATING PIECE
+    // ==========================================
+
+    if (fenEditorFloatingPiece) {
+
+      fenEditorFloatingPiece.remove();
+
+      fenEditorFloatingPiece = null;
+    }
+
+    // ==========================================
+    // REMOVE OLD SELECTION OUTLINE
+    // ==========================================
+
+    document
+      .querySelectorAll(
+        "#studyFenEditor .spare-pieces-7492f .piece-417db"
+      )
+      .forEach(el => {
+
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+
+      });
+
+    // Highlight selected spare piece.
+    sparePiece.style.outline =
+      "2px solid #ffd700";
+
+    sparePiece.style.outlineOffset =
+      "2px";
+
+    // ==========================================
+    // CREATE FLOATING COPY
+    // USING THE ACTUAL SPARE PIECE IMAGE
+    // ==========================================
+
+    const floating =
+      sparePiece.cloneNode(true);
+
+    floating.removeAttribute("id");
+
+    floating.classList.add(
+      "fen-editor-floating-piece"
+    );
+
+    floating.style.position = "fixed";
+
+    floating.style.pointerEvents =
+      "none";
+
+    floating.style.zIndex =
+      "2147483647";
+
+    floating.style.margin = "0";
+
+    floating.style.padding = "0";
+
+    floating.style.left =
+      e.clientX + "px";
+
+    floating.style.top =
+      e.clientY + "px";
+
+    floating.style.transform =
+      "translate(-50%, -50%)";
+
+    floating.style.display =
+      "block";
+
+    floating.style.visibility =
+      "visible";
+
+    floating.style.opacity =
+      "1";
+
+    // Make the floating copy the same size
+    // as the actual selected spare piece.
+    const rect =
+      sparePiece.getBoundingClientRect();
+
+    floating.style.width =
+      rect.width + "px";
+
+    floating.style.height =
+      rect.height + "px";
+
+    // ==========================================
+    // IMPORTANT:
+    // APPEND ONLY TO STUDY FEN EDITOR
+    // ==========================================
+
+    const fenEditor =
+      document.getElementById(
+        "studyFenEditor"
+      );
+
+    if (!fenEditor) return;
+
+    fenEditor.appendChild(
+      floating
+    );
+
+    fenEditorFloatingPiece =
+      floating;
+
+    // ==========================================
+    // FOLLOW THE MOUSE
+    // ==========================================
+
+    const moveFloatingPiece =
+      function (moveEvent) {
+
+        if (!fenEditorFloatingPiece) {
+          return;
+        }
+
+        fenEditorFloatingPiece.style.left =
+          moveEvent.clientX + "px";
+
+        fenEditorFloatingPiece.style.top =
+          moveEvent.clientY + "px";
+      };
+
+    document.addEventListener(
+      "mousemove",
+      moveFloatingPiece
+    );
+
+    // Store the listener on the floating
+    // element so we can remove it later.
+    floating._fenMoveHandler =
+      moveFloatingPiece;
+
+    // ==========================================
+    // PREVENT CHESSBOARD.JS FROM STARTING
+    // ITS NORMAL DRAG OPERATION
+    // ==========================================
+
+    e.preventDefault();
+    e.stopPropagation();
+
+  },
+  true
+);
+// ==========================================
+// 🖱️ STUDY FEN EDITOR — BOARD CLICK PLACEMENT
+// LEFT CLICK = PLACE SELECTED PIECE
+// SELECTION REMAINS ACTIVE
+// ==========================================
+
+document.addEventListener(
+  "mousedown",
+  function (e) {
+
+    // Only left-click can place a piece.
+    if (e.button !== 0) return;
+
+    // Nothing selected.
+    if (!fenEditorSelectedSparePiece) return;
+
+    // Only Study FEN Editor board squares.
+    const squareEl =
+      e.target.closest(
+        "#studyFenEditor #fenEditorBoard .square-55d63"
+      );
+
+    if (!squareEl) return;
+
+    const targetSquare =
+      squareEl.getAttribute("data-square");
+
+    if (!targetSquare || !fenEditorChess) return;
+
+    const selectedPiece =
+      fenEditorSelectedSparePiece;
+
+    const color =
+      selectedPiece.charAt(0) === "w"
+        ? "w"
+        : "b";
+
+    const type =
+      selectedPiece.charAt(1).toLowerCase();
+
+    // ==========================================
+    // OVERWRITE WHATEVER IS ON THE SQUARE
+    // ==========================================
+
+    fenEditorChess.remove(targetSquare);
+
+    fenEditorChess.put(
+      {
+        type: type,
+        color: color
+      },
+      targetSquare
+    );
+
+    // ==========================================
+    // UPDATE VISIBLE BOARD
+    // ==========================================
+
+    fenEditorBoard.position(
+      fenEditorChess.fen(),
+      false
+    );
+
+    // ==========================================
+    // UPDATE GENERATED FEN
+    // ==========================================
+
+    syncFenEditorFEN();
+
+    // ==========================================
+    // IMPORTANT:
+    // DO NOT CLEAR fenEditorSelectedSparePiece
+    // ==========================================
+
+    e.preventDefault();
+    e.stopPropagation();
+
+  },
+  true
+);
+// ==========================================
+// 🖱️ STUDY FEN EDITOR — RIGHT CLICK
+// TOGGLE FLOATING PIECE COLOR ONLY
+// ==========================================
+
+document.addEventListener(
+  "contextmenu",
+  function (e) {
+
+    // No selected piece.
+    if (!fenEditorSelectedSparePiece) {
+      return;
+    }
+
+    // Only react to Study FEN Editor board squares.
+    const squareEl =
+      e.target.closest(
+        "#studyFenEditor #fenEditorBoard .square-55d63"
+      );
+
+    if (!squareEl) {
+      return;
+    }
+
+    // ==========================================
+    // 🚫 RIGHT CLICK MUST NEVER PLACE A PIECE
+    // ==========================================
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // ==========================================
+    // 🔄 TOGGLE SELECTED PIECE COLOR
+    // ==========================================
+
+    const currentPiece =
+      fenEditorSelectedSparePiece;
+
+    const type =
+      currentPiece.charAt(1);
+
+    const newColor =
+      currentPiece.charAt(0) === "w"
+        ? "b"
+        : "w";
+
+    fenEditorSelectedSparePiece =
+      newColor + type;
+
+    // ==========================================
+    // 🔄 UPDATE ONLY THE FLOATING COPY
+    // ==========================================
+
+    if (fenEditorFloatingPiece) {
+
+      const pieceTheme =
+        getPieceThemePath(
+          currentPieceTheme
+        );
+
+      fenEditorFloatingPiece.src =
+        pieceTheme.replace(
+          "{piece}",
+          fenEditorSelectedSparePiece
+        );
+    }
+
+    // ==========================================
+    // 🚫 DO NOT MODIFY:
+    //
+    // fenEditorSelectedPieceEl.src
+    //
+    // The original spare piece must remain
+    // exactly as it was.
+    // ==========================================
+
+  },
+  true
+);
+// ==========================================
+// 🛑 STUDY FEN EDITOR — CLICK OUTSIDE BOARD
+// CANCEL FLOATING PIECE
+// ==========================================
+
+document.addEventListener(
+  "mousedown",
+  function (e) {
+
+    // Nothing is currently selected.
+    if (!fenEditorSelectedSparePiece) {
+      return;
+    }
+
+    const board =
+      document.getElementById(
+        "fenEditorBoard"
+      );
+
+    if (!board) {
+      return;
+    }
+
+    // ==========================================
+    // INSIDE THE ACTUAL CHESSBOARD
+    // ==========================================
+    //
+    // Keep selection active.
+    // Board-square placement continues normally.
+    //
+
+    if (board.contains(e.target)) {
+      return;
+    }
+
+    // ==========================================
+    // ANYWHERE OUTSIDE THE CHESSBOARD
+    // ==========================================
+    //
+    // This includes:
+    //
+    // • popup header
+    // • popup empty space
+    // • buttons
+    // • FEN input
+    // • turn dropdown
+    // • spare-piece area
+    // • anywhere else inside the popup
+    // • anywhere outside the popup
+    //
+    // The selected floating piece is cancelled.
+    // ==========================================
+
+    // Remove mouse-follow listener.
+    if (
+      fenEditorFloatingPiece &&
+      fenEditorFloatingPiece._fenMoveHandler
+    ) {
+
+      document.removeEventListener(
+        "mousemove",
+        fenEditorFloatingPiece._fenMoveHandler
+      );
+    }
+
+    // Remove floating piece.
+    if (fenEditorFloatingPiece) {
+
+      fenEditorFloatingPiece.remove();
+
+      fenEditorFloatingPiece = null;
+    }
+
+    // Remove selected-piece highlight.
+    if (fenEditorSelectedPieceEl) {
+
+      fenEditorSelectedPieceEl.style.outline = "";
+      fenEditorSelectedPieceEl.style.outlineOffset = "";
+
+      fenEditorSelectedPieceEl = null;
+    }
+
+    // Clear selected piece.
+    fenEditorSelectedSparePiece = null;
+
+  },
+  true
+);
 // --------------------------------------
 // OPEN POPUP EDITOR
 // --------------------------------------
@@ -132514,6 +133521,15 @@ window.LiveClassFenEditor = (() => {
   let lpFenEditorBoard = null;
 
   let lpFenEditorInitialized = false;
+  // =======================================================
+// CLICK-CLICK PIECE SELECTION
+// =======================================================
+
+let lpFenEditorSelectedSparePiece = null;
+
+let lpFenEditorFloatingPiece = null;
+
+let lpFenEditorSelectedPieceEl = null;
 
 
   // =======================================================
@@ -132675,7 +133691,196 @@ window.LiveClassFenEditor = (() => {
       handleRightClick
     );
 
+    // =====================================================
+    // RIGHT CLICK SELECTED SPARE PIECE = TOGGLE COLOR
+    // =====================================================
 
+    document.addEventListener(
+      "contextmenu",
+      function (e) {
+
+        // Nothing selected
+        if (!lpFenEditorSelectedSparePiece) return;
+
+
+        // ===============================================
+        // ONLY RESPOND TO THE LIVE FEN EDITOR BOARD
+        // ===============================================
+
+        const squareEl =
+          e.target.closest(
+            "#lpFenEditorModal #lpFenEditorBoard .square-55d63"
+          );
+
+
+        if (!squareEl) return;
+
+
+        // ===============================================
+        // PREVENT NORMAL CONTEXT MENU
+        // ===============================================
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+
+        // ===============================================
+        // TOGGLE SELECTED PIECE COLOR
+        // ===============================================
+
+        const currentPiece =
+          lpFenEditorSelectedSparePiece;
+
+
+        const type =
+          currentPiece.charAt(1);
+
+
+        const newColor =
+          currentPiece.charAt(0) === "w"
+            ? "b"
+            : "w";
+
+
+        lpFenEditorSelectedSparePiece =
+          newColor + type;
+
+
+        // ===============================================
+        // UPDATE ONLY THE FLOATING PIECE
+        //
+        // DO NOT MODIFY THE ORIGINAL SPARE IMAGE
+        // ===============================================
+
+        if (
+          lpFenEditorFloatingPiece
+        ) {
+
+          const piecePath =
+            getPieceThemePath(
+              currentPieceTheme
+            );
+
+
+          lpFenEditorFloatingPiece.src =
+            piecePath.replace(
+              "{piece}",
+              lpFenEditorSelectedSparePiece
+            );
+
+        }
+
+      },
+      true
+    );
+        // =====================================================
+    // CANCEL SPARE PIECE SELECTION
+    // WHEN CLICKING OUTSIDE THE ACTUAL BOARD
+    // =====================================================
+
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+
+        // Left click only
+        if (e.button !== 0) return;
+
+        // Nothing selected
+        if (!lpFenEditorSelectedSparePiece) return;
+
+
+        // ===============================================
+        // IS THE CLICK INSIDE THE ACTUAL CHESSBOARD?
+        // ===============================================
+
+        const insideBoard =
+          e.target.closest(
+            "#lpFenEditorModal #lpFenEditorBoard"
+          );
+
+
+        // ===============================================
+        // IS THE CLICK ON A SPARE PIECE?
+        //
+        // We must NOT cancel here because the spare-piece
+        // selection handler needs to select the new piece.
+        // ===============================================
+
+        const onSparePiece =
+          e.target.closest(
+            "#lpFenEditorModal .spare-pieces-7492f .piece-417db"
+          );
+
+
+        if (
+          insideBoard ||
+          onSparePiece
+        ) {
+
+          return;
+
+        }
+
+
+        // ===============================================
+        // CANCEL CURRENT SELECTION
+        // ===============================================
+
+        if (
+          lpFenEditorFloatingPiece
+        ) {
+
+          if (
+            lpFenEditorFloatingPiece._fenMoveHandler
+          ) {
+
+            document.removeEventListener(
+              "mousemove",
+              lpFenEditorFloatingPiece._fenMoveHandler
+            );
+
+          }
+
+
+          lpFenEditorFloatingPiece.remove();
+
+          lpFenEditorFloatingPiece =
+            null;
+
+        }
+
+
+        // ===============================================
+        // REMOVE SPARE PIECE HIGHLIGHT
+        // ===============================================
+
+        document
+          .querySelectorAll(
+            "#lpFenEditorModal .spare-pieces-7492f .piece-417db"
+          )
+          .forEach(el => {
+
+            el.style.outline = "";
+
+            el.style.outlineOffset = "";
+
+          });
+
+
+        // ===============================================
+        // CLEAR SELECTION
+        // ===============================================
+
+        lpFenEditorSelectedSparePiece =
+          null;
+
+        lpFenEditorSelectedPieceEl =
+          null;
+
+      },
+      true
+    );
     // =====================================================
     // BUTTONS
     // =====================================================
@@ -132762,6 +133967,330 @@ window.LiveClassFenEditor = (() => {
         "click",
         open
       );
+          // =====================================================
+    // CLICK-CLICK SPARE PIECE SELECTION
+    // =====================================================
+
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+
+        // Left click only
+        if (e.button !== 0) return;
+
+        const sparePiece =
+          e.target.closest(
+            "#lpFenEditorModal .spare-pieces-7492f .piece-417db"
+          );
+
+        if (!sparePiece) return;
+
+
+        // ===============================================
+        // REMOVE PREVIOUS FLOATING PIECE
+        // ===============================================
+
+        if (lpFenEditorFloatingPiece) {
+
+          if (
+            lpFenEditorFloatingPiece._fenMoveHandler
+          ) {
+
+            document.removeEventListener(
+              "mousemove",
+              lpFenEditorFloatingPiece._fenMoveHandler
+            );
+
+          }
+
+          lpFenEditorFloatingPiece.remove();
+
+          lpFenEditorFloatingPiece = null;
+
+        }
+
+
+        // ===============================================
+        // REMOVE OLD SELECTION HIGHLIGHT
+        // ===============================================
+
+        document
+          .querySelectorAll(
+            "#lpFenEditorModal .spare-pieces-7492f .piece-417db"
+          )
+          .forEach(el => {
+
+            el.style.outline = "";
+
+            el.style.outlineOffset = "";
+
+          });
+
+
+        // ===============================================
+        // READ PIECE CODE
+        // ===============================================
+
+        const pieceCode =
+          sparePiece.getAttribute(
+            "data-piece"
+          ) ||
+          sparePiece.getAttribute(
+            "data-piece-code"
+          ) ||
+          sparePiece.getAttribute(
+            "alt"
+          );
+
+
+        if (!pieceCode) return;
+
+
+        lpFenEditorSelectedSparePiece =
+          pieceCode;
+
+        lpFenEditorSelectedPieceEl =
+          sparePiece;
+
+
+        // ===============================================
+        // HIGHLIGHT SELECTED SPARE PIECE
+        // ===============================================
+
+        sparePiece.style.outline =
+          "3px solid #ffd700";
+
+        sparePiece.style.outlineOffset =
+          "2px";
+
+
+        // ===============================================
+        // CREATE FLOATING PIECE
+        // FROM THE ACTUAL SPARE IMAGE
+        // ===============================================
+
+        const floatingPiece =
+          sparePiece.cloneNode(true);
+
+
+        floatingPiece.removeAttribute(
+          "id"
+        );
+
+
+        floatingPiece.classList.add(
+          "lp-fen-editor-floating-piece"
+        );
+
+
+        floatingPiece.style.position =
+          "fixed";
+
+        floatingPiece.style.pointerEvents =
+          "none";
+
+        floatingPiece.style.zIndex =
+          "2147483647";
+
+        floatingPiece.style.margin =
+          "0";
+
+        floatingPiece.style.padding =
+          "0";
+
+        floatingPiece.style.display =
+          "block";
+
+        floatingPiece.style.visibility =
+          "visible";
+
+        floatingPiece.style.opacity =
+          "1";
+
+
+        // Match the original spare-piece size
+        const rect =
+          sparePiece.getBoundingClientRect();
+
+
+        floatingPiece.style.width =
+          rect.width + "px";
+
+        floatingPiece.style.height =
+          rect.height + "px";
+
+
+        floatingPiece.style.left =
+          e.clientX + "px";
+
+        floatingPiece.style.top =
+          e.clientY + "px";
+
+        floatingPiece.style.transform =
+          "translate(-50%, -50%)";
+
+
+        const modal =
+          document.getElementById(
+            "lpFenEditorModal"
+          );
+
+
+        if (!modal) return;
+
+
+        modal.appendChild(
+          floatingPiece
+        );
+
+
+        lpFenEditorFloatingPiece =
+          floatingPiece;
+
+
+        // ===============================================
+        // FOLLOW CURSOR
+        // ===============================================
+
+        const moveHandler =
+          moveEvent => {
+
+            if (
+              !lpFenEditorFloatingPiece
+            ) return;
+
+
+            lpFenEditorFloatingPiece.style.left =
+              moveEvent.clientX + "px";
+
+            lpFenEditorFloatingPiece.style.top =
+              moveEvent.clientY + "px";
+
+          };
+
+
+        floatingPiece._fenMoveHandler =
+          moveHandler;
+
+
+        document.addEventListener(
+          "mousemove",
+          moveHandler
+        );
+
+
+        // ===============================================
+        // PREVENT CHESSBOARD.JS DRAG FROM STARTING
+        // ===============================================
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+      },
+      true
+    );
+        // =====================================================
+    // CLICK-CLICK PIECE PLACEMENT
+    // =====================================================
+
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+
+        // Left click only
+        if (e.button !== 0) return;
+
+        // No selected spare piece
+        if (!lpFenEditorSelectedSparePiece) return;
+
+
+        // ===============================================
+        // ONLY ACT ON THE LIVE FEN EDITOR BOARD
+        // ===============================================
+
+        const squareEl =
+          e.target.closest(
+            "#lpFenEditorModal #lpFenEditorBoard .square-55d63"
+          );
+
+
+        if (!squareEl) return;
+
+
+        const targetSquare =
+          squareEl.getAttribute(
+            "data-square"
+          );
+
+
+        if (!targetSquare) return;
+
+
+        // ===============================================
+        // GET SELECTED PIECE
+        // ===============================================
+
+        const piece =
+          lpFenEditorSelectedSparePiece;
+
+
+        const color =
+          piece.charAt(0) === "w"
+            ? "w"
+            : "b";
+
+
+        const type =
+          piece.charAt(1).toLowerCase();
+
+
+        // ===============================================
+        // PREVENT NORMAL CHESSBOARD CLICK BEHAVIOR
+        // ===============================================
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+
+        // ===============================================
+        // OVERWRITE TARGET SQUARE
+        // ===============================================
+
+        lpFenEditorChess.remove(
+          targetSquare
+        );
+
+
+        lpFenEditorChess.put(
+          {
+            type,
+            color
+          },
+          targetSquare
+        );
+
+
+        // ===============================================
+        // REFRESH BOARD
+        // ===============================================
+
+        lpFenEditorBoard.position(
+          lpFenEditorChess.fen(),
+          false
+        );
+
+
+        // ===============================================
+        // KEEP SELECTION ACTIVE
+        // ===============================================
+
+        syncFen();
+
+      },
+      true
+    );
 
 
     initDragging();
@@ -132840,12 +134369,62 @@ window.LiveClassFenEditor = (() => {
 
   }
 
+  // =======================================================
+  // CLEANUP CLICK-CLICK SPARE PIECE SELECTION
+  // =======================================================
 
+  function cleanupSparePieceSelection() {
+
+    if (
+      lpFenEditorFloatingPiece
+    ) {
+
+      if (
+        lpFenEditorFloatingPiece._fenMoveHandler
+      ) {
+
+        document.removeEventListener(
+          "mousemove",
+          lpFenEditorFloatingPiece._fenMoveHandler
+        );
+
+      }
+
+      lpFenEditorFloatingPiece.remove();
+
+      lpFenEditorFloatingPiece =
+        null;
+
+    }
+
+
+    // Remove selection highlight
+    document
+      .querySelectorAll(
+        "#lpFenEditorModal .spare-pieces-7492f .piece-417db"
+      )
+      .forEach(el => {
+
+        el.style.outline = "";
+
+        el.style.outlineOffset = "";
+
+      });
+
+
+    lpFenEditorSelectedSparePiece =
+      null;
+
+    lpFenEditorSelectedPieceEl =
+      null;
+
+  }
   // =======================================================
   // CLOSE
   // =======================================================
 
   function close() {
+    cleanupSparePieceSelection();
 
     document
       .getElementById(
@@ -133358,9 +134937,11 @@ window.LiveClassFenEditor = (() => {
     }
 
 
-    close();
+   cleanupSparePieceSelection();
 
-  }
+close();
+
+}
 
 
   // =======================================================
