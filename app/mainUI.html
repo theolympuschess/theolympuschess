@@ -33861,6 +33861,19 @@ body * {
   }
 
 }
+/* ================================================
+   🔒 LOCK / UNLOCK BUTTON ALIGNMENT
+   ================================================ */
+
+button[id*="lock"],
+button[class*="lock"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  line-height: 1;
+}
 
   </style>
 </head>
@@ -101110,13 +101123,19 @@ async function createAdminLockPanel() {
 
       btn.innerText =
         globalClassLocked
-          ? "🔓 Unlock All Students"
-          : "🔒 Lock All Students";
+          ? "🔓 Unlock "
+          : "🔒 Lock ";
+          btn.style.display = "inline-flex";
+btn.style.alignItems = "center";
+btn.style.justifyContent = "center";
+btn.style.gap = "4px";
+btn.style.whiteSpace = "nowrap";
+btn.style.lineHeight = "1";
 
       btn.style.background =
         globalClassLocked
           ? "#2e7d32"
-          : "#c62828";
+         : "#bd6c02";
 
       return;
     }
@@ -101173,13 +101192,19 @@ async function createAdminLockPanel() {
 
     btn.innerText =
       isLocked
-        ? "🔓 Unlock Student"
-        : "🔒 Lock Student";
+        ? "🔓 Unlock "
+        : "🔒 Lock ";
+        btn.style.display = "inline-flex";
+btn.style.alignItems = "center";
+btn.style.justifyContent = "center";
+btn.style.gap = "4px";
+btn.style.whiteSpace = "nowrap";
+btn.style.lineHeight = "1";
 
     btn.style.background =
       isLocked
         ? "#2e7d32"
-        : "#c62828";
+       : "#bd6c02";
 
   }
 
@@ -170045,6 +170070,7 @@ style="
    - Does NOT change existing navigation logic
    - Desktop / laptop / tablet only
    - Mobile navbar is restored to its original structure
+   - Group badges MIRROR the existing real badges
    ============================================================ */
 
 (function () {
@@ -170065,82 +170091,60 @@ style="
     learning: [
       '[data-tab="assignments"]',
       '[data-tab="study"]',
-      
-       '[data-tab="piecePractice"]',
-       '[data-tab="coordtrain"]',
-       
-     
-      
+      '[data-tab="piecePractice"]',
+      '[data-tab="coordtrain"]',
     ],
 
     classroom: [
       '[data-tab="livePuzzle"]',
       '[data-tab="classSchedule"]',
-       '[data-tab="assignmentStatus"]',
+      '[data-tab="assignmentStatus"]',
       '[data-tab="myAttendance"]',
-       '[data-tab="attempts"]',
+      '[data-tab="attempts"]',
       '[data-tab="attendance"]',
       '[data-tab="pairing"]',
-      
-     
-      
       '[data-tab="scoreboard"]',
     ],
 
     chess: [
       '[data-tab="computer"]',
-     
-      
       '[data-tab="board"]',
-       '[data-tab="livematch"]',
-       '[data-tab="editor"]',
-      
-      
-      
+      '[data-tab="livematch"]',
+      '[data-tab="editor"]',
     ],
 
     training: [
-     
-      
-       '[data-tab="boardfreeze"]',
-        '#legalMoveGameBtn',
+      '[data-tab="boardfreeze"]',
+      '#legalMoveGameBtn',
       '#legalChecksGameBtn',
       '[data-tab="puzzlerush"]',
-      
       '[data-tab="puzzletrainer"]',
       '[data-tab="quiz"]',
       '[data-tab="puzzlebattle"]',
-     
-     
-     
-      
-      
     ],
 
-   games: [
-  '[data-tab="color"]',
-  '[data-tab="memory"]',
-  '[data-tab="kingmath"]',
-  
-  '[data-tab="flashqueen"]',
-  '[data-tab="pathfinder"]',
-   '[data-tab="iqtrainer"]',
+    games: [
+      '[data-tab="color"]',
+      '[data-tab="memory"]',
+      '[data-tab="kingmath"]',
+      '[data-tab="flashqueen"]',
+      '[data-tab="pathfinder"]',
+      '[data-tab="iqtrainer"]',
+      '#cardClashGameBtn',
+      '#hiddenDeckGameBtn'
+    ],
 
-  '#cardClashGameBtn',
-  '#hiddenDeckGameBtn'
-],
-
-nightGames: [
-  '[data-tab="knightfog"]',
-  '[data-tab="knightdefense"]',
-  '[data-tab="knightpath"]',
-  '[data-tab="knightmonster"]',
-  '[data-tab="colorchaos"]',
-  '[data-tab="knightescape"]',
-  '[data-tab="knightspeed"]',
-  '[data-tab="knightlava"]',
-  '[data-tab="knightgps"]'
-],
+    nightGames: [
+      '[data-tab="knightfog"]',
+      '[data-tab="knightdefense"]',
+      '[data-tab="knightpath"]',
+      '[data-tab="knightmonster"]',
+      '[data-tab="colorchaos"]',
+      '[data-tab="knightescape"]',
+      '[data-tab="knightspeed"]',
+      '[data-tab="knightlava"]',
+      '[data-tab="knightgps"]'
+    ],
 
     community: [
       '[data-tab="gallery"]',
@@ -170148,6 +170152,23 @@ nightGames: [
     ]
 
   };
+
+
+  /* ==========================================================
+     GROUP BADGE CONFIGURATION
+     ----------------------------------------------------------
+     These are the EXISTING real badges.
+     The group badge is only a visual mirror.
+     ========================================================== */
+
+const groupBadgeSources = {
+  learning: "studentAssignmentsBadge",
+  classroom: "attemptsTabBadge"
+};
+
+const groupLiveDotSources = {
+  chess: "navLiveDot"
+};
 
 
   /* ==========================================================
@@ -170169,6 +170190,16 @@ nightGames: [
   let desktopBuilt = false;
 
   const createdGroups = [];
+
+
+  /* ==========================================================
+     GROUP BADGE OBSERVERS
+     ----------------------------------------------------------
+     Keeps the visual group badge synchronized with the
+     original real badge.
+     ========================================================== */
+
+  const groupBadgeObservers = [];
 
 
   /* ==========================================================
@@ -170199,11 +170230,10 @@ nightGames: [
     trigger.type = "button";
     trigger.className = "olympus-nav-group-trigger";
 
-    trigger.innerHTML =
-      icon +
-      " " +
-      title +
-      ' <span class="olympus-nav-group-arrow">▾</span>';
+  trigger.innerHTML =
+  icon + " " + title +
+  ' <span class="live-dot olympus-nav-group-live-dot" aria-hidden="true"></span>' +
+  ' <span class="olympus-nav-group-arrow">▾</span>';
 
 
     const menu = document.createElement("div");
@@ -170228,8 +170258,240 @@ nightGames: [
 
     return {
       group,
+      trigger,
       menu
     };
+
+  }
+
+
+  /* ==========================================================
+     CREATE GROUP BADGE
+     ----------------------------------------------------------
+     This does NOT replace the real badge.
+
+     It creates a visual copy on the group trigger and keeps
+     that copy synchronized with the original badge.
+     ========================================================== */
+
+  function attachGroupBadge(groupKey, trigger) {
+
+    const sourceId = groupBadgeSources[groupKey];
+
+    if (!sourceId || !trigger) return;
+
+
+    const sourceBadge = document.getElementById(sourceId);
+
+    if (!sourceBadge) return;
+
+
+    /* --------------------------------------------------------
+       Clone the EXISTING badge styling/appearance
+       -------------------------------------------------------- */
+
+    const groupBadge = sourceBadge.cloneNode(true);
+
+
+    /* --------------------------------------------------------
+       VERY IMPORTANT:
+       Do not duplicate the original ID.
+       -------------------------------------------------------- */
+
+    groupBadge.removeAttribute("id");
+
+
+    /* --------------------------------------------------------
+       Give the cloned badge its own identifying class
+       -------------------------------------------------------- */
+
+    groupBadge.classList.add(
+      "olympus-group-badge"
+    );
+
+
+    groupBadge.dataset.badgeMirrorOf = sourceId;
+
+
+    /* --------------------------------------------------------
+       Make the badge visually suitable for the group trigger.
+       We keep the original badge's colors, font, etc.
+       -------------------------------------------------------- */
+
+    groupBadge.style.marginLeft = "7px";
+    groupBadge.style.flexShrink = "0";
+
+
+    /* --------------------------------------------------------
+       Put the badge BEFORE the dropdown arrow.
+
+       The trigger currently contains:
+
+       icon title arrow
+
+       We want:
+
+       icon title badge arrow
+       -------------------------------------------------------- */
+
+    const arrow =
+      trigger.querySelector(
+        ".olympus-nav-group-arrow"
+      );
+
+
+    if (arrow) {
+
+      trigger.insertBefore(
+        groupBadge,
+        arrow
+      );
+
+    } else {
+
+      trigger.appendChild(
+        groupBadge
+      );
+
+    }
+
+
+    /* --------------------------------------------------------
+       INITIAL SYNC
+       -------------------------------------------------------- */
+
+    syncGroupBadge(
+      sourceBadge,
+      groupBadge
+    );
+
+
+    /* --------------------------------------------------------
+       WATCH THE REAL BADGE
+       --------------------------------------------------------
+
+       Your existing code changes:
+
+       badge.textContent
+       badge.style.display
+       badge.style.cssText
+       attributes
+
+       We watch all of those.
+
+       Therefore the group badge automatically follows the
+       existing badge without touching your existing logic.
+       -------------------------------------------------------- */
+
+    const observer = new MutationObserver(() => {
+
+      syncGroupBadge(
+        sourceBadge,
+        groupBadge
+      );
+
+    });
+
+
+    observer.observe(
+      sourceBadge,
+      {
+        attributes: true,
+        attributeFilter: [
+          "style",
+          "class"
+        ],
+        childList: true,
+        characterData: true,
+        subtree: true
+      }
+    );
+
+
+    groupBadgeObservers.push(observer);
+
+  }
+
+
+  /* ==========================================================
+     SYNCHRONIZE GROUP BADGE
+     ========================================================== */
+
+  function syncGroupBadge(
+    sourceBadge,
+    groupBadge
+  ) {
+
+    if (!sourceBadge || !groupBadge) return;
+
+
+    /* --------------------------------------------------------
+       Copy the actual badge text.
+       Example:
+       +1
+       +2
+       +5
+       -------------------------------------------------------- */
+
+    groupBadge.textContent =
+      sourceBadge.textContent;
+
+
+    /* --------------------------------------------------------
+       Copy visibility exactly.
+       -------------------------------------------------------- */
+
+    const computedDisplay =
+      window.getComputedStyle(
+        sourceBadge
+      ).display;
+
+
+    if (
+      sourceBadge.style.display === "none" ||
+      computedDisplay === "none"
+    ) {
+
+      groupBadge.style.display = "none";
+
+    } else {
+
+      /*
+         Use inline-block because that is what your existing
+         badges use.
+      */
+
+      groupBadge.style.display =
+        "inline-block";
+
+    }
+
+
+    /* --------------------------------------------------------
+       Copy the visual properties that may be changed by the
+       existing badge logic.
+       -------------------------------------------------------- */
+
+    groupBadge.style.background =
+      sourceBadge.style.background;
+
+    groupBadge.style.color =
+      sourceBadge.style.color;
+
+    groupBadge.style.fontSize =
+      sourceBadge.style.fontSize;
+
+    groupBadge.style.fontWeight =
+      sourceBadge.style.fontWeight;
+
+    groupBadge.style.lineHeight =
+      sourceBadge.style.lineHeight;
+
+    groupBadge.style.padding =
+      sourceBadge.style.padding;
+
+    groupBadge.style.borderRadius =
+      sourceBadge.style.borderRadius;
 
   }
 
@@ -170242,8 +170504,10 @@ nightGames: [
 
     if (desktopBuilt) return;
 
+
     /*
        Keep these OUTSIDE the groups:
+
        - brand
        - mobileMenuBtn
        - user menu
@@ -170256,13 +170520,12 @@ nightGames: [
 
     const groupDefinitions = [
 
-      
-
       {
         key: "classroom",
         title: "Academy",
         icon: "🏛️"
       },
+
       {
         key: "learning",
         title: "Learn",
@@ -170286,11 +170549,12 @@ nightGames: [
         title: "Games",
         icon: "🕹️"
       },
+
       {
-  key: "nightGames",
-  title: "Knight Games",
-  icon: "🐴"
-},
+        key: "nightGames",
+        title: "Knight Games",
+        icon: "🐴"
+      },
 
       {
         key: "community",
@@ -170322,7 +170586,10 @@ nightGames: [
     */
 
     const firstNavButton =
-      navbar.querySelector(".nav-btn:not(#adminTab)");
+      navbar.querySelector(
+        ".nav-btn:not(#adminTab)"
+      );
+
 
     if (!firstNavButton) return;
 
@@ -170335,6 +170602,38 @@ nightGames: [
       );
 
     });
+
+
+    /* ========================================================
+       ATTACH GROUP BADGES
+       ======================================================== */
+
+    Object.entries(
+      groupBadgeSources
+    ).forEach(
+      ([groupKey]) => {
+
+        const groupObject =
+          groupObjects[groupKey];
+
+        if (!groupObject) return;
+
+
+        attachGroupBadge(
+          groupKey,
+          groupObject.trigger
+        );
+
+      }
+    );
+     /* ========================================================
+       ATTACH GROUP LIVE DOT
+       ======================================================== */
+
+    attachGroupLiveDot(
+      "chess",
+      groupObjects.chess.trigger
+    );
 
 
     /*
@@ -170350,13 +170649,17 @@ nightGames: [
 
         selectors.forEach((selector) => {
 
-          const button = getButton(selector);
+          const button =
+            getButton(selector);
+
 
           if (!button) return;
+
 
           /*
              Do not move the admin console.
           */
+
           if (button.id === "adminTab") return;
 
 
@@ -170376,6 +170679,180 @@ nightGames: [
     desktopBuilt = true;
 
   }
+ function attachGroupLiveDot(groupKey, trigger) {
+
+  const sourceId =
+    groupLiveDotSources[groupKey];
+
+  if (!sourceId || !trigger) return;
+
+
+  const sourceDot =
+    document.getElementById(sourceId);
+
+  if (!sourceDot) return;
+
+
+  const groupDot =
+    trigger.querySelector(
+      ".olympus-nav-group-live-dot"
+    );
+
+  if (!groupDot) return;
+
+
+  /* ========================================================
+     SYNCHRONIZE GROUP LIVE DOT
+     --------------------------------------------------------
+     The original Multiplayer Chess indicator is controlled
+     by:
+
+       navLiveDot.style.display
+
+     inside mpSetLiveIndicator().
+
+     We mirror that exact state here.
+     ======================================================== */
+
+  function syncLiveDot() {
+
+    if (!sourceDot || !groupDot) return;
+
+
+    const sourceDisplay =
+      window.getComputedStyle(
+        sourceDot
+      ).display;
+
+
+    if (
+      sourceDot.style.display === "none" ||
+      sourceDisplay === "none"
+    ) {
+
+      groupDot.style.display = "none";
+
+      return;
+
+    }
+
+
+    /* ------------------------------------------------------
+       LIVE GAME IS ACTIVE
+       ------------------------------------------------------ */
+
+    groupDot.style.display =
+      "inline-block";
+
+
+    /* ------------------------------------------------------
+       Keep the group dot visually independent from the
+       original nav button's positioning.
+       ------------------------------------------------------ */
+
+    groupDot.style.width = "8px";
+    groupDot.style.height = "8px";
+    groupDot.style.minWidth = "8px";
+    groupDot.style.minHeight = "8px";
+
+    groupDot.style.marginLeft = "6px";
+    groupDot.style.marginRight = "2px";
+
+    groupDot.style.borderRadius = "50%";
+
+    groupDot.style.backgroundColor =
+      "#ff3b3b";
+
+    groupDot.style.flexShrink = "0";
+
+    groupDot.style.verticalAlign =
+      "middle";
+
+  }
+
+
+  /* ========================================================
+     INITIAL SYNC
+     ======================================================== */
+
+  syncLiveDot();
+
+
+  /* ========================================================
+     WATCH THE REAL LIVE DOT
+     ======================================================== */
+
+  const observer =
+    new MutationObserver(() => {
+
+      syncLiveDot();
+
+    });
+
+
+  observer.observe(
+    sourceDot,
+    {
+      attributes: true,
+      attributeFilter: [
+        "style",
+        "class"
+      ]
+    }
+  );
+
+
+  groupBadgeObservers.push(
+    observer
+  );
+
+
+  /* ========================================================
+     EXTRA SAFETY SYNC
+     --------------------------------------------------------
+     This handles cases where the original live indicator
+     changes during asynchronous multiplayer updates without
+     requiring a navbar rebuild or browser resize.
+     ======================================================== */
+
+  const liveSyncTimer =
+    setInterval(() => {
+
+      if (
+        !document.body.contains(groupDot)
+      ) {
+
+        clearInterval(
+          liveSyncTimer
+        );
+
+        return;
+
+      }
+
+
+      syncLiveDot();
+
+    }, 250);
+
+
+  /* --------------------------------------------------------
+     Store cleanup function in the same observer array.
+     -------------------------------------------------------- */
+
+  groupBadgeObservers.push({
+
+    disconnect() {
+
+      clearInterval(
+        liveSyncTimer
+      );
+
+    }
+
+  });
+
+}
 
 
   /* ==========================================================
@@ -170387,10 +170864,37 @@ nightGames: [
     if (!desktopBuilt) return;
 
 
-    /*
+    /* --------------------------------------------------------
+       STOP GROUP BADGE OBSERVERS
+       -------------------------------------------------------- */
+
+    groupBadgeObservers.forEach(
+      (observer) => {
+
+        try {
+
+          observer.disconnect();
+
+        } catch (error) {
+
+          console.warn(
+            "Olympus nav badge observer cleanup failed:",
+            error
+          );
+
+        }
+
+      }
+    );
+
+
+    groupBadgeObservers.length = 0;
+
+
+    /* --------------------------------------------------------
        Put every existing button back into its original
        parent and original position.
-    */
+       -------------------------------------------------------- */
 
     originalPositions.forEach(
       ({ parent, nextSibling }, button) => {
@@ -170403,11 +170907,16 @@ nightGames: [
           nextSibling.parentNode === parent
         ) {
 
-          parent.insertBefore(button, nextSibling);
+          parent.insertBefore(
+            button,
+            nextSibling
+          );
 
         } else {
 
-          parent.appendChild(button);
+          parent.appendChild(
+            button
+          );
 
         }
 
@@ -170421,8 +170930,15 @@ nightGames: [
 
     createdGroups.forEach((group) => {
 
-      if (group && group.parentNode) {
-        group.parentNode.removeChild(group);
+      if (
+        group &&
+        group.parentNode
+      ) {
+
+        group.parentNode.removeChild(
+          group
+        );
+
       }
 
     });
@@ -170441,7 +170957,10 @@ nightGames: [
 
   function updateNavigationMode() {
 
-    if (window.innerWidth >= DESKTOP_BREAKPOINT) {
+    if (
+      window.innerWidth >=
+      DESKTOP_BREAKPOINT
+    ) {
 
       buildDesktopNavigation();
 
@@ -170458,7 +170977,9 @@ nightGames: [
      Wait until the existing application has loaded its DOM.
   */
 
-  if (document.readyState === "loading") {
+  if (
+    document.readyState === "loading"
+  ) {
 
     document.addEventListener(
       "DOMContentLoaded",
