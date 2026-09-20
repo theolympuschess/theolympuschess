@@ -22749,6 +22749,152 @@ body.student-view .nav-btn.admin-only-class-schedule {
 #livePuzzle-section button:hover {
   background: linear-gradient(145deg, #3a4065, #262b45);
 }
+/* ===================================================== */
+/* 🏷️ LIVE PUZZLE PHYSICAL ANNOTATION TOOLBAR */
+/* ===================================================== */
+
+#lpLiveAnnoToolbar {
+
+  position: absolute;
+
+  /*
+    Board is 600px wide.
+    The toolbar is placed in the existing gap
+    between the board and the right-side controls.
+  */
+  top: 0;
+  right: -32px;
+
+  width: 26px;
+  height: 600px;
+
+  display: grid;
+
+  /*
+    Automatically divides the full 600px height
+    equally between however many annotation buttons exist.
+  */
+  grid-template-rows: repeat(var(--lp-anno-count), 1fr);
+
+  gap: 2px;
+
+  padding: 0;
+  margin: 0;
+
+  box-sizing: border-box;
+
+  z-index: 30;
+
+  pointer-events: auto;
+}
+
+
+/* ===================================================== */
+/* INDIVIDUAL ANNOTATION BUTTON */
+/* ===================================================== */
+
+#lpLiveAnnoToolbar .lp-live-anno-toolbar-btn {
+
+  width: 26px !important;
+  min-width: 26px !important;
+
+  height: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box;
+
+  display: flex !important;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid currentColor !important;
+
+  border-radius: 4px !important;
+
+background: var(--lp-anno-color) !important;
+
+color: #ffffff !important;
+
+  font-size: 12px !important;
+
+  line-height: 1 !important;
+
+  font-weight: 900 !important;
+
+  cursor: pointer;
+
+  user-select: none;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+
+  overflow: hidden;
+}
+
+
+/* ===================================================== */
+/* HOVER */
+/* ===================================================== */
+
+#lpLiveAnnoToolbar .lp-live-anno-toolbar-btn:hover {
+
+  background: rgba(255,255,255,0.14) !important;
+
+  transform: scale(1.08);
+
+  box-shadow:
+    0 0 8px currentColor;
+}
+
+
+/* ===================================================== */
+/* ACTIVE ANNOTATION */
+/* ===================================================== */
+
+#lpLiveAnnoToolbar
+.lp-live-anno-toolbar-btn.active {
+
+  background: #ffd54a !important;
+
+  color: #000000 !important;
+
+  border-color: #ffd54a !important;
+
+  box-shadow:
+    0 0 8px rgba(255,213,74,0.9);
+}
+
+
+/* ===================================================== */
+/* SMALL SYMBOLS */
+/* ===================================================== */
+
+#lpLiveAnnoToolbar
+.lp-live-anno-toolbar-btn[data-type="winningWhite"],
+#lpLiveAnnoToolbar
+.lp-live-anno-toolbar-btn[data-type="winningBlack"] {
+
+  font-size: 10px !important;
+
+}
+
+
+/* ===================================================== */
+/* STUDENT SAFETY */
+/* Existing admin-only rule also hides this toolbar. */
+/* ===================================================== */
+
+body.student-view #lpLiveAnnoToolbar {
+
+  display: none !important;
+
+}
 
 /* INPUT / SELECT */
 #livePuzzle-section input,
@@ -35246,6 +35392,11 @@ button[class*="lock"] {
 
 }
 
+/* 🚫 ADMIN — HIDE DRAW HELP */
+body.admin-view #lpDrawHelpWrapper {
+  display: none !important;
+}
+
   </style>
 </head>
 <body>
@@ -39077,7 +39228,21 @@ data-role="admin-only">
 
 </div>
 
+<!-- ===================================================== -->
+<!-- 🏷️ LIVE PUZZLE PHYSICAL ANNOTATION TOOLBAR -->
+<!-- Admin preview only — uses the SAME annotation pipeline -->
+<!-- ===================================================== -->
+
+<div
+  id="lpLiveAnnoToolbar"
+  data-role="admin-only"
+  aria-label="Live Puzzle Annotation Toolbar"
+></div>
+
 </div>
+      
+
+      <!-- MOVE CONTROLS -->
       
 
       <!-- MOVE CONTROLS -->
@@ -115791,7 +115956,325 @@ document.addEventListener("DOMContentLoaded", () => {
 
   });
 
+  // =====================================================
+  // 🏷️ BUILD LIVE PUZZLE PHYSICAL ANNOTATION TOOLBAR
+  // =====================================================
 
+  const liveAnnoToolbar =
+    document.getElementById(
+      "lpLiveAnnoToolbar"
+    );
+
+
+  if (liveAnnoToolbar) {
+
+    liveAnnoToolbar.innerHTML = "";
+
+
+    const annotationKeys =
+      Object.keys(
+        studyAnnotations
+      );
+
+
+    /*
+      Automatically fit every annotation
+      into the 600px board height.
+    */
+    liveAnnoToolbar.style.setProperty(
+      "--lp-anno-count",
+      annotationKeys.length
+    );
+
+
+    annotationKeys.forEach(
+      type => {
+
+        const data =
+          studyAnnotations[type];
+
+
+        const button =
+          document.createElement(
+            "button"
+          );
+
+          // ==========================================
+// 🎨 GET EXACT EXISTING ANNOTATION COLOR
+// Uses the same .anno-* color system
+// already used by Study + Live markers.
+// ==========================================
+
+const colorProbe =
+  document.createElement("span");
+
+colorProbe.className =
+  data.class;
+
+colorProbe.style.position =
+  "absolute";
+
+colorProbe.style.visibility =
+  "hidden";
+
+colorProbe.style.pointerEvents =
+  "none";
+
+document.body.appendChild(
+  colorProbe
+);
+
+const annotationColor =
+  getComputedStyle(
+    colorProbe
+  ).color;
+
+document.body.removeChild(
+  colorProbe
+);
+
+
+// ==========================================
+// 🎨 APPLY SAME COLOR TO PHYSICAL BUTTON
+// ==========================================
+
+button.style.setProperty(
+  "--lp-anno-color",
+  annotationColor
+);
+
+
+        button.type =
+          "button";
+
+
+        button.className =
+          "lp-live-anno-toolbar-btn " +
+          data.class;
+
+
+        button.dataset.type =
+          type;
+
+
+        button.textContent =
+          data.symbol;
+
+
+        button.title =
+          data.label;
+
+
+        button.setAttribute(
+          "aria-label",
+          data.label
+        );
+
+
+        // =================================================
+        // 🖱️ PHYSICAL BUTTON CLICK
+        // =================================================
+
+button.addEventListener(
+  "click",
+  () => {
+
+    // ==========================================
+    // 🚫 ADMIN ONLY
+    // ==========================================
+
+    if (
+      !document.body.classList.contains(
+        "admin-view"
+      )
+    ) {
+      return;
+    }
+
+
+    // ==========================================
+    // 🟢 LIVE PUZZLE TAB ONLY
+    // ==========================================
+
+    const activeLiveTab =
+      document.querySelector(
+        '.nav-btn.active[data-tab="livePuzzle"]'
+      );
+
+    if (!activeLiveTab) {
+      return;
+    }
+
+
+    // ==========================================
+    // 🎯 CURRENT LIVE MOVE TARGET
+    // ==========================================
+
+    const target =
+      window.lpLiveCurrentTarget;
+
+    if (
+      !target ||
+      !target.targetId
+    ) {
+
+      console.warn(
+        "❌ LIVE ANNOTATION TOOLBAR: no current move target.",
+        target
+      );
+
+      return;
+    }
+
+
+    // ==========================================
+    // 🟢 FORCE SAME LIVE CONTEXT
+    // ==========================================
+
+    window.lpLiveAnnoContext = true;
+
+
+    // ==========================================
+    // 🔗 FIND THE ORIGINAL POPUP BUTTON
+    //
+    // This is the important part.
+    //
+    // We DO NOT manually change:
+    //
+    // lpLiveAnnotations
+    // renderLiveMoveAnnotation
+    // movesChannel
+    // annotationToNAG
+    //
+    // Instead we click the EXISTING annotation
+    // item, which sends the physical button
+    // through the exact same pipeline.
+    // ==========================================
+
+    const popupItem =
+      Array.from(
+        document.querySelectorAll(
+          "#studyAnnoGrid .study-anno-item"
+        )
+      ).find(
+        el =>
+          el.dataset.type ===
+          button.dataset.type
+      );
+
+
+    if (!popupItem) {
+
+      console.warn(
+        "❌ LIVE ANNOTATION TOOLBAR: original annotation button not found:",
+        button.dataset.type
+      );
+
+      return;
+    }
+
+
+    // ==========================================
+    // 🔥 SAME EXISTING PIPELINE
+    // ==========================================
+
+    popupItem.click();
+
+
+    // ==========================================
+    // 🎨 SYNC PHYSICAL BUTTON STATE
+    // ==========================================
+
+    const currentAnnotation =
+      window.lpLiveAnnotations[
+        target.targetId
+      ] || null;
+
+
+    liveAnnoToolbar
+      .querySelectorAll(
+        ".lp-live-anno-toolbar-btn"
+      )
+      .forEach(
+        btn => {
+
+          btn.classList.toggle(
+            "active",
+            btn.dataset.type ===
+              currentAnnotation
+          );
+
+        }
+      );
+
+  }
+);
+
+
+        liveAnnoToolbar.appendChild(
+          button
+        );
+
+      }
+    );
+
+
+    // =================================================
+    // 🔄 KEEP TOOLBAR IN SYNC WITH CURRENT TARGET
+    // =================================================
+
+    function refreshLiveAnnoToolbar() {
+
+      const target =
+        window.lpLiveCurrentTarget;
+
+
+      const activeAnnotation =
+        target &&
+        target.targetId
+          ? (
+              window.lpLiveAnnotations[
+                target.targetId
+              ] || null
+            )
+          : null;
+
+
+      liveAnnoToolbar
+        .querySelectorAll(
+          ".lp-live-anno-toolbar-btn"
+        )
+        .forEach(
+          button => {
+
+            button.classList.toggle(
+              "active",
+              button.dataset.type ===
+                activeAnnotation
+            );
+
+          }
+        );
+
+    }
+
+
+    /*
+      Refresh when the Live Puzzle position changes.
+    */
+    document.addEventListener(
+      "lpPositionChanged",
+      refreshLiveAnnoToolbar
+    );
+
+
+    /*
+      Also refresh immediately after the
+      current Live target changes.
+    */
+    refreshLiveAnnoToolbar();
+
+  }
   // ==========================================
   // 🎯 OPEN MODAL
   // ==========================================
@@ -124947,12 +125430,114 @@ function lpSetLiveAnnotationTarget({
   fen = null
 } = {}) {
 
+  // ==========================================
+  // 🧹 CLEAR PREVIOUS ADMIN ANNOTATION
+  // BEFORE SWITCHING TO A NEW MOVE TARGET
+  //
+  // Uses the SAME existing annotation
+  // broadcast pipeline as the floating modal.
+  // ==========================================
+
+  const previousTarget =
+    window.lpLiveCurrentTarget;
+
+  if (
+    isAdmin &&
+    previousTarget &&
+    previousTarget.targetId &&
+    previousTarget.targetId !== targetId
+  ) {
+
+    // ------------------------------------------
+    // Remove old annotation from local state
+    // ------------------------------------------
+
+    delete window.lpLiveAnnotations[
+      previousTarget.targetId
+    ];
+
+
+    // ------------------------------------------
+    // Remove old marker locally
+    // ------------------------------------------
+
+    document
+      .querySelectorAll(
+        ".lp-live-anno-marker"
+      )
+      .forEach(
+        el => el.remove()
+      );
+
+
+    // ------------------------------------------
+    // Broadcast annotation removal
+    // through the SAME live annotation event
+    // used by the floating annotation modal.
+    // ------------------------------------------
+
+    if (window.movesChannel) {
+
+      window.movesChannel.send({
+
+        type: "broadcast",
+
+        event:
+          "live_move_annotation",
+
+        payload: {
+
+          targetId:
+            previousTarget.targetId,
+
+          annotation:
+            null,
+
+          nag:
+            null,
+
+          mode:
+            previousTarget.mode ||
+            "live",
+
+          moveIndex:
+            previousTarget.moveIndex ??
+            null,
+
+          from:
+            previousTarget.from ||
+            null,
+
+          to:
+            previousTarget.to ||
+            null,
+
+          fen:
+            previousTarget.fen ||
+            null
+
+        }
+
+      });
+
+    }
+
+  }
+
+
+  // ==========================================
+  // 🎯 SET NEW CURRENT TARGET
+  // ==========================================
+
   if (!targetId) {
 
-    window.lpLiveCurrentTarget = null;
+    window.lpLiveCurrentTarget =
+      null;
 
     return;
+
   }
+
 
   window.lpLiveCurrentTarget = {
 
@@ -124969,6 +125554,7 @@ function lpSetLiveAnnotationTarget({
     fen
 
   };
+
 }
 // ==========================================
 // ♟ NORMAL / PREVIEW MOVE TARGET
@@ -143466,6 +144052,10 @@ window.renderLiveMoveAnnotation = function(target) {
 
 function reapplyAllLiveAnnotations() {
 
+  // ==========================================
+  // 🧹 CLEAR OLD LIVE ANNOTATION BUBBLES
+  // ==========================================
+
   document
     .querySelectorAll(
       ".lp-live-anno-marker"
@@ -143474,12 +144064,56 @@ function reapplyAllLiveAnnotations() {
       el => el.remove()
     );
 
-}
 
-document.addEventListener(
-  "lpPositionChanged",
-  reapplyAllLiveAnnotations
-);
+  // ==========================================
+  // 🎯 GET CURRENTLY DISPLAYED MOVE
+  // ==========================================
+
+  const target =
+    window.lpLiveCurrentTarget;
+
+
+  if (
+    !target ||
+    !target.targetId ||
+    !target.to
+  ) {
+
+    return;
+
+  }
+
+
+  // ==========================================
+  // 🏷️ CHECK WHETHER THIS MOVE HAS ANNOTATION
+  // ==========================================
+
+  const annotation =
+    window.lpLiveAnnotations[
+      target.targetId
+    ];
+
+
+  if (!annotation) {
+
+    return;
+
+  }
+
+
+  // ==========================================
+  // 🔄 RENDER AFTER BOARD REBUILD
+  // ==========================================
+
+  requestAnimationFrame(() => {
+
+    window.renderLiveMoveAnnotation(
+      target
+    );
+
+  });
+
+}
 
 function updateBoardCoordinates() {
 
@@ -147190,10 +147824,36 @@ function nextPreviewMove() {
   // ================= NORMAL PREVIEW (UNCHANGED) =================
   if (previewIndex >= solutionMoves.length) return;
 
-  const playedMove = previewGame.move(solutionMoves[previewIndex]);
-  lpSoundEngine.play(playedMove, previewGame);
-  previewIndex++;
-  board.position(previewGame.fen());
+const playedMove = previewGame.move(
+  solutionMoves[previewIndex]
+);
+
+lpSoundEngine.play(
+  playedMove,
+  previewGame
+);
+
+previewIndex++;
+
+// ==========================================
+// 🏷️ LIVE ANNOTATION TARGET
+// Connect the current displayed move to the
+// EXISTING annotation pipeline.
+// ==========================================
+
+if (playedMove) {
+
+  lpSetLivePuzzleMoveTarget(
+    previewIndex - 1,
+    playedMove,
+    previewGame.fen()
+  );
+
+}
+
+board.position(
+  previewGame.fen()
+);
   lpTriggerEngineUpdate();
   highlightLastMove(playedMove.from, playedMove.to, "lpBoard");
   highlightCheckSquare(previewGame, "lpBoard");
@@ -150157,6 +150817,7 @@ if (movesChannel) {
      // =================================================
 // 🏷️ LIVE MOVE ANNOTATION
 // Same movesChannel — target based.
+// Admin + Student use the SAME renderer.
 // =================================================
 
 if (
@@ -150178,14 +150839,15 @@ if (
 
 
   // ==========================================
-  // STORE ANNOTATION
+  // 🎯 STORE / REMOVE ANNOTATION
   // ==========================================
 
   if (data.annotation) {
 
     window.lpLiveAnnotations[
       targetId
-    ] = data.annotation;
+    ] =
+      data.annotation;
 
   } else {
 
@@ -150197,12 +150859,10 @@ if (
 
 
   // ==========================================
-  // STORE TARGET INFORMATION
+  // 🎯 STORE TARGET INFORMATION
   // ==========================================
 
-  if (
-    data.to
-  ) {
+  if (data.to) {
 
     window.lpLiveAnnotationTargets[
       targetId
@@ -150231,11 +150891,25 @@ if (
 
     };
 
+
+    // ==========================================
+    // 🎯 ALSO MAKE THIS THE CURRENT TARGET
+    //
+    // This keeps the received annotation connected
+    // to the same Live Puzzle target system.
+    // ==========================================
+
+    window.lpLiveCurrentTarget =
+      window.lpLiveAnnotationTargets[
+        targetId
+      ];
+
   }
 
 
   // ==========================================
-  // DRAW ON STUDENT'S LIVE BOARD
+  // 🎨 DRAW ON RECEIVING BOARD
+  // SAME RENDERER AS ADMIN
   // ==========================================
 
   const target =
@@ -150246,9 +150920,13 @@ if (
 
   if (target) {
 
-    window.renderLiveMoveAnnotation(
-      target
-    );
+    requestAnimationFrame(() => {
+
+      window.renderLiveMoveAnnotation(
+        target
+      );
+
+    });
 
   }
 
@@ -153868,15 +154546,68 @@ if (payload.event === "reset_moves") {
           playerScores[user_id] = score;
         }
 
-        // 🏷️ LIVE ANNOTATION TARGET TRACKING (isolated, additive)
-        if (typeof annoMoveIndex === "number" && annoTo) {
-          lpLiveLastMove = {
-            moveIndex: annoMoveIndex,
-            from: annoFrom || null,
-            to: annoTo,
-            san: null
-          };
-        }
+    // 🏷️ LIVE ANNOTATION TARGET TRACKING
+// Keeps the existing move pipeline untouched.
+// Also connects the received move to the
+// physical Live Annotation Toolbar.
+
+if (
+  typeof annoMoveIndex === "number" &&
+  annoTo
+) {
+
+  // ==========================================
+  // EXISTING LAST-MOVE STATE
+  // ==========================================
+
+  lpLiveLastMove = {
+
+    moveIndex:
+      annoMoveIndex,
+
+    from:
+      annoFrom || null,
+
+    to:
+      annoTo,
+
+    san:
+      null
+
+  };
+
+
+  // ==========================================
+  // 🎯 SET CURRENT ANNOTATION TARGET
+  // SAME TARGET PIPELINE USED BY LIVE ANNOTATION
+  // ==========================================
+
+  lpSetLiveAnnotationTarget({
+
+    targetId:
+      "puzzle:" +
+      currentIndex +
+      ":move:" +
+      annoMoveIndex,
+
+    mode:
+      "puzzle",
+
+    moveIndex:
+      annoMoveIndex,
+
+    from:
+      annoFrom || null,
+
+    to:
+      annoTo,
+
+    fen:
+      null
+
+  });
+
+}
 
         // 🔥 MOVE VISIBILITY
         if (isAdmin || isMyMove) {
