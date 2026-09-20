@@ -34591,6 +34591,251 @@ button[class*="lock"] {
   flex-shrink: 0;
 
 }
+/* ========================================================
+
+   👤 AVATAR SETTINGS — HOVER SUBMENU
+
+======================================================== */
+
+.olympus-avatar-submenu {
+
+  position: relative;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  margin: 0;
+
+  padding: 0;
+
+}
+
+
+/* 👤 Avatar trigger */
+
+.olympus-avatar-trigger {
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  border: none;
+
+  background: transparent;
+
+  color: inherit;
+
+  font: inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  padding: 8px 10px;
+
+  margin: 0;
+
+  white-space: nowrap;
+
+}
+
+
+/* ➡️ Arrow */
+
+.olympus-avatar-arrow {
+
+  margin-left: 12px;
+
+  flex-shrink: 0;
+
+  font-size: 13px;
+
+  opacity: 0.8;
+
+  transition: transform 0.15s ease;
+
+}
+
+
+/* 📂 Avatar submenu */
+
+.olympus-avatar-menu {
+
+  position: absolute;
+
+  left: 100%;
+
+  top: 0;
+
+  min-width: 190px;
+
+  display: none;
+
+  padding: 6px;
+
+  box-sizing: border-box;
+
+  background:
+
+    linear-gradient(
+
+      180deg,
+
+      rgba(24,27,62,.985),
+
+      rgba(10,12,31,.99)
+
+    );
+
+  border: 1px solid rgba(255,215,0,.20);
+
+  border-radius: 10px;
+
+  box-shadow:
+
+    0 18px 45px rgba(0,0,0,.58),
+
+    0 4px 18px rgba(255,215,0,.06);
+
+  backdrop-filter: blur(16px);
+
+  -webkit-backdrop-filter: blur(16px);
+
+  z-index: 100001;
+
+}
+
+
+/* 👤 Show submenu on hover */
+
+.olympus-avatar-submenu:hover
+
+.olympus-avatar-menu {
+
+  display: block;
+
+}
+
+
+/* ➡️ Move arrow on hover */
+
+.olympus-avatar-submenu:hover
+
+.olympus-avatar-arrow {
+
+  transform: translateX(2px);
+
+}
+
+
+/* 👤 Avatar option buttons */
+
+.olympus-avatar-menu button {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  border: none;
+
+  background: transparent;
+
+  color: inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  padding: 8px 10px;
+
+  margin: 0;
+
+  border-radius: 5px;
+
+  font: inherit;
+
+  white-space: nowrap;
+
+}
+
+
+/* ✨ Hover */
+
+.olympus-avatar-menu button:hover {
+
+  background: rgba(255,255,255,.10);
+
+}
+
+
+/* 🏷️ Status */
+
+.avatar-settings-status {
+
+  margin-left: 14px;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  flex-shrink: 0;
+
+}
+
+/* ========================================================
+   👤 AVATAR SUBMENU — ISOLATED SCROLLBAR
+======================================================== */
+
+.olympus-avatar-menu {
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Simple isolated scrollbar */
+.olympus-avatar-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.olympus-avatar-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.olympus-avatar-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+}
+
+.olympus-avatar-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Firefox */
+.olympus-avatar-menu {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+/* 🚫 Disable direct avatar clicking */
+#miniStudentAvatar {
+  pointer-events: none;
+  cursor: default;
+}
 
   </style>
 </head>
@@ -35295,11 +35540,30 @@ right:0;
 
   <div id="userDropdown" class="user-dropdown hidden">
     
+    <!-- 👤 AVATAR SETTINGS -->
+
+    <div
+  id="avatarSettings"
+  class="dropdown-section olympus-avatar-submenu"
+>
+
+  <button
+    type="button"
+    class="olympus-avatar-trigger"
+    id="olympusAvatarTrigger"
+  >
+    👨‍👩‍👧‍👦 Select Profile Avatar
+
+    <span class="olympus-avatar-arrow">▸</span>
+  </button>
+
+</div>
 
     <!-- ♟ Piece Theme -->
   <!-- ♟ Piece Theme -->
 <!-- ♟ Piece Theme -->
 <div id="pieceThemeSettings" class="dropdown-section olympus-piece-theme-submenu">
+  
 
   <button
     type="button"
@@ -101049,61 +101313,376 @@ const AVATARS = [
   };
 
   // Build avatar grid
- window.loadAvatars = function(){
+window.loadAvatars = function(){
 
-grid.innerHTML = "";
+  /* ==================================================
+     🔄 GET BOTH AVATAR DESTINATIONS
+  ================================================== */
 
-// default avatars
-const defaultAvatars = AVATARS.map(a => AVATAR_PATH + a);
+  // Existing popup avatar grid
+  const modalGrid =
+    document.querySelector(".avatar-grid");
 
-// unlocked avatars
-const unlocked = JSON.parse(localStorage.getItem("ownedAvatars") || "[]");
+  // Settings hover submenu
+  let settingsMenu =
+    document.getElementById("olympusAvatarMenu");
 
-// merge both
-const allAvatars = [...new Set([...defaultAvatars, ...unlocked])];
 
-allAvatars.forEach(src => {
+  /* ==================================================
+     👤 CREATE SETTINGS SUBMENU IF NEEDED
+  ================================================== */
 
-  const img = document.createElement("img");
-  img.src = src;
+  const avatarSettings =
+    document.getElementById("avatarSettings");
 
-  // highlight unlocked
-const rarity = getAvatarRarity(src);
+  if (!settingsMenu && avatarSettings) {
 
-if(unlocked.includes(src)){
+    settingsMenu =
+      document.createElement("div");
 
-  if(rarity === "epic"){
-    img.style.border = "2px solid #a855f7"; // violet
-    img.style.boxShadow = "0 0 10px #a855f7";
-  }else{
-    img.style.border = "2px solid #22c55e"; // green
-    img.style.boxShadow = "0 0 6px #22c55e";
+    settingsMenu.id =
+      "olympusAvatarMenu";
+
+    settingsMenu.className =
+      "olympus-avatar-menu";
+
+    avatarSettings.appendChild(
+      settingsMenu
+    );
+
   }
 
-}else{
-  img.style.filter = "grayscale(1)";
-  img.style.opacity = "0.5";
-}
 
-  img.onclick = () => {
+  /* ==================================================
+     🧹 CLEAR OLD AVATAR LISTS
+  ================================================== */
+
+  if (modalGrid) {
+    modalGrid.innerHTML = "";
+  }
+
+  if (settingsMenu) {
+    settingsMenu.innerHTML = "";
+  }
+
+
+  /* ==================================================
+     📦 DEFAULT AVATARS
+  ================================================== */
+
+  const defaultAvatars =
+    AVATARS.map(
+      a => AVATAR_PATH + a
+    );
+
+
+  /* ==================================================
+     🔓 UNLOCKED AVATARS
+  ================================================== */
+
+  const unlocked =
+    JSON.parse(
+      localStorage.getItem(
+        "ownedAvatars"
+      ) || "[]"
+    );
+
+
+  /* ==================================================
+     🔗 MERGE DEFAULT + UNLOCKED
+  ================================================== */
+
+  const allAvatars =
+    [
+      ...new Set(
+        [
+          ...defaultAvatars,
+          ...unlocked
+        ]
+      )
+    ];
+
+
+  /* ==================================================
+     👤 AVATAR SELECTION
+  ================================================== */
+
+  function selectAvatar(src){
+
+  if (avatarImg) {
     avatarImg.src = src;
-    localStorage.setItem("studentAvatar", src);
-    // 🔥 ADD THIS LINE (VERY IMPORTANT)
-  localStorage.setItem("selectedAvatar", src);
-  window.dispatchEvent(new Event("avatarChanged"));
+  }
+
+  localStorage.setItem(
+    "studentAvatar",
+    src
+  );
+
+  localStorage.setItem(
+    "selectedAvatar",
+    src
+  );
+
+  window.dispatchEvent(
+    new Event("avatarChanged")
+  );
+
+  /* ==================================================
+     ✅ REFRESH SETTINGS AVATAR TICKS
+  ================================================== */
+
+  if (typeof window.loadAvatars === "function") {
+    window.loadAvatars();
+  }
+
+  /* ==================================================
+     ❌ DO NOT CLOSE SETTINGS SUBMENU
+  ================================================== */
+
+  if (overlay) {
     overlay.style.display = "none";
-  };
-
-  grid.appendChild(img);
-
-});
+  }
 
 }
+
+
+  /* ==================================================
+     🖼️ BUILD BOTH AVATAR LISTS
+  ================================================== */
+
+  allAvatars.forEach(src => {
+
+    const rarity =
+      getAvatarRarity(src);
+
+    const isUnlocked =
+      unlocked.includes(src);
+
+
+    /* ==================================================
+       🪟 EXISTING AVATAR MODAL
+    ================================================== */
+
+    if (modalGrid) {
+
+      const img =
+        document.createElement("img");
+
+      img.src = src;
+
+
+      // Keep existing rarity styling
+      if (isUnlocked) {
+
+        if (rarity === "epic") {
+
+          img.style.border =
+            "2px solid #a855f7";
+
+          img.style.boxShadow =
+            "0 0 10px #a855f7";
+
+        } else {
+
+          img.style.border =
+            "2px solid #22c55e";
+
+          img.style.boxShadow =
+            "0 0 6px #22c55e";
+
+        }
+
+      } else {
+
+        img.style.filter =
+          "grayscale(1)";
+
+        img.style.opacity =
+          "0.5";
+
+      }
+
+
+      img.onclick = () => {
+
+        selectAvatar(src);
+
+      };
+
+
+      modalGrid.appendChild(img);
+
+    }
+
+
+    /* ==================================================
+       ⚙️ SETTINGS AVATAR SUBMENU
+    ================================================== */
+
+    if (settingsMenu) {
+
+      const button =
+        document.createElement("button");
+
+      button.type = "button";
+
+
+      /* Avatar image */
+
+      const img =
+        document.createElement("img");
+
+      img.src = src;
+
+      img.alt = "Avatar";
+
+
+      /* Keep unlocked / locked appearance */
+
+      if (isUnlocked) {
+
+        if (rarity === "epic") {
+
+          img.style.border =
+            "2px solid #a855f7";
+
+          img.style.boxShadow =
+            "0 0 8px #a855f7";
+
+        } else {
+
+          img.style.border =
+            "2px solid #22c55e";
+
+          img.style.boxShadow =
+            "0 0 5px #22c55e";
+
+        }
+
+      } else {
+
+        img.style.filter =
+          "grayscale(1)";
+
+        img.style.opacity =
+          "0.5";
+
+      }
+
+
+      /* Compact submenu appearance */
+
+      img.style.width =
+        "45px";
+
+      img.style.height =
+        "45px";
+
+      img.style.objectFit =
+        "cover";
+
+      img.style.borderRadius =
+        "6px";
+
+      img.style.flexShrink =
+        "0";
+
+
+      button.appendChild(img);
+
+
+      /* Current selection indicator */
+
+      const current =
+        localStorage.getItem(
+          "studentAvatar"
+        );
+
+
+      if (current === src) {
+
+        const check =
+          document.createElement("span");
+
+        check.textContent = "✓";
+
+        check.style.marginLeft =
+          "8px";
+
+        check.style.color =
+          "#22c55e";
+
+        check.style.fontWeight =
+          "800";
+
+        button.appendChild(check);
+
+      }
+
+
+      button.onclick = function(e){
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        selectAvatar(src);
+
+      };
+
+
+      settingsMenu.appendChild(
+        button
+      );
+
+    }
+
+  });
+
+};
 loadAvatars();  // ✅ ADD HERE (initial render)
 
   closeBtn.onclick = () => {
     overlay.style.display = "none";
   };
+
+})();
+
+/* ========================================================
+   👤 AVATAR SETTINGS — EXISTING PICKER HOOK
+======================================================== */
+
+(function () {
+
+  const trigger =
+    document.getElementById("olympusAvatarTrigger");
+
+  const submenu =
+    document.querySelector(".olympus-avatar-submenu");
+
+  if (!trigger || !submenu) return;
+
+
+  trigger.addEventListener("click", function (e) {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const overlay =
+      document.getElementById("avatarPickerOverlay");
+
+    if (!overlay) return;
+
+
+    // 🔄 Refresh the existing avatar list
+    if (typeof window.loadAvatars === "function") {
+      window.loadAvatars();
+    }
+
+
+    // 👤 Open the EXISTING avatar picker
+    overlay.style.display = "flex";
+
+  });
 
 })();
 
@@ -173735,6 +174314,9 @@ const cursorSettings =
   const badgeSettings =
   document.getElementById("badgeSettings");
 
+  const avatarSettings =
+  document.getElementById("avatarSettings");
+
 const boardColorControls =
   document.getElementById("boardColorControls");
 
@@ -173772,6 +174354,12 @@ if (
     );
 
   }
+  // 👤 Avatar
+if (avatarSettings) {
+  settingsGroup.menu.appendChild(
+    avatarSettings
+  );
+}
 
 
   // ♟ Piece Theme
