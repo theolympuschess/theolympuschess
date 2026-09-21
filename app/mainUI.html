@@ -3727,6 +3727,8 @@ body:not(.student-view) #studentProgressCard {
   
 height: 730px;      /* same height as board */
   max-height: 730px;
+  position: relative;
+  left: -20px;
 }
 
 .study-header {
@@ -4811,6 +4813,129 @@ height: 730px;      /* same height as board */
 
 
 
+/* ===================================================== */
+/* 🏷️ STUDY BOARD PHYSICAL ANNOTATION TOOLBAR */
+/* ===================================================== */
+
+#studyAnnoToolbar {
+  position: absolute;
+
+  top: 0;
+  right: -32px;
+
+  width: 26px;
+  height: 650px;
+
+  display: grid;
+
+  grid-template-rows:
+    repeat(var(--study-anno-count), 1fr);
+
+  gap: 2px;
+
+  padding: 0;
+  margin: 0;
+
+  box-sizing: border-box;
+
+  z-index: 30;
+
+  pointer-events: auto;
+}
+
+
+/* ========================================== */
+/* 🏷️ INDIVIDUAL ANNOTATION BUTTON */
+/* ========================================== */
+
+#studyAnnoToolbar
+.study-anno-toolbar-btn {
+
+  width: 26px !important;
+  min-width: 26px !important;
+
+  height: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box;
+
+  display: flex !important;
+
+  align-items: center;
+  justify-content: center;
+
+  border:
+    1px solid
+    var(--study-anno-color) !important;
+
+  border-radius: 4px !important;
+
+  background:
+    var(--study-anno-color) !important;
+
+  color: #ffffff !important;
+
+  font-size: 12px !important;
+
+  line-height: 1;
+
+  font-weight: 900 !important;
+
+  cursor: pointer;
+
+  user-select: none;
+
+  transition:
+    transform .12s ease,
+    background .12s ease,
+    box-shadow .12s ease;
+
+  overflow: hidden;
+}
+
+
+/* ========================================== */
+/* 🖱️ HOVER */
+/* ========================================== */
+
+#studyAnnoToolbar
+.study-anno-toolbar-btn:hover {
+
+  background:
+    rgba(255,255,255,.14) !important;
+
+  transform:
+    scale(1.08);
+
+  box-shadow:
+    0 0 8px currentColor;
+}
+
+
+/* ========================================== */
+/* 🟡 ACTIVE ANNOTATION */
+/* ========================================== */
+
+#studyAnnoToolbar
+.study-anno-toolbar-btn.active {
+
+  background:
+    #ffd54a !important;
+
+  color:
+    #000 !important;
+
+  border-color:
+    #ffd54a !important;
+
+  box-shadow:
+    0 0 8px
+    rgba(255,213,74,.9);
+}
+
 
 
 /* =========================================
@@ -4819,6 +4944,7 @@ height: 730px;      /* same height as board */
 
 #studyBoardWrapper {
   position: relative;
+   left: -20px;
 }
 
 #studyDrawLayer {
@@ -12572,7 +12698,19 @@ body {
   font-weight: normal;
 }
 
+/* ========================================= */
+/* 📘 EXTEND STUDY WRAPPER TO THE RIGHT     */
+/* ========================================= */
 
+/* ========================================= */
+/* 📘 EXTEND + SHIFT STUDY WRAPPER LEFT     */
+/* ========================================= */
+
+#study-section {
+  width: calc(100% + 74px) !important;
+  margin-left: -35px !important;
+  margin-right: auto !important;
+}
 
 #study-section h2 {
   position: relative;
@@ -23929,7 +24067,7 @@ background: #2563eb;
   position: absolute;
   top: -10px;
   right: -32px;
-  z-index: 500;
+  z-index: 999999;
 }
 
 #studyDrawHelpBtn{
@@ -38037,6 +38175,15 @@ Read-only personal attendance calendar
       id="studyBoard"
       style="width: 650px; height: 650px;"
     ></div>
+    <!-- ===================================================== -->
+<!-- 🏷️ STUDY BOARD PHYSICAL ANNOTATION TOOLBAR -->
+<!-- Uses the SAME existing Study annotation pipeline -->
+<!-- ===================================================== -->
+
+<div
+  id="studyAnnoToolbar"
+  aria-label="Study Annotation Toolbar"
+></div>
    <!-- ♟ STUDY DRAW HELP -->
 <div id="studyDrawHelpWrapper">
 
@@ -70378,6 +70525,15 @@ function clearStudyMoveMarker() {
   studyMoveMarkerEl = null;
 }
 function showStudyMoveMarker(node) {
+
+  if (
+    window.syncStudyAnnotationToolbar
+  ) {
+
+    window.syncStudyAnnotationToolbar();
+
+  }
+
   if (!studyNagBubbleEnabled) return;
 
   clearStudyMoveMarker();
@@ -116618,13 +116774,22 @@ if (liveChannel) {
       renderStudyNotationTree();
 
 
-      showStudyMoveMarker(
-        studyCurrentNode
-      );
+     showStudyMoveMarker(
+  studyCurrentNode
+);
 
 
-      // Keep modal open exactly like Study.
-      openModal();
+// =====================================================
+// 🟢 PHYSICAL TOOLBAR SUPPRESSION
+// Physical buttons should NOT reopen the floating modal.
+// Keyboard "4" / normal annotation button still opens it.
+// =====================================================
+
+if (
+  !window.studyPhysicalAnnotationClick
+) {
+  openModal();
+}
 
     }
 
@@ -116791,6 +116956,244 @@ if (liveChannel) {
 
 });
 
+// =====================================================
+// 🏷️ STUDY BOARD PHYSICAL ANNOTATION TOOLBAR
+// Uses the SAME Study annotation pipeline.
+//
+// Physical button
+//      ↓
+// Existing .study-anno-item
+//      ↓
+// Existing Study annotation logic
+//      ↓
+// studyCurrentNode.annotation
+//      ↓
+// showStudyMoveMarker()
+// =====================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const toolbar =
+    document.getElementById(
+      "studyAnnoToolbar"
+    );
+
+  const grid =
+    document.getElementById(
+      "studyAnnoGrid"
+    );
+
+  if (!toolbar || !grid) return;
+
+
+  // ==========================================
+  // 🎯 CREATE ALL STUDY ANNOTATION BUTTONS
+  // From the EXISTING annotation definition.
+  // ==========================================
+
+  toolbar.innerHTML = "";
+
+  const annotationKeys =
+    Object.keys(
+      studyAnnotations
+    );
+
+
+  toolbar.style.setProperty(
+    "--study-anno-count",
+    annotationKeys.length
+  );
+
+
+  annotationKeys.forEach(
+    (key) => {
+
+      const data =
+        studyAnnotations[key];
+
+      if (!data) return;
+
+
+      // ========================================
+      // 🎨 GET EXACT EXISTING STUDY COLOR
+      // ========================================
+
+      const colorProbe =
+        document.createElement("span");
+
+      colorProbe.className =
+        "anno-symbol " +
+        data.class;
+
+      colorProbe.textContent =
+        data.symbol;
+
+      colorProbe.style.position =
+        "absolute";
+
+      colorProbe.style.visibility =
+        "hidden";
+
+      colorProbe.style.pointerEvents =
+        "none";
+
+      document.body.appendChild(
+        colorProbe
+      );
+
+      const annotationColor =
+        getComputedStyle(
+          colorProbe
+        ).color;
+
+      document.body.removeChild(
+        colorProbe
+      );
+
+
+      // ========================================
+      // 🏷️ CREATE PHYSICAL BUTTON
+      // ========================================
+
+      const button =
+        document.createElement("button");
+
+      button.type =
+        "button";
+
+      button.className =
+        "study-anno-toolbar-btn";
+
+      button.dataset.type =
+        key;
+
+      button.title =
+        data.label;
+
+      button.textContent =
+        data.symbol;
+
+
+      button.style.setProperty(
+        "--study-anno-color",
+        annotationColor
+      );
+
+
+      // ========================================
+      // 🖱️ USE THE EXISTING STUDY PIPELINE
+      // ========================================
+
+ button.addEventListener(
+  "click",
+  (e) => {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!studyCurrentNode) {
+      console.warn(
+        "❌ STUDY ANNOTATION TOOLBAR: no current move target.",
+        studyCurrentNode
+      );
+      return;
+    }
+
+    const popupItem =
+      Array.from(
+        grid.querySelectorAll(
+          ".study-anno-item"
+        )
+      ).find(
+        (el) =>
+          el.dataset.type === key
+      );
+
+    if (!popupItem) {
+      console.warn(
+        "❌ STUDY ANNOTATION TOOLBAR: existing annotation button not found.",
+        key
+      );
+      return;
+    }
+
+
+    // =====================================================
+    // 🟢 PHYSICAL TOOLBAR CLICK
+    // Tell the existing Study annotation pipeline that
+    // this click came from the physical toolbar.
+    // =====================================================
+
+    window.studyPhysicalAnnotationClick = true;
+
+
+    try {
+
+      // Use the SAME existing Study annotation button.
+      popupItem.click();
+
+    } finally {
+
+      // Immediately restore normal Study behavior.
+      window.studyPhysicalAnnotationClick = false;
+
+    }
+
+
+    syncStudyAnnotationToolbar();
+
+  }
+);
+
+
+      toolbar.appendChild(
+        button
+      );
+
+    }
+  );
+
+
+  // ==========================================
+  // 🟡 KEEP PHYSICAL BUTTON ACTIVE STATE
+  // MATCHED TO CURRENT STUDY MOVE
+  // ==========================================
+
+  window.syncStudyAnnotationToolbar =
+    function () {
+
+      if (!toolbar) return;
+
+
+      const currentAnnotation =
+        studyCurrentNode
+          ?.annotation ||
+        null;
+
+
+      toolbar
+        .querySelectorAll(
+          ".study-anno-toolbar-btn"
+        )
+        .forEach(
+          (button) => {
+
+            button.classList.toggle(
+              "active",
+              button.dataset.type ===
+                currentAnnotation
+            );
+
+          }
+        );
+
+    };
+
+
+  // Initial state.
+  syncStudyAnnotationToolbar();
+
+});
 
 document.addEventListener("DOMContentLoaded", () => {
 
