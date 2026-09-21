@@ -36082,13 +36082,13 @@ right:0;
  <button class="nav-btn" data-tab="study">📕 Study Openings & Analysis</button>
  <button class="nav-btn" data-tab="editor">🧩 Chess Board Editor</button>
  <button class="nav-btn" data-tab="livematch" id="navLiveMatch">
- 🌐 Multiplayer Chess Game
+ 🌐 Multiplayer Chess Game (Online)
   <span class="live-dot" id="navLiveDot"></span>
 </button>
 
  <button class="nav-btn" data-tab="puzzlerush">⚡ Puzzle Rush Challenge</button>
  <button class="nav-btn" data-tab="puzzlebattle">
-  ⚔️ Puzzle Battle (Online)
+  ⚔️ Puzzle Battle 1v1 (Online)
 </button>
 <button class="nav-btn" data-tab="puzzletrainer">
   🧩 Puzzle Streak Challenge
@@ -36096,12 +36096,12 @@ right:0;
 
 <button class="nav-btn" data-tab="quiz">⚽️ Chess Quiz Challenge</button>
 <button class="nav-btn" data-tab="computer">
-  🤖 Play with Olympus AI
+  🤖 Practice with BOT (Olympus AI)
 </button>
 <button class="nav-btn" data-tab="board">🔬 Freeplay & Assignment Board</button>
 <button class="nav-btn" data-tab="pairing">🆚 Swiss Pairing</button>
 <button class="nav-btn" data-tab="scoreboard">🏆 Live Scoreboard</button>
-<button class="nav-btn" data-tab="xp-casino">🎰 XP Jackpot (1 Free Spin)</button>
+<button class="nav-btn" data-tab="xp-casino">🎰 XP Jackpot (Daily 1 Free Spin)</button>
 <button class="nav-btn" data-tab="iqtrainer">
   🚀 IQ Trainer Challenge
 </button>
@@ -36111,7 +36111,7 @@ right:0;
   class="nav-btn" 
   id="legalMoveGameBtn" 
   data-lock-tab="legalMove"> 
-  ⚖️ Find Legal Moves (Online)
+  ⚖️ Find Legal Moves <span style="color: #13ed42;">(New Addition)</span>
 </button>
 
 <button 
@@ -36119,19 +36119,19 @@ right:0;
   class="nav-btn" 
   id="legalChecksGameBtn" 
   data-lock-tab="legalChecks"> 
-  ✔️ Find Legal Checks (Online)
+  ✔️ Find Legal Checks <span style="color: #13ed42;">(New Addition)</span>
 </button>
 
-     <button class="nav-btn" data-tab="coordtrain">📍 Square Coordinates</button>
+     <button class="nav-btn" data-tab="coordtrain">📍 Square Coordination Practice</button>
      
 
     <button class="nav-btn" data-tab="piecePractice">
- ⚔️ Movement & Capture </button>
+ ⚔️ Movement & Capture Practice</button>
   
  
 
 
-<button class="nav-btn" data-tab="boardfreeze">🎯 Board Position Recall </button>
+<button class="nav-btn" data-tab="boardfreeze">🎯 Position Recall Challenge</button>
 <button class="nav-btn" data-tab="color">🧪 Lab Hunt (Memorise Color)</button>
 <button class="nav-btn" data-tab="memory">💡 IQ Hunt (Memorise Squares)</button>
 <button class="nav-btn" data-tab="knightfog">
@@ -36180,7 +36180,7 @@ right:0;
 
 
 
-<button class="nav-btn" data-tab="gallery" id="galleryNavBtn">🖼️ Chess Visual Diagram</button>
+<button class="nav-btn" data-tab="gallery" id="galleryNavBtn">🖼️ Important Visual Diagrams</button>
 
 
  
@@ -50724,6 +50724,9 @@ if (profile.role !== 'admin') {
         }
 
        setupEventListeners();
+       // 🎨 Initialize ALL board color systems immediately.
+// This runs even if the user has never opened a particular board/tab.
+await initAllBoardColorSystems();
 
 await loadAssignments();
 
@@ -96381,63 +96384,7 @@ attachCheckHook(mpBoard, mpChess, "mpBoard")
   updateMpPlayerLabels()
 }, 50)
 
-  // ============================================
-// 🎨 LIVE MATCH BOARD COLOR SYSTEM
-// ============================================
-
-function initMpBoardColorSystem() {
-
-  const lightPicker = document.getElementById("mpLightPicker");
-  const darkPicker = document.getElementById("mpDarkPicker");
-  const resetBtn = document.getElementById("resetMpBoardColors");
-
-  if (!lightPicker || !darkPicker) return;
-
-  const savedLight = localStorage.getItem("mpBoardLight");
-  const savedDark = localStorage.getItem("mpBoardDark");
-
-  if (savedLight) {
-    document.documentElement
-      .style.setProperty("--mp-light-square", savedLight);
-    lightPicker.value = savedLight;
-  }
-
-  if (savedDark) {
-    document.documentElement
-      .style.setProperty("--mp-dark-square", savedDark);
-    darkPicker.value = savedDark;
-  }
-
-  lightPicker.addEventListener("input", e => {
-    const color = e.target.value;
-    document.documentElement
-      .style.setProperty("--mp-light-square", color);
-    localStorage.setItem("mpBoardLight", color);
-  });
-
-  darkPicker.addEventListener("input", e => {
-    const color = e.target.value;
-    document.documentElement
-      .style.setProperty("--mp-dark-square", color);
-    localStorage.setItem("mpBoardDark", color);
-  });
-
-  resetBtn.addEventListener("click", () => {
-    const defaultLight = "#f0d9b5";
-    const defaultDark = "#b58863";
-
-    document.documentElement
-      .style.setProperty("--mp-light-square", defaultLight);
-    document.documentElement
-      .style.setProperty("--mp-dark-square", defaultDark);
-
-    lightPicker.value = defaultLight;
-    darkPicker.value = defaultDark;
-
-    localStorage.removeItem("mpBoardLight");
-    localStorage.removeItem("mpBoardDark");
-  });
-}
+ 
 
 
   // ==================================================
@@ -104765,9 +104712,119 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 });
 
+// ============================================================
+// 🎨 INITIALIZE ALL BOARD COLOR SYSTEMS
+// ------------------------------------------------------------
+// Board colors must be initialized independently of whether
+// the user has already visited that board/tab.
+//
+// This makes Settings → Board Colour work immediately for
+// every board, even if that board has never been opened.
+// ============================================================
 
+async function initAllBoardColorSystems() {
 
+  // 🟫 Assignment / Main Board
+  if (typeof initBoardColorSystem === "function") {
+    initBoardColorSystem();
+  }
 
+  // 📖 Study Board
+  if (typeof initStudyBoardColorSystem === "function") {
+    initStudyBoardColorSystem();
+  }
+
+  // 🤖 VS Computer Board
+  if (typeof initVsBoardColorSystem === "function") {
+    initVsBoardColorSystem();
+  }
+
+  // 🌐 Online / Live Match Board
+  if (typeof initMpBoardColorSystem === "function") {
+    initMpBoardColorSystem();
+  }
+
+  // 🛠️ Board Editor
+  if (typeof initEditorBoardColorSystem === "function") {
+    initEditorBoardColorSystem();
+  }
+
+  // 🧩 Live Puzzle Classroom Board
+  if (typeof initLivePuzzleBoardColors === "function") {
+    initLivePuzzleBoardColors();
+  }
+
+  // 🔥 Puzzle Trainer Board
+  if (typeof initTrainerBoardColorSystem === "function") {
+    initTrainerBoardColorSystem();
+  }
+
+}
+
+ // ============================================
+// 🎨 LIVE MATCH BOARD COLOR SYSTEM
+// ============================================
+
+function initMpBoardColorSystem() {
+
+  const lightPicker = document.getElementById("mpLightPicker");
+  const darkPicker = document.getElementById("mpDarkPicker");
+  const resetBtn = document.getElementById("resetMpBoardColors");
+
+  if (!lightPicker || !darkPicker) return;
+    if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
+
+  const savedLight = localStorage.getItem("mpBoardLight");
+  const savedDark = localStorage.getItem("mpBoardDark");
+
+  if (savedLight) {
+    document.documentElement
+      .style.setProperty("--mp-light-square", savedLight);
+    lightPicker.value = savedLight;
+  }
+
+  if (savedDark) {
+    document.documentElement
+      .style.setProperty("--mp-dark-square", savedDark);
+    darkPicker.value = savedDark;
+  }
+
+  lightPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement
+      .style.setProperty("--mp-light-square", color);
+    localStorage.setItem("mpBoardLight", color);
+  });
+
+  darkPicker.addEventListener("input", e => {
+    const color = e.target.value;
+    document.documentElement
+      .style.setProperty("--mp-dark-square", color);
+    localStorage.setItem("mpBoardDark", color);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    const defaultLight = "#f0d9b5";
+    const defaultDark = "#b58863";
+
+    document.documentElement
+      .style.setProperty("--mp-light-square", defaultLight);
+    document.documentElement
+      .style.setProperty("--mp-dark-square", defaultDark);
+
+    lightPicker.value = defaultLight;
+    darkPicker.value = defaultDark;
+
+    localStorage.removeItem("mpBoardLight");
+    localStorage.removeItem("mpBoardDark");
+  });
+}
 // ============================================
 // 🎨 BOARD COLOR SYSTEM
 // ============================================
@@ -104779,6 +104836,14 @@ function initBoardColorSystem() {
   const resetBtn = document.getElementById("resetBoardColorsBtn");
 
   if (!lightPicker || !darkPicker) return;
+  // 🛡️ Prevent duplicate initialization
+  if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   // Load saved colors
   const savedLight = localStorage.getItem("boardLightColor");
@@ -104835,6 +104900,13 @@ function initStudyBoardColorSystem() {
   const resetBtn = document.getElementById("resetStudyBoardColors");
 
   if (!lightPicker || !darkPicker) return;
+    if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   const savedLight = localStorage.getItem("studyBoardLight");
   const savedDark = localStorage.getItem("studyBoardDark");
@@ -104893,6 +104965,13 @@ function initTrainerBoardColorSystem() {
   const resetBtn = document.getElementById("resetTrainerBoardColors");
 
   if (!lightPicker || !darkPicker || !resetBtn) return;
+    if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   const savedLight = localStorage.getItem("trainerBoardLight");
   const savedDark = localStorage.getItem("trainerBoardDark");
@@ -104957,6 +105036,13 @@ function initVsBoardColorSystem() {
   const resetBtn = document.getElementById("resetVsBoardColors");
 
   if (!lightPicker || !darkPicker) return;
+    if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   const savedLight = localStorage.getItem("vsBoardLight");
   const savedDark = localStorage.getItem("vsBoardDark");
@@ -105017,6 +105103,13 @@ function initEditorBoardColorSystem() {
   const resetBtn = document.getElementById("resetEditorBoardColors");
 
   if (!lightPicker || !darkPicker) return;
+    if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   const savedLight = localStorage.getItem("editorBoardLight");
   const savedDark = localStorage.getItem("editorBoardDark");
@@ -144681,6 +144774,14 @@ function initLivePuzzleBoardColors() {
     !lightPicker ||
     !darkPicker
   ) return;
+    // 🛡️ Prevent duplicate initialization
+  if (
+    lightPicker.dataset.boardColorInitialized === "true"
+  ) {
+    return;
+  }
+
+  lightPicker.dataset.boardColorInitialized = "true";
 
   // ================= LOAD =================
   const savedLight =
@@ -175954,6 +176055,8 @@ style="
     learning: [
       '[data-tab="assignments"]',
       '[data-tab="study"]',
+      '[data-tab="editor"]',
+      '[data-tab="board"]',
       '[data-tab="piecePractice"]',
       '[data-tab="coordtrain"]',
     ],
@@ -175971,19 +176074,23 @@ style="
 
     chess: [
       '[data-tab="computer"]',
-      '[data-tab="board"]',
-      '[data-tab="livematch"]',
-      '[data-tab="editor"]',
+      
+     
+       '#legalMoveGameBtn',
+      '#legalChecksGameBtn',
+       '[data-tab="livematch"]',
+       '[data-tab="puzzlebattle"]',
+      
     ],
 
     training: [
-      '[data-tab="boardfreeze"]',
-      '#legalMoveGameBtn',
-      '#legalChecksGameBtn',
-       '[data-tab="puzzlebattle"]',
+      
+     
+      
       '[data-tab="puzzlerush"]',
       '[data-tab="puzzletrainer"]',
       '[data-tab="quiz"]',
+      '[data-tab="boardfreeze"]'
      
     ],
 
@@ -176398,7 +176505,7 @@ const groupLiveDotSources = {
 
       {
         key: "chess",
-        title: "Chess",
+        title: "Play",
         icon: "♟️"
       },
 
