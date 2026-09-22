@@ -38223,7 +38223,8 @@ Read-only personal attendance calendar
      "https://olympus-news.yourname.workers.dev/?url="
      When set, it is tried first alongside everything else.
   */
-  const MY_PROXY = "";
+const MY_PROXY =
+  "https://olympus-chess-news.aged-brook-c4fb.workers.dev/article?url=";
 
   const FEED_CACHE_KEY = "olympus_chess_news_feed_v2";
   const ART_PREFIX = "olympus_chess_article_v2:";
@@ -38524,14 +38525,20 @@ Read-only personal attendance calendar
      - thingproxy     (domain no longer exists)
      Your own proxy (MY_PROXY) is the dependable option.
   */
-  function proxyList(targetURL) {
-    const enc = encodeURIComponent(targetURL);
-    const list = [];
-    if (MY_PROXY) list.push(MY_PROXY + enc);
-    list.push("https://api.allorigins.win/raw?url=" + enc);
-    list.push("https://api.codetabs.com/v1/proxy/?quest=" + enc);
-    return list;
+/*
+   Olympus Cloudflare Worker is the ONLY article proxy.
+   This avoids slow/unreliable public proxy attempts.
+*/
+function proxyList(targetURL) {
+  const enc = encodeURIComponent(targetURL);
+
+  // 🚀 Olympus Cloudflare Worker ONLY
+  if (MY_PROXY) {
+    return [MY_PROXY + enc];
   }
+
+  return [];
+}
 
   async function fetchTextWithTimeout(url, ms) {
     const controller = new AbortController();
@@ -38850,64 +38857,148 @@ Read-only personal attendance calendar
      that produces a real article wins.
      ========================================== */
 
-  function fetchFullArticleOnce(url, teaserText) {
+function fetchFullArticleOnce(url, teaserText) {
 
-    const slug = url.split("?")[0].split("/").filter(Boolean).pop() || "";
+  const slug =
+    url.split("?")[0].split("/").filter(Boolean).pop() || "";
 
-    const attempts = proxyList(url).map(async function (proxyURL) {
-      const text = await fetchTextWithTimeout(proxyURL, 15000);
-      if (!text || text.length < 2000 || !/<p[\s>]/i.test(text)) {
-        throw new Error("not an article page");
-      }
-      if (slug && text.indexOf(slug) === -1) {
-        throw new Error("wrong page");
-      }
-      const result = extractArticle(text, url, teaserText);
-      if (!result) throw new Error("no article body found");
-      return result;
-    });
+  const attempts = proxyList(url).map(async function (proxyURL) {
 
-    attempts.push((async function () {
-      const md = await fetchTextWithTimeout("https://r.jina.ai/" + url, 20000);
-      const result = markdownToArticle(md, url, teaserText);
-      if (!result) throw new Error("reader service gave no article");
-      return result;
-    })());
+    const text =
+      await fetchTextWithTimeout(proxyURL, 10000);
 
-    return firstSuccess(attempts);
-
-  }
-
-  async function getFullArticle(url, teaserText) {
-
-    if (articleCache.has(url)) return articleCache.get(url);
-
-    const stored = storeGet(ART_PREFIX + url, ART_MAX_AGE);
-    if (stored && stored.html) {
-      articleCache.set(url, stored);
-      articlesWorking = true;
-      return stored;
+    if (
+      !text ||
+      text.length < 2000 ||
+      !/<p[\s>]/i.test(text)
+    ) {
+      throw new Error("not an article page");
     }
 
-    let result = null;
-
-    for (let round = 0; round < 2 && !result; round++) {
-      try {
-        result = await fetchFullArticleOnce(url, teaserText);
-      } catch (e) {
-        if (round === 0) await sleep(1200);
-      }
+    if (
+      slug &&
+      text.indexOf(slug) === -1
+    ) {
+      throw new Error("wrong page");
     }
 
-    if (result) {
-      articlesWorking = true;
-      articleCache.set(url, result);
-      if (result.html.length < 250000) storeSet(ART_PREFIX + url, result);
+    const result =
+      extractArticle(
+        text,
+        url,
+        teaserText
+      );
+
+    if (!result) {
+      throw new Error(
+        "no article body found"
+      );
     }
 
     return result;
+  });
+
+  /*
+     🚀 Cloudflare Worker is now the
+     ONLY full-article source.
+
+     No r.jina.ai fallback.
+     This keeps the loading path
+     predictable and fast.
+  */
+
+  return firstSuccess(attempts);
+}
+
+async function getFullArticle(url, teaserText) {
+
+  /* ==========================================
+     1. MEMORY CACHE
+     ========================================== */
+
+  if (articleCache.has(url)) {
+    return articleCache.get(url);
+  }
+
+
+  /* ==========================================
+     2. LOCAL STORAGE CACHE
+     ========================================== */
+
+  const stored =
+    storeGet(
+      ART_PREFIX + url,
+      ART_MAX_AGE
+    );
+
+  if (stored && stored.html) {
+
+    articleCache.set(
+      url,
+      stored
+    );
+
+    articlesWorking = true;
+
+    return stored;
+  }
+
+
+  /* ==========================================
+     3. FETCH DIRECTLY THROUGH
+        CLOUDFLARE WORKER
+     ========================================== */
+
+  let result = null;
+
+  try {
+
+    result =
+      await fetchFullArticleOnce(
+        url,
+        teaserText
+      );
+
+  } catch (e) {
+
+    console.error(
+      "❌ Full article fetch failed:",
+      e
+    );
 
   }
+
+
+  /* ==========================================
+     4. CACHE SUCCESSFUL ARTICLE
+     ========================================== */
+
+  if (result) {
+
+    articlesWorking = true;
+
+    articleCache.set(
+      url,
+      result
+    );
+
+    if (
+      result.html &&
+      result.html.length < 250000
+    ) {
+
+      storeSet(
+        ART_PREFIX + url,
+        result
+      );
+
+    }
+
+  }
+
+
+  return result;
+}
 
 
   /* ==========================================
