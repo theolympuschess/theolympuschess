@@ -39313,64 +39313,86 @@ Read-only personal attendance calendar
     }
 
 
-    /* =========================================================
-       ANSWER CLICK
-       ========================================================= */
+   /* =========================================================
+   ANSWER CLICK
+   ========================================================= */
 
-    answers.forEach(button => {
+answers.forEach(button => {
 
-      button.addEventListener("click", function () {
+  button.addEventListener("click", function () {
 
-        if (answered || !currentPlayer) return;
+    if (answered || !currentPlayer) return;
 
-        answered = true;
+    answered = true;
 
-        const selected = this.textContent;
+    // Always trim the displayed answer text
+    const selected = this.textContent.trim();
+    const correctAnswer = String(currentPlayer).trim();
 
-        answers.forEach(btn => {
-          btn.disabled = true;
-          btn.style.cursor = "default";
-        });
-
-        const correctButton = [...answers].find(
-          btn => btn.textContent === currentPlayer
-        );
-
-        if (selected === currentPlayer) {
-
-          score++;
-
-          this.style.background = "#2ed573";
-          this.style.color      = "#07140d";
-          this.style.border     = "2px solid #2ed573";
-
-          result.textContent = "✅ Correct!";
-          result.style.color = "#2ed573";
-
-        } else {
-
-          this.style.background = "#ff4757";
-          this.style.color      = "#ffffff";
-          this.style.border     = "2px solid #ff4757";
-
-          if (correctButton) {
-            correctButton.style.background = "#2ed573";
-            correctButton.style.color      = "#07140d";
-            correctButton.style.border     = "2px solid #2ed573";
-          }
-
-          result.textContent = "❌ Correct answer: " + currentPlayer;
-          result.style.color = "#ff6b6b";
-
-        }
-
-        scoreElement.textContent = "Score: " + score;
-
-        nextButton.style.display = "block";
-
-      });
-
+    // Disable all answers
+    answers.forEach(btn => {
+      btn.disabled = true;
+      btn.style.cursor = "default";
     });
+
+    const correctButton = [...answers].find(
+      btn => btn.textContent.trim() === correctAnswer
+    );
+
+    // =====================================================
+    // ✅ CORRECT ANSWER
+    // =====================================================
+
+    if (selected === correctAnswer) {
+
+      score++;
+
+      this.style.background = "#2ed573";
+      this.style.color = "#07140d";
+      this.style.border = "2px solid #2ed573";
+
+      result.textContent = "✅ Correct!";
+      result.style.color = "#2ed573";
+
+    }
+
+    // =====================================================
+    // ❌ WRONG ANSWER
+    // =====================================================
+
+    else {
+
+      // Selected wrong answer → RED
+      this.style.background = "#ff4757";
+      this.style.color = "#ffffff";
+      this.style.border = "2px solid #ff4757";
+
+      // Actual correct answer → GREEN
+      if (correctButton) {
+
+        correctButton.style.background = "#2ed573";
+        correctButton.style.color = "#07140d";
+        correctButton.style.border = "2px solid #2ed573";
+
+      }
+
+result.innerHTML =
+  '❌ <span style="color:#ff6b6b;">Wrong answer</span>, ' +
+  '<span style="color:#2ed573;">Correct answer: </span>' +
+  '<span style="color:#ffd43b;">' +
+  correctAnswer +
+  '</span>';
+    }
+
+    // Update score
+    scoreElement.textContent = "Score: " + score;
+
+    // Show Next Player button
+    nextButton.style.display = "block";
+
+  });
+
+});
 
 
     /* =========================================================
