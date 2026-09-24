@@ -83221,11 +83221,11 @@ Object.assign(
               margin-bottom:9px;
             ">
 
-             <strong>Student:</strong>
+            <strong>Student Answer:</strong>
 <span>
-  ${
-    answer.student_move
-      ? (() => {
+ ${
+  answer.result === "correct" && answer.student_move
+    ? (() => {
 
           const moves =
             String(answer.student_move)
@@ -83974,27 +83974,44 @@ if (
               // CREATE BOARD
               // ==================================================
 
-              localBoards[idx] =
-                Chessboard(
-                  boardElement,
-                  {
+        localBoards[idx] =
+  Chessboard(
+    boardElement,
+    {
 
-                    position:
-                      answer.fen,
+      position:
+        answer.fen,
 
-                    draggable:
-                      false,
+      // ==================================================
+      // ♟️ ADMIN ATTEMPT REVIEW POV
+      //
+      // Show the board from the side that is TO MOVE
+      // in the original puzzle position.
+      //
+      // Black to move → Black POV
+      // White to move → White POV
+      //
+      // This orientation is fixed for the whole review.
+      // It does NOT flip after a move is replayed.
+      // ==================================================
+      orientation:
+        new Chess(answer.fen).turn() === "b"
+          ? "black"
+          : "white",
 
-                    showNotation:
-                      false,
+      draggable:
+        false,
 
-                    pieceTheme:
-                      getPieceThemePath(
-                        currentPieceTheme
-                      )
+      showNotation:
+        false,
 
-                  }
-                );
+      pieceTheme:
+        getPieceThemePath(
+          currentPieceTheme
+        )
+
+    }
+  );
 
 
               // ==================================================
@@ -116967,24 +116984,39 @@ grid.appendChild(
 // Initialize after the browser has rendered it.
 requestAnimationFrame(() => {
 
-  Chessboard(
-    boardDiv,
-    {
-      position:
-        startingFen,
+ Chessboard(
+  boardDiv,
+  {
+    position:
+      startingFen,
 
-      draggable:
-        false,
+    // ==================================================
+    // ♟️ STUDENT PUZZLE REVIEW POV
+    //
+    // White to move → White POV
+    // Black to move → Black POV
+    //
+    // Orientation is based ONLY on the original
+    // puzzle position and remains fixed while
+    // reviewing the student's attempt.
+    // ==================================================
+    orientation:
+      new Chess(startingFen).turn() === "b"
+        ? "black"
+        : "white",
 
-      showNotation:
-        false,
+    draggable:
+      false,
 
-      pieceTheme:
-        getPieceThemePath(
-          currentPieceTheme
-        )
-    }
-  );
+    showNotation:
+      false,
+
+    pieceTheme:
+      getPieceThemePath(
+        currentPieceTheme
+      )
+  }
+);
 
 });
 
@@ -117020,9 +117052,9 @@ requestAnimationFrame(() => {
 details.innerHTML += `
   <div style="margin-bottom:6px;">
     <strong>My Answer:</strong>
-    ${
-      answer.student_move
-        ? (() => {
+   ${ 
+  answer.result === "correct" && answer.student_move
+    ? (() => { 
 
             const moves =
               String(answer.student_move)
@@ -117517,24 +117549,39 @@ details
           // Update the exact puzzle board.
           // ----------------------------------------------
 
-          Chessboard(
-            board,
-            {
-              position:
-                reviewGame.fen(),
+         Chessboard(
+  board,
+  {
+    position:
+      reviewGame.fen(),
 
-              draggable:
-                false,
+    // ==================================================
+    // ♟️ KEEP THE ORIGINAL PUZZLE POV
+    //
+    // Do NOT use reviewGame.turn() here.
+    //
+    // reviewGame.turn() changes after every replayed
+    // move, which would make the board flip.
+    //
+    // The POV must always come from startingFen.
+    // ==================================================
+    orientation:
+      new Chess(startingFen).turn() === "b"
+        ? "black"
+        : "white",
 
-              showNotation:
-                false,
+    draggable:
+      false,
 
-              pieceTheme:
-                getPieceThemePath(
-                  currentPieceTheme
-                )
-            }
-          );
+    showNotation:
+      false,
+
+    pieceTheme:
+      getPieceThemePath(
+        currentPieceTheme
+      )
+  }
+);
 
 
           // ----------------------------------------------
