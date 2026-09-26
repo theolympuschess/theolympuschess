@@ -51866,7 +51866,7 @@ function updateTip(
             <option value="5">5 × 5</option>
             <option value="6">6 × 6</option>
             <option value="7">7 × 7</option>
-            <option value="8" selected>8 × 8</option>
+            <option value="8" >8 × 8</option>
             <option value="9">9 × 9</option>
             <option value="10">10 × 10</option>
             <option value="11">11 × 11</option>
@@ -52344,10 +52344,10 @@ function updateTip(
      CONFIGURATION
   ========================================================= */
 
-  const MIN_SIZE = 3;
+  const MIN_SIZE = 4;
   const MAX_SIZE = 24;
 
-  let boardSize = 8;
+  let boardSize = 4;
 
   let queens = new Set();
 
@@ -53226,81 +53226,84 @@ function createQueenElement(hasConflict) {
      COMPLETION
   ========================================================= */
 
-  function checkCompletion(
-    conflicts
-  ) {
+ function checkCompletion(conflicts) {
+  if (gameComplete) return;
+  if (queens.size !== boardSize) return;
+  if (conflicts.length !== 0) return;
 
-    if (
-      gameComplete
-    ) {
+  gameComplete = true;
 
-      return;
+  statusEl.textContent = "Challenge complete!";
+  tipEl.textContent = "Brilliant! Every queen is safely placed.";
 
-    }
+  /* ============================================
+     ✅ MARK EVERY QUEEN / SQUARE AS CORRECT
+  ============================================ */
 
+  queens.forEach(function(key) {
+    const position = parseQueenKey(key);
+    const square = getSquare(position.row, position.col);
 
-    if (
-      queens.size !== boardSize
-    ) {
+    if (!square) return;
 
-      return;
+    /* Subtle green confirmation around the square */
+    square.style.boxShadow =
+      "inset 0 0 0 3px rgba(120,184,135,0.85), " +
+      "inset 0 0 18px rgba(120,184,135,0.18)";
 
-    }
+    /* Add a subtle green tick */
+    const tick = document.createElement("div");
 
+    tick.className = "oqc-success-tick";
+    tick.textContent = "✓";
 
-    if (
-      conflicts.length !== 0
-    ) {
+    Object.assign(tick.style, {
+      position: "absolute",
+      right: "5%",
+      bottom: "5%",
+      zIndex: "40",
+      width: "22%",
+      height: "22%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "50%",
+     background: "rgba(25,125,65,0.95)",
+      color: "#edf5f0",
+      fontSize: "clamp(10px, 1.5vw, 18px)",
+      fontWeight: "1000",
+      lineHeight: "1",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.28)",
+      pointerEvents: "none",
+      userSelect: "none"
+    });
 
-      return;
+    square.appendChild(tick);
+  });
 
-    }
+  /* ============================================
+     🏆 WIN MESSAGE
+  ============================================ */
 
+  const message = document.getElementById("oqcWinMessage");
 
-    gameComplete = true;
-
-
-    statusEl.textContent =
-      "Challenge complete!";
-
-
-    tipEl.textContent =
-      "Brilliant! Every queen is safely placed.";
-
-
-    const message =
-      document.getElementById(
-        "oqcWinMessage"
-      );
-
-
-    if (message) {
-
-      message.textContent =
-        "You successfully placed " +
-        boardSize +
-        " queens with zero conflicts.";
-
-    }
-
-
-    setTimeout(
-      function () {
-
-        if (
-          winModal
-        ) {
-
-          winModal.style.display =
-            "flex";
-
-        }
-
-      },
-      250
-    );
-
+  if (message) {
+    message.textContent =
+      "You successfully placed " +
+      boardSize +
+      " queens with zero conflicts.";
   }
+
+  /* ============================================
+     ⏱️ SHOW MODAL AFTER 2 SECONDS
+  ============================================ */
+
+  setTimeout(function() {
+    if (winModal) {
+      winModal.style.display = "flex";
+    }
+  }, 2000);
+}
 
 
   /* =========================================================
