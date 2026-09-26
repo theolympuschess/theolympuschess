@@ -37635,6 +37635,14 @@ right:0;
   ⚖️ Legal Moves Challenge
 
 </button>
+<button
+  class="nav-btn"
+  data-tab="queenChallenge"
+  id="queenChallengeNavBtn"
+>
+  <span style="font-size: 1.25em; color: #1ced54;">♛</span>
+  8 Queens Challenge
+</button>
 
 <button 
   type="button" 
@@ -51496,9 +51504,2127 @@ function updateTip(
 })();
 </script>
 
+<!-- =========================================================
+     ♛ OLYMPUS N-QUEENS CHALLENGE
+     ---------------------------------------------------------
+     Completely isolated game section.
+     Supports 3×3 through 15×15.
+========================================================= -->
+
+<section
+  class="section hidden"
+  id="queenChallenge-section"
+>
+
+  <div
+    id="oqc-shell"
+    style="
+      width:100%;
+      max-width:1200px;
+      margin:0 auto;
+      padding:20px;
+      box-sizing:border-box;
+    "
+  >
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <div
+      style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        flex-wrap:wrap;
+        margin-bottom:20px;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          gap:14px;
+        "
+      >
+
+        <div
+          style="
+            font-size:42px;
+            line-height:1;
+            color:#ffd700;
+          "
+        >
+          ♛
+        </div>
+
+        <div>
+
+          <h2
+            style="
+              margin:0;
+              color:#fff;
+              font-size:26px;
+              font-weight:900;
+            "
+          >
+            N-Queens Challenge
+          </h2>
+
+          <p
+            style="
+              margin:5px 0 0;
+              color:#aeb3cf;
+              font-size:14px;
+              font-weight:600;
+            "
+          >
+            Place queens so that no queen can attack another queen.
+          </p>
+
+        </div>
+
+      </div>
 
 
+      <div
+        style="
+          display:flex;
+          gap:8px;
+          flex-wrap:wrap;
+        "
+      >
 
+        <button
+          type="button"
+          id="oqcHowToBtn"
+          style="
+            padding:10px 15px;
+            border-radius:10px;
+            border:1px solid rgba(255,255,255,0.12);
+            background:rgba(255,255,255,0.07);
+            color:#fff;
+            font-weight:800;
+            cursor:pointer;
+          "
+        >
+          ❓ How to Play
+        </button>
+
+        <button
+          type="button"
+          id="oqcResetBtn"
+          style="
+            padding:10px 15px;
+            border-radius:10px;
+            border:1px solid rgba(255,215,0,0.25);
+            background:rgba(255,215,0,0.10);
+            color:#ffd700;
+            font-weight:800;
+            cursor:pointer;
+          "
+        >
+          ↻ Reset
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MAIN LAYOUT
+    ====================================================== -->
+
+    <div
+      style="
+        display:grid;
+        grid-template-columns:minmax(0,1fr) 320px;
+        gap:20px;
+        align-items:start;
+      "
+      id="oqc-layout"
+    >
+
+
+      <!-- ===================================================
+           BOARD CARD
+      ==================================================== -->
+
+      <div
+        style="
+          background:rgba(20,24,42,0.96);
+          border:1px solid rgba(255,215,0,0.18);
+          border-radius:18px;
+          padding:20px;
+          box-sizing:border-box;
+          box-shadow:0 20px 55px rgba(0,0,0,0.25);
+        "
+      >
+
+        <!-- BOARD HEADER -->
+
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:14px;
+          "
+        >
+
+          <div>
+
+            <div
+              style="
+                color:#aeb3cf;
+                font-size:11px;
+                font-weight:900;
+                letter-spacing:1px;
+              "
+            >
+              QUEENS PLACED
+            </div>
+
+            <div
+              id="oqcStatus"
+              style="
+                color:#fff;
+                font-size:17px;
+                font-weight:900;
+                margin-top:3px;
+              "
+            >
+              Place your first queen
+            </div>
+
+          </div>
+
+
+          <div
+            style="
+              color:#ffd700;
+              font-size:22px;
+              font-weight:900;
+              white-space:nowrap;
+            "
+          >
+            <span id="oqcQueenCount">0</span>
+            <span
+              style="
+                color:#777d99;
+                font-size:14px;
+              "
+            >
+              /
+            </span>
+            <span
+              id="oqcTargetCount"
+              style="
+                color:#fff;
+                font-size:18px;
+              "
+            >
+              8
+            </span>
+          </div>
+
+        </div>
+
+
+        <!-- CONFLICT STATUS -->
+
+        <div
+          id="oqcConflictStatus"
+          style="
+            margin-bottom:15px;
+            padding:9px 12px;
+            border-radius:10px;
+            background:rgba(255,255,255,0.05);
+            color:#aeb3cf;
+            font-size:13px;
+            font-weight:800;
+            text-align:center;
+          "
+        >
+          No conflicts
+        </div>
+
+
+        <!-- BOARD -->
+
+        <div
+          id="oqcBoardArea"
+          style="
+            width:100%;
+            display:flex;
+            justify-content:center;
+            overflow:visible;
+            padding:10px 24px 30px;
+            box-sizing:border-box;
+          "
+        >
+
+          <div
+            id="oqcBoard"
+            aria-label="N-Queens challenge board"
+            style="
+              position:relative;
+              width:min(100%,680px);
+              aspect-ratio:1 / 1;
+              display:grid;
+              user-select:none;
+              touch-action:manipulation;
+            "
+          ></div>
+
+        </div>
+
+
+        <!-- BOARD INSTRUCTION -->
+
+        <div
+          style="
+            text-align:center;
+            color:#858ba8;
+            font-size:12px;
+            font-weight:600;
+            margin-top:2px;
+          "
+        >
+          Click an empty square to place a queen.
+          Click a queen again to remove it.
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           RIGHT PANEL
+      ==================================================== -->
+
+      <div
+        style="
+          display:flex;
+          flex-direction:column;
+          gap:14px;
+        "
+      >
+
+        <!-- VARIANT -->
+
+        <div
+          style="
+            background:rgba(20,24,42,0.96);
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:16px;
+            padding:17px;
+          "
+        >
+
+          <div
+            style="
+              color:#fff;
+              font-size:15px;
+              font-weight:900;
+              margin-bottom:10px;
+            "
+          >
+            ♛ Board Size
+          </div>
+
+
+          <select
+            id="oqcSizeSelect"
+            style="
+              width:100%;
+              padding:11px 12px;
+              border-radius:10px;
+              border:1px solid rgba(255,255,255,0.12);
+              background:#171b2d;
+              color:#fff;
+              font-size:14px;
+              font-weight:800;
+              outline:none;
+              cursor:pointer;
+            "
+          >
+
+           
+            <option value="4">4 × 4</option>
+            <option value="5">5 × 5</option>
+            <option value="6">6 × 6</option>
+            <option value="7">7 × 7</option>
+            <option value="8" selected>8 × 8</option>
+            <option value="9">9 × 9</option>
+            <option value="10">10 × 10</option>
+            <option value="11">11 × 11</option>
+            <option value="12">12 × 12</option>
+            <option value="13">13 × 13</option>
+<option value="14">14 × 14</option>
+<option value="15">15 × 15</option>
+<option value="16">16 × 16</option>
+<option value="17">17 × 17</option>
+<option value="18">18 × 18</option>
+<option value="19">19 × 19</option>
+<option value="20">20 × 20</option>
+<option value="21">21 × 21</option>
+<option value="22">22 × 22</option>
+<option value="23">23 × 23</option>
+<option value="24">24 × 24</option>
+            
+
+          </select>
+
+        </div>
+
+
+        <!-- MISSION -->
+
+        <div
+          style="
+            background:rgba(20,24,42,0.96);
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:16px;
+            padding:17px;
+          "
+        >
+
+          <div
+            style="
+              color:#ffd700;
+              font-size:15px;
+              font-weight:900;
+              margin-bottom:9px;
+            "
+          >
+            ♛ Your Mission
+          </div>
+
+          <div
+            style="
+              color:#aeb3cf;
+              font-size:13px;
+              line-height:1.6;
+              font-weight:600;
+            "
+          >
+            Place
+            <strong style="color:#fff;">
+              exactly N queens
+            </strong>
+            on the board so that no two queens attack
+            each other.
+
+            <br><br>
+
+            Queens attack along the same
+            <strong style="color:#fff;">
+              rank, file or diagonal.
+            </strong>
+          </div>
+
+        </div>
+
+
+        <!-- STATS -->
+
+        <div
+          style="
+            background:rgba(20,24,42,0.96);
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:16px;
+            padding:17px;
+          "
+        >
+
+          <div
+            style="
+              color:#fff;
+              font-size:15px;
+              font-weight:900;
+              margin-bottom:12px;
+            "
+          >
+            📊 Challenge Stats
+          </div>
+
+
+          <div
+            style="
+              display:grid;
+              gap:10px;
+            "
+          >
+
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                color:#aeb3cf;
+                font-size:13px;
+                font-weight:700;
+              "
+            >
+              <span>Queens placed</span>
+              <strong
+                id="oqcPlacedStat"
+                style="color:#fff;"
+              >
+                0
+              </strong>
+            </div>
+
+
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                color:#aeb3cf;
+                font-size:13px;
+                font-weight:700;
+              "
+            >
+              <span>Conflicts</span>
+              <strong
+                id="oqcConflictStat"
+                style="color:#fff;"
+              >
+                0
+              </strong>
+            </div>
+
+
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                color:#aeb3cf;
+                font-size:13px;
+                font-weight:700;
+              "
+            >
+              <span>Remaining</span>
+              <strong
+                id="oqcRemainingStat"
+                style="color:#fff;"
+              >
+                8
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- COACH TIP -->
+
+        <div
+          style="
+            display:flex;
+            gap:12px;
+            padding:16px;
+            border-radius:16px;
+            background:rgba(120,184,135,0.09);
+            border:1px solid rgba(120,184,135,0.16);
+          "
+        >
+
+          <div
+            style="
+              font-size:22px;
+              line-height:1;
+            "
+          >
+            💡
+          </div>
+
+          <div>
+
+            <strong
+              style="
+                display:block;
+                color:#fff;
+                font-size:14px;
+                margin-bottom:5px;
+              "
+            >
+              Coach Tip
+            </strong>
+
+            <div
+              id="oqcTip"
+              style="
+                color:#aeb3cf;
+                font-size:12px;
+                line-height:1.5;
+                font-weight:600;
+              "
+            >
+              Try to place queens while keeping
+              every row, column and diagonal safe.
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- RESET -->
+
+        <button
+          type="button"
+          id="oqcResetSideBtn"
+          style="
+            width:100%;
+            padding:13px;
+            border:none;
+            border-radius:12px;
+            background:#78b887;
+            color:#000;
+            font-size:14px;
+            font-weight:900;
+            cursor:pointer;
+          "
+        >
+          ↻ Try Again
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =======================================================
+       HOW TO PLAY MODAL
+  ======================================================== -->
+
+  <div
+    id="oqcHowToModal"
+    style="
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+      background:rgba(5,7,16,0.78);
+      backdrop-filter:blur(7px);
+    "
+  >
+
+    <div
+      style="
+        width:min(430px,92%);
+        padding:26px;
+        box-sizing:border-box;
+        border-radius:18px;
+        background:#14182a;
+        border:1px solid rgba(255,215,0,0.20);
+        box-shadow:0 25px 70px rgba(0,0,0,0.5);
+        color:#fff;
+        position:relative;
+      "
+    >
+
+      <button
+        type="button"
+        id="oqcHowToClose"
+        style="
+          position:absolute;
+          top:10px;
+          right:10px;
+          width:34px;
+          height:34px;
+          border:none;
+          border-radius:50%;
+          background:rgba(255,255,255,0.08);
+          color:#fff;
+          font-size:24px;
+          cursor:pointer;
+        "
+      >
+        ×
+      </button>
+
+      <div
+        style="
+          color:#ffd700;
+          font-size:42px;
+          text-align:center;
+          margin-bottom:10px;
+        "
+      >
+        ♛
+      </div>
+
+      <h3
+        style="
+          text-align:center;
+          margin:0 0 10px;
+          font-size:22px;
+          font-weight:900;
+        "
+      >
+        How to Play
+      </h3>
+
+      <p
+        style="
+          color:#aeb3cf;
+          font-size:13px;
+          line-height:1.6;
+          font-weight:600;
+        "
+      >
+        Place queens on the board so that no two queens
+        can attack each other.
+      </p>
+
+      <div
+        style="
+          display:grid;
+          gap:10px;
+          margin-top:15px;
+        "
+      >
+
+        <div>1️⃣ Click an empty square to place a queen.</div>
+        <div>2️⃣ Click a queen to remove it.</div>
+        <div>3️⃣ Red lines show attacking queens.</div>
+        <div>4️⃣ Place exactly N queens with zero conflicts.</div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =======================================================
+       SUCCESS MODAL
+  ======================================================== -->
+
+  <div
+    id="oqcWinModal"
+    style="
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:100000;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+      background:rgba(5,7,16,0.80);
+      backdrop-filter:blur(7px);
+    "
+  >
+
+    <div
+      style="
+        width:min(420px,92%);
+        padding:28px;
+        box-sizing:border-box;
+        border-radius:18px;
+        background:#14182a;
+        border:1px solid rgba(120,184,135,0.35);
+        box-shadow:0 25px 70px rgba(0,0,0,0.5);
+        text-align:center;
+        color:#fff;
+      "
+    >
+
+      <div
+        style="
+          font-size:48px;
+          color:#ffd700;
+          margin-bottom:8px;
+        "
+      >
+        ♛
+      </div>
+
+      <div
+        style="
+          color:#78b887;
+          font-size:11px;
+          font-weight:900;
+          letter-spacing:1px;
+        "
+      >
+        CHALLENGE COMPLETE
+      </div>
+
+      <h3
+        style="
+          margin:8px 0;
+          font-size:25px;
+          font-weight:900;
+        "
+      >
+        Brilliant! 🎉
+      </h3>
+
+      <p
+        id="oqcWinMessage"
+        style="
+          color:#aeb3cf;
+          font-size:13px;
+          line-height:1.6;
+        "
+      >
+        You placed all queens without any conflicts.
+      </p>
+
+      <button
+        type="button"
+        id="oqcWinReset"
+        style="
+          width:100%;
+          margin-top:12px;
+          padding:13px;
+          border:none;
+          border-radius:12px;
+          background:#78b887;
+          color:#000;
+          font-weight:900;
+          cursor:pointer;
+        "
+      >
+        ♛ Play Again
+      </button>
+
+    </div>
+
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   ♛ OLYMPUS N-QUEENS CHALLENGE
+   ---------------------------------------------------------
+   Completely isolated game engine.
+
+   - Supports 3×3 through 15×15
+   - Click to place queen
+   - Click queen to remove
+   - Shows attacking queen lines
+   - Same row / column / diagonal detection
+   - No Supabase
+   - No chess.js
+   - No Stockfish
+   - Does not modify Knight Tour
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const MIN_SIZE = 3;
+  const MAX_SIZE = 24;
+
+  let boardSize = 8;
+
+  let queens = new Set();
+
+  let gameComplete = false;
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section =
+    document.getElementById(
+      "queenChallenge-section"
+    );
+
+  const board =
+    document.getElementById(
+      "oqcBoard"
+    );
+
+  const sizeSelect =
+    document.getElementById(
+      "oqcSizeSelect"
+    );
+
+  const resetBtn =
+    document.getElementById(
+      "oqcResetBtn"
+    );
+
+  const resetSideBtn =
+    document.getElementById(
+      "oqcResetSideBtn"
+    );
+
+  const howToBtn =
+    document.getElementById(
+      "oqcHowToBtn"
+    );
+
+  const howToModal =
+    document.getElementById(
+      "oqcHowToModal"
+    );
+
+  const howToClose =
+    document.getElementById(
+      "oqcHowToClose"
+    );
+
+  const winModal =
+    document.getElementById(
+      "oqcWinModal"
+    );
+
+  const winReset =
+    document.getElementById(
+      "oqcWinReset"
+    );
+
+  const statusEl =
+    document.getElementById(
+      "oqcStatus"
+    );
+
+  const conflictStatusEl =
+    document.getElementById(
+      "oqcConflictStatus"
+    );
+
+  const queenCountEl =
+    document.getElementById(
+      "oqcQueenCount"
+    );
+
+  const targetCountEl =
+    document.getElementById(
+      "oqcTargetCount"
+    );
+
+  const placedStatEl =
+    document.getElementById(
+      "oqcPlacedStat"
+    );
+
+  const conflictStatEl =
+    document.getElementById(
+      "oqcConflictStat"
+    );
+
+  const remainingStatEl =
+    document.getElementById(
+      "oqcRemainingStat"
+    );
+
+  const tipEl =
+    document.getElementById(
+      "oqcTip"
+    );
+
+
+  if (!section || !board) {
+    return;
+  }
+
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
+  function queenKey(
+    row,
+    col
+  ) {
+
+    return row + "-" + col;
+
+  }
+
+
+  function parseQueenKey(
+    key
+  ) {
+
+    const parts =
+      key.split("-");
+
+    return {
+      row: Number(parts[0]),
+      col: Number(parts[1])
+    };
+
+  }
+
+
+  function isInsideBoard(
+    row,
+    col
+  ) {
+
+    return (
+      row >= 0 &&
+      row < boardSize &&
+      col >= 0 &&
+      col < boardSize
+    );
+
+  }
+
+
+  function isSameDiagonal(
+    a,
+    b
+  ) {
+
+    return (
+      Math.abs(
+        a.row - b.row
+      ) ===
+      Math.abs(
+        a.col - b.col
+      )
+    );
+
+  }
+
+
+  function queensAttack(
+    a,
+    b
+  ) {
+
+    return (
+      a.row === b.row ||
+      a.col === b.col ||
+      isSameDiagonal(a, b)
+    );
+
+  }
+
+
+  /* =========================================================
+     GET ALL QUEENS
+  ========================================================= */
+
+  function getQueenPositions() {
+
+    return Array.from(
+      queens
+    ).map(
+      parseQueenKey
+    );
+
+  }
+
+
+  /* =========================================================
+     FIND CONFLICTS
+  ========================================================= */
+
+  function getConflicts() {
+
+    const positions =
+      getQueenPositions();
+
+    const conflicts = [];
+
+    for (
+      let i = 0;
+      i < positions.length;
+      i++
+    ) {
+
+      for (
+        let j = i + 1;
+        j < positions.length;
+        j++
+      ) {
+
+        const first =
+          positions[i];
+
+        const second =
+          positions[j];
+
+
+        if (
+          queensAttack(
+            first,
+            second
+          )
+        ) {
+
+          conflicts.push({
+            a: first,
+            b: second
+          });
+
+        }
+
+      }
+
+    }
+
+    return conflicts;
+
+  }
+
+
+  /* =========================================================
+     DRAW CONFLICT LINES
+  ========================================================= */
+
+  function drawConflictLines(
+    conflicts
+  ) {
+
+    const svg =
+      document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg"
+      );
+
+
+    svg.setAttribute(
+      "width",
+      "100%"
+    );
+
+    svg.setAttribute(
+      "height",
+      "100%"
+    );
+
+    svg.setAttribute(
+      "viewBox",
+      "0 0 " +
+      boardSize +
+      " " +
+      boardSize
+    );
+
+    svg.setAttribute(
+      "preserveAspectRatio",
+      "none"
+    );
+    svg.classList.add("oqc-conflict-lines");
+
+
+    Object.assign(
+      svg.style,
+      {
+        position:"absolute",
+        inset:"0",
+        width:"100%",
+        height:"100%",
+        pointerEvents:"none",
+        zIndex:"20",
+        overflow:"visible"
+      }
+    );
+
+
+    conflicts.forEach(
+      function (conflict) {
+
+        const line =
+          document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line"
+          );
+
+
+        /*
+          +0.5 puts the line through
+          the center of each square.
+        */
+
+        line.setAttribute(
+          "x1",
+          String(
+            conflict.a.col + 0.5
+          )
+        );
+
+        line.setAttribute(
+          "y1",
+          String(
+            conflict.a.row + 0.5
+          )
+        );
+
+        line.setAttribute(
+          "x2",
+          String(
+            conflict.b.col + 0.5
+          )
+        );
+
+        line.setAttribute(
+          "y2",
+          String(
+            conflict.b.row + 0.5
+          )
+        );
+
+
+        line.setAttribute(
+          "stroke",
+          "#ff4d5a"
+        );
+
+    line.setAttribute("stroke-width","2.0");
+
+        line.setAttribute(
+          "stroke-linecap",
+          "round"
+        );
+
+        line.setAttribute(
+          "vector-effect",
+          "non-scaling-stroke"
+        );
+
+        line.setAttribute(
+          "opacity",
+          "0.95"
+        );
+
+
+        svg.appendChild(
+          line
+        );
+
+      }
+    );
+
+
+    board.appendChild(
+      svg
+    );
+
+  }
+
+
+  /* =========================================================
+     CREATE BOARD
+  ========================================================= */
+
+  function createBoard() {
+
+    board.innerHTML = "";
+
+    queens.clear();
+
+    gameComplete = false;
+
+
+    board.style.gridTemplateColumns =
+      "repeat(" +
+      boardSize +
+      ", 1fr)";
+
+    board.style.gridTemplateRows =
+      "repeat(" +
+      boardSize +
+      ", 1fr)";
+
+
+    for (
+      let row = 0;
+      row < boardSize;
+      row++
+    ) {
+
+      for (
+        let col = 0;
+        col < boardSize;
+        col++
+      ) {
+
+        const square =
+          document.createElement("div");
+
+
+        square.className =
+          "oqc-square";
+
+
+        const isLight =
+          (
+            row + col
+          ) % 2 === 0;
+
+
+        Object.assign(
+          square.style,
+          {
+            position:"relative",
+            width:"100%",
+            height:"100%",
+            minWidth:"0",
+            minHeight:"0",
+            boxSizing:"border-box",
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            cursor:"pointer",
+            background:
+              isLight
+                ? "#d9c8a4"
+                : "#806b50",
+            border:
+              "1px solid rgba(0,0,0,0.08)",
+            transition:
+              "filter 120ms ease, background 120ms ease",
+            zIndex:"1"
+          }
+        );
+
+
+        square.dataset.row =
+          String(row);
+
+        square.dataset.col =
+          String(col);
+
+
+        square.setAttribute(
+          "role",
+          "button"
+        );
+
+        square.setAttribute(
+          "tabindex",
+          "0"
+        );
+
+
+        square.addEventListener(
+          "mouseenter",
+          function () {
+
+            if (
+              !queens.has(
+                queenKey(
+                  row,
+                  col
+                )
+              )
+            ) {
+
+              square.style.filter =
+                "brightness(1.10)";
+
+            }
+
+          }
+        );
+
+
+        square.addEventListener(
+          "mouseleave",
+          function () {
+
+            square.style.filter =
+              "none";
+
+          }
+        );
+
+
+        square.addEventListener(
+          "click",
+          function () {
+
+            toggleQueen(
+              row,
+              col
+            );
+
+          }
+        );
+
+
+        square.addEventListener(
+          "keydown",
+          function (event) {
+
+            if (
+              event.key === "Enter" ||
+              event.key === " "
+            ) {
+
+              event.preventDefault();
+
+              toggleQueen(
+                row,
+                col
+              );
+
+            }
+
+          }
+        );
+
+
+        board.appendChild(
+          square
+        );
+
+      }
+
+    }
+
+
+    renderBoard();
+
+  }
+
+
+  /* =========================================================
+     GET SQUARE
+  ========================================================= */
+
+  function getSquare(
+    row,
+    col
+  ) {
+
+    return board.querySelector(
+      `.oqc-square[data-row="${row}"][data-col="${col}"]`
+    );
+
+  }
+
+
+  /* =========================================================
+     TOGGLE QUEEN
+  ========================================================= */
+
+  function toggleQueen(
+    row,
+    col
+  ) {
+
+    if (
+      gameComplete
+    ) {
+
+      return;
+
+    }
+
+
+    const key =
+      queenKey(
+        row,
+        col
+      );
+
+
+    /*
+      Clicking an existing queen
+      removes it.
+    */
+
+    if (
+      queens.has(key)
+    ) {
+
+      queens.delete(key);
+
+      renderBoard();
+
+      return;
+
+    }
+
+
+    /*
+      Clicking an empty square
+      places a queen.
+    */
+
+    queens.add(key);
+
+    renderBoard();
+
+  }
+
+
+  /* =========================================================
+     CREATE QUEEN
+  ========================================================= */
+
+function createQueenElement(hasConflict) {
+  const queen = document.createElement("img");
+
+  queen.src = "assets/pieces/wQ.png";
+  queen.alt = "White Queen";
+  queen.draggable = false;
+
+  Object.assign(queen.style, {
+    position: "relative",
+    zIndex: "30",
+    width: "72%",
+    height: "72%",
+    objectFit: "contain",
+    display: "block",
+    pointerEvents: "none",
+    userSelect: "none",
+    filter: hasConflict
+      ? "drop-shadow(0 0 5px #ff3045) drop-shadow(0 0 10px rgba(255,48,69,0.65))"
+      : "drop-shadow(0 2px 4px rgba(0,0,0,0.65))"
+  });
+
+  return queen;
+}
+
+
+  /* =========================================================
+     RENDER BOARD
+  ========================================================= */
+
+ function renderBoard() {
+  // Remove all existing conflict lines first.
+  board.querySelectorAll(".oqc-conflict-lines").forEach(function(svg) {
+    svg.remove();
+  });
+
+  const conflicts = getConflicts();
+
+  board.querySelectorAll(".oqc-queen").forEach(function(queen) {
+    queen.remove();
+  });
+
+  board.querySelectorAll(".oqc-conflict-square").forEach(function(square) {
+    square.classList.remove("oqc-conflict-square");
+    square.style.boxShadow = "none";
+  });
+
+  const conflictSquares = new Set();
+
+  conflicts.forEach(function(conflict) {
+    conflictSquares.add(
+      queenKey(conflict.a.row, conflict.a.col)
+    );
+
+    conflictSquares.add(
+      queenKey(conflict.b.row, conflict.b.col)
+    );
+  });
+
+  queens.forEach(function(key) {
+    const position = parseQueenKey(key);
+    const square = getSquare(position.row, position.col);
+
+    if (!square) return;
+
+    if (conflictSquares.has(key)) {
+      square.classList.add("oqc-conflict-square");
+
+      square.style.boxShadow =
+        "inset 0 0 0 3px rgba(255,77,90,0.9), " +
+        "inset 0 0 20px rgba(255,77,90,0.20)";
+    }
+
+    const queen = createQueenElement(
+      conflictSquares.has(key)
+    );
+
+    queen.className = "oqc-queen";
+    square.appendChild(queen);
+  });
+
+  // Draw ONLY the conflicts that currently exist.
+  if (conflicts.length > 0) {
+    drawConflictLines(conflicts);
+  }
+
+  updateUI(conflicts);
+  checkCompletion(conflicts);
+}
+
+
+  /* =========================================================
+     UPDATE UI
+  ========================================================= */
+
+  function updateUI(
+    conflicts
+  ) {
+
+    const queenCount =
+      queens.size;
+
+
+    const remaining =
+      Math.max(
+        0,
+        boardSize -
+        queenCount
+      );
+
+
+    const conflictCount =
+      conflicts.length;
+
+
+    queenCountEl.textContent =
+      String(
+        queenCount
+      );
+
+
+    targetCountEl.textContent =
+      String(
+        boardSize
+      );
+
+
+    placedStatEl.textContent =
+      String(
+        queenCount
+      );
+
+
+    conflictStatEl.textContent =
+      String(
+        conflictCount
+      );
+
+
+    remainingStatEl.textContent =
+      String(
+        remaining
+      );
+
+
+    if (
+      conflictCount > 0
+    ) {
+
+      conflictStatusEl.textContent =
+        conflictCount +
+        (
+          conflictCount === 1
+            ? " conflict"
+            : " conflicts"
+        ) +
+        " — attacking queens are connected.";
+
+
+      conflictStatusEl.style.color =
+        "#ff6570";
+
+      conflictStatusEl.style.background =
+        "rgba(255,77,90,0.10)";
+
+
+    } else {
+
+      conflictStatusEl.textContent =
+        "No conflicts";
+
+
+      conflictStatusEl.style.color =
+        "#78b887";
+
+      conflictStatusEl.style.background =
+        "rgba(120,184,135,0.09)";
+
+    }
+
+
+    if (
+      queenCount === 0
+    ) {
+
+      statusEl.textContent =
+        "Place your first queen";
+
+
+      tipEl.textContent =
+        "Start anywhere. Think about how each queen affects rows, columns and diagonals.";
+
+      return;
+
+    }
+
+
+    if (
+      conflictCount > 0
+    ) {
+
+      statusEl.textContent =
+        "Some queens are attacking each other";
+
+
+      tipEl.textContent =
+        "The red lines show which queens are attacking. Move or remove a conflicting queen.";
+
+      return;
+
+    }
+
+
+    if (
+      queenCount < boardSize
+    ) {
+
+      statusEl.textContent =
+        "Good — keep placing queens";
+
+
+      tipEl.textContent =
+        "No conflicts so far. Try to keep future rows, columns and diagonals available.";
+
+      return;
+
+    }
+
+
+    statusEl.textContent =
+      "All queens placed — checking solution";
+
+
+    tipEl.textContent =
+      "Excellent! All required queens are placed without any conflicts.";
+
+  }
+
+
+  /* =========================================================
+     COMPLETION
+  ========================================================= */
+
+  function checkCompletion(
+    conflicts
+  ) {
+
+    if (
+      gameComplete
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      queens.size !== boardSize
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      conflicts.length !== 0
+    ) {
+
+      return;
+
+    }
+
+
+    gameComplete = true;
+
+
+    statusEl.textContent =
+      "Challenge complete!";
+
+
+    tipEl.textContent =
+      "Brilliant! Every queen is safely placed.";
+
+
+    const message =
+      document.getElementById(
+        "oqcWinMessage"
+      );
+
+
+    if (message) {
+
+      message.textContent =
+        "You successfully placed " +
+        boardSize +
+        " queens with zero conflicts.";
+
+    }
+
+
+    setTimeout(
+      function () {
+
+        if (
+          winModal
+        ) {
+
+          winModal.style.display =
+            "flex";
+
+        }
+
+      },
+      250
+    );
+
+  }
+
+
+  /* =========================================================
+     RESET
+  ========================================================= */
+
+  function resetGame() {
+
+    gameComplete = false;
+
+    queens.clear();
+
+    createBoard();
+
+  }
+
+
+  /* =========================================================
+     CHANGE BOARD SIZE
+  ========================================================= */
+
+  function changeBoardSize(
+    value
+  ) {
+
+    const requestedSize =
+      Number(value);
+
+
+    if (
+      !Number.isInteger(
+        requestedSize
+      )
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      requestedSize < MIN_SIZE ||
+      requestedSize > MAX_SIZE
+    ) {
+
+      return;
+
+    }
+
+
+    boardSize =
+      requestedSize;
+
+
+    resetGame();
+
+  }
+
+
+  /* =========================================================
+     HOW TO PLAY
+  ========================================================= */
+
+  function openHowTo() {
+
+    if (
+      howToModal
+    ) {
+
+      howToModal.style.display =
+        "flex";
+
+    }
+
+  }
+
+
+  function closeHowTo() {
+
+    if (
+      howToModal
+    ) {
+
+      howToModal.style.display =
+        "none";
+
+    }
+
+  }
+
+
+  /* =========================================================
+     CLOSE WIN MODAL
+  ========================================================= */
+
+  function closeWinModal() {
+
+    if (
+      winModal
+    ) {
+
+      winModal.style.display =
+        "none";
+
+    }
+
+  }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  resetBtn?.addEventListener(
+    "click",
+    function () {
+
+      resetGame();
+
+    }
+  );
+
+
+  resetSideBtn?.addEventListener(
+    "click",
+    function () {
+
+      resetGame();
+
+    }
+  );
+
+
+  sizeSelect?.addEventListener(
+    "change",
+    function () {
+
+      changeBoardSize(
+        this.value
+      );
+
+    }
+  );
+
+
+  howToBtn?.addEventListener(
+    "click",
+    function () {
+
+      openHowTo();
+
+    }
+  );
+
+
+  howToClose?.addEventListener(
+    "click",
+    function () {
+
+      closeHowTo();
+
+    }
+  );
+
+
+  winReset?.addEventListener(
+    "click",
+    function () {
+
+      closeWinModal();
+
+      resetGame();
+
+    }
+  );
+
+
+  howToModal?.addEventListener(
+    "click",
+    function (event) {
+
+      if (
+        event.target ===
+        howToModal
+      ) {
+
+        closeHowTo();
+
+      }
+
+    }
+  );
+
+
+  winModal?.addEventListener(
+    "click",
+    function (event) {
+
+      if (
+        event.target ===
+        winModal
+      ) {
+
+        closeWinModal();
+
+      }
+
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    function (event) {
+
+      if (
+        event.key !== "Escape"
+      ) {
+
+        return;
+
+      }
+
+
+      if (
+        howToModal &&
+        howToModal.style.display ===
+          "flex"
+      ) {
+
+        closeHowTo();
+
+      }
+
+
+      if (
+        winModal &&
+        winModal.style.display ===
+          "flex"
+      ) {
+
+        closeWinModal();
+
+      }
+
+    }
+  );
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  if (sizeSelect) {
+
+    sizeSelect.value =
+      String(boardSize);
+
+  }
+
+
+  createBoard();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.OlympusNQueens = {
+
+    reset: function () {
+
+      resetGame();
+
+    },
+
+
+    setSize: function (
+      size
+    ) {
+
+      if (
+        Number.isInteger(
+          size
+        ) &&
+        size >= MIN_SIZE &&
+        size <= MAX_SIZE
+      ) {
+
+        boardSize =
+          size;
+
+        if (sizeSelect) {
+
+          sizeSelect.value =
+            String(size);
+
+        }
+
+        resetGame();
+
+      }
+
+    },
+
+
+    getState: function () {
+
+      return {
+
+        boardSize:
+          boardSize,
+
+        queens:
+          getQueenPositions(),
+
+        conflicts:
+          getConflicts().length,
+
+        complete:
+          gameComplete
+
+      };
+
+    }
+
+  };
+
+
+})();
+
+</script>
 
 
 
@@ -112829,7 +114955,7 @@ let individualLocked = false;
 const lockedTabs = [
  
   "memory","boardfreeze","color","knightfog","knightTour","knightdefense",
-  "knightpath","knightmonster","knightescape","knightspeed",
+  "knightpath","knightmonster","knightescape","knightspeed","queenChallenge",
   "knightlava","knightgps","kingmath","colorchaos","flashqueen",
   ,"pairing" , "scoreboard","pathfinder", "gallery", "iqtrainer", "xp-casino",
   "chessBaseLiveTactics",  "fritzChess", "chessBasePlay",
@@ -185356,7 +187482,7 @@ training: [
 ],
 
     games: [
-      
+       '[data-tab="queenChallenge"]',
       '[data-tab="color"]',
       '[data-tab="memory"]',
       '[data-tab="kingmath"]',
