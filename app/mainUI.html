@@ -52308,8 +52308,25 @@ function updateTip(
           cursor:pointer;
         "
       >
-        ♛ Play Again
+         Next Level
       </button>
+      <button
+  type="button"
+  id="oqcWinClose"
+  style="
+    width:100%;
+    margin-top:8px;
+    padding:12px;
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:12px;
+    background:rgba(255,255,255,0.06);
+    color:#fff;
+    font-weight:900;
+    cursor:pointer;
+  "
+>
+  ✕ Close
+</button>
 
     </div>
 
@@ -52407,6 +52424,7 @@ function updateTip(
     document.getElementById(
       "oqcWinReset"
     );
+    const winClose = document.getElementById("oqcWinClose");
 
   const statusEl =
     document.getElementById(
@@ -53293,6 +53311,16 @@ function createQueenElement(hasConflict) {
       boardSize +
       " queens with zero conflicts.";
   }
+  const winResetButton = document.getElementById("oqcWinReset");
+
+if (winResetButton) {
+  if (boardSize < MAX_SIZE) {
+    winResetButton.textContent =
+      " Next Level (" + (boardSize + 1) + " × " + (boardSize + 1) + ")";
+  } else {
+    winResetButton.textContent = "♛ Play Again";
+  }
+}
 
   /* ============================================
      ⏱️ SHOW MODAL AFTER 2 SECONDS
@@ -53302,7 +53330,7 @@ function createQueenElement(hasConflict) {
     if (winModal) {
       winModal.style.display = "flex";
     }
-  }, 2000);
+  }, 1500);
 }
 
 
@@ -53469,17 +53497,38 @@ function createQueenElement(hasConflict) {
   );
 
 
-  winReset?.addEventListener(
-    "click",
-    function () {
+winReset?.addEventListener("click", function() {
+  closeWinModal();
 
-      closeWinModal();
+  if (boardSize < MAX_SIZE) {
+    boardSize++;
 
-      resetGame();
-
+    if (sizeSelect) {
+      sizeSelect.value = String(boardSize);
     }
-  );
 
+    resetGame();
+  } else {
+    boardSize = MIN_SIZE;
+
+    if (sizeSelect) {
+      sizeSelect.value = String(boardSize);
+    }
+
+    resetGame();
+  }
+});
+winClose?.addEventListener("click", function() {
+  closeWinModal();
+
+  boardSize = MIN_SIZE;
+
+  if (sizeSelect) {
+    sizeSelect.value = String(boardSize);
+  }
+
+  resetGame();
+});
 
   howToModal?.addEventListener(
     "click",
@@ -62063,11 +62112,7 @@ if (currentProfile?.role === 'student') {
   startStudentAssignmentsBadgeRealtime();
 }
 
-console.log(
-  "📚 STUDENT BADGE TEST:",
-  currentProfile.role,
-  document.getElementById("studentAssignmentsBadge")
-);
+
 
 await loadPGNLibrary();
 await loadQuizPuzzle();
