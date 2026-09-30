@@ -40084,6 +40084,53 @@ body.admin-view #lpDrawHelpWrapper {
   }
 
 }
+/* Board squares must be positioned so the badge can sit in the corner */
+.guessElo-square {
+  position: relative;
+}
+
+/* Badge on the board (top-right of the destination square, like chess.com) */
+.guessElo-mark-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 5;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1.5px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+
+/* Small pill inside the notation list */
+.guessElo-move-mark {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: .75em;
+  font-weight: 900;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+.guessElo-mark-badge.inaccuracy,
+.guessElo-move-mark.inaccuracy { background: #f0b429; }
+
+.guessElo-mark-badge.mistake,
+.guessElo-move-mark.mistake { background: #ee8a2e; }
+
+.guessElo-mark-badge.blunder,
+.guessElo-move-mark.blunder { background: #e5382b; }
 
   </style>
 </head>
@@ -58674,7 +58721,7 @@ const GUESS_ELO_PERFS = [
   "classical"
 ];
 
-const GUESS_ELO_MAX_FETCH_ATTEMPTS = 8;
+const GUESS_ELO_MAX_FETCH_ATTEMPTS = 12;
 
 /* Keep fetched game IDs in memory so we don't repeat games
    during the current Guess The Elo session. */
@@ -58683,6 +58730,60 @@ const guessEloUsedGameIds = new Set();
 /* Cache player pools so we don't repeatedly request
    the same top-player list. */
 const guessEloPlayerPools = {};
+/* Lichess only classifies these three (and only for analysed games). */
+const GUESS_ELO_JUDGMENTS = {
+  Inaccuracy: { sym: "?!", cls: "inaccuracy", label: "Inaccuracy" },
+  Mistake:    { sym: "?",  cls: "mistake",    label: "Mistake"    },
+  Blunder:    { sym: "??", cls: "blunder",    label: "Blunder"    }
+};
+
+/* One entry per move: a judgment object or null. */
+let guessEloMarks = [];
+
+function guessEloBuildMarks(game, total) {
+
+  const marks = new Array(total).fill(null);
+
+  if (!game || !Array.isArray(game.analysis)) {
+    return marks;
+  }
+
+  for (let i = 0; i < total; i++) {
+
+    const entry = game.analysis[i];
+
+    const name =
+      entry &&
+      entry.judgment &&
+      entry.judgment.name;
+
+    if (name && GUESS_ELO_JUDGMENTS[name]) {
+      marks[i] = GUESS_ELO_JUDGMENTS[name];
+    }
+
+  }
+
+  return marks;
+
+}
+
+function guessEloAppendMark(button, moveIndex) {
+
+  const mark = guessEloMarks[moveIndex];
+
+  if (!mark) {
+    return;
+  }
+
+  const badge = document.createElement("span");
+
+  badge.className = "guessElo-move-mark " + mark.cls;
+  badge.textContent = mark.sym;
+  badge.title = mark.label;
+
+  button.appendChild(badge);
+
+}
 
   const GUESS_ELO_PIECE_PATH =
     "assets/pieces/";
@@ -59389,7 +59490,8 @@ async function guessEloFetchRandomGame() {
       ) +
       "&moves=true" +
       "&clocks=false" +
-      "&evals=false" +
+            "&evals=true" +
+            "&analysed=true" +
       "&opening=true" +
       "&ongoing=false";
 
@@ -59774,27 +59876,35 @@ if (
       );
 
 
+    /* MOVE CLASSIFICATIONS (only if Lichess analysed the game) */
+
+    guessEloMarks =
+      guessEloBuildMarks(
+        guessEloGame,
+        guessEloMoves.length
+      );
+
+
     guessEloCurrentMove =
       0;
 
     guessEloHasGuessed =
       false;
 
-      /* RANDOMLY CHOOSE WHITE OR BLACK */
 
-/* ALTERNATE TARGET PLAYER */
+    /* ALTERNATE TARGET PLAYER */
 
-guessEloTargetColor =
-  guessEloTargetCounter % 2 === 0
-    ? "white"
-    : "black";
+    guessEloTargetColor =
+      guessEloTargetCounter % 2 === 0
+        ? "white"
+        : "black";
 
-guessEloTargetCounter++;
+    guessEloTargetCounter++;
 
-guessEloInputLabel.innerHTML =
-  guessEloTargetColor === "white"
-    ? 'Try to guess & enter <strong style="font-weight: 900; color: #ffffff;">White</strong> Elo rating'
-    : 'Try to guess & enter <strong style="font-weight: 900; color: #ffffff;">Black</strong> Elo rating';
+    guessEloInputLabel.innerHTML =
+      guessEloTargetColor === "white"
+        ? 'Try to guess & enter <strong style="font-weight: 900; color: #ffffff;">White</strong> Elo rating'
+        : 'Try to guess & enter <strong style="font-weight: 900; color: #ffffff;">Black</strong> Elo rating';
 
 
     /* BUILD MOVE LIST */
@@ -59810,9 +59920,6 @@ guessEloInputLabel.innerHTML =
     /* META */
 
     guessEloUpdateGameInfo();
-
-
-  
 
 
     /* RESET INPUT */
@@ -59831,19 +59938,21 @@ guessEloInputLabel.innerHTML =
 
     guessEloNewGameTopBtn.disabled =
       true;
-        /* CONTROLS */
+
+
+    /* CONTROLS */
 
     guessEloUpdateControls();
 
 
-   guessEloHint.textContent =
-  "Study the game and enter " +
-  (
-    guessEloTargetColor === "white"
-      ? "White's"
-      : "Black's"
-  ) +
-  " Elo when you're ready.";
+    guessEloHint.textContent =
+      "Study the game and enter " +
+      (
+        guessEloTargetColor === "white"
+          ? "White's"
+          : "Black's"
+      ) +
+      " Elo when you're ready.";
 
     guessEloSetStatus(
       "Game loaded",
@@ -60024,7 +60133,7 @@ guessEloInputLabel.innerHTML =
      MOVE LIST
   ======================================================= */
 
-  function guessEloBuildMoveList() {
+   function guessEloBuildMoveList() {
 
     guessEloMoveList.innerHTML =
       "";
@@ -60066,6 +60175,8 @@ guessEloInputLabel.innerHTML =
       );
 
 
+      /* WHITE MOVE */
+
       const whiteButton =
         document.createElement(
           "button"
@@ -60093,6 +60204,12 @@ guessEloInputLabel.innerHTML =
         guessEloMoves[i];
 
 
+      guessEloAppendMark(
+        whiteButton,
+        i
+      );
+
+
       whiteButton.addEventListener(
         "click",
         function () {
@@ -60109,6 +60226,8 @@ guessEloInputLabel.innerHTML =
         whiteButton
       );
 
+
+      /* BLACK MOVE */
 
       const blackButton =
         document.createElement(
@@ -60140,6 +60259,12 @@ guessEloInputLabel.innerHTML =
         blackButton.textContent =
           blackSan ||
           guessEloMoves[i + 1];
+
+
+        guessEloAppendMark(
+          blackButton,
+          i + 1
+        );
 
 
         blackButton.addEventListener(
@@ -60387,7 +60512,7 @@ guessEloInputLabel.innerHTML =
   }
 
 
-  function guessEloRenderBoard() {
+   function guessEloRenderBoard() {
 
     if (
       !guessEloChess
@@ -60410,6 +60535,14 @@ guessEloInputLabel.innerHTML =
       guessEloCurrentMove >
       0
         ? guessEloGetLastMoveSquares()
+        : null;
+
+
+    const currentMark =
+      guessEloCurrentMove > 0
+        ? guessEloMarks[
+            guessEloCurrentMove - 1
+          ]
         : null;
 
 
@@ -60520,6 +60653,37 @@ guessEloInputLabel.innerHTML =
         }
 
 
+        /* MOVE CLASSIFICATION BADGE (destination square) */
+
+        if (
+          currentMark &&
+          lastMove &&
+          lastMove.to ===
+            squareName
+        ) {
+
+          const badge =
+            document.createElement(
+              "span"
+            );
+
+          badge.className =
+            "guessElo-mark-badge " +
+            currentMark.cls;
+
+          badge.textContent =
+            currentMark.sym;
+
+          badge.title =
+            currentMark.label;
+
+          square.appendChild(
+            badge
+          );
+
+        }
+
+
         guessEloBoard.appendChild(
           square
         );
@@ -60598,7 +60762,120 @@ guessEloInputLabel.innerHTML =
 
   }
 
+/* =======================================================
+   KEEP THE ACTIVE MOVE VISIBLE IN THE NOTATION LIST
+   Scrolls only the notation list (never the page).
+======================================================= */
 
+function guessEloGetScrollParent(element) {
+
+  let node = element.parentElement;
+
+  while (
+    node &&
+    node !== guessEloSection
+  ) {
+
+    const overflowY =
+      window.getComputedStyle(node).overflowY;
+
+    if (
+      (
+        overflowY === "auto" ||
+        overflowY === "scroll"
+      ) &&
+      node.scrollHeight > node.clientHeight
+    ) {
+
+      return node;
+
+    }
+
+    node = node.parentElement;
+
+  }
+
+  return null;
+
+}
+
+
+function guessEloScrollActiveMoveIntoView() {
+
+  /* Back at the starting position: return to the top. */
+
+  if (guessEloCurrentMove <= 0) {
+
+    const topScroller =
+      guessEloGetScrollParent(
+        guessEloMoveList.firstElementChild ||
+        guessEloMoveList
+      ) || guessEloMoveList;
+
+    topScroller.scrollTop = 0;
+
+    return;
+
+  }
+
+
+  const active =
+    guessEloMoveList.querySelector(
+      ".guessElo-move.active"
+    );
+
+  if (!active) {
+    return;
+  }
+
+
+  const scroller =
+    guessEloGetScrollParent(active);
+
+  if (!scroller) {
+    return;
+  }
+
+
+  const scrollerRect =
+    scroller.getBoundingClientRect();
+
+  const activeRect =
+    active.getBoundingClientRect();
+
+  const margin = 12;
+
+
+  /* Already fully visible? Leave the scroll position alone. */
+
+  if (
+    activeRect.top >=
+      scrollerRect.top + margin &&
+    activeRect.bottom <=
+      scrollerRect.bottom - margin
+  ) {
+    return;
+  }
+
+
+  /* Otherwise center the active move in the list. */
+
+  const offsetInScroller =
+    activeRect.top -
+    scrollerRect.top +
+    scroller.scrollTop;
+
+  scroller.scrollTop =
+    Math.max(
+      0,
+      offsetInScroller -
+      (
+        scroller.clientHeight -
+        active.offsetHeight
+      ) / 2
+    );
+
+}
  /* =======================================================
    CONTROLS
 ======================================================= */
@@ -60664,6 +60941,12 @@ function guessEloUpdateControls() {
         : "Black";
 
 
+    const mark =
+      guessEloMarks[
+        moveIndex
+      ];
+
+
     guessEloCurrentMoveEl.textContent =
       moveNumber +
       ". " +
@@ -60674,6 +60957,14 @@ function guessEloUpdateControls() {
         guessEloMoves[
           moveIndex
         ]
+      ) +
+      (
+        mark
+          ? "  " +
+            mark.sym +
+            " " +
+            mark.label
+          : ""
       );
 
   }
@@ -60700,6 +60991,11 @@ function guessEloUpdateControls() {
 
       }
     );
+
+
+  /* NEW: keep the highlighted move visible */
+
+  guessEloScrollActiveMoveIntoView();
 
 }
 
@@ -61329,6 +61625,142 @@ const targetPlayerName =
         }
 
     };
+    /* =======================================================
+   ⌨️ GUESS THE ELO KEYBOARD NAVIGATION
+   Fully isolated to Guess The Elo
+======================================================= */
+
+document.addEventListener(
+  "keydown",
+  function (event) {
+
+    /* ---------------------------------------------------
+       ONLY run when Guess The Elo navigation button
+       is the currently active navigation button.
+    --------------------------------------------------- */
+
+    const guessEloNavBtn =
+      document.getElementById(
+        "guessEloNavBtn"
+      );
+
+    if (!guessEloNavBtn) {
+      return;
+    }
+
+
+    /*
+       Check the actual Guess The Elo tab state.
+
+       The button must be active AND its target
+       must be guessElo.
+    */
+
+    if (
+      guessEloNavBtn.dataset.tab !==
+        "guessElo"
+    ) {
+      return;
+    }
+
+    if (
+      !guessEloNavBtn.classList.contains(
+        "active"
+      )
+    ) {
+      return;
+    }
+
+
+    /* ---------------------------------------------------
+       Never interfere with typing.
+    --------------------------------------------------- */
+
+    const target =
+      event.target;
+
+    if (
+      target &&
+      (
+        target.matches(
+          "input, textarea, select, button"
+        ) ||
+        target.isContentEditable
+      )
+    ) {
+      return;
+    }
+
+
+    /* ---------------------------------------------------
+       Ignore modified keyboard shortcuts.
+    --------------------------------------------------- */
+
+    if (
+      event.ctrlKey ||
+      event.altKey ||
+      event.metaKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+
+    /* ---------------------------------------------------
+       LEFT ARROW → PREVIOUS MOVE
+    --------------------------------------------------- */
+
+    if (
+      event.key ===
+      "ArrowLeft"
+    ) {
+
+      if (
+        guessEloCurrentMove <= 0
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      guessEloGoToMove(
+        guessEloCurrentMove - 1
+      );
+
+      return;
+    }
+
+
+    /* ---------------------------------------------------
+       RIGHT ARROW → NEXT MOVE
+    --------------------------------------------------- */
+
+    if (
+      event.key ===
+      "ArrowRight"
+    ) {
+
+      if (
+        guessEloCurrentMove >=
+        guessEloMoves.length
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      guessEloGoToMove(
+        guessEloCurrentMove + 1
+      );
+
+      return;
+    }
+
+  },
+  true
+);
 
 
 })();
