@@ -39194,44 +39194,7 @@ body.admin-view #lpDrawHelpWrapper {
   max-width: 100%;
   margin: 0 auto;
 }
-/* ============================================
-   EMOJI MEMORY CARD NUMBERS
-============================================ */
 
-.emojiMemory-cell {
-  position: relative;
-}
-
-.emojiMemory-cell-number {
-  position: absolute;
-
-  top: 4%;
-  left: 5%;
-
-  color: #ffffff;
-
-  font-size: clamp(
-    11px,
-    2.2cqw,
-    22px
-  );
-
-  font-weight: 800;
-  line-height: 1;
-
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.75),
-    0 0 3px rgba(0, 0, 0, 0.55);
-
-  pointer-events: none;
-
-  z-index: 2;
-}
-
-.emojiMemory-cell-emoji {
-  position: relative;
-  z-index: 1;
-}
 
   </style>
 </head>
@@ -56248,6 +56211,7 @@ let boardSize = 4;
 
       card.revealed =
         true;
+       window.emojiMemoryPlayRevealSound();
 
       firstCard =
         index;
@@ -56276,7 +56240,7 @@ let boardSize = 4;
 
     card.revealed =
       true;
-
+      window.emojiMemoryPlayRevealSound();
     secondCard =
       index;
 
@@ -56409,6 +56373,7 @@ let boardSize = 4;
   ========================================================= */
 
   function handleWrongMatch() {
+window.emojiMemoryPlayWrongSound();
 
     const firstIndex =
       firstCard;
@@ -57308,6 +57273,33 @@ let boardSize = 4;
     </div>
 
   </div>
+  <div class="emojiMemory-stat-card">
+
+  <div class="emojiMemory-stat-icon">
+    🔁
+  </div>
+
+  <div style="flex:1;">
+
+    <span>Sequence Mode</span>
+
+    <select
+      id="emojiMemorySequenceModeSelect"
+      class="emojiMemory-level-select"
+      aria-label="Choose Sequence Mode"
+    >
+      <option value="single">
+        Single Sequence ⭐
+      </option>
+
+      <option value="double">
+        Double Sequence ⭐⭐
+      </option>
+    </select>
+
+  </div>
+
+</div>
 
 
   <div class="emojiMemory-tip">
@@ -57488,7 +57480,7 @@ let boardSize = 4;
     "🍌",
     "🍐",
     "🥥",
-    "🫐",
+    "🎉",
     "🍈",
     "🥕",
     "🌽",
@@ -57561,12 +57553,28 @@ let boardSize = 4;
      STATE
   ======================================================= */
 
-  let emojiMemoryGridSize =
-    EMOJI_MEMORY_MIN_GRID;
+let emojiMemoryGridSize =
+  EMOJI_MEMORY_MIN_GRID;
 
-  let emojiMemoryRound = 1;
 
-  let emojiMemorySequence = [];
+/* =======================================================
+   SEQUENCE MODE
+
+   single = one complete grid cycle
+   double = two complete grid cycles
+======================================================= */
+
+let emojiMemorySequenceMode =
+  "single";
+
+
+let emojiMemorySequenceMultiplier =
+  1;
+
+
+let emojiMemoryRound = 1;
+
+let emojiMemorySequence = [];
 
   let emojiMemoryPlayerIndex = 0;
 
@@ -57607,6 +57615,11 @@ let boardSize = 4;
     const levelSelect =
   document.getElementById(
     "emojiMemoryLevelSelect"
+  );
+
+  const emojiMemorySequenceModeSelect =
+  document.getElementById(
+    "emojiMemorySequenceModeSelect"
   );
 
   const emojiMemoryLevel =
@@ -57859,14 +57872,7 @@ let boardSize = 4;
         String(index);
 
 
-const number =
-  document.createElement("span");
 
-number.className =
-  "emojiMemory-cell-number";
-
-number.textContent =
-  String(index + 1);
 
 
 const emoji =
@@ -57879,7 +57885,7 @@ emoji.textContent =
   data.emoji;
 
 
-cell.appendChild(number);
+
 
 cell.appendChild(emoji);
 
@@ -57978,7 +57984,7 @@ cell.appendChild(emoji);
     cell.classList.add(
       "revealed"
     );
-    emojiMemoryPlayRevealSound();
+   window.emojiMemoryPlayRevealSound();
 
 
     await emojiMemorySleep(
@@ -58156,7 +58162,7 @@ cell.appendChild(emoji);
 
 let emojiMemoryAudioContext = null;
 
-function emojiMemoryPlayRevealSound() {
+window.emojiMemoryPlayRevealSound = function () {
 
   try {
 
@@ -58226,7 +58232,7 @@ function emojiMemoryPlayRevealSound() {
   }
 
 }
-function emojiMemoryPlayWrongSound() {
+window.emojiMemoryPlayWrongSound = function () {
 
   try {
 
@@ -58440,7 +58446,38 @@ cell.classList.add(
   "revealed",
   "player-correct"
 );
-emojiMemoryPlayRevealSound();
+
+
+/* =======================================================
+   🎯 CORRECT CARD BOUNCE
+======================================================= */
+
+cell.animate(
+  [
+    {
+      transform: "scale(1)"
+    },
+    {
+      transform: "scale(1.12)"
+    },
+    {
+      transform: "scale(0.96)"
+    },
+    {
+      transform: "scale(1.06)"
+    },
+    {
+      transform: "scale(1)"
+    }
+  ],
+  {
+    duration: 420,
+    easing: "ease-out"
+  }
+);
+
+
+window.emojiMemoryPlayRevealSound();
 
 
 emojiMemoryPlayerIndex++;
@@ -58477,7 +58514,7 @@ emojiMemoryUpdateStats();
     */
 
     emojiMemoryBusy = true;
-    emojiMemoryPlayWrongSound();
+  window.emojiMemoryPlayWrongSound();
 
     const wrongCell =
       emojiMemoryCells[index];
@@ -58554,9 +58591,14 @@ emojiMemoryUpdateStats();
        current grid has appeared in the sequence.
     */
 
-    if (
-      remembered >= total
-    ) {
+const targetRounds =
+  total * emojiMemorySequenceMultiplier;
+
+
+if (
+  emojiMemorySequence.length >=
+  targetRounds
+) {
 
       emojiMemoryLevelComplete = true;
 
@@ -58766,6 +58808,10 @@ function emojiMemoryUpdateStats() {
     emojiMemoryGetTotalSquares();
 
 
+  const targetRounds =
+    total * emojiMemorySequenceMultiplier;
+
+
   if (emojiMemorySequenceLength) {
     emojiMemorySequenceLength.textContent =
       emojiMemorySequence.length;
@@ -58786,7 +58832,7 @@ function emojiMemoryUpdateStats() {
 
   if (emojiMemoryProgress) {
     emojiMemoryProgress.textContent =
-      `${emojiMemoryVisitedSquares.size} / ${total}`;
+      `${emojiMemorySequence.length} / ${targetRounds}`;
   }
 
 }
@@ -59115,6 +59161,84 @@ if (levelSelect) {
     }
   );
 
+}
+/* =======================================================
+   🎯 EMOJI MEMORY — SEQUENCE MODE SELECTOR
+======================================================= */
+
+if (emojiMemorySequenceModeSelect) {
+  emojiMemorySequenceModeSelect.addEventListener(
+    "change",
+    function () {
+
+      const selectedMode = this.value;
+
+
+      /* ---------------------------------------------------
+         Validate selection
+      --------------------------------------------------- */
+
+      if (
+        selectedMode !== "single" &&
+        selectedMode !== "double"
+      ) {
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+         Save selected mode
+      --------------------------------------------------- */
+
+      emojiMemorySequenceMode =
+        selectedMode;
+
+
+      /* ---------------------------------------------------
+         Set number of complete grid cycles
+         
+         Single  = 1 cycle
+         Double  = 2 cycles
+      --------------------------------------------------- */
+
+      emojiMemorySequenceMultiplier =
+        selectedMode === "double"
+          ? 2
+          : 1;
+
+
+      /* ---------------------------------------------------
+         Reset the current level
+         
+         Grid size stays exactly the same.
+         Only the sequence mode changes.
+      --------------------------------------------------- */
+
+      emojiMemoryRound = 0;
+
+      emojiMemorySequence = [];
+
+      emojiMemoryPlayerIndex = 0;
+
+      emojiMemoryBusy = false;
+
+      emojiMemoryLevelComplete = false;
+
+      emojiMemoryVisitedSquares =
+        new Set();
+
+      emojiMemorySquareData = [];
+
+      emojiMemoryCells = [];
+
+
+      /* ---------------------------------------------------
+         Restart the current level
+      --------------------------------------------------- */
+
+      emojiMemoryStartLevel();
+    }
+  );
 }
 
 
@@ -59983,6 +60107,8 @@ let boardSize = 4;
 
   let gameComplete = false;
 
+ let previousConflictCount = 0;
+
 
   /* =========================================================
      DOM
@@ -60374,7 +60500,7 @@ let boardSize = 4;
 
     queens.clear();
 
-    gameComplete = false;
+   previousConflictCount = 0;
 
 
     board.style.gridTemplateColumns =
@@ -60606,6 +60732,8 @@ let boardSize = 4;
 
     queens.add(key);
 
+    window.emojiMemoryPlayRevealSound();
+
     renderBoard();
 
   }
@@ -60651,6 +60779,18 @@ function createQueenElement(hasConflict) {
   });
 
   const conflicts = getConflicts();
+
+if (
+  conflicts.length >
+  previousConflictCount
+) {
+
+  window.emojiMemoryPlayWrongSound();
+
+}
+
+previousConflictCount =
+  conflicts.length;
 
   board.querySelectorAll(".oqc-queen").forEach(function(queen) {
     queen.remove();
