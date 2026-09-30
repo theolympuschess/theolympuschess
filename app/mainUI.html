@@ -39301,9 +39301,9 @@ body.admin-view #lpDrawHelpWrapper {
 .guessElo-layout {
   display: grid;
   grid-template-columns:
-    minmax(190px, 0.75fr)
-    minmax(430px, 1.25fr)
-    minmax(250px, 0.85fr);
+    minmax(180px, 0.65fr)
+    minmax(620px, 1.55fr)
+    minmax(240px, 0.80fr);
 
   gap: 16px;
   align-items: start;
@@ -39533,8 +39533,8 @@ body.admin-view #lpDrawHelpWrapper {
 }
 
 .guessElo-board-inner {
-  width: min(58vw, 540px);
-  max-width: 540px;
+  width: min(62vw, 620px);
+  max-width: 600px;
 }
 
 .guessElo-board {
@@ -39544,7 +39544,7 @@ body.admin-view #lpDrawHelpWrapper {
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
   border-radius: 5px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 10px 25px rgba(0,0,0,0.28);
 }
 
@@ -40092,23 +40092,33 @@ body.admin-view #lpDrawHelpWrapper {
 /* Badge on the board (top-right of the destination square, like chess.com) */
 .guessElo-mark-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  z-index: 5;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  border: 1.5px solid #ffffff;
+  top: -13px;
+  right: -13px;
+  z-index: 999999;
+
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+
+  font-size: 20px;
   font-weight: 900;
   line-height: 1;
+
   color: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45);
+
   pointer-events: none;
+  box-sizing: border-box;
 }
 
 /* Small pill inside the notation list */
@@ -40117,7 +40127,7 @@ body.admin-view #lpDrawHelpWrapper {
   margin-left: 5px;
   padding: 0 5px;
   border-radius: 999px;
-  font-size: .75em;
+  font-size: 1em;
   font-weight: 900;
   line-height: 1.5;
   color: #ffffff;
@@ -40131,6 +40141,28 @@ body.admin-view #lpDrawHelpWrapper {
 
 .guessElo-mark-badge.blunder,
 .guessElo-move-mark.blunder { background: #e5382b; }
+
+/* =========================================================
+   POSITIVE MOVE CLASSIFICATIONS
+   ========================================================= */
+
+/* !! Brilliant */
+.guessElo-mark-badge.brilliant,
+.guessElo-move-mark.brilliant {
+  background: #8e44ad;
+}
+
+/* ! Great */
+.guessElo-mark-badge.great,
+.guessElo-move-mark.great {
+  background: #27ae60;
+}
+
+/* ★ Best */
+.guessElo-mark-badge.best,
+.guessElo-move-mark.best {
+  background: #3498db;
+}
 
   </style>
 </head>
@@ -58732,36 +58764,331 @@ const guessEloUsedGameIds = new Set();
 const guessEloPlayerPools = {};
 /* Lichess only classifies these three (and only for analysed games). */
 const GUESS_ELO_JUDGMENTS = {
-  Inaccuracy: { sym: "?!", cls: "inaccuracy", label: "Inaccuracy" },
-  Mistake:    { sym: "?",  cls: "mistake",    label: "Mistake"    },
-  Blunder:    { sym: "??", cls: "blunder",    label: "Blunder"    }
+  Inaccuracy: {
+    sym: "?!",
+    cls: "inaccuracy",
+    label: "Inaccuracy"
+  },
+
+  Mistake: {
+    sym: "?",
+    cls: "mistake",
+    label: "Mistake"
+  },
+
+  Blunder: {
+    sym: "??",
+    cls: "blunder",
+    label: "Blunder"
+  }
 };
+
 
 /* One entry per move: a judgment object or null. */
 let guessEloMarks = [];
 
+
 function guessEloBuildMarks(game, total) {
 
-  const marks = new Array(total).fill(null);
+  const marks =
+    new Array(total).fill(null);
 
-  if (!game || !Array.isArray(game.analysis)) {
+
+  if (
+    !game ||
+    !Array.isArray(game.analysis)
+  ) {
     return marks;
   }
 
-  for (let i = 0; i < total; i++) {
 
-    const entry = game.analysis[i];
+  /*
+   * =====================================================
+   * REPLAY THE GAME ONCE
+   *
+   * This lets us convert the actual played SAN move
+   * into UCI so it can be compared with Lichess's
+   * "best" UCI move.
+   *
+   * No additional network request.
+   * No Stockfish.
+   * Very lightweight.
+   * =====================================================
+   */
 
-    const name =
+  const chess =
+    new Chess();
+
+
+  for (
+    let i = 0;
+    i < total;
+    i++
+  ) {
+
+    const entry =
+      game.analysis[i];
+
+
+    /*
+     * =================================================
+     * 1. KEEP LICHESS'S OWN JUDGMENT FIRST
+     *
+     * These always take priority.
+     * =================================================
+     */
+
+    const judgmentName =
       entry &&
       entry.judgment &&
       entry.judgment.name;
 
-    if (name && GUESS_ELO_JUDGMENTS[name]) {
-      marks[i] = GUESS_ELO_JUDGMENTS[name];
+
+    if (
+      judgmentName &&
+      GUESS_ELO_JUDGMENTS[judgmentName]
+    ) {
+
+      marks[i] =
+        GUESS_ELO_JUDGMENTS[judgmentName];
+
+    } else {
+
+
+      /*
+       * ===============================================
+       * 2. CONVERT ACTUAL PLAYED MOVE TO UCI
+       * ===============================================
+       */
+
+      let playedUci =
+        null;
+
+
+      try {
+
+        const played =
+          chess.move(
+            game.moves[i],
+            {
+              sloppy: true
+            }
+          );
+
+
+        if (played) {
+
+          playedUci =
+            (
+              played.from +
+              played.to +
+              (
+                played.promotion
+                  ? played.promotion
+                  : ""
+              )
+            ).toLowerCase();
+
+        }
+
+      } catch (error) {
+
+        playedUci =
+          null;
+
+      }
+
+
+      /*
+       * ===============================================
+       * 3. LICHESS ENGINE BEST MOVE
+       * ===============================================
+       */
+
+      const bestUci =
+        entry &&
+        entry.best
+          ? String(
+              entry.best
+            ).trim().toLowerCase()
+          : "";
+
+
+      const isBestMove =
+        !!playedUci &&
+        !!bestUci &&
+        playedUci === bestUci;
+
+
+      /*
+       * ===============================================
+       * 4. LIGHTWEIGHT POSITIVE CLASSIFICATION
+       *
+       * Lichess does not provide Brilliant / Great /
+       * Best as judgment.name in this API data.
+       *
+       * Therefore:
+       *
+       * ★ = exact Lichess engine best move
+       * ! = very strong improvement
+       * !! = exceptional improvement
+       *
+       * These are derived locally.
+       * ===============================================
+       */
+
+      let improvement =
+        0;
+
+
+      if (
+        i > 0 &&
+        game.analysis[i - 1] &&
+        Number.isFinite(
+          Number(
+            game.analysis[i - 1].eval
+          )
+        ) &&
+        Number.isFinite(
+          Number(
+            entry &&
+            entry.eval
+          )
+        )
+      ) {
+
+        const previousEval =
+          Number(
+            game.analysis[i - 1].eval
+          );
+
+
+        const currentEval =
+          Number(
+            entry.eval
+          );
+
+
+        /*
+         * Lichess eval is from White's perspective.
+         */
+
+        if (i % 2 === 0) {
+
+          /* White move */
+          improvement =
+            currentEval -
+            previousEval;
+
+        } else {
+
+          /* Black move */
+          improvement =
+            previousEval -
+            currentEval;
+
+        }
+
+      }
+
+
+      /*
+       * ===============================================
+       * BRILLIANT
+       *
+       * Only for an exact engine-best move with a
+       * substantial positive evaluation swing.
+       * ===============================================
+       */
+
+      if (
+        isBestMove &&
+        improvement >= 150
+      ) {
+
+        marks[i] = {
+          sym: "!!",
+          cls: "brilliant",
+          label: "Brilliant"
+        };
+
+
+      /*
+       * ===============================================
+       * BEST
+       * ===============================================
+       */
+
+      } else if (
+        isBestMove
+      ) {
+
+        marks[i] = {
+          sym: "★",
+          cls: "best",
+          label: "Best"
+        };
+
+
+      /*
+       * ===============================================
+       * GREAT
+       * ===============================================
+       */
+
+      } else if (
+        improvement >= 80
+      ) {
+
+        marks[i] = {
+          sym: "!",
+          cls: "great",
+          label: "Great"
+        };
+
+      }
+
+    }
+
+
+    /*
+     * =================================================
+     * IMPORTANT:
+     * If chess.move() succeeded above, the board is now
+     * correctly advanced to the next position.
+     *
+     * If Lichess supplied a judgment, we still need to
+     * advance the board, so handle that case here.
+     * =================================================
+     */
+
+    if (
+      judgmentName &&
+      GUESS_ELO_JUDGMENTS[judgmentName]
+    ) {
+
+      try {
+
+        /*
+         * The move was not replayed yet because the
+         * judgment branch skipped the conversion above.
+         */
+
+        chess.move(
+          game.moves[i],
+          {
+            sloppy: true
+          }
+        );
+
+      } catch (error) {
+        /* Ignore malformed move */
+      }
+
     }
 
   }
+
 
   return marks;
 
