@@ -59472,15 +59472,79 @@ let guessEloTargetCounter = 0;
   }
 
 
-  function guessEloPlayMoveSound() {
+function guessEloPlayMoveSound(move) {
 
-    guessEloPlayTone(
-      560,
-      0.10,
-      "sine"
+  if (!move) {
+    return;
+  }
+
+
+  /* =========================================
+     CHECK / CHECKMATE
+  ========================================= */
+
+  const san =
+    String(
+      move.san || ""
     );
 
+  if (
+    san.includes("+") ||
+    san.includes("#")
+  ) {
+
+    window.playSound("check");
+    return;
+
   }
+
+
+  /* =========================================
+     CASTLING
+  ========================================= */
+
+  if (
+    move.flags &&
+    (
+      move.flags.includes("k") ||
+      move.flags.includes("q")
+    )
+  ) {
+
+    window.playSound("castle");
+    return;
+
+  }
+
+
+  /* =========================================
+     CAPTURE
+  ========================================= */
+
+  if (
+    move.captured ||
+    (
+      move.flags &&
+      (
+        move.flags.includes("c") ||
+        move.flags.includes("e")
+      )
+    )
+  ) {
+
+    window.playSound("capture");
+    return;
+
+  }
+
+
+  /* =========================================
+     NORMAL MOVE
+  ========================================= */
+
+  window.playSound("move");
+
+}
 
 
   function guessEloPlaySubmitSound() {
@@ -60731,33 +60795,36 @@ if (
       new Chess();
 
 
-    for (
-      let i = 0;
-      i < targetMove;
-      i++
-    ) {
+  let lastPlayedMove = null;
 
-      const result =
-        guessEloChess.move(
-          guessEloMoves[i],
-          {
-            sloppy: true
-          }
-        );
+for (
+  let i = 0;
+  i < targetMove;
+  i++
+) {
 
-
-      if (!result) {
-
-        console.warn(
-          "Unable to replay move:",
-          guessEloMoves[i]
-        );
-
-        break;
-
+  const result =
+    guessEloChess.move(
+      guessEloMoves[i],
+      {
+        sloppy: true
       }
+    );
 
-    }
+  if (!result) {
+
+    console.warn(
+      "Unable to replay move:",
+      guessEloMoves[i]
+    );
+
+    break;
+
+  }
+
+  lastPlayedMove = result;
+
+}
 
 
     guessEloCurrentMove =
@@ -60768,7 +60835,7 @@ if (
 
     guessEloUpdateControls();
 
-    guessEloPlayMoveSound();
+  guessEloPlayMoveSound(lastPlayedMove);
 
   }
 
@@ -77045,7 +77112,7 @@ function playSound(name) {
   sound.currentTime = 0;
   sound.play().catch(() => {});
 }
-
+window.playSound = playSound;
 
 
 
