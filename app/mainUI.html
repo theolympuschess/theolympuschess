@@ -42185,6 +42185,14 @@ right:0;
   <span style="font-size: 1.25em; color: #1ced54;">♛</span>
   8 Queens Challenge
 </button>
+<button 
+  class="nav-btn" 
+  data-tab="captureChallenge" 
+  id="captureChallengeNavBtn" 
+>
+  💯
+  Perfect Capture Challenge
+</button>
 
 <button
   class="nav-btn"
@@ -69895,7 +69903,1636 @@ winClose?.addEventListener("click", function() {
 
 
 
+<!-- =========================================================
+     ♟ OLYMPUS CAPTURE CHALLENGE
+     ---------------------------------------------------------
+     Completely isolated game section.
+     Pieces: Rook, Knight, Bishop, Queen, King.
+     Every move must capture a pawn.
+========================================================= -->
 
+<style>
+  #ocp-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    #ocp-layout { grid-template-columns: minmax(0, 1fr); }
+  }
+  .ocp-card {
+    background: rgba(20, 24, 42, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 17px;
+    box-sizing: border-box;
+  }
+  .ocp-card-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 900;
+    margin-bottom: 10px;
+  }
+  .ocp-stat-row {
+    display: flex;
+    justify-content: space-between;
+    color: #aeb3cf;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .ocp-stat-row strong { color: #fff; }
+  .ocp-piece-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 9px 4px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .ocp-piece-btn:hover { background: rgba(255, 255, 255, 0.10); }
+  .ocp-piece-btn.ocp-active {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.14);
+    color: #ffd700;
+  }
+  .ocp-piece-btn img { width: 38px; height: 38px; object-fit: contain; }
+  .ocp-piece-btn .ocp-glyph { font-size: 32px; line-height: 38px; }
+  @keyframes ocpShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .ocp-shake { animation: ocpShake 260ms ease; }
+</style>
+
+<section
+  class="section hidden"
+  id="captureChallenge-section"
+>
+
+  <div
+    id="ocp-shell"
+    style="
+      width:100%;
+      max-width:1200px;
+      margin:0 auto;
+      padding:20px;
+      box-sizing:border-box;
+    "
+  >
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <div
+      style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        flex-wrap:wrap;
+        margin-bottom:20px;
+      "
+    >
+
+      <div style="display:flex; align-items:center; gap:14px;">
+
+        <div style="font-size:42px; line-height:1; color:#ffd700;">♟</div>
+
+        <div>
+          <h2 style="margin:0; color:#fff; font-size:26px; font-weight:900;">
+            Capture Challenge
+          </h2>
+          <p style="margin:5px 0 0; color:#aeb3cf; font-size:14px; font-weight:600;">
+            Every move must capture a pawn. Clear the board without a single wasted move.
+          </p>
+        </div>
+
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+
+        <button
+          type="button"
+          id="ocpHowToBtn"
+          style="
+            padding:10px 15px;
+            border-radius:10px;
+            border:1px solid rgba(255,255,255,0.12);
+            background:rgba(255,255,255,0.07);
+            color:#fff;
+            font-weight:800;
+            cursor:pointer;
+          "
+        >
+          ❓ How to Play
+        </button>
+
+        <button
+          type="button"
+          id="ocpResetBtn"
+          style="
+            padding:10px 15px;
+            border-radius:10px;
+            border:1px solid rgba(255,215,0,0.25);
+            background:rgba(255,215,0,0.10);
+            color:#ffd700;
+            font-weight:800;
+            cursor:pointer;
+          "
+        >
+          ↻ Reset
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MAIN LAYOUT
+    ====================================================== -->
+
+    <div id="ocp-layout">
+
+      <!-- ===================================================
+           BOARD CARD
+      ==================================================== -->
+
+      <div
+        style="
+          background:rgba(20,24,42,0.96);
+          border:1px solid rgba(255,215,0,0.18);
+          border-radius:18px;
+          padding:20px;
+          box-sizing:border-box;
+          box-shadow:0 20px 55px rgba(0,0,0,0.25);
+        "
+      >
+
+        <!-- BOARD HEADER -->
+
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:14px;
+          "
+        >
+
+          <div>
+            <div style="color:#aeb3cf; font-size:11px; font-weight:900; letter-spacing:1px;">
+              PAWNS LEFT
+            </div>
+            <div
+              id="ocpStatus"
+              style="color:#fff; font-size:17px; font-weight:900; margin-top:3px;"
+            >
+              Capture your first pawn
+            </div>
+          </div>
+
+          <div style="color:#ffd700; font-size:22px; font-weight:900; white-space:nowrap;">
+            <span id="ocpPawnsLeft">1</span>
+            <span style="color:#777d99; font-size:14px;">/</span>
+            <span id="ocpPawnsTotal" style="color:#fff; font-size:18px;">1</span>
+          </div>
+
+        </div>
+
+
+        <!-- MESSAGE BAR -->
+
+        <div
+          id="ocpMessage"
+          style="
+            margin-bottom:15px;
+            padding:9px 12px;
+            border-radius:10px;
+            background:rgba(255,255,255,0.05);
+            color:#aeb3cf;
+            font-size:13px;
+            font-weight:800;
+            text-align:center;
+          "
+        >
+          Level 1
+        </div>
+
+
+        <!-- BOARD -->
+
+        <div
+          id="ocpBoardArea"
+          style="
+            width:100%;
+            display:flex;
+            justify-content:center;
+            overflow:visible;
+            padding:10px 24px 30px;
+            box-sizing:border-box;
+          "
+        >
+          <div
+            id="ocpBoard"
+            aria-label="Capture challenge board"
+            style="
+              position:relative;
+              width:min(100%,600px);
+              aspect-ratio:1 / 1;
+              display:grid;
+              grid-template-columns:repeat(8, 1fr);
+              grid-template-rows:repeat(8, 1fr);
+              user-select:none;
+              touch-action:manipulation;
+            "
+          ></div>
+        </div>
+
+
+        <div
+          style="
+            text-align:center;
+            color:#858ba8;
+            font-size:12px;
+            font-weight:600;
+            margin-top:2px;
+          "
+        >
+          Click a pawn to capture it with your piece.
+          Clicking anything else fails the level.
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           RIGHT PANEL
+      ==================================================== -->
+
+      <div style="display:flex; flex-direction:column; gap:14px;">
+
+        <!-- PIECE SELECTION -->
+
+        <div class="ocp-card">
+
+          <div class="ocp-card-title">♞ Choose Your Piece</div>
+
+          <div
+            id="ocpPieceGrid"
+            style="
+              display:grid;
+              grid-template-columns:repeat(3, 1fr);
+              gap:8px;
+            "
+          ></div>
+
+          <label
+            style="
+              display:flex;
+              align-items:center;
+              gap:8px;
+              margin-top:12px;
+              color:#aeb3cf;
+              font-size:12px;
+              font-weight:700;
+              cursor:pointer;
+            "
+          >
+            <input type="checkbox" id="ocpHintToggle">
+            Highlight pawns I can capture right now
+          </label>
+
+        </div>
+
+
+        <!-- MISSION -->
+
+        <div class="ocp-card">
+
+          <div style="color:#ffd700; font-size:15px; font-weight:900; margin-bottom:9px;">
+            ♟ Your Mission
+          </div>
+
+          <div style="color:#aeb3cf; font-size:13px; line-height:1.6; font-weight:600;">
+            Capture
+            <strong style="color:#fff;">every pawn</strong>
+            on the board.
+
+            <br><br>
+
+            <strong style="color:#fff;">Every single move must capture a pawn.</strong>
+            If a move is illegal or lands on an empty square, the level fails.
+            Level 5 means 5 pawns, so 5 moves.
+          </div>
+
+        </div>
+
+
+        <!-- STATS -->
+
+        <div class="ocp-card">
+
+          <div class="ocp-card-title" style="margin-bottom:12px;">📊 Challenge Stats</div>
+
+          <div style="display:grid; gap:10px;">
+
+            <div class="ocp-stat-row">
+              <span>Piece</span>
+              <strong id="ocpPieceStat">Knight</strong>
+            </div>
+
+            <div class="ocp-stat-row">
+              <span>Level</span>
+              <strong id="ocpLevelStat">1</strong>
+            </div>
+
+            <div class="ocp-stat-row">
+              <span>Moves made</span>
+              <strong id="ocpMovesStat">0</strong>
+            </div>
+
+            <div class="ocp-stat-row">
+              <span>Pawns remaining</span>
+              <strong id="ocpRemainingStat">1</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- COACH TIP -->
+
+        <div
+          style="
+            display:flex;
+            gap:12px;
+            padding:16px;
+            border-radius:16px;
+            background:rgba(120,184,135,0.09);
+            border:1px solid rgba(120,184,135,0.16);
+          "
+        >
+          <div style="font-size:22px; line-height:1;">💡</div>
+          <div>
+            <strong style="display:block; color:#fff; font-size:14px; margin-bottom:5px;">
+              Coach Tip
+            </strong>
+            <div
+              id="ocpTip"
+              style="color:#aeb3cf; font-size:12px; line-height:1.5; font-weight:600;"
+            >
+              Plan the whole route before your first move.
+            </div>
+          </div>
+        </div>
+
+
+        <!-- RESET -->
+
+        <button
+          type="button"
+          id="ocpResetSideBtn"
+          style="
+            width:100%;
+            padding:13px;
+            border:none;
+            border-radius:12px;
+            background:#78b887;
+            color:#000;
+            font-size:14px;
+            font-weight:900;
+            cursor:pointer;
+          "
+        >
+          ↻ Try Again
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =======================================================
+       HOW TO PLAY MODAL
+  ======================================================== -->
+
+  <div
+    id="ocpHowToModal"
+    style="
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+      background:rgba(5,7,16,0.78);
+      backdrop-filter:blur(7px);
+    "
+  >
+    <div
+      style="
+        width:min(430px,92%);
+        padding:26px;
+        box-sizing:border-box;
+        border-radius:18px;
+        background:#14182a;
+        border:1px solid rgba(255,215,0,0.20);
+        box-shadow:0 25px 70px rgba(0,0,0,0.5);
+        color:#fff;
+        position:relative;
+      "
+    >
+
+      <button
+        type="button"
+        id="ocpHowToClose"
+        style="
+          position:absolute;
+          top:10px;
+          right:10px;
+          width:34px;
+          height:34px;
+          border:none;
+          border-radius:50%;
+          background:rgba(255,255,255,0.08);
+          color:#fff;
+          font-size:24px;
+          cursor:pointer;
+        "
+      >
+        ×
+      </button>
+
+      <div style="color:#ffd700; font-size:42px; text-align:center; margin-bottom:10px;">♟</div>
+
+      <h3 style="text-align:center; margin:0 0 10px; font-size:22px; font-weight:900;">
+        How to Play
+      </h3>
+
+      <p style="color:#aeb3cf; font-size:13px; line-height:1.6; font-weight:600;">
+        Use one piece to capture every pawn on the board.
+        Every move has to be a capture.
+      </p>
+
+      <div style="display:grid; gap:10px; margin-top:15px; font-size:14px;">
+        <div>1️⃣ Choose a piece on the right.</div>
+        <div>2️⃣ Click a pawn your piece can capture.</div>
+        <div>3️⃣ Sliding pieces cannot jump over other pawns.</div>
+        <div>4️⃣ Any move that does not capture a pawn fails the level.</div>
+        <div>5️⃣ Capture all pawns to reach the next level.</div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- =======================================================
+       SUCCESS MODAL
+  ======================================================== -->
+
+  <div
+    id="ocpWinModal"
+    style="
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:100000;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+      background:rgba(5,7,16,0.80);
+      backdrop-filter:blur(7px);
+    "
+  >
+    <div
+      style="
+        width:min(420px,92%);
+        padding:28px;
+        box-sizing:border-box;
+        border-radius:18px;
+        background:#14182a;
+        border:1px solid rgba(120,184,135,0.35);
+        box-shadow:0 25px 70px rgba(0,0,0,0.5);
+        text-align:center;
+        color:#fff;
+      "
+    >
+
+      <div style="font-size:48px; color:#ffd700; margin-bottom:8px;">♞</div>
+
+      <div style="color:#78b887; font-size:11px; font-weight:900; letter-spacing:1px;">
+        LEVEL COMPLETE
+      </div>
+
+      <h3 style="margin:8px 0; font-size:25px; font-weight:900;">Brilliant! 🎉</h3>
+
+      <p
+        id="ocpWinMessage"
+        style="color:#aeb3cf; font-size:13px; line-height:1.6;"
+      >
+        You captured every pawn.
+      </p>
+
+      <button
+        type="button"
+        id="ocpWinNext"
+        style="
+          width:100%;
+          margin-top:12px;
+          padding:13px;
+          border:none;
+          border-radius:12px;
+          background:#78b887;
+          color:#000;
+          font-weight:900;
+          cursor:pointer;
+        "
+      >
+        Next Level
+      </button>
+
+      <button
+        type="button"
+        id="ocpWinClose"
+        style="
+          width:100%;
+          margin-top:8px;
+          padding:12px;
+          border:1px solid rgba(255,255,255,0.12);
+          border-radius:12px;
+          background:rgba(255,255,255,0.06);
+          color:#fff;
+          font-weight:900;
+          cursor:pointer;
+        "
+      >
+        ✕ Close
+      </button>
+
+    </div>
+  </div>
+
+
+  <!-- =======================================================
+       FAIL MODAL
+  ======================================================== -->
+
+  <div
+    id="ocpFailModal"
+    style="
+      display:none;
+      position:fixed;
+      inset:0;
+      z-index:100000;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      box-sizing:border-box;
+      background:rgba(5,7,16,0.80);
+      backdrop-filter:blur(7px);
+    "
+  >
+    <div
+      style="
+        width:min(420px,92%);
+        padding:28px;
+        box-sizing:border-box;
+        border-radius:18px;
+        background:#14182a;
+        border:1px solid rgba(255,77,90,0.40);
+        box-shadow:0 25px 70px rgba(0,0,0,0.5);
+        text-align:center;
+        color:#fff;
+      "
+    >
+
+      <div style="font-size:48px; color:#ff4d5a; margin-bottom:8px;">✕</div>
+
+      <div style="color:#ff6570; font-size:11px; font-weight:900; letter-spacing:1px;">
+        LEVEL FAILED
+      </div>
+
+      <h3 style="margin:8px 0; font-size:25px; font-weight:900;">Not quite!</h3>
+
+      <p
+        id="ocpFailMessage"
+        style="color:#aeb3cf; font-size:13px; line-height:1.6;"
+      >
+        Every move must capture a pawn.
+      </p>
+
+      <button
+        type="button"
+        id="ocpFailRetry"
+        style="
+          width:100%;
+          margin-top:12px;
+          padding:13px;
+          border:none;
+          border-radius:12px;
+          background:#78b887;
+          color:#000;
+          font-weight:900;
+          cursor:pointer;
+        "
+      >
+        ↻ Try This Level Again
+      </button>
+
+      <button
+        type="button"
+        id="ocpFailClose"
+        style="
+          width:100%;
+          margin-top:8px;
+          padding:12px;
+          border:1px solid rgba(255,255,255,0.12);
+          border-radius:12px;
+          background:rgba(255,255,255,0.06);
+          color:#fff;
+          font-weight:900;
+          cursor:pointer;
+        "
+      >
+        ✕ Close
+      </button>
+
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   ♟ OLYMPUS CAPTURE CHALLENGE
+   ---------------------------------------------------------
+   Completely isolated game engine.
+
+   - Fixed 8×8 board
+   - Pieces: Rook, Knight, Bishop, Queen, King
+   - Level N = N pawns (capped per piece, then infinite
+     levels with fresh layouts at the cap)
+   - Every move MUST capture a pawn
+   - Layouts are generated by walking the piece around the
+     board, so every level is guaranteed solvable
+   - Reset = replay the SAME level layout
+   - Changing piece = back to Level 1
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const SIZE = 8;
+
+  const ASSET_PATH = "assets/pieces/";
+
+  /* Black pawn image. Change to "wP.png" if you only have white pawns. */
+  const PAWN_SRC = ASSET_PATH + "bP.png";
+
+  /*
+    max = maximum pawns on the board for that piece.
+    Bishop is lower because it can only ever use 32 squares
+    of one colour. Rook is lower because its path squares
+    must stay clear.
+  */
+  const PIECES = {
+    rook:   { label: "Rook",   file: "wR.png", glyph: "♖", max: 20 },
+    knight: { label: "Knight", file: "wN.png", glyph: "♘", max: 25 },
+    bishop: { label: "Bishop", file: "wB.png", glyph: "♗", max: 16 },
+    queen:  { label: "Queen",  file: "wQ.png", glyph: "♕", max: 25 },
+    king:   { label: "King",   file: "wK.png", glyph: "♔", max: 25 }
+  };
+
+  const PIECE_ORDER = ["knight", "rook", "bishop", "queen", "king"];
+
+  const TIPS = {
+    knight: "Knights jump, so nothing can block them. Plan a route that never leaves a pawn stranded.",
+    rook: "Rooks slide along ranks and files but cannot jump. Watch out for pawns in the way.",
+    bishop: "Bishops stay on one colour and cannot jump. Every pawn here is on the same colour.",
+    queen: "The Queen moves like a rook and bishop, but she still cannot jump over pawns.",
+    king: "The King moves one square at a time. Chain the pawns together one step after another."
+  };
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let pieceType = "knight";
+  let level = 1;
+
+  let layout = null;          // { start: idx, pawns: [idx...] }
+  let pawns = new Set();      // pawns currently on board
+  let current = 0;            // current piece square
+  let moves = 0;
+  let totalPawns = 1;
+
+  let locked = false;         // true after win / fail
+  let hintsOn = false;
+
+  let lastFrom = -1;
+  let lastTo = -1;
+  let failIdx = -1;
+
+  let modalTimer = null;
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section = document.getElementById("captureChallenge-section");
+  const board = document.getElementById("ocpBoard");
+
+  const pieceGrid = document.getElementById("ocpPieceGrid");
+  const hintToggle = document.getElementById("ocpHintToggle");
+
+  const resetBtn = document.getElementById("ocpResetBtn");
+  const resetSideBtn = document.getElementById("ocpResetSideBtn");
+
+  const howToBtn = document.getElementById("ocpHowToBtn");
+  const howToModal = document.getElementById("ocpHowToModal");
+  const howToClose = document.getElementById("ocpHowToClose");
+
+  const winModal = document.getElementById("ocpWinModal");
+  const winNext = document.getElementById("ocpWinNext");
+  const winClose = document.getElementById("ocpWinClose");
+  const winMessage = document.getElementById("ocpWinMessage");
+
+  const failModal = document.getElementById("ocpFailModal");
+  const failRetry = document.getElementById("ocpFailRetry");
+  const failClose = document.getElementById("ocpFailClose");
+  const failMessage = document.getElementById("ocpFailMessage");
+
+  const statusEl = document.getElementById("ocpStatus");
+  const messageEl = document.getElementById("ocpMessage");
+  const pawnsLeftEl = document.getElementById("ocpPawnsLeft");
+  const pawnsTotalEl = document.getElementById("ocpPawnsTotal");
+
+  const pieceStatEl = document.getElementById("ocpPieceStat");
+  const levelStatEl = document.getElementById("ocpLevelStat");
+  const movesStatEl = document.getElementById("ocpMovesStat");
+  const remainingStatEl = document.getElementById("ocpRemainingStat");
+
+  const tipEl = document.getElementById("ocpTip");
+
+  if (!section || !board) {
+    return;
+  }
+
+
+  /* =========================================================
+     SOUND HELPERS (use your existing global sounds if present)
+  ========================================================= */
+
+  function playGoodSound() {
+    try {
+      if (typeof window.emojiMemoryPlayRevealSound === "function") {
+        window.emojiMemoryPlayRevealSound();
+      }
+    } catch (e) {}
+  }
+
+  function playBadSound() {
+    try {
+      if (typeof window.emojiMemoryPlayWrongSound === "function") {
+        window.emojiMemoryPlayWrongSound();
+      }
+    } catch (e) {}
+  }
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function toIdx(row, col) {
+    return row * SIZE + col;
+  }
+
+  function rowOf(idx) {
+    return Math.floor(idx / SIZE);
+  }
+
+  function colOf(idx) {
+    return idx % SIZE;
+  }
+
+  function inside(row, col) {
+    return row >= 0 && row < SIZE && col >= 0 && col < SIZE;
+  }
+
+  function shuffle(list) {
+    const arr = list.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function maxPawnsFor(type) {
+    return PIECES[type].max;
+  }
+
+  function pawnsForLevel(type, lvl) {
+    return Math.min(lvl, maxPawnsFor(type));
+  }
+
+
+  /* =========================================================
+     MOVEMENT RULES
+     ---------------------------------------------------------
+     reach(type, fromIdx) returns every geometrically possible
+     destination as { to, between:[squares crossed] }.
+     "between" is empty for knight and king. Sliding pieces
+     list the squares they pass over, which must be free of
+     pawns at the time of the move.
+  ========================================================= */
+
+  const KNIGHT_STEPS = [
+    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+    [1, -2], [1, 2], [2, -1], [2, 1]
+  ];
+
+  const ORTHO = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+
+  function reach(type, fromIdx) {
+
+    const row = rowOf(fromIdx);
+    const col = colOf(fromIdx);
+    const result = [];
+
+    if (type === "knight") {
+      KNIGHT_STEPS.forEach(function (s) {
+        const r = row + s[0];
+        const c = col + s[1];
+        if (inside(r, c)) {
+          result.push({ to: toIdx(r, c), between: [] });
+        }
+      });
+      return result;
+    }
+
+    if (type === "king") {
+      ORTHO.concat(DIAG).forEach(function (d) {
+        const r = row + d[0];
+        const c = col + d[1];
+        if (inside(r, c)) {
+          result.push({ to: toIdx(r, c), between: [] });
+        }
+      });
+      return result;
+    }
+
+    let directions = [];
+
+    if (type === "rook") directions = ORTHO;
+    if (type === "bishop") directions = DIAG;
+    if (type === "queen") directions = ORTHO.concat(DIAG);
+
+    directions.forEach(function (d) {
+      const between = [];
+      let r = row + d[0];
+      let c = col + d[1];
+
+      while (inside(r, c)) {
+        result.push({ to: toIdx(r, c), between: between.slice() });
+        between.push(toIdx(r, c));
+        r += d[0];
+        c += d[1];
+      }
+    });
+
+    return result;
+  }
+
+
+  /* Pawns the current piece can legally capture right now. */
+  function getCapturable() {
+
+    return reach(pieceType, current).filter(function (m) {
+      return pawns.has(m.to) &&
+        !m.between.some(function (b) { return pawns.has(b); });
+    }).map(function (m) {
+      return m.to;
+    });
+
+  }
+
+
+  /* =========================================================
+     LAYOUT GENERATOR
+     ---------------------------------------------------------
+     Builds a capture route first (a self-avoiding walk of the
+     piece), then places the pawns on that route.
+
+     "blocked" holds every square a sliding piece crosses
+     during the route. Later pawns are never placed there, so
+     the route can always be played in order.
+  ========================================================= */
+
+  function tryGenerate(type, n) {
+
+    const start = Math.floor(Math.random() * SIZE * SIZE);
+
+    const used = new Set([start]);
+    const blocked = new Set();
+    const path = [];
+
+    let nodes = 0;
+    const NODE_LIMIT = 6000;
+
+    function dfs(cur, depth) {
+
+      if (depth === n) return true;
+
+      nodes++;
+      if (nodes > NODE_LIMIT) return false;
+
+      const candidates = shuffle(
+        reach(type, cur).filter(function (m) {
+          return !used.has(m.to) && !blocked.has(m.to);
+        })
+      );
+
+      for (let i = 0; i < candidates.length; i++) {
+
+        const m = candidates[i];
+        const addedBlocks = [];
+
+        used.add(m.to);
+        path.push(m.to);
+
+        m.between.forEach(function (b) {
+          if (!blocked.has(b)) {
+            blocked.add(b);
+            addedBlocks.push(b);
+          }
+        });
+
+        if (dfs(m.to, depth + 1)) return true;
+
+        addedBlocks.forEach(function (b) { blocked.delete(b); });
+        path.pop();
+        used.delete(m.to);
+
+        if (nodes > NODE_LIMIT) return false;
+      }
+
+      return false;
+    }
+
+    if (dfs(start, 0)) {
+      return { start: start, pawns: path.slice() };
+    }
+
+    return null;
+  }
+
+  function generateLayout(type, n) {
+
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const result = tryGenerate(type, n);
+      if (result) return result;
+    }
+
+    /* Extremely unlikely fallback: ask for one fewer pawn. */
+    if (n > 1) {
+      return generateLayout(type, n - 1);
+    }
+
+    /* Last resort so the game never breaks. */
+    return { start: toIdx(3, 3), pawns: [toIdx(3, 4)] };
+  }
+
+
+  /* =========================================================
+     CREATE BOARD (squares only, pieces are drawn in render)
+  ========================================================= */
+
+  function createBoard() {
+
+    board.innerHTML = "";
+
+    for (let row = 0; row < SIZE; row++) {
+      for (let col = 0; col < SIZE; col++) {
+
+        const square = document.createElement("div");
+        const isLight = (row + col) % 2 === 0;
+
+        square.className = "ocp-square";
+        square.dataset.idx = String(toIdx(row, col));
+
+        Object.assign(square.style, {
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          minWidth: "0",
+          minHeight: "0",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          background: isLight ? "#d9c8a4" : "#806b50",
+          border: "1px solid rgba(0,0,0,0.08)",
+          transition: "filter 120ms ease, background 120ms ease",
+          zIndex: "1"
+        });
+
+        square.setAttribute("role", "button");
+        square.setAttribute("tabindex", "0");
+
+        square.addEventListener("mouseenter", function () {
+          square.style.filter = "brightness(1.10)";
+        });
+
+        square.addEventListener("mouseleave", function () {
+          square.style.filter = "none";
+        });
+
+        square.addEventListener("click", function () {
+          handleSquare(toIdx(row, col));
+        });
+
+        square.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleSquare(toIdx(row, col));
+          }
+        });
+
+        board.appendChild(square);
+      }
+    }
+  }
+
+  function getSquare(idx) {
+    return board.children[idx] || null;
+  }
+
+
+  /* =========================================================
+     IMAGE ELEMENTS (with a text fallback if an asset is missing)
+  ========================================================= */
+
+  function createPieceImage(src, alt, glyph, glyphColor) {
+
+    const img = document.createElement("img");
+
+    img.src = src;
+    img.alt = alt;
+    img.draggable = false;
+
+    Object.assign(img.style, {
+      position: "relative",
+      zIndex: "30",
+      width: "80%",
+      height: "80%",
+      objectFit: "contain",
+      display: "block",
+      pointerEvents: "none",
+      userSelect: "none",
+      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.65))"
+    });
+
+    img.addEventListener("error", function () {
+
+      const span = document.createElement("span");
+      span.textContent = glyph;
+
+      Object.assign(span.style, {
+        position: "relative",
+        zIndex: "30",
+        fontSize: "clamp(24px, 6vw, 58px)",
+        lineHeight: "1",
+        color: glyphColor,
+        pointerEvents: "none",
+        userSelect: "none"
+      });
+
+      if (img.parentNode) {
+        img.parentNode.replaceChild(span, img);
+      }
+    });
+
+    return img;
+  }
+
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
+  function renderBoard() {
+
+    const capturable = hintsOn && !locked ? getCapturable() : [];
+    const capturableSet = new Set(capturable);
+
+    for (let idx = 0; idx < SIZE * SIZE; idx++) {
+
+      const square = getSquare(idx);
+      if (!square) continue;
+
+      /* clear previous content */
+      while (square.firstChild) {
+        square.removeChild(square.firstChild);
+      }
+
+      square.style.boxShadow = "none";
+
+      /* highlights */
+      if (idx === lastFrom) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(255,215,0,0.45)";
+      }
+
+      if (idx === lastTo) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(255,215,0,0.90), " +
+          "inset 0 0 18px rgba(255,215,0,0.25)";
+      }
+
+      if (capturableSet.has(idx)) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(120,184,135,0.90), " +
+          "inset 0 0 18px rgba(120,184,135,0.25)";
+      }
+
+      if (idx === failIdx) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(255,77,90,0.95), " +
+          "inset 0 0 22px rgba(255,77,90,0.35)";
+      }
+
+      /* contents */
+      if (idx === current) {
+        square.appendChild(
+          createPieceImage(
+            ASSET_PATH + PIECES[pieceType].file,
+            "White " + PIECES[pieceType].label,
+            PIECES[pieceType].glyph,
+            "#ffffff"
+          )
+        );
+      } else if (pawns.has(idx)) {
+        square.appendChild(
+          createPieceImage(PAWN_SRC, "Black Pawn", "♟", "#111111")
+        );
+      }
+    }
+
+    updateUI();
+  }
+
+
+  /* =========================================================
+     UPDATE UI
+  ========================================================= */
+
+  function updateUI() {
+
+    const left = pawns.size;
+    const piece = PIECES[pieceType];
+    const atCap = totalPawns >= maxPawnsFor(pieceType);
+
+    pawnsLeftEl.textContent = String(left);
+    pawnsTotalEl.textContent = String(totalPawns);
+
+    pieceStatEl.textContent = piece.label;
+    levelStatEl.textContent = String(level);
+    movesStatEl.textContent = String(moves);
+    remainingStatEl.textContent = String(left);
+
+    messageEl.textContent =
+      "Level " + level + " · " + totalPawns +
+      (totalPawns === 1 ? " pawn" : " pawns") +
+      " · " + piece.label;
+
+    if (!locked) {
+      messageEl.style.color = "#aeb3cf";
+      messageEl.style.background = "rgba(255,255,255,0.05)";
+    }
+
+    if (left === 0) {
+      statusEl.textContent = "Level complete!";
+    } else if (failIdx !== -1 || (locked && left > 0)) {
+      statusEl.textContent = "Level failed";
+    } else if (moves === 0) {
+      statusEl.textContent = "Capture your first pawn";
+    } else {
+      statusEl.textContent = left + (left === 1 ? " pawn left" : " pawns left");
+    }
+
+    if (locked && left > 0) {
+      /* keep the failure tip that was set */
+    } else if (atCap) {
+      tipEl.textContent =
+        TIPS[pieceType] +
+        " You have reached the maximum pawn count, so new random boards keep coming forever.";
+    } else {
+      tipEl.textContent = TIPS[pieceType];
+    }
+  }
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function clearModalTimer() {
+    if (modalTimer) {
+      clearTimeout(modalTimer);
+      modalTimer = null;
+    }
+  }
+
+  function hideResultModals() {
+    winModal.style.display = "none";
+    failModal.style.display = "none";
+  }
+
+  /* Replay the CURRENT layout from the beginning. */
+  function restoreLevel() {
+
+    clearModalTimer();
+    hideResultModals();
+
+    pawns = new Set(layout.pawns);
+    current = layout.start;
+    totalPawns = layout.pawns.length;
+
+    moves = 0;
+    locked = false;
+    lastFrom = -1;
+    lastTo = -1;
+    failIdx = -1;
+
+    renderBoard();
+  }
+
+  /* Generate a brand-new layout for the current level number. */
+  function startNewLevel() {
+
+    layout = generateLayout(pieceType, pawnsForLevel(pieceType, level));
+
+    restoreLevel();
+  }
+
+  /* Full restart (used when the piece changes). */
+  function selectPiece(type) {
+
+    if (!PIECES[type]) return;
+    if (type === pieceType) return;
+
+    pieceType = type;
+    level = 1;
+
+    refreshPieceButtons();
+    startNewLevel();
+  }
+
+
+  /* =========================================================
+     MOVE HANDLING
+  ========================================================= */
+
+  function handleSquare(idx) {
+
+    if (locked) return;
+    if (idx === current) return;
+
+    /* Not a pawn: the move captures nothing, so the level fails. */
+    if (!pawns.has(idx)) {
+      failLevel(
+        idx,
+        "That square has no pawn. Every move must capture a pawn."
+      );
+      return;
+    }
+
+    const move = reach(pieceType, current).find(function (m) {
+      return m.to === idx;
+    });
+
+    if (!move) {
+      failLevel(
+        idx,
+        "The " + PIECES[pieceType].label +
+        " cannot move to that pawn from its current square."
+      );
+      return;
+    }
+
+    if (move.between.some(function (b) { return pawns.has(b); })) {
+      failLevel(
+        idx,
+        "Another pawn is in the way. Sliding pieces cannot jump."
+      );
+      return;
+    }
+
+    /* Legal capture. */
+    pawns.delete(idx);
+
+    lastFrom = current;
+    lastTo = idx;
+    current = idx;
+    moves++;
+
+    playGoodSound();
+    renderBoard();
+
+    if (pawns.size === 0) {
+      winLevel();
+      return;
+    }
+
+    /* Dead end: pawns remain but none can be captured. */
+    if (getCapturable().length === 0) {
+      failLevel(
+        -1,
+        "No pawn can be captured from here, so the route is stuck."
+      );
+    }
+  }
+
+
+  /* =========================================================
+     FAIL / WIN
+  ========================================================= */
+
+  function failLevel(idx, message) {
+
+    locked = true;
+    failIdx = idx;
+
+    playBadSound();
+
+    tipEl.textContent = message;
+
+    messageEl.textContent = "Level failed";
+    messageEl.style.color = "#ff6570";
+    messageEl.style.background = "rgba(255,77,90,0.10)";
+
+    renderBoard();
+
+    /* statusEl text after render */
+    statusEl.textContent = "Level failed";
+    tipEl.textContent = message;
+    messageEl.textContent = "Level failed — press Try Again";
+    messageEl.style.color = "#ff6570";
+    messageEl.style.background = "rgba(255,77,90,0.10)";
+
+    if (idx !== -1) {
+      const square = getSquare(idx);
+      if (square) {
+        square.classList.remove("ocp-shake");
+        void square.offsetWidth;
+        square.classList.add("ocp-shake");
+      }
+    }
+
+    if (failMessage) {
+      failMessage.textContent = message;
+    }
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      failModal.style.display = "flex";
+    }, 800);
+  }
+
+  function winLevel() {
+
+    locked = true;
+
+    statusEl.textContent = "Level complete!";
+    tipEl.textContent = "Brilliant! Every pawn was captured with no wasted move.";
+
+    messageEl.textContent = "Level complete!";
+    messageEl.style.color = "#78b887";
+    messageEl.style.background = "rgba(120,184,135,0.09)";
+
+    const nextLevel = level + 1;
+    const nextPawns = pawnsForLevel(pieceType, nextLevel);
+
+    winMessage.textContent =
+      "You captured " + totalPawns +
+      (totalPawns === 1 ? " pawn" : " pawns") +
+      " with the " + PIECES[pieceType].label +
+      " in " + moves + (moves === 1 ? " move." : " moves.");
+
+    winNext.textContent =
+      "Next Level (Level " + nextLevel + " · " + nextPawns +
+      (nextPawns === 1 ? " pawn)" : " pawns)");
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      winModal.style.display = "flex";
+    }, 1000);
+  }
+
+
+  /* =========================================================
+     PIECE BUTTONS
+  ========================================================= */
+
+  function buildPieceButtons() {
+
+    pieceGrid.innerHTML = "";
+
+    PIECE_ORDER.forEach(function (type) {
+
+      const info = PIECES[type];
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ocp-piece-btn";
+      btn.dataset.piece = type;
+
+      const img = document.createElement("img");
+      img.src = ASSET_PATH + info.file;
+      img.alt = info.label;
+      img.draggable = false;
+
+      img.addEventListener("error", function () {
+        const g = document.createElement("div");
+        g.className = "ocp-glyph";
+        g.textContent = info.glyph;
+        if (img.parentNode) {
+          img.parentNode.replaceChild(g, img);
+        }
+      });
+
+      const label = document.createElement("span");
+      label.textContent = info.label;
+
+      btn.appendChild(img);
+      btn.appendChild(label);
+
+      btn.addEventListener("click", function () {
+        selectPiece(type);
+      });
+
+      pieceGrid.appendChild(btn);
+    });
+
+    refreshPieceButtons();
+  }
+
+  function refreshPieceButtons() {
+
+    pieceGrid.querySelectorAll(".ocp-piece-btn").forEach(function (btn) {
+      btn.classList.toggle(
+        "ocp-active",
+        btn.dataset.piece === pieceType
+      );
+    });
+  }
+
+
+  /* =========================================================
+     MODALS
+  ========================================================= */
+
+  function openHowTo() {
+    howToModal.style.display = "flex";
+  }
+
+  function closeHowTo() {
+    howToModal.style.display = "none";
+  }
+
+  function closeWinModal() {
+    winModal.style.display = "none";
+  }
+
+  function closeFailModal() {
+    failModal.style.display = "none";
+  }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  /* Reset = replay only THIS level (same layout). */
+  resetBtn?.addEventListener("click", restoreLevel);
+  resetSideBtn?.addEventListener("click", restoreLevel);
+
+  hintToggle?.addEventListener("change", function () {
+    hintsOn = this.checked;
+    renderBoard();
+  });
+
+  howToBtn?.addEventListener("click", openHowTo);
+  howToClose?.addEventListener("click", closeHowTo);
+
+  winNext?.addEventListener("click", function () {
+    closeWinModal();
+    level++;
+    startNewLevel();
+  });
+
+  winClose?.addEventListener("click", closeWinModal);
+
+  failRetry?.addEventListener("click", restoreLevel);
+  failClose?.addEventListener("click", closeFailModal);
+
+  howToModal?.addEventListener("click", function (event) {
+    if (event.target === howToModal) closeHowTo();
+  });
+
+  winModal?.addEventListener("click", function (event) {
+    if (event.target === winModal) closeWinModal();
+  });
+
+  failModal?.addEventListener("click", function (event) {
+    if (event.target === failModal) closeFailModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Escape") return;
+
+    if (howToModal.style.display === "flex") closeHowTo();
+    if (winModal.style.display === "flex") closeWinModal();
+    if (failModal.style.display === "flex") closeFailModal();
+  });
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  buildPieceButtons();
+  createBoard();
+  startNewLevel();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.OlympusCaptureChallenge = {
+
+    reset: function () {
+      restoreLevel();
+    },
+
+    setPiece: function (type) {
+      selectPiece(type);
+    },
+
+    getState: function () {
+      return {
+        piece: pieceType,
+        level: level,
+        pawnsLeft: pawns.size,
+        totalPawns: totalPawns,
+        moves: moves,
+        locked: locked
+      };
+    }
+
+  };
+
+})();
+
+</script>
 
 
 
@@ -151127,7 +152764,7 @@ const lockedTabs = [
   "chessBaseLiveTactics",  "fritzChess", "chessBasePlay","emojiMemory",
   "lichessAnalysis", "dice-multiplayer", "chessConcepts", "three-check", 
   "chessBaseTournament", "chessPlayerQuiz", "king-of-the-hill", "chess960",
-  "chessLegends", "todayChessNews",
+  "chessLegends", "todayChessNews", "captureChallenge",
 
   // 🎮 Standalone games
   "cardClash",
@@ -223665,6 +225302,7 @@ style="
 
 training: [
    '[data-tab="guessElo"]',
+   '[data-tab="captureChallenge"]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
