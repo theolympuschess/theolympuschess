@@ -43720,248 +43720,261 @@ right:0;
 
 </div>
 <!-- =========================================================
-     ♚ CHESS960 MULTIPLAYER
-     Completely separate from Live Match, Dice, Three-Check and King of the Hill
+     ♟ CHESS960 — MULTIPLAYER + PLAY WITH BOT
+     Bot architecture mirrors King of the Hill:
+     mode switch, difficulty, color, game lifecycle, local bot.
 ========================================================= -->
 
-<div
-  class="section"
-  id="chess960-section"
-  style="display:none;"
->
+<div class="section" id="chess960-section" style="display:none;">
 
   <h2>♻️ Olympus Chess 960</h2>
 
-  <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+  <!-- ===== MODE SWITCH ===== -->
+  <div id="c9ModeBar">
+    <button id="c9ModeMultiBtn" class="c9-mode-btn c9-mode-active" type="button">
+      🤝 Multiplayer  <span id="c9MultiBadge">LIVE</span>
+    </button>
 
-  <div
-    id="c9SupervisorPanel"
-    data-role="admin-only"
-    style="display:none; margin-bottom:20px;"
-  >
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
-    >
-      <h3 style="margin-top:0;">🎯 Challenge Student</h3>
+    <button id="c9ModeBotBtn" class="c9-mode-btn" type="button">
+      🤖 Play with Bot
+    </button>
 
-      <div
-        style="
-          display:flex;
-          gap:10px;
-          align-items:center;
-          flex-wrap:wrap;
-        "
-      >
-        <select
-          id="c9StudentSelect"
-          style="min-width:240px; padding:10px; border-radius:8px;"
-        >
-          <option value="">Select Student</option>
-        </select>
-
-        <button id="c9ChallengeBtn" type="button">
-          ♟️ Challenge
-        </button>
-      </div>
-    </div>
+   
   </div>
 
+  <!-- =========================================================
+       🤝 MULTIPLAYER
+  ========================================================== -->
+  <div id="c9MultiWrap">
 
-  <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
+    <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+    <div id="c9SupervisorPanel" data-role="admin-only" style="display:none; margin-bottom:20px;">
+      <div style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+        <h3 style="margin-top:0;">🎯 Challenge Student</h3>
 
-  <div id="c9StatusPanel" style="margin-bottom:20px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <select id="c9StudentSelect" style="min-width:240px; padding:10px; border-radius:8px;">
+            <option value="">Select Student</option>
+          </select>
 
-    <div id="c9PendingPanel" style="display:none;">
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:rgba(255,193,7,0.10);
-          border:1px solid rgba(255,193,7,0.25);
-        "
-      >
-        ⏳ <span id="c9PendingText">Waiting for response...</span>
-      </div>
-    </div>
-
-    <div id="c9ChallengePanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="c9ChallengeText">
-          ♟️ You have received a Chess960 challenge.
-        </div>
-
-        <div style="display:flex; gap:10px; margin-top:12px;">
-          <button id="c9AcceptBtn" type="button">Accept</button>
-          <button id="c9DeclineBtn" type="button">Decline</button>
+          <button id="c9ChallengeBtn" type="button">♟️ Challenge</button>
         </div>
       </div>
     </div>
 
-    <div id="c9ResultPanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="c9ResultText"></div>
+    <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
+    <div id="c9StatusPanel" style="margin-bottom:20px;">
+
+      <div id="c9PendingPanel" style="display:none;">
+        <div style="padding:14px; border-radius:10px; background:rgba(255,193,7,0.10); border:1px solid rgba(255,193,7,0.25);">
+          ⏳ <span id="c9PendingText">Waiting for response...</span>
+        </div>
       </div>
+
+      <div id="c9ChallengePanel" style="display:none;">
+        <div style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+          <div id="c9ChallengeText">♟️ You have received a Chess960 challenge.</div>
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="c9AcceptBtn" type="button">Accept</button>
+            <button id="c9DeclineBtn" type="button">Decline</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="c9ResultPanel" style="display:none;">
+        <div style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+          <div id="c9ResultText"></div>
+        </div>
+      </div>
+
     </div>
 
-  </div>
+    <!-- ===== CHESS960 GAME ===== -->
+    <div id="c9GamePanel" style="display:none;">
 
+      <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
 
-  <!-- ===== CHESS960 GAME ===== -->
+        <div>
+          <div id="c9OpponentInfo" style="margin-bottom:8px; font-weight:700;">Opponent</div>
 
-  <div id="c9GamePanel" style="display:none;">
+          <div id="c9Board" style="width:600px; max-width:90vw;"></div>
 
-    <div
-      style="
-        display:flex;
-        gap:24px;
-        align-items:flex-start;
-        flex-wrap:wrap;
-      "
-    >
-
-      <!-- ================= BOARD ================= -->
-
-      <div>
-        <div id="c9OpponentInfo" style="margin-bottom:8px; font-weight:700;">
-          Opponent
+          <div id="c9YouInfo" style="margin-top:8px; font-weight:700;">You</div>
         </div>
 
-        <div id="c9Board" style="width:600px; max-width:90vw;"></div>
+        <div style="min-width:240px; max-width:320px; width:100%;">
 
-        <div id="c9YouInfo" style="margin-top:8px; font-weight:700;">
-          You
-        </div>
-      </div>
+          <div style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
 
+            <div id="c9RoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">Room: —</div>
 
-      <!-- ================= GAME INFO ================= -->
+            <div id="c9TurnDisplay" style="margin-bottom:12px;">Turn: —</div>
 
-      <div style="min-width:240px; max-width:320px; width:100%;">
+            <div id="c9PositionDisplay" style="margin-bottom:14px;">♟️ Chess960 Position</div>
 
-        <div
-          style="
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
+            <button id="c9ResignBtn" type="button" style="width:100%; margin-top:10px;">🏳️ Resign</button>
 
-          <div id="c9RoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">
-            Room: —
+            <button id="c9DrawBtn" type="button" style="width:100%; margin-top:10px;">🤝 Offer Draw</button>
+
           </div>
 
-          <div id="c9TurnDisplay" style="margin-bottom:12px;">
-            Turn: —
+          <div style="margin-top:14px; padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:700; margin-bottom:8px;">📜 Game Notation</div>
+
+            <div id="c9Moves" style="height:150px; max-height:150px; overflow-y:auto; line-height:1.6; box-sizing:border-box;"></div>
           </div>
 
-          <!-- ♟️ CHESS960 POSITION CARD (built by JavaScript, visible to both players) -->
-          <div id="c9PositionDisplay" style="margin-bottom:14px;">
-            ♟️ Chess960 Position
+          <div id="c9RightBottomPanel" style="margin-top:14px;">
+
+            <div id="c9RightStatus" style="padding:12px 16px; border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); font-weight:700; margin-bottom:10px;">
+              Status: —
+            </div>
+
+            <div id="c9RightAdminActions"></div>
+
           </div>
-
-          <button
-            id="c9ResignBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🏳️ Resign
-          </button>
-
-          <button
-            id="c9DrawBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🤝 Offer Draw
-          </button>
-
-        </div>
-
-
-        <!-- ================= NOTATION ================= -->
-
-        <div
-          style="
-            margin-top:14px;
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
-          <div style="font-weight:700; margin-bottom:8px;">
-            📜 Game Notation
-          </div>
-
-          <div
-            id="c9Moves"
-            style="height:150px; max-height:150px; overflow-y:auto; line-height:1.6; box-sizing:border-box;"
-          ></div>
-        </div>
-
-
-        <!-- ================= STATUS + ADMIN ACTIONS ================= -->
-
-        <div id="c9RightBottomPanel" style="margin-top:14px;">
-
-          <div
-            id="c9RightStatus"
-            style="
-              padding:12px 16px;
-              border-radius:10px;
-              background:rgba(255,255,255,0.04);
-              border:1px solid rgba(255,255,255,0.08);
-              font-weight:700;
-              margin-bottom:10px;
-            "
-          >
-            Status: —
-          </div>
-
-          <div id="c9RightAdminActions"></div>
 
         </div>
 
       </div>
 
+    </div>
+
+    <!-- ===== FINISHED GAME ===== -->
+    <div id="c9FinishedPanel" style="display:none; margin-top:20px;">
+      <div style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+        <div id="c9FinishedText" style="font-weight:700;"></div>
+      </div>
     </div>
 
   </div>
 
 
-  <!-- ===== FINISHED GAME ===== -->
+  <!-- =========================================================
+       🤖 PLAY WITH BOT
+  ========================================================== -->
+  <div id="c9BotWrap" style="display:none;">
 
-  <div id="c9FinishedPanel" style="display:none; margin-top:20px;">
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
-    >
-      <div id="c9FinishedText" style="font-weight:700;"></div>
+    <!-- ===== BOT SETUP ===== -->
+    <div id="c9BotSetupPanel" class="c9-bot-card">
+
+      <h3 style="margin-top:0;">🤖 Play Chess960 with Bot</h3>
+
+      <div class="c9-bot-setup-grid">
+
+        <div class="c9-bot-field">
+          <label for="c9BotNumber">Chess960 Position</label>
+          <input
+            id="c9BotNumber"
+            type="number"
+            min="1"
+            max="960"
+            step="1"
+            value="518"
+            inputmode="numeric"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="c9-bot-field">
+          <label for="c9BotLevel">Difficulty</label>
+          <select id="c9BotLevel">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+
+        <div class="c9-bot-field">
+          <label for="c9BotColor">Your Color</label>
+          <select id="c9BotColor">
+            <option value="random" selected>Random</option>
+            <option value="w">White</option>
+            <option value="b">Black</option>
+          </select>
+        </div>
+
+        <button id="c9BotStartBtn" type="button">▶️ Start Game</button>
+
+      </div>
+
+      <div id="c9BotNumberPreview" class="c9-bot-preview">
+        Position #518 — Standard chess starting position
+      </div>
+
+      <div class="c9-bot-hint">
+        Choose any Chess960 position from <strong>1 to 960</strong>. The selected
+        position is used as the exact starting position for the game.
+      </div>
+
     </div>
+
+
+    <!-- ===== BOT GAME ===== -->
+    <div id="c9BotGamePanel" style="display:none; margin-top:18px;">
+
+      <div class="c9-bot-layout">
+
+        <div>
+
+          <div id="c9BotOpponentInfo">Opponent</div>
+
+          <div id="c9BotBoard"></div>
+
+          <div id="c9BotYouInfo">You</div>
+
+        </div>
+
+
+        <div style="min-width:240px; max-width:320px; width:100%;">
+
+          <div class="c9-bot-card">
+
+            <div id="c9BotPositionDisplay" class="c9-bot-position-card">
+              ♟️ Chess960 Position
+            </div>
+
+            <div id="c9BotTurnDisplay" style="margin-bottom:12px;">
+              Turn: —
+            </div>
+
+            <button id="c9BotResignBtn" type="button" style="width:100%;">
+              🏳️ Resign
+            </button>
+
+            <button id="c9BotNewGameBtn" type="button" style="width:100%; margin-top:10px;">
+              🔄 New Game
+            </button>
+
+          </div>
+
+
+          <div class="c9-bot-card" style="margin-top:14px;">
+
+            <div style="font-weight:700; margin-bottom:8px;">
+              📜 Game Notation
+            </div>
+
+            <div id="c9BotMoves"></div>
+
+          </div>
+
+
+          <div class="c9-bot-card" style="margin-top:14px;">
+
+            <div id="c9BotStatus">
+              Status: —
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
   </div>
 
 </div>
@@ -43969,94 +43982,43 @@ right:0;
 
 <!-- =========================================================
      🤝 CHESS960 DRAW OFFER MODAL
-     Placed OUTSIDE the section on purpose, so a draw offer is
-     still visible if the player is currently on another tab.
 ========================================================= -->
 
-<div
-  id="c9DrawOverlay"
-  style="
-    display:none;
-    position:fixed;
-    inset:0;
-    z-index:99999;
-    align-items:center;
-    justify-content:center;
-    background:rgba(0,0,0,0.65);
-    backdrop-filter:blur(4px);
-  "
->
-  <div
-    id="c9DrawModal"
-    style="
-      width:min(360px, calc(100vw - 32px));
-      padding:22px;
-      border-radius:16px;
-      background:#1f2438;
-      border:1px solid rgba(255,255,255,0.14);
-      box-shadow:0 20px 60px rgba(0,0,0,0.55);
-      text-align:center;
-      color:#ffffff;
-    "
-  >
+<div id="c9DrawOverlay"
+  style="display:none; position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px);">
+
+  <div id="c9DrawModal"
+    style="width:min(360px, calc(100vw - 32px)); padding:22px; border-radius:16px; background:#1f2438; border:1px solid rgba(255,255,255,0.14); box-shadow:0 20px 60px rgba(0,0,0,0.55); text-align:center; color:#ffffff;">
+
     <div style="font-size:22px; font-weight:800; margin-bottom:10px;">
       🤝 Draw Offer
     </div>
 
-    <div
-      id="c9DrawText"
-      style="
-        font-size:15px;
-        line-height:1.5;
-        opacity:0.9;
-        margin-bottom:20px;
-      "
-    >
+    <div id="c9DrawText"
+      style="font-size:15px; line-height:1.5; opacity:0.9; margin-bottom:20px;">
       Your opponent has offered a draw.
     </div>
 
     <div style="display:flex; gap:10px; justify-content:center;">
 
-      <button
-        id="c9DrawAcceptBtn"
-        type="button"
-        style="
-          flex:1;
-          padding:10px 14px;
-          border-radius:10px;
-          border:1px solid rgba(255,255,255,0.16);
-          background:linear-gradient(135deg,#16a34a,#22c55e);
-          color:#ffffff;
-          font-weight:800;
-          cursor:pointer;
-        "
-      >
+      <button id="c9DrawAcceptBtn" type="button"
+        style="flex:1; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.16); background:linear-gradient(135deg,#16a34a,#22c55e); color:#ffffff; font-weight:800; cursor:pointer;">
         Accept
       </button>
 
-      <button
-        id="c9DrawDeclineBtn"
-        type="button"
-        style="
-          flex:1;
-          padding:10px 14px;
-          border-radius:10px;
-          border:1px solid rgba(255,255,255,0.16);
-          background:linear-gradient(135deg,#991b1b,#dc2626);
-          color:#ffffff;
-          font-weight:800;
-          cursor:pointer;
-        "
-      >
+      <button id="c9DrawDeclineBtn" type="button"
+        style="flex:1; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.16); background:linear-gradient(135deg,#991b1b,#dc2626); color:#ffffff; font-weight:800; cursor:pointer;">
         Decline
       </button>
 
     </div>
+
   </div>
 </div>
 
+
 <!-- =========================================================
-     ♚ KING OF THE HILL MULTIPLAYER
+     ♚ KING OF THE HILL — MULTIPLAYER + PLAY WITH BOT
      Completely separate from Live Match, Dice and Three-Check
 ========================================================= -->
 
@@ -44068,219 +44030,403 @@ right:0;
 
   <h2>⛰️ Olympus King of the Hill Chess</h2>
 
-  <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+  <!-- ===== MODE SWITCH: Multiplayer / Play with Bot ===== -->
 
-  <div
-    id="khSupervisorPanel"
-    data-role="admin-only"
-    style="display:none; margin-bottom:20px;"
-  >
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
+  <div id="khModeBar">
+
+    <button
+      id="khModeMultiBtn"
+      class="kh-mode-btn kh-mode-active"
+      type="button"
     >
-      <h3 style="margin-top:0;">🎯 Challenge Student</h3>
+      👥 Multiplayer <span id="khMultiBadge"></span>
+    </button>
+
+    <button
+      id="khModeBotBtn"
+      class="kh-mode-btn"
+      type="button"
+    >
+      🤖 Play with Bot
+    </button>
+
+  </div>
+
+
+  <!-- =====================================================
+       👥 MULTIPLAYER
+       Existing admin/student challenge system
+  ====================================================== -->
+
+  <div id="khMultiWrap">
+
+    <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+
+    <div
+      id="khSupervisorPanel"
+      data-role="admin-only"
+      style="display:none; margin-bottom:20px;"
+    >
+      <div
+        style="
+          padding:16px;
+          border-radius:12px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+        "
+      >
+        <h3 style="margin-top:0;">🎯 Challenge Student</h3>
+
+        <div
+          style="
+            display:flex;
+            gap:10px;
+            align-items:center;
+            flex-wrap:wrap;
+          "
+        >
+          <select
+            id="khStudentSelect"
+            style="min-width:240px; padding:10px; border-radius:8px;"
+          >
+            <option value="">Select Student</option>
+          </select>
+
+          <button id="khChallengeBtn" type="button">
+            👑 Challenge
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
+
+    <div id="khStatusPanel" style="margin-bottom:20px;">
+
+      <div id="khPendingPanel" style="display:none;">
+        <div
+          style="
+            padding:14px;
+            border-radius:10px;
+            background:rgba(255,193,7,0.10);
+            border:1px solid rgba(255,193,7,0.25);
+          "
+        >
+          ⏳ <span id="khPendingText">Waiting for response...</span>
+        </div>
+      </div>
+
+      <div id="khChallengePanel" style="display:none;">
+        <div
+          style="
+            padding:16px;
+            border-radius:12px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.08);
+          "
+        >
+          <div id="khChallengeText">
+            ⛰️ You have received a King of the Hill challenge.
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="khAcceptBtn" type="button">Accept</button>
+            <button id="khDeclineBtn" type="button">Decline</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="khResultPanel" style="display:none;">
+        <div
+          style="
+            padding:16px;
+            border-radius:12px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.08);
+          "
+        >
+          <div id="khResultText"></div>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ===== KING OF THE HILL GAME ===== -->
+
+    <div id="khGamePanel" style="display:none;">
 
       <div
         style="
           display:flex;
-          gap:10px;
-          align-items:center;
+          gap:24px;
+          align-items:flex-start;
           flex-wrap:wrap;
         "
       >
-        <select
-          id="khStudentSelect"
-          style="min-width:240px; padding:10px; border-radius:8px;"
-        >
-          <option value="">Select Student</option>
-        </select>
 
-        <button id="khChallengeBtn" type="button">
-          👑 Challenge
-        </button>
-      </div>
-    </div>
-  </div>
+        <!-- ================= BOARD ================= -->
 
-
-  <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
-
-  <div id="khStatusPanel" style="margin-bottom:20px;">
-
-    <div id="khPendingPanel" style="display:none;">
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:rgba(255,193,7,0.10);
-          border:1px solid rgba(255,193,7,0.25);
-        "
-      >
-        ⏳ <span id="khPendingText">Waiting for response...</span>
-      </div>
-    </div>
-
-    <div id="khChallengePanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="khChallengeText">
-          ⛰️ You have received a King of the Hill challenge.
-        </div>
-
-        <div style="display:flex; gap:10px; margin-top:12px;">
-          <button id="khAcceptBtn" type="button">Accept</button>
-          <button id="khDeclineBtn" type="button">Decline</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="khResultPanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="khResultText"></div>
-      </div>
-    </div>
-
-  </div>
-
-
-  <!-- ===== KING OF THE HILL GAME ===== -->
-
-  <div id="khGamePanel" style="display:none;">
-
-    <div
-      style="
-        display:flex;
-        gap:24px;
-        align-items:flex-start;
-        flex-wrap:wrap;
-      "
-    >
-
-      <!-- ================= BOARD ================= -->
-
-      <div>
-        <div id="khOpponentInfo" style="margin-bottom:8px; font-weight:700;">
-          Opponent
-        </div>
-
-        <div id="khBoard" style="width:600px; max-width:90vw;"></div>
-
-        <div id="khYouInfo" style="margin-top:8px; font-weight:700;">
-          You
-        </div>
-      </div>
-
-
-      <!-- ================= GAME INFO ================= -->
-
-      <div style="min-width:240px; max-width:320px; width:100%;">
-
-        <div
-          style="
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
-
-          <div id="khRoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">
-            Room: —
+        <div>
+          <div id="khOpponentInfo" style="margin-bottom:8px; font-weight:700;">
+            Opponent
           </div>
 
-          <div id="khTurnDisplay" style="margin-bottom:12px;">
-            Turn: —
+          <div id="khBoard" style="width:600px; max-width:90vw;"></div>
+
+          <div id="khYouInfo" style="margin-top:8px; font-weight:700;">
+            You
           </div>
-
-          <!-- 👑 HILL INFO CARD (built by JavaScript, visible to both players) -->
-          <div id="khHillDisplay" style="margin-bottom:14px;">
-            ⛰️ King of the Hill
-          </div>
-
-          <button
-            id="khResignBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🏳️ Resign
-          </button>
-
-          <button
-            id="khDrawBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🤝 Offer Draw
-          </button>
-
         </div>
 
 
-        <!-- ================= NOTATION ================= -->
+        <!-- ================= GAME INFO ================= -->
 
-        <div
-          style="
-            margin-top:14px;
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
-          <div style="font-weight:700; margin-bottom:8px;">
-            📜 Game Notation
-          </div>
-
-       <div 
-  id="khMoves" 
-  style="
-    height:150px;
-    max-height:150px;
-    overflow-y:auto;
-    overflow-x:hidden;
-    line-height:1.6;
-  "
-></div>
-        </div>
-
-
-        <!-- ================= STATUS + ADMIN ACTIONS ================= -->
-
-        <div id="khRightBottomPanel" style="margin-top:14px;">
+        <div style="min-width:240px; max-width:320px; width:100%;">
 
           <div
-            id="khRightStatus"
             style="
-              padding:12px 16px;
-              border-radius:10px;
+              padding:16px;
+              border-radius:12px;
               background:rgba(255,255,255,0.04);
               border:1px solid rgba(255,255,255,0.08);
-              font-weight:700;
-              margin-bottom:10px;
             "
           >
-            Status: —
+
+            <div id="khRoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">
+              Room: —
+            </div>
+
+            <div id="khTurnDisplay" style="margin-bottom:12px;">
+              Turn: —
+            </div>
+
+            <!-- 👑 HILL INFO CARD (built by JavaScript) -->
+            <div id="khHillDisplay" style="margin-bottom:14px;">
+              ⛰️ King of the Hill
+            </div>
+
+            <button
+              id="khResignBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🏳️ Resign
+            </button>
+
+            <button
+              id="khDrawBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🤝 Offer Draw
+            </button>
+
           </div>
 
-          <div id="khRightAdminActions"></div>
+
+          <!-- ================= NOTATION ================= -->
+
+          <div
+            style="
+              margin-top:14px;
+              padding:16px;
+              border-radius:12px;
+              background:rgba(255,255,255,0.04);
+              border:1px solid rgba(255,255,255,0.08);
+            "
+          >
+            <div style="font-weight:700; margin-bottom:8px;">
+              📜 Game Notation
+            </div>
+
+            <div
+              id="khMoves"
+              style="
+                height:150px;
+                max-height:150px;
+                overflow-y:auto;
+                overflow-x:hidden;
+                line-height:1.6;
+              "
+            ></div>
+          </div>
+
+
+          <!-- ================= STATUS + ADMIN ACTIONS ================= -->
+
+          <div id="khRightBottomPanel" style="margin-top:14px;">
+
+            <div
+              id="khRightStatus"
+              style="
+                padding:12px 16px;
+                border-radius:10px;
+                background:rgba(255,255,255,0.04);
+                border:1px solid rgba(255,255,255,0.08);
+                font-weight:700;
+                margin-bottom:10px;
+              "
+            >
+              Status: —
+            </div>
+
+            <div id="khRightAdminActions"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ===== FINISHED GAME ===== -->
+
+    <div id="khFinishedPanel" style="display:none; margin-top:20px;">
+      <div
+        style="
+          padding:16px;
+          border-radius:12px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+        "
+      >
+        <div id="khFinishedText" style="font-weight:700;"></div>
+      </div>
+    </div>
+
+  </div>
+  <!-- ===== END MULTIPLAYER ===== -->
+
+
+  <!-- =====================================================
+       🤖 PLAY WITH BOT  (students AND admins, no database)
+  ====================================================== -->
+
+  <div id="khBotWrap" style="display:none;">
+
+    <!-- ===== BOT SETUP ===== -->
+
+    <div id="khBotSetupPanel">
+
+      <div class="kh-bot-card">
+
+        <h3 style="margin-top:0;">🤖 Play with Bot</h3>
+
+        <div class="kh-bot-setup-grid">
+
+          <div class="kh-bot-field">
+            <label for="khBotLevel">Difficulty</label>
+            <select id="khBotLevel">
+              <option value="easy">🟢 Easy</option>
+              <option value="medium" selected>🟡 Medium</option>
+              <option value="hard">🔴 Hard</option>
+            </select>
+          </div>
+
+          <div class="kh-bot-field">
+            <label for="khBotColor">Your color</label>
+            <select id="khBotColor">
+              <option value="random" selected>🎲 Random</option>
+              <option value="w">♔ White</option>
+              <option value="b">♚ Black</option>
+            </select>
+          </div>
+
+          <button id="khBotStartBtn" type="button">
+            ▶ Start Game
+          </button>
+
+        </div>
+
+        <div class="kh-bot-hint">
+          King of the Hill rules: move your king legally onto
+          <strong>d4, e4, d5 or e5</strong> to win instantly.
+          Normal chess rules also apply, including checkmate,
+          stalemate, repetition and the 50-move rule.
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ===== BOT GAME ===== -->
+
+    <div id="khBotGamePanel" style="display:none;">
+
+      <div class="kh-bot-layout">
+
+        <!-- ================= BOARD ================= -->
+
+        <div>
+          <div id="khBotOpponentInfo" style="margin-bottom:8px;">
+            Opponent
+          </div>
+
+          <div id="khBotBoard"></div>
+
+          <div id="khBotYouInfo" style="margin-top:8px;">
+            You
+          </div>
+        </div>
+
+
+        <!-- ================= GAME INFO ================= -->
+
+        <div style="min-width:240px; max-width:320px; width:100%;">
+
+          <div class="kh-bot-card">
+
+            <div id="khBotTurnDisplay" style="margin-bottom:12px;">
+              Turn: —
+            </div>
+
+            <!-- 👑 HILL INFO CARD (built by JavaScript) -->
+            <div id="khBotHillDisplay">
+              ⛰️ King of the Hill
+            </div>
+
+            <button
+              id="khBotResignBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🏳️ Resign
+            </button>
+
+            <button
+              id="khBotNewGameBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🔄 New Game
+            </button>
+
+          </div>
+
+
+          <!-- ================= NOTATION ================= -->
+
+          <div class="kh-bot-card" style="margin-top:14px;">
+
+            <div style="font-weight:700; margin-bottom:8px;">
+              📜 Game Notation
+            </div>
+
+            <div id="khBotMoves"></div>
+
+          </div>
+
+
+          <!-- ================= STATUS ================= -->
+
+          <div style="margin-top:14px;">
+            <div id="khBotStatus">Status: —</div>
+          </div>
 
         </div>
 
@@ -44289,22 +44435,7 @@ right:0;
     </div>
 
   </div>
-
-
-  <!-- ===== FINISHED GAME ===== -->
-
-  <div id="khFinishedPanel" style="display:none; margin-top:20px;">
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
-    >
-      <div id="khFinishedText" style="font-weight:700;"></div>
-    </div>
-  </div>
+  <!-- ===== END BOT ===== -->
 
 </div>
 
@@ -44399,7 +44530,7 @@ right:0;
 
 
 <!-- =========================================================
-     ♚ THREE-CHECK MULTIPLAYER
+     ♚ THREE-CHECK  —  MULTIPLAYER + PLAY WITH BOT
      Completely separate from Live Match and Dice Multiplayer
 ========================================================= -->
 
@@ -44409,221 +44540,404 @@ right:0;
   style="display:none;"
 >
 
-  <h2> Olympus 3 Check Multiplayer Chess </h2>
+  <h2> Olympus 3 Check Chess </h2>
 
-  <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+  <!-- ===== MODE SWITCH: Multiplayer / Play with Bot ===== -->
 
-  <div
-    id="tcSupervisorPanel"
-    data-role="admin-only"
-    style="display:none; margin-bottom:20px;"
-  >
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
+  <div id="tcModeBar">
+
+    <button
+      id="tcModeMultiBtn"
+      class="tc-mode-btn tc-mode-active"
+      type="button"
     >
-      <h3 style="margin-top:0;">🎯 Challenge Student</h3>
+      👥 Multiplayer <span id="tcMultiBadge"></span>
+    </button>
+
+    <button
+      id="tcModeBotBtn"
+      class="tc-mode-btn"
+      type="button"
+    >
+      🤖 Play with Bot
+    </button>
+
+  </div>
+
+
+  <!-- =====================================================
+       👥 MULTIPLAYER (unchanged – admin challenges student)
+  ====================================================== -->
+
+  <div id="tcMultiWrap">
+
+    <!-- ===== SUPERVISOR / ADMIN CONTROL PANEL ===== -->
+
+    <div
+      id="tcSupervisorPanel"
+      data-role="admin-only"
+      style="display:none; margin-bottom:20px;"
+    >
+      <div
+        style="
+          padding:16px;
+          border-radius:12px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+        "
+      >
+        <h3 style="margin-top:0;">🎯 Challenge Student</h3>
+
+        <div
+          style="
+            display:flex;
+            gap:10px;
+            align-items:center;
+            flex-wrap:wrap;
+          "
+        >
+          <select
+            id="tcStudentSelect"
+            style="min-width:240px; padding:10px; border-radius:8px;"
+          >
+            <option value="">Select Student</option>
+          </select>
+
+          <button id="tcChallengeBtn" type="button">
+            ♚ Challenge
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
+
+    <div id="tcStatusPanel" style="margin-bottom:20px;">
+
+      <div id="tcPendingPanel" style="display:none;">
+        <div
+          style="
+            padding:14px;
+            border-radius:10px;
+            background:rgba(255,193,7,0.10);
+            border:1px solid rgba(255,193,7,0.25);
+          "
+        >
+          ⏳ <span id="tcPendingText">Waiting for response...</span>
+        </div>
+      </div>
+
+      <div id="tcChallengePanel" style="display:none;">
+        <div
+          style="
+            padding:16px;
+            border-radius:12px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.08);
+          "
+        >
+          <div id="tcChallengeText">
+            ♚ You have received a Three-Check challenge.
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="tcAcceptBtn" type="button">Accept</button>
+            <button id="tcDeclineBtn" type="button">Decline</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tcResultPanel" style="display:none;">
+        <div
+          style="
+            padding:16px;
+            border-radius:12px;
+            background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.08);
+          "
+        >
+          <div id="tcResultText"></div>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ===== THREE-CHECK GAME ===== -->
+
+    <div id="tcGamePanel" style="display:none;">
 
       <div
         style="
           display:flex;
-          gap:10px;
-          align-items:center;
+          gap:24px;
+          align-items:flex-start;
           flex-wrap:wrap;
         "
       >
-        <select
-          id="tcStudentSelect"
-          style="min-width:240px; padding:10px; border-radius:8px;"
-        >
-          <option value="">Select Student</option>
-        </select>
 
-        <button id="tcChallengeBtn" type="button">
-          ♚ Challenge
-        </button>
-      </div>
-    </div>
-  </div>
+        <!-- ================= BOARD ================= -->
 
-
-  <!-- ===== PENDING / CHALLENGE / RESULT AREA ===== -->
-
-  <div id="tcStatusPanel" style="margin-bottom:20px;">
-
-    <div id="tcPendingPanel" style="display:none;">
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:rgba(255,193,7,0.10);
-          border:1px solid rgba(255,193,7,0.25);
-        "
-      >
-        ⏳ <span id="tcPendingText">Waiting for response...</span>
-      </div>
-    </div>
-
-    <div id="tcChallengePanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="tcChallengeText">
-          ♚ You have received a Three-Check challenge.
-        </div>
-
-        <div style="display:flex; gap:10px; margin-top:12px;">
-          <button id="tcAcceptBtn" type="button">Accept</button>
-          <button id="tcDeclineBtn" type="button">Decline</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="tcResultPanel" style="display:none;">
-      <div
-        style="
-          padding:16px;
-          border-radius:12px;
-          background:rgba(255,255,255,0.04);
-          border:1px solid rgba(255,255,255,0.08);
-        "
-      >
-        <div id="tcResultText"></div>
-      </div>
-    </div>
-
-  </div>
-
-
-  <!-- ===== THREE-CHECK GAME ===== -->
-
-  <div id="tcGamePanel" style="display:none;">
-
-    <div
-      style="
-        display:flex;
-        gap:24px;
-        align-items:flex-start;
-        flex-wrap:wrap;
-      "
-    >
-
-      <!-- ================= BOARD ================= -->
-
-      <div>
-        <div id="tcOpponentInfo" style="margin-bottom:8px; font-weight:700;">
-          Opponent
-        </div>
-
-        <div id="tcBoard" style="width:600px; max-width:90vw;"></div>
-
-        <div id="tcYouInfo" style="margin-top:8px; font-weight:700;">
-          You
-        </div>
-      </div>
-
-
-      <!-- ================= GAME INFO ================= -->
-
-      <div style="min-width:240px; max-width:320px; width:100%;">
-
-        <div
-          style="
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
-
-          <div id="tcRoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">
-            Room: —
+        <div>
+          <div id="tcOpponentInfo" style="margin-bottom:8px; font-weight:700;">
+            Opponent
           </div>
 
-          <div id="tcTurnDisplay" style="margin-bottom:12px;">
-            Turn: —
+          <div id="tcBoard" style="width:600px; max-width:90vw;"></div>
+
+          <div id="tcYouInfo" style="margin-top:8px; font-weight:700;">
+            You
           </div>
-
-          <!-- ⚡ CHECK COUNTER (built by JavaScript, visible to both players) -->
-          <div id="tcChecksDisplay">
-            ⚡ Checks: —
-          </div>
-
-          <button
-            id="tcResignBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🏳️ Resign
-          </button>
-
-          <button
-            id="tcDrawBtn"
-            type="button"
-            style="width:100%; margin-top:10px;"
-          >
-            🤝 Offer Draw
-          </button>
-
         </div>
 
 
-        <!-- ================= NOTATION ================= -->
+        <!-- ================= GAME INFO ================= -->
 
-        <div
-          style="
-            margin-top:14px;
-            padding:16px;
-            border-radius:12px;
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-          "
-        >
-          <div style="font-weight:700; margin-bottom:8px;">
-            📜 Game Notation
-          </div>
-
-      <div 
-  id="tcMoves" 
-  style="
-    height:100px;
-    max-height:100px;
-    overflow-y:auto;
-    overflow-x:hidden;
-    line-height:1.6;
-  "
-></div>
-        </div>
-
-
-        <!-- ================= STATUS + ADMIN ACTIONS ================= -->
-
-        <div id="tcRightBottomPanel" style="margin-top:14px;">
+        <div style="min-width:240px; max-width:320px; width:100%;">
 
           <div
-            id="tcRightStatus"
             style="
-              padding:12px 16px;
-              border-radius:10px;
+              padding:16px;
+              border-radius:12px;
               background:rgba(255,255,255,0.04);
               border:1px solid rgba(255,255,255,0.08);
-              font-weight:700;
-              margin-bottom:10px;
             "
           >
-            Status: —
+
+            <div id="tcRoomCodeDisplay" style="font-weight:700; margin-bottom:12px;">
+              Room: —
+            </div>
+
+            <div id="tcTurnDisplay" style="margin-bottom:12px;">
+              Turn: —
+            </div>
+
+            <!-- ⚡ CHECK COUNTER (built by JavaScript, visible to both players) -->
+            <div id="tcChecksDisplay">
+              ⚡ Checks: —
+            </div>
+
+            <button
+              id="tcResignBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🏳️ Resign
+            </button>
+
+            <button
+              id="tcDrawBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🤝 Offer Draw
+            </button>
+
           </div>
 
-          <div id="tcRightAdminActions"></div>
+
+          <!-- ================= NOTATION ================= -->
+
+          <div
+            style="
+              margin-top:14px;
+              padding:16px;
+              border-radius:12px;
+              background:rgba(255,255,255,0.04);
+              border:1px solid rgba(255,255,255,0.08);
+            "
+          >
+            <div style="font-weight:700; margin-bottom:8px;">
+              📜 Game Notation
+            </div>
+
+            <div
+              id="tcMoves"
+              style="
+                height:100px;
+                max-height:100px;
+                overflow-y:auto;
+                overflow-x:hidden;
+                line-height:1.6;
+              "
+            ></div>
+          </div>
+
+
+          <!-- ================= STATUS + ADMIN ACTIONS ================= -->
+
+          <div id="tcRightBottomPanel" style="margin-top:14px;">
+
+            <div
+              id="tcRightStatus"
+              style="
+                padding:12px 16px;
+                border-radius:10px;
+                background:rgba(255,255,255,0.04);
+                border:1px solid rgba(255,255,255,0.08);
+                font-weight:700;
+                margin-bottom:10px;
+              "
+            >
+              Status: —
+            </div>
+
+            <div id="tcRightAdminActions"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ===== FINISHED GAME ===== -->
+
+    <div id="tcFinishedPanel" style="display:none; margin-top:20px;">
+      <div
+        style="
+          padding:16px;
+          border-radius:12px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+        "
+      >
+        <div id="tcFinishedText" style="font-weight:700;"></div>
+      </div>
+    </div>
+
+  </div>
+  <!-- ===== END MULTIPLAYER ===== -->
+
+
+  <!-- =====================================================
+       🤖 PLAY WITH BOT  (students AND admins, no database)
+  ====================================================== -->
+
+  <div id="tcBotWrap" style="display:none;">
+
+    <!-- ===== BOT SETUP ===== -->
+
+    <div id="tcBotSetupPanel">
+
+      <div class="tc-bot-card">
+
+        <h3 style="margin-top:0;">🤖 Play with Bot</h3>
+
+        <div class="tc-bot-setup-grid">
+
+          <div class="tc-bot-field">
+            <label for="tcBotLevel">Difficulty</label>
+            <select id="tcBotLevel">
+              <option value="easy">🟢 Easy</option>
+              <option value="medium" selected>🟡 Medium</option>
+              <option value="hard">🔴 Hard</option>
+            </select>
+          </div>
+
+          <div class="tc-bot-field">
+            <label for="tcBotColor">Your color</label>
+            <select id="tcBotColor">
+              <option value="random" selected>🎲 Random</option>
+              <option value="w">♔ White</option>
+              <option value="b">♚ Black</option>
+            </select>
+          </div>
+
+          <button id="tcBotStartBtn" type="button">
+            ▶ Start Game
+          </button>
+
+        </div>
+
+        <div class="tc-bot-hint">
+          Three-Check rules: if your king is checked <strong>3 times</strong>
+          you lose — and if you check the bot's king 3 times, you win.
+          Normal chess rules also apply (checkmate, stalemate, repetition,
+          50-move rule).
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ===== BOT GAME ===== -->
+
+    <div id="tcBotGamePanel" style="display:none;">
+
+      <div class="tc-bot-layout">
+
+        <!-- ================= BOARD ================= -->
+
+        <div>
+          <div id="tcBotOpponentInfo" style="margin-bottom:8px;">
+            Opponent
+          </div>
+
+          <div id="tcBotBoard"></div>
+
+          <div id="tcBotYouInfo" style="margin-top:8px;">
+            You
+          </div>
+        </div>
+
+
+        <!-- ================= GAME INFO ================= -->
+
+        <div style="min-width:240px; max-width:320px; width:100%;">
+
+          <div class="tc-bot-card">
+
+            <div id="tcBotTurnDisplay" style="margin-bottom:12px;">
+              Turn: —
+            </div>
+
+            <!-- ⚡ CHECK COUNTER (built by JavaScript) -->
+            <div id="tcBotChecksDisplay">
+              ⚡ Checks: —
+            </div>
+
+            <button
+              id="tcBotResignBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🏳️ Resign
+            </button>
+
+            <button
+              id="tcBotNewGameBtn"
+              type="button"
+              style="width:100%; margin-top:10px;"
+            >
+              🔄 New Game
+            </button>
+
+          </div>
+
+
+          <!-- ================= NOTATION ================= -->
+
+          <div class="tc-bot-card" style="margin-top:14px;">
+
+            <div style="font-weight:700; margin-bottom:8px;">
+              📜 Game Notation
+            </div>
+
+            <div id="tcBotMoves"></div>
+
+          </div>
+
+
+          <!-- ================= STATUS ================= -->
+
+          <div style="margin-top:14px;">
+            <div id="tcBotStatus">Status: —</div>
+          </div>
 
         </div>
 
@@ -44632,22 +44946,7 @@ right:0;
     </div>
 
   </div>
-
-
-  <!-- ===== FINISHED GAME ===== -->
-
-  <div id="tcFinishedPanel" style="display:none; margin-top:20px;">
-    <div
-      style="
-        padding:16px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.04);
-        border:1px solid rgba(255,255,255,0.08);
-      "
-    >
-      <div id="tcFinishedText" style="font-weight:700;"></div>
-    </div>
-  </div>
+  <!-- ===== END BOT ===== -->
 
 </div>
 
@@ -44739,6 +45038,7 @@ right:0;
     </div>
   </div>
 </div>
+
 
 
 <!-- ===================================================== -->
@@ -125794,7 +126094,7 @@ mpLoadArchive()
 }
 
 // =========================================================
-// ♚ THREE-CHECK MULTIPLAYER  (fully isolated – every name starts with "tc")
+// ♚ THREE-CHECK  —  MULTIPLAYER + PLAY WITH BOT  (every name starts with "tc")
 // Same architecture as Dice Multiplayer. Instead of dice, the game uses
 // the Three-Check rule: the first player whose king has been checked
 // 3 times LOSES. Every normal chess rule still applies.
@@ -126163,6 +126463,7 @@ function tcInjectStyles() {
       overflow: hidden;
       box-shadow: 0 12px 35px rgba(0,0,0,0.28);
     }
+    
 
     /* ===== PROMOTION POPUP ===== */
 
@@ -126370,6 +126671,9 @@ function tcUpdateAdminButtons() {
 
     custom.style.display = "none";
   }
+
+  // 🔀 keep the "Multiplayer" badge in sync (visible while in bot mode)
+  tcUpdateModeBadge();
 }
 
 
@@ -128606,6 +128910,7 @@ function tcResetToIdle() {
   }
 
   tcStartPendingPolling();
+  tcUpdateModeBadge();
 }
 
 // Call on logout so nothing from this module keeps running.
@@ -128613,6 +128918,9 @@ function tcCleanup() {
   tcStopPendingPolling();
   tcResetToIdle();
   tcStopPendingPolling();
+  tcBotReset();
+  tcMode = "multi";
+  tcApplyMode();
 }
 
 
@@ -128662,6 +128970,1956 @@ async function tcRestoreSession() {
 
 
 // =========================================================
+// 🤖 THREE-CHECK — PLAY WITH BOT  (local game, no Supabase)
+// Separate from multiplayer. Works for students AND admins.
+// Same rules: 3 checks against your king = you lose, plus
+// checkmate, stalemate, threefold repetition, 50-move rule,
+// only-kings draw, resignation.
+// =========================================================
+
+const TC_BOT_LEVELS = {
+  easy:   { label: "Easy",   maxDepth: 1, timeMs: 300,  noise: 130, randomChance: 0.12, tolerance: 0,  quiesce: false },
+  medium: { label: "Medium", maxDepth: 3, timeMs: 700,  noise: 0,   randomChance: 0,    tolerance: 20, quiesce: true  },
+  hard:   { label: "Hard",   maxDepth: 7, timeMs: 1500, noise: 0,   randomChance: 0,    tolerance: 5,  quiesce: true  }
+};
+
+const TC_BOT_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const TC_BOT_WIN = 100000;
+const TC_BOT_TIMEOUT = { timeout: true };
+const TC_BOT_THINK_DELAY = 450;
+
+// Penalty for the number of checks a king has already received.
+const TC_BOT_CHECK_PENALTY = [0, 70, 300, 100000];
+
+let tcMode = "multi";                 // "multi" | "bot"
+
+let tcBotChess = null;
+let tcBotBoard = null;
+let tcBotPlayerSide = "w";
+let tcBotLevel = "medium";
+let tcBotChecks = { w: 0, b: 0 };
+let tcBotShownChecks = { w: 0, b: 0 };
+let tcBotActive = false;
+let tcBotOver = false;
+let tcBotResult = "";
+let tcBotThinking = false;
+let tcBotTimer = null;
+let tcBotGameId = 0;
+let tcBotPromotionPending = null;
+
+let tcBotNodes = 0;
+let tcBotDeadline = 0;
+
+
+// =========================================================
+// 🤖 BOT STYLES (injected once – every selector is tc-prefixed)
+// =========================================================
+
+function tcInjectBotStyles() {
+
+  if (tcEl("tcBotInjectedStyles")) return;
+
+  const style = document.createElement("style");
+
+  style.id = "tcBotInjectedStyles";
+
+  style.textContent = `
+
+    /* ===== MODE SWITCH ===== */
+
+    #tcModeBar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 1100px;
+      margin: 0 auto 18px auto;
+    }
+
+    .tc-mode-btn {
+      position: relative;
+      min-height: 44px;
+      padding: 10px 22px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.05);
+      color: inherit;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .tc-mode-btn.tc-mode-active {
+      background: linear-gradient(135deg, #7c3aed, #a855f7) !important;
+      color: #ffffff !important;
+      border-color: rgba(255,255,255,0.30);
+      box-shadow: 0 6px 20px rgba(124,58,237,0.35);
+    }
+
+    #tcMultiBadge {
+      display: none;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      vertical-align: middle;
+    }
+
+    #tcMultiWrap,
+    #tcBotWrap {
+      width: 100%;
+    }
+
+    #tcBotWrap {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ===== CARDS ===== */
+
+    .tc-bot-card {
+      padding: 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-sizing: border-box;
+    }
+
+    .tc-bot-setup-grid {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .tc-bot-field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0.85;
+    }
+
+    .tc-bot-field select {
+      min-width: 190px;
+      min-height: 40px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #15182b;
+      color: inherit;
+      border: 1px solid rgba(255,255,255,0.12);
+      outline: none;
+    }
+
+    .tc-bot-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      opacity: 0.72;
+    }
+
+    /* ===== BUTTONS ===== */
+
+    #tcBotWrap button {
+      min-height: 40px;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    #tcBotWrap button:not(:disabled):hover {
+      transform: translateY(-2px);
+      filter: brightness(1.08);
+    }
+
+    #tcBotWrap button:not(:disabled):active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    #tcBotWrap button:disabled {
+      opacity: 0.48;
+      cursor: not-allowed;
+      transform: none;
+      filter: grayscale(0.35);
+    }
+
+    #tcBotStartBtn {
+      background: linear-gradient(135deg, #dc2626, #f97316) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255,255,255,0.20) !important;
+      box-shadow: 0 5px 18px rgba(220,38,38,0.32);
+    }
+
+    #tcBotResignBtn {
+      background: linear-gradient(135deg, #475569, #64748b) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255,255,255,0.18) !important;
+    }
+
+    #tcBotNewGameBtn {
+      background: linear-gradient(135deg, #0369a1, #0ea5e9) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255,255,255,0.18) !important;
+    }
+
+    /* ===== GAME LAYOUT ===== */
+
+    .tc-bot-layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    #tcBotOpponentInfo,
+    #tcBotYouInfo {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      font-weight: 700;
+      border-radius: 8px;
+      background: #252b55;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-sizing: border-box;
+    }
+
+    #tcBotOpponentInfo .tc-info-name,
+    #tcBotYouInfo .tc-info-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #tcBotOpponentInfo .tc-info-checks,
+    #tcBotYouInfo .tc-info-checks {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    #tcBotBoard {
+      width: 600px;
+      max-width: 90vw;
+      margin: 8px 0;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.28);
+    }
+    /* ===== THREE-CHECK BOT — PLAYER PIECE GRAB CURSOR ===== */
+
+#three-check-section #tcBotBoard .piece-417db,
+#three-check-section #tcBotBoard .piece {
+  cursor: grab !important;
+}
+
+
+
+    #tcBotChecksDisplay {
+      margin-bottom: 14px;
+    }
+
+    #tcBotChecksDisplay .tc-checks-title {
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+      margin-bottom: 10px;
+    }
+
+    #tcBotMoves {
+      height: 100px;
+      max-height: 100px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      line-height: 1.6;
+      background: #0f1224;
+      padding: 8px;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+
+    #tcBotStatus {
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 768px) {
+      #tcBotWrap .tc-bot-layout { flex-direction: column; }
+      #tcBotBoard { width: 90vw; max-width: 90vw; }
+      .tc-bot-field select { width: 100%; min-width: 0; }
+      .tc-bot-field { width: 100%; }
+      #tcBotStartBtn { width: 100%; }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+// =========================================================
+// 🔀 MODE SWITCH  (Play with Bot  /  Multiplayer)
+// =========================================================
+
+function tcApplyMode() {
+
+  const multi = tcEl("tcMultiWrap");
+  const bot = tcEl("tcBotWrap");
+
+  if (multi) multi.style.display = tcMode === "multi" ? "block" : "none";
+  if (bot) bot.style.display = tcMode === "bot" ? "block" : "none";
+
+  const multiBtn = tcEl("tcModeMultiBtn");
+  const botBtn = tcEl("tcModeBotBtn");
+
+  if (multiBtn) multiBtn.classList.toggle("tc-mode-active", tcMode === "multi");
+  if (botBtn) botBtn.classList.toggle("tc-mode-active", tcMode === "bot");
+
+  tcUpdateModeBadge();
+}
+
+function tcSetMode(mode) {
+
+  tcMode = mode === "bot" ? "bot" : "multi";
+
+  tcInjectBotStyles();
+  tcApplyMode();
+
+  if (tcMode === "bot") {
+    tcBotResizeBoard();
+  } else {
+    tcResizeBoard();
+  }
+}
+
+// Small red badge on the Multiplayer button when something is
+// happening there (a challenge or a live match) while you are in bot mode.
+function tcUpdateModeBadge() {
+
+  const badge = tcEl("tcMultiBadge");
+
+  if (!badge) return;
+
+  const hasActiveRoom =
+    !!tcRoom &&
+    !tcIsTerminal(tcRoom.status);
+
+  const isChallenge =
+    hasActiveRoom &&
+    tcRoom.status === "pending" &&
+    tcRoom.challenged_id === currentUser?.id;
+
+  // 🔔 ALWAYS show the multiplayer notification
+  // regardless of the currently selected mode.
+  badge.style.display = hasActiveRoom
+    ? "inline-block"
+    : "none";
+
+  if (isChallenge) {
+    badge.textContent = "CHALLENGE!";
+  } else if (hasActiveRoom) {
+    badge.textContent = "LIVE";
+  }
+}
+
+
+// =========================================================
+// ⚙️ BOT MOVE GENERATOR (tiny, fast, self-contained)
+// chess.js is too slow to search with, so the bot thinks with this
+// generator and only hands its final move back to chess.js.
+// =========================================================
+
+const TB_FILES = "abcdefgh";
+const TB_KNIGHT_STEPS = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const TB_KING_STEPS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const TB_ROOK_DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+const TB_BISHOP_DIRS = [[-1,-1],[-1,1],[1,-1],[1,1]];
+
+function tbSqName(i) {
+  return TB_FILES[i % 8] + (8 - Math.floor(i / 8));
+}
+
+function tbSqIdx(name) {
+  const f = TB_FILES.indexOf(name[0]);
+  const rank = parseInt(name[1], 10);
+  if (f < 0 || !(rank >= 1 && rank <= 8)) return -1;
+  return (8 - rank) * 8 + f;
+}
+
+function tbColorOf(piece) {
+  return piece === piece.toUpperCase() ? "w" : "b";
+}
+
+function tbOpp(color) {
+  return color === "w" ? "b" : "w";
+}
+
+function tbKingFile(board, color) {
+  const row = color === "w" ? 7 : 0;
+  const king = color === "w" ? "K" : "k";
+
+  for (let f = 0; f < 8; f++) {
+    if (board[row * 8 + f] === king) return f;
+  }
+
+  return -1;
+}
+
+function tbParseCastling(text, board) {
+  const rights = { w: [], b: [] };
+  if (!text || text === "-") return rights;
+
+  for (const ch of text) {
+    const lower = ch.toLowerCase();
+    const color = ch === ch.toUpperCase() ? "w" : "b";
+    const row = color === "w" ? 7 : 0;
+    const rook = color === "w" ? "R" : "r";
+    const kf = tbKingFile(board, color);
+
+    if (kf < 0) continue;
+
+    let file = -1;
+
+    if (lower === "k") {
+      for (let f = 7; f > kf; f--) {
+        if (board[row * 8 + f] === rook) { file = f; break; }
+      }
+    } else if (lower === "q") {
+      for (let f = 0; f < kf; f++) {
+        if (board[row * 8 + f] === rook) { file = f; break; }
+      }
+    } else if (lower >= "a" && lower <= "h") {
+      const f = TB_FILES.indexOf(lower);
+      if (board[row * 8 + f] === rook && f !== kf) file = f;
+    }
+
+    if (file >= 0 && !rights[color].includes(file)) {
+      rights[color].push(file);
+    }
+  }
+
+  return rights;
+}
+
+function tbParseFen(fen) {
+  const parts = String(fen || "").trim().split(/\s+/);
+
+  if (parts.length < 4) throw new Error("Invalid FEN: " + fen);
+
+  const rows = parts[0].split("/");
+
+  if (rows.length !== 8) throw new Error("Invalid FEN rows: " + fen);
+
+  const board = new Array(64).fill(null);
+
+  for (let r = 0; r < 8; r++) {
+    let f = 0;
+
+    for (const ch of rows[r]) {
+      if (ch >= "1" && ch <= "8") {
+        f += parseInt(ch, 10);
+      } else if (/[pnbrqkPNBRQK]/.test(ch)) {
+        if (f > 7) throw new Error("Invalid FEN row: " + fen);
+        board[r * 8 + f] = ch;
+        f++;
+      } else {
+        throw new Error("Invalid FEN piece: " + fen);
+      }
+    }
+
+    if (f !== 8) throw new Error("Invalid FEN row length: " + fen);
+  }
+
+  const half = parseInt(parts[4], 10);
+  const full = parseInt(parts[5], 10);
+
+  return {
+    board,
+    turn: parts[1] === "b" ? "b" : "w",
+    rights: tbParseCastling(parts[2], board),
+    ep: parts[3] && parts[3] !== "-" ? tbSqIdx(parts[3]) : -1,
+    half: Number.isFinite(half) ? half : 0,
+    full: Number.isFinite(full) ? full : 1
+  };
+}
+
+function tbAttacked(board, idx, by) {
+  const r = Math.floor(idx / 8);
+  const f = idx % 8;
+
+  // pawns
+  const pawn = by === "w" ? "P" : "p";
+  const pr = by === "w" ? r + 1 : r - 1;
+
+  if (pr >= 0 && pr < 8) {
+    if (f > 0 && board[pr * 8 + f - 1] === pawn) return true;
+    if (f < 7 && board[pr * 8 + f + 1] === pawn) return true;
+  }
+
+  // knights
+  const knight = by === "w" ? "N" : "n";
+
+  for (const [dr, df] of TB_KNIGHT_STEPS) {
+    const nr = r + dr, nf = f + df;
+    if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+    if (board[nr * 8 + nf] === knight) return true;
+  }
+
+  // king
+  const king = by === "w" ? "K" : "k";
+
+  for (const [dr, df] of TB_KING_STEPS) {
+    const nr = r + dr, nf = f + df;
+    if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+    if (board[nr * 8 + nf] === king) return true;
+  }
+
+  // sliders
+  const rook = by === "w" ? "R" : "r";
+  const bishop = by === "w" ? "B" : "b";
+  const queen = by === "w" ? "Q" : "q";
+
+  for (const [dr, df] of TB_ROOK_DIRS) {
+    let nr = r + dr, nf = f + df;
+
+    while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+      const p = board[nr * 8 + nf];
+
+      if (p) {
+        if (p === rook || p === queen) return true;
+        break;
+      }
+
+      nr += dr; nf += df;
+    }
+  }
+
+  for (const [dr, df] of TB_BISHOP_DIRS) {
+    let nr = r + dr, nf = f + df;
+
+    while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+      const p = board[nr * 8 + nf];
+
+      if (p) {
+        if (p === bishop || p === queen) return true;
+        break;
+      }
+
+      nr += dr; nf += df;
+    }
+  }
+
+  return false;
+}
+
+function tbFindKing(board, color) {
+  const king = color === "w" ? "K" : "k";
+
+  for (let i = 0; i < 64; i++) {
+    if (board[i] === king) return i;
+  }
+
+  return -1;
+}
+
+function tbInCheck(pos, color) {
+  const side = color || pos.turn;
+  const k = tbFindKing(pos.board, side);
+
+  return k >= 0 && tbAttacked(pos.board, k, tbOpp(side));
+}
+
+function tbBoardAfter(board, m) {
+  const b = board.slice();
+
+  if (m.castle) {
+    const king = b[m.from];
+    const rook = b[m.to];
+
+    b[m.from] = null;
+    b[m.to] = null;
+    b[m.kingDest] = king;
+    b[m.rookDest] = rook;
+
+    return b;
+  }
+
+  const piece = b[m.from];
+
+  b[m.from] = null;
+
+  if (m.ep) {
+    b[m.to + (m.color === "w" ? 8 : -8)] = null;
+  }
+
+  b[m.to] = m.promotion
+    ? (m.color === "w" ? m.promotion.toUpperCase() : m.promotion)
+    : piece;
+
+  return b;
+}
+
+function tbPseudoMoves(pos) {
+  const { board, turn } = pos;
+  const moves = [];
+
+  for (let from = 0; from < 64; from++) {
+    const p = board[from];
+
+    if (!p || tbColorOf(p) !== turn) continue;
+
+    const type = p.toLowerCase();
+    const r = Math.floor(from / 8);
+    const f = from % 8;
+
+    if (type === "p") {
+      const dir = turn === "w" ? -1 : 1;
+      const startRow = turn === "w" ? 6 : 1;
+      const promoRow = turn === "w" ? 0 : 7;
+
+      const push = (to, extra) => {
+        const base = Object.assign(
+          { from, to, piece: "p", color: turn, capture: false, ep: false, promotion: null, castle: null, double: false },
+          extra
+        );
+
+        if (Math.floor(to / 8) === promoRow) {
+          ["q", "r", "b", "n"].forEach(promo => {
+            moves.push(Object.assign({}, base, { promotion: promo }));
+          });
+        } else {
+          moves.push(base);
+        }
+      };
+
+      const one = (r + dir) * 8 + f;
+
+      if (r + dir >= 0 && r + dir < 8 && !board[one]) {
+        push(one, {});
+
+        const two = (r + 2 * dir) * 8 + f;
+
+        if (r === startRow && !board[two]) {
+          push(two, { double: true });
+        }
+      }
+
+      for (const df of [-1, 1]) {
+        const nf = f + df;
+        const nr = r + dir;
+
+        if (nf < 0 || nf > 7 || nr < 0 || nr > 7) continue;
+
+        const to = nr * 8 + nf;
+        const target = board[to];
+
+        if (target && tbColorOf(target) !== turn) {
+          push(to, { capture: true });
+        } else if (!target && to === pos.ep) {
+          push(to, { capture: true, ep: true });
+        }
+      }
+
+      continue;
+    }
+
+    const step = (to) => {
+      const target = board[to];
+
+      if (target && tbColorOf(target) === turn) return false;
+
+      moves.push({
+        from, to, piece: type, color: turn,
+        capture: !!target, ep: false, promotion: null, castle: null, double: false
+      });
+
+      return !target;   // keep sliding only through empty squares
+    };
+
+    if (type === "n" || type === "k") {
+      const steps = type === "n" ? TB_KNIGHT_STEPS : TB_KING_STEPS;
+
+      for (const [dr, df] of steps) {
+        const nr = r + dr, nf = f + df;
+        if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+        step(nr * 8 + nf);
+      }
+
+      continue;
+    }
+
+    const dirs =
+      type === "r" ? TB_ROOK_DIRS :
+      type === "b" ? TB_BISHOP_DIRS :
+      TB_ROOK_DIRS.concat(TB_BISHOP_DIRS);
+
+    for (const [dr, df] of dirs) {
+      let nr = r + dr, nf = f + df;
+
+      while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+        if (!step(nr * 8 + nf)) break;
+        nr += dr; nf += df;
+      }
+    }
+  }
+
+  return moves;
+}
+
+function tbCastleMoves(pos) {
+  const { board, turn } = pos;
+  const files = pos.rights[turn];
+
+  if (!files.length) return [];
+
+  const row = turn === "w" ? 7 : 0;
+  const king = turn === "w" ? "K" : "k";
+  const rook = turn === "w" ? "R" : "r";
+  const opp = tbOpp(turn);
+  const kf = tbKingFile(board, turn);
+
+  if (kf < 0) return [];
+
+  const kIdx = row * 8 + kf;
+
+  if (board[kIdx] !== king) return [];
+  if (tbAttacked(board, kIdx, opp)) return [];     // cannot castle out of check
+
+  const moves = [];
+
+  for (const rf of files) {
+    const rIdx = row * 8 + rf;
+
+    if (board[rIdx] !== rook || rf === kf) continue;
+
+    const side = rf > kf ? "k" : "q";
+    const kdf = side === "k" ? 6 : 2;
+    const rdf = side === "k" ? 5 : 3;
+
+    const lo = Math.min(kf, rf, kdf, rdf);
+    const hi = Math.max(kf, rf, kdf, rdf);
+
+    // Everything between must be empty (except the castling king and rook)
+    let blocked = false;
+
+    for (let f = lo; f <= hi; f++) {
+      const idx = row * 8 + f;
+      if (idx === kIdx || idx === rIdx) continue;
+      if (board[idx]) { blocked = true; break; }
+    }
+
+    if (blocked) continue;
+
+    // The king may not pass through or land on an attacked square
+    let unsafe = false;
+
+    for (let f = Math.min(kf, kdf); f <= Math.max(kf, kdf); f++) {
+      if (tbAttacked(board, row * 8 + f, opp)) { unsafe = true; break; }
+    }
+
+    if (unsafe) continue;
+
+    const move = {
+      from: kIdx, to: rIdx, piece: "k", color: turn,
+      capture: false, ep: false, promotion: null, double: false,
+      castle: side, kingDest: row * 8 + kdf, rookDest: row * 8 + rdf
+    };
+
+    // Final position: king must not be attacked (rook leaving the rank
+    // can expose the king to a rook/queen behind it – a Chess960 special case)
+    const after = tbBoardAfter(board, move);
+
+    if (tbAttacked(after, move.kingDest, opp)) continue;
+
+    moves.push(move);
+  }
+
+  return moves;
+}
+
+function tbLegalMoves(pos) {
+
+  const board = pos.board;
+  const turn = pos.turn;
+  const opp = turn === "w" ? "b" : "w";
+
+  const kingIdx = tbFindKing(board, turn);
+  const legal = [];
+
+  for (const m of tbPseudoMoves(pos)) {
+
+    // make the move IN PLACE (fast) …
+    const movedPiece = board[m.from];
+    const targetPiece = board[m.to];
+
+    let epIdx = -1;
+    let epPiece = null;
+
+    board[m.from] = null;
+
+    if (m.ep) {
+      epIdx = m.to + (turn === "w" ? 8 : -8);
+      epPiece = board[epIdx];
+      board[epIdx] = null;
+    }
+
+    board[m.to] = m.promotion
+      ? (turn === "w" ? m.promotion.toUpperCase() : m.promotion)
+      : movedPiece;
+
+    const kingSquare = m.piece === "k" ? m.to : kingIdx;
+    const safe = kingSquare >= 0 && !tbAttacked(board, kingSquare, opp);
+
+    // … and take it back
+    board[m.to] = targetPiece;
+    board[m.from] = movedPiece;
+
+    if (epIdx >= 0) board[epIdx] = epPiece;
+
+    if (safe) legal.push(m);
+  }
+
+  return legal.concat(tbCastleMoves(pos));
+}
+
+function tbApply(pos, m) {
+  const turn = pos.turn;
+  const opp = tbOpp(turn);
+  const board = tbBoardAfter(pos.board, m);
+
+  const rights = { w: pos.rights.w.slice(), b: pos.rights.b.slice() };
+
+  if (m.piece === "k") {
+    rights[turn] = [];
+  }
+
+  const homeRow = turn === "w" ? 7 : 0;
+
+  if (m.piece === "r" && Math.floor(m.from / 8) === homeRow) {
+    rights[turn] = rights[turn].filter(f => f !== m.from % 8);
+  }
+
+  const oppHomeRow = opp === "w" ? 7 : 0;
+
+  if (m.capture && !m.ep && Math.floor(m.to / 8) === oppHomeRow) {
+    rights[opp] = rights[opp].filter(f => f !== m.to % 8);
+  }
+
+  // en-passant target is only recorded when an enemy pawn could use it
+  let ep = -1;
+
+  if (m.double) {
+    const enemyPawn = opp === "w" ? "P" : "p";
+    const toRow = Math.floor(m.to / 8);
+    const toFile = m.to % 8;
+
+    const near =
+      (toFile > 0 && board[toRow * 8 + toFile - 1] === enemyPawn) ||
+      (toFile < 7 && board[toRow * 8 + toFile + 1] === enemyPawn);
+
+    if (near) ep = (m.from + m.to) / 2;
+  }
+
+  return {
+    board,
+    turn: opp,
+    rights,
+    ep,
+    half: (m.piece === "p" || m.capture) ? 0 : pos.half + 1,
+    full: turn === "b" ? pos.full + 1 : pos.full
+  };
+}
+
+
+// =========================================================
+// 🤖 BOT BRAIN  (negamax + alpha-beta + quiescence, Three-Check aware)
+// =========================================================
+
+// Static evaluation from the point of view of the side to move.
+function tbEvaluate(pos, checks) {
+
+  const board = pos.board;
+  let score = 0;                       // + = good for White
+
+  for (let i = 0; i < 64; i++) {
+
+    const p = board[i];
+    if (!p) continue;
+
+    const white = p === p.toUpperCase();
+    const type = p.toLowerCase();
+
+    const r = i >> 3;
+    const f = i & 7;
+
+    let value = TC_BOT_VALUES[type];
+
+    const centre = 7 - (Math.abs(3.5 - r) + Math.abs(3.5 - f));   // 0..7
+
+    if (type === "n") value += centre * 6;
+    else if (type === "b") value += centre * 3;
+    else if (type === "q") value += centre;
+    else if (type === "p") {
+      value += centre * 2;
+      value += (white ? 6 - r : r - 1) * 5;          // pawn advancement
+    }
+
+    score += white ? value : -value;
+  }
+
+  // ⚡ THREE-CHECK: checks already received are a real liability.
+  score += TC_BOT_CHECK_PENALTY[Math.min(checks.b, 3)];
+  score -= TC_BOT_CHECK_PENALTY[Math.min(checks.w, 3)];
+
+  return pos.turn === "w" ? score : -score;
+}
+
+// Captures / promotions first = far more pruning.
+function tbOrder(pos, moves) {
+
+  return moves
+    .map(m => {
+      let s = 0;
+
+      if (m.capture) {
+        const victim = m.ep ? "p" : pos.board[m.to].toLowerCase();
+        s += 1000 + 10 * TC_BOT_VALUES[victim] - TC_BOT_VALUES[m.piece];
+      }
+
+      if (m.promotion) s += 800 + TC_BOT_VALUES[m.promotion];
+
+      return { m, s };
+    })
+    .sort((a, b) => b.s - a.s)
+    .map(x => x.m);
+}
+
+function tbTick() {
+  tcBotNodes++;
+
+  if (
+    tcBotDeadline &&
+    (tcBotNodes & 1023) === 0 &&
+    Date.now() > tcBotDeadline
+  ) {
+    throw TC_BOT_TIMEOUT;
+  }
+}
+
+// Plays move `m` on `pos`; returns { next, checks, win } where win = the
+// mover just delivered the THIRD check.
+function tbStep(pos, m, checks) {
+
+  const next = tbApply(pos, m);
+  const givesCheck = tbInCheck(next);
+
+  let nextChecks = checks;
+  let win = false;
+
+  if (givesCheck) {
+    nextChecks = { w: checks.w, b: checks.b };
+    nextChecks[next.turn] += 1;
+    if (nextChecks[next.turn] >= TC_MAX_CHECKS) win = true;
+  }
+
+  return { next, checks: nextChecks, win, givesCheck };
+}
+
+// Only captures / promotions (and check evasions) so the evaluation is "quiet".
+function tbQuiesce(pos, alpha, beta, checks, ply, qd) {
+
+  tbTick();
+
+  const inCheck = tbInCheck(pos);
+  let moves = tbLegalMoves(pos);
+
+  if (!moves.length) {
+    return inCheck ? -(TC_BOT_WIN - ply) : 0;
+  }
+
+  let best;
+
+  if (!inCheck) {
+
+    best = tbEvaluate(pos, checks);
+
+    if (best >= beta) return best;
+    if (best > alpha) alpha = best;
+
+    moves = moves.filter(m => m.capture || m.promotion);
+
+  } else {
+
+    if (qd >= 6) return tbEvaluate(pos, checks);
+
+    best = -Infinity;
+  }
+
+  if (qd >= 8) return best;
+
+  for (const m of tbOrder(pos, moves)) {
+
+    const step = tbStep(pos, m, checks);
+
+    const score = step.win
+      ? TC_BOT_WIN - ply
+      : -tbQuiesce(step.next, -beta, -alpha, step.checks, ply + 1, qd + 1);
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+function tbSearch(pos, depth, alpha, beta, checks, ply, quiesce) {
+
+  tbTick();
+
+  const moves = tbLegalMoves(pos);
+
+  if (!moves.length) {
+    return tbInCheck(pos) ? -(TC_BOT_WIN - ply) : 0;   // checkmate / stalemate
+  }
+
+  if (depth <= 0) {
+    return quiesce
+      ? tbQuiesce(pos, alpha, beta, checks, ply, 0)
+      : tbEvaluate(pos, checks);
+  }
+
+  let best = -Infinity;
+
+  for (const m of tbOrder(pos, moves)) {
+
+    const step = tbStep(pos, m, checks);
+
+    let score;
+
+    if (step.win) {
+      score = TC_BOT_WIN - ply;                         // third check: instant win
+    } else {
+      // Check extension – bounded, because every check raises a counter.
+      const extension = step.givesCheck ? 1 : 0;
+
+      score = -tbSearch(
+        step.next,
+        depth - 1 + extension,
+        -beta,
+        -alpha,
+        step.checks,
+        ply + 1,
+        quiesce
+      );
+    }
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+// Engine move  ->  the {from, to, promotion} chess.js understands.
+function tbToChessMove(m) {
+  return {
+    from: tbSqName(m.from),
+    to: tbSqName(m.castle ? m.kingDest : m.to),   // castling = king's destination square
+    promotion: m.promotion || undefined
+  };
+}
+
+function tcBotChooseMove() {
+
+  const cfg = TC_BOT_LEVELS[tcBotLevel] || TC_BOT_LEVELS.medium;
+  const g = tcBotChess;
+
+  const pos = tbParseFen(g.fen());
+  const rootMoves = tbLegalMoves(pos);
+
+  if (!rootMoves.length) return null;
+
+  // Easy bot sometimes just plays a random legal move.
+  if (cfg.randomChance && Math.random() < cfg.randomChance) {
+    return tbToChessMove(rootMoves[Math.floor(Math.random() * rootMoves.length)]);
+  }
+
+  const checks = { w: tcBotChecks.w, b: tcBotChecks.b };
+  const startTime = Date.now();
+
+  tcBotNodes = 0;
+  tcBotDeadline = 0;
+
+  let completed = null;
+
+  // Iterative deepening: always keep the last FULLY searched depth.
+  for (let depth = 1; depth <= cfg.maxDepth; depth++) {
+
+    tcBotDeadline = depth > 1 ? startTime + cfg.timeMs : 0;
+
+    const order = completed
+      ? completed.slice().sort((a, b) => b.score - a.score).map(x => x.move)
+      : tbOrder(pos, rootMoves);
+
+    const scored = [];
+
+    try {
+
+      for (const m of order) {
+
+        const step = tbStep(pos, m, checks);
+
+        const score = step.win
+          ? TC_BOT_WIN - 1
+          : -tbSearch(
+              step.next,
+              depth - 1 + (step.givesCheck ? 1 : 0),
+              -Infinity,
+              Infinity,
+              step.checks,
+              2,
+              cfg.quiesce
+            );
+
+        scored.push({ move: m, score });
+      }
+
+    } catch (error) {
+
+      tcBotDeadline = 0;
+
+      if (error === TC_BOT_TIMEOUT) break;
+
+      throw error;
+    }
+
+    completed = scored;
+
+    if (completed.some(s => s.score >= TC_BOT_WIN - 50)) break;   // forced win found
+    if (Date.now() - startTime > cfg.timeMs) break;
+  }
+
+  tcBotDeadline = 0;
+
+  if (!completed || !completed.length) {
+    return tbToChessMove(tbOrder(pos, rootMoves)[0]);
+  }
+
+  completed.sort((a, b) => b.score - a.score);
+
+  // Never walk into a threefold repetition when it can be avoided.
+  for (const s of completed.slice(0, 6)) {
+
+    if (Math.abs(s.score) >= TC_BOT_WIN - 100) continue;
+
+    const input = tbToChessMove(s.move);
+
+    g.move(input);
+
+    const repeated = tcInThreefold(g);
+
+    g.undo();
+
+    if (repeated) s.score = 0;
+  }
+
+  // Weaker bots get a little noise so they are beatable and varied.
+  if (cfg.noise) {
+    completed.forEach(s => {
+      if (Math.abs(s.score) < TC_BOT_WIN - 100) {
+        s.score += (Math.random() - 0.5) * 2 * cfg.noise;
+      }
+    });
+  }
+
+  completed.sort((a, b) => b.score - a.score);
+
+  const best = completed[0].score;
+
+  if (best >= TC_BOT_WIN - 100) return tbToChessMove(completed[0].move);
+
+  const pool = completed.filter(s => s.score >= best - cfg.tolerance);
+
+  return tbToChessMove(pool[Math.floor(Math.random() * pool.length)].move);
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — HELPERS
+// =========================================================
+
+function tcBotName() {
+  const level = TC_BOT_LEVELS[tcBotLevel] || TC_BOT_LEVELS.medium;
+  return `🤖 Bot (${level.label})`;
+}
+
+function tcBotPlayerName() {
+  const name =
+    typeof currentProfile !== "undefined" && currentProfile && currentProfile.username
+      ? currentProfile.username
+      : "You";
+
+  return name;
+}
+
+function tcBotBotSide() {
+  return tcBotPlayerSide === "w" ? "b" : "w";
+}
+
+function tcBotNameForSide(side) {
+  return side === tcBotPlayerSide ? tcBotPlayerName() : tcBotName();
+}
+
+function tcBotClearTimer() {
+  if (tcBotTimer) {
+    clearTimeout(tcBotTimer);
+    tcBotTimer = null;
+  }
+}
+
+function tcBotDestroyBoard() {
+  if (tcBotBoard) {
+    try {
+      if (typeof tcBotBoard.destroy === "function") tcBotBoard.destroy();
+    } catch (error) {
+      console.warn("♚ Bot board destroy failed:", error);
+    }
+  }
+
+  tcBotBoard = null;
+}
+
+function tcBotResizeBoard() {
+  const board = tcBotBoard;
+
+  if (board && typeof board.resize === "function") {
+    setTimeout(() => {
+      if (board !== tcBotBoard) return;      // destroyed / replaced meanwhile
+
+      try {
+        board.resize();
+      } catch (error) {
+        console.warn("♚ Bot board resize failed:", error);
+      }
+    }, 50);
+  }
+}
+
+function tcBotShowPanels(showGame) {
+  const setup = tcEl("tcBotSetupPanel");
+  const game = tcEl("tcBotGamePanel");
+
+  if (setup) setup.style.display = showGame ? "none" : "block";
+  if (game) game.style.display = showGame ? "block" : "none";
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — UI
+// =========================================================
+
+function tcBotRenderMoves() {
+  const container = tcEl("tcBotMoves");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const moves =
+    tcBotChess && typeof tcBotChess.history === "function"
+      ? tcBotChess.history()
+      : [];
+
+  if (!moves.length) {
+    container.textContent = "No moves yet.";
+    return;
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const row = document.createElement("span");
+    row.style.display = "inline-block";
+    row.style.marginRight = "10px";
+
+    const white = moves[i];
+    const black = moves[i + 1] || "";
+
+    row.textContent = `${i / 2 + 1}. ${white}${black ? " " + black : ""}`;
+    container.appendChild(row);
+  }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function tcBotUpdateUI() {
+
+  if (!tcBotChess) return;
+
+  const mySide = tcBotPlayerSide;
+  const botSide = tcBotBotSide();
+
+  const checks = {
+    w: Math.min(tcBotChecks.w, TC_MAX_CHECKS),
+    b: Math.min(tcBotChecks.b, TC_MAX_CHECKS)
+  };
+
+  const previous = tcBotShownChecks || { w: 0, b: 0 };
+  const playing = tcBotActive && !tcBotOver;
+
+
+  // ===== PLAYER INFO BARS (name + mini check dots) =====
+
+  const fillBar = (el, label, name, side) => {
+    if (!el) return;
+
+    el.innerHTML = "";
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "tc-info-name";
+    nameEl.textContent = `${label}: ${name || "—"}`;
+
+    const right = document.createElement("span");
+    right.className = "tc-info-checks";
+    right.title = `Checks received: ${checks[side]}/${TC_MAX_CHECKS}`;
+    right.appendChild(tcBuildDots(checks[side], previous[side], true));
+
+    el.appendChild(nameEl);
+    el.appendChild(right);
+  };
+
+  fillBar(tcEl("tcBotOpponentInfo"), "Opponent", tcBotName(), botSide);
+  fillBar(tcEl("tcBotYouInfo"), "You", tcBotPlayerName(), mySide);
+
+
+  // ===== TURN =====
+
+  const turnEl = tcEl("tcBotTurnDisplay");
+
+  if (turnEl) {
+    if (!playing) {
+      turnEl.textContent = "Turn: —";
+    } else if (tcBotChess.turn() === mySide) {
+      turnEl.textContent = `Turn: ${tcBotPlayerName()} (You)`;
+    } else {
+      turnEl.textContent = `Turn: ${tcBotName()}`;
+    }
+  }
+
+
+  // ===== CHECK COUNTER CARD =====
+
+  const host = tcEl("tcBotChecksDisplay");
+
+  if (host) {
+
+    host.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.className = "tc-checks-title";
+    title.textContent = "⚡ Checks Received";
+    host.appendChild(title);
+
+    [
+      { side: "w", icon: "♔", label: "White" },
+      { side: "b", icon: "♚", label: "Black" }
+    ].forEach(item => {
+
+      const row = document.createElement("div");
+      row.className = "tc-check-row";
+
+      if (item.side === mySide) row.classList.add("tc-me");
+
+      if (playing && checks[item.side] === TC_MAX_CHECKS - 1) {
+        row.classList.add("tc-danger");
+      }
+
+      const name = document.createElement("span");
+      name.className = "tc-check-name";
+      name.textContent =
+        `${item.icon} ${tcBotNameForSide(item.side)}` +
+        (item.side === mySide ? " (You)" : "");
+
+      const right = document.createElement("span");
+      right.className = "tc-check-right";
+
+      right.appendChild(
+        tcBuildDots(checks[item.side], previous[item.side], false)
+      );
+
+      const count = document.createElement("span");
+      count.className = "tc-count";
+      count.textContent = `${checks[item.side]}/${TC_MAX_CHECKS}`;
+      right.appendChild(count);
+
+      row.appendChild(name);
+      row.appendChild(right);
+      host.appendChild(row);
+    });
+
+    const hint = document.createElement("div");
+    hint.className = "tc-checks-hint";
+    hint.textContent =
+      `Check the enemy king ${TC_MAX_CHECKS} times to win. ` +
+      `Get checked ${TC_MAX_CHECKS} times and you lose.`;
+    host.appendChild(hint);
+
+    if (playing) {
+
+      if (checks[mySide] === TC_MAX_CHECKS - 1) {
+        const warn = document.createElement("div");
+        warn.className = "tc-checks-warn tc-warn-bad";
+        warn.textContent = "⚠️ One more check against you and you lose!";
+        host.appendChild(warn);
+      }
+
+      if (checks[botSide] === TC_MAX_CHECKS - 1) {
+        const warn = document.createElement("div");
+        warn.className = "tc-checks-warn tc-warn-good";
+        warn.textContent = "🎯 One more check and you win!";
+        host.appendChild(warn);
+      }
+    }
+  }
+
+  tcBotShownChecks = { w: checks.w, b: checks.b };
+
+
+  // ===== STATUS =====
+
+  const statusEl = tcEl("tcBotStatus");
+
+  if (statusEl) {
+    if (tcBotOver) {
+      statusEl.textContent = tcBotResult;
+    } else if (tcBotThinking) {
+      statusEl.textContent = "🤖 Bot is thinking...";
+    } else if (tcBotChess.turn() === mySide) {
+      statusEl.textContent = "♟️ Your move";
+    } else {
+      statusEl.textContent = "⏳ Bot's turn";
+    }
+  }
+
+
+  // ===== BUTTONS =====
+
+  const resign = tcEl("tcBotResignBtn");
+  if (resign) resign.disabled = !playing;
+
+  tcBotRenderMoves();
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — BOARD + PLAYER MOVES
+// =========================================================
+
+function tcBotCanMove() {
+  return !!(
+    tcBotChess &&
+    tcBotBoard &&
+    tcBotActive &&
+    !tcBotOver &&
+    !tcBotThinking &&
+    !tcBotPromotionPending &&
+    tcBotChess.turn() === tcBotPlayerSide
+  );
+}
+
+function tcBotOnDragStart(source, piece) {
+  if (!tcBotCanMove()) return false;
+
+  const sourcePiece = tcBotChess.get(source);
+  if (!sourcePiece) return false;
+
+  if (sourcePiece.color !== tcBotPlayerSide) return false;
+
+  // Nothing to drag if this piece has no legal move.
+  if (tcBotChess.moves({ square: source }).length === 0) return false;
+
+  return true;
+}
+
+function tcBotOnDrop(source, target) {
+  if (target === "offboard" || source === target) return "snapback";
+  if (!tcBotCanMove()) return "snapback";
+
+  const sourcePiece = tcBotChess.get(source);
+
+  if (!sourcePiece || sourcePiece.color !== tcBotPlayerSide) {
+    return "snapback";
+  }
+
+  const candidates = tcBotChess
+    .moves({ square: source, verbose: true })
+    .filter(move => move.to === target);
+
+  if (!candidates.length) return "snapback";
+
+  // ♟ Promotion: ask which piece, then commit.
+  if (candidates.some(move => move.promotion)) {
+
+    tcBotPromotionPending = { source, target };
+
+    tcAskPromotion(tcBotPlayerSide).then(choice => {
+
+      const pending = tcBotPromotionPending;
+      tcBotPromotionPending = null;
+
+      if (!pending || !tcBotChess || !tcBotBoard) return;
+
+      if (choice) {
+        tcBotTryMove(pending.source, pending.target, choice);
+      }
+
+      // Either show the new position or put the pawn back.
+      try {
+        tcBotBoard.position(tcBotChess.fen(), false);
+      } catch (_) {}
+    });
+
+    return undefined;
+  }
+
+  return tcBotTryMove(source, target, undefined) ? undefined : "snapback";
+}
+
+function tcBotOnSnapEnd() {
+  // While the promotion picker is open the pawn must stay where it was dropped.
+  if (tcBotPromotionPending) return;
+
+  if (tcBotBoard && tcBotChess) {
+    tcBotBoard.position(tcBotChess.fen());
+  }
+}
+
+function tcBotTryMove(source, target, promotion) {
+
+  if (!tcBotChess || tcBotOver) return false;
+  if (tcBotChess.turn() !== tcBotPlayerSide) return false;
+
+  let move = null;
+
+  try {
+    move = tcBotChess.move({ from: source, to: target, promotion });
+  } catch (error) {
+    console.warn("♚ Illegal bot-game move:", error);
+    return false;
+  }
+
+  if (!move) return false;
+
+  tcBotAfterMove(move, tcBotPlayerSide);
+  return true;
+}
+
+function tcBotInitBoard() {
+
+  if (tcBotBoard) return true;
+
+  if (typeof Chessboard === "undefined") {
+    console.error("♚ Chessboard.js is not available.");
+    return false;
+  }
+
+  const config = {
+    position: tcBotChess ? tcBotChess.fen() : "start",
+    orientation: tcBotPlayerSide === "b" ? "black" : "white",
+    draggable: true,
+    dropOffBoard: "snapback",
+    onDragStart: tcBotOnDragStart,
+    onDrop: tcBotOnDrop,
+    onSnapEnd: tcBotOnSnapEnd
+  };
+
+  if (
+    typeof getPieceThemePath === "function" &&
+    typeof currentPieceTheme !== "undefined"
+  ) {
+    config.pieceTheme = getPieceThemePath(currentPieceTheme);
+  }
+
+  tcBotBoard = Chessboard("tcBotBoard", config);
+
+  return true;
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — AFTER EVERY MOVE (player or bot)
+// =========================================================
+
+function tcBotPlaySound(move, inCheck) {
+
+  if (typeof playSound !== "function") return;
+
+  try {
+
+    const flags = (move && move.flags) || "";
+
+    // 🏰 Castling
+    if (flags.includes("k") || flags.includes("q")) {
+      playSound("castle");
+      return;
+    }
+
+    // ⚔️ Capture / en-passant
+    if (flags.includes("c") || flags.includes("e")) {
+      playSound("capture");
+      return;
+    }
+
+    // ♚ Check
+    if (inCheck) {
+      playSound("check");
+      return;
+    }
+
+    // ♟ Normal move
+    playSound("move");
+
+  } catch (error) {
+    console.warn("♚ Bot-game sound failed:", error);
+  }
+}
+
+function tcBotResultMessage(over) {
+
+  const youWon = over.winner === tcBotPlayerSide;
+  const botName = tcBotName();
+
+  if (over.reason === "resign") {
+    return `🏳️ You resigned. ${botName} wins.`;
+  }
+
+  if (over.reason === "three_check") {
+    return youWon
+      ? "⚡ Three checks! You won!"
+      : `⚡ Three checks! You were checked ${TC_MAX_CHECKS} times. ${botName} won the game.`;
+  }
+
+  if (over.reason === "checkmate") {
+    return youWon
+      ? "🏆 Checkmate! You won!"
+      : `🏆 Checkmate! ${botName} won the game.`;
+  }
+
+  const reasons = {
+    stalemate: " (stalemate)",
+    insufficient_material: " (only kings left)",
+    threefold_repetition: " (threefold repetition)",
+    fifty_move: " (50-move rule)"
+  };
+
+  return `🤝 Game drawn${reasons[over.reason] || ""}.`;
+}
+
+function tcBotAnnounce(previous, over) {
+
+  if (typeof showJoinBanner !== "function") return;
+
+  ["w", "b"].forEach(side => {
+
+    if (tcBotChecks[side] <= previous[side]) return;
+
+    // ⚡ FINAL THREE-CHECK
+    if (
+      tcBotChecks[side] >= TC_MAX_CHECKS &&
+      over &&
+      over.reason === "three_check"
+    ) {
+
+      if (side === tcBotPlayerSide) {
+        showJoinBanner(
+          `Lost! <strong>You got three checks!</strong><br>` +
+          `You lose the game — your king has been checked ${TC_MAX_CHECKS}/${TC_MAX_CHECKS} times.`,
+          false
+        );
+      } else {
+        showJoinBanner(
+          `🏆 <strong>You won by three checks!</strong><br>` +
+          `You gave ${TC_MAX_CHECKS} checks and won the game.`,
+          false
+        );
+      }
+
+      return;
+    }
+
+    // ⚠️ NORMAL CHECK — only when YOUR king was checked
+    if (over) return;
+    if (side !== tcBotPlayerSide) return;
+
+    showJoinBanner(
+      `⚠️ <strong>Check!</strong><br>` +
+      `Your king has been checked ${tcBotChecks[side]}/${TC_MAX_CHECKS} times.`,
+      false
+    );
+  });
+}
+
+function tcBotAfterMove(move, mover) {
+
+  if (!tcBotChess) return;
+
+  const previous = { w: tcBotChecks.w, b: tcBotChecks.b };
+  const sideToMove = tcBotChess.turn();
+  const inCheck = tcInCheck(tcBotChess);
+
+  // ⚡ THREE-CHECK RULE: the side to move was just checked.
+  if (inCheck) {
+    tcBotChecks[sideToMove] = Math.min(
+      tcBotChecks[sideToMove] + 1,
+      TC_MAX_CHECKS
+    );
+  }
+
+  tcBotPlaySound(move, inCheck);
+
+  let over = null;
+
+  if (inCheck && tcBotChecks[sideToMove] >= TC_MAX_CHECKS) {
+    over = { winner: mover, reason: "three_check" };
+
+  } else if (tcInCheckmate(tcBotChess)) {
+    over = { winner: mover, reason: "checkmate" };
+
+  } else if (tcInStalemate(tcBotChess)) {
+    over = { winner: null, reason: "stalemate" };
+
+  } else if (tcOnlyKingsLeft(tcBotChess.fen())) {
+    over = { winner: null, reason: "insufficient_material" };
+
+  } else if (tcInThreefold(tcBotChess)) {
+    over = { winner: null, reason: "threefold_repetition" };
+
+  } else if (tcHalfmoveClock(tcBotChess.fen()) >= 100) {
+    over = { winner: null, reason: "fifty_move" };
+  }
+
+  if (over) {
+    tcBotOver = true;
+    tcBotThinking = false;
+    tcBotActive = false;
+    tcBotResult = tcBotResultMessage(over);
+    tcBotClearTimer();
+  }
+
+  tcBotUpdateUI();
+  tcBotAnnounce(previous, over);
+
+  if (!over) {
+    tcBotScheduleMove();
+  }
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — THE BOT'S TURN
+// =========================================================
+
+function tcBotScheduleMove() {
+
+  if (!tcBotChess || tcBotOver || !tcBotActive) return;
+  if (tcBotChess.turn() === tcBotPlayerSide) return;
+
+  const gameId = tcBotGameId;
+
+  tcBotThinking = true;
+  tcBotUpdateUI();
+
+  tcBotClearTimer();
+
+  tcBotTimer = setTimeout(() => {
+
+    tcBotTimer = null;
+
+    if (gameId !== tcBotGameId || tcBotOver || !tcBotChess) return;
+
+    let chosen = null;
+
+    try {
+      chosen = tcBotChooseMove();
+    } catch (error) {
+      console.error("♚ Bot search failed, playing a random move:", error);
+
+      const legal = tcBotChess.moves({ verbose: true });
+      chosen = legal.length
+        ? legal[Math.floor(Math.random() * legal.length)]
+        : null;
+    }
+
+    if (gameId !== tcBotGameId || tcBotOver || !tcBotChess) return;
+
+    tcBotThinking = false;
+
+    if (!chosen) {
+      tcBotUpdateUI();
+      return;
+    }
+
+    let move = null;
+
+    try {
+      move = tcBotChess.move({
+        from: chosen.from,
+        to: chosen.to,
+        promotion: chosen.promotion
+      });
+    } catch (error) {
+      console.error("♚ Bot produced an illegal move:", error);
+    }
+
+    if (!move) {
+      tcBotUpdateUI();
+      return;
+    }
+
+    if (tcBotBoard) {
+      try {
+        tcBotBoard.position(tcBotChess.fen(), true);
+      } catch (_) {}
+    }
+
+    tcBotAfterMove(move, tcBotBotSide());
+
+  }, TC_BOT_THINK_DELAY);
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — START / RESIGN / NEW GAME
+// =========================================================
+
+function tcBotStartGame() {
+
+  if (typeof Chess === "undefined") {
+    alert("chess.js is not available.");
+    return;
+  }
+
+  const levelValue = tcEl("tcBotLevel")?.value || "medium";
+  const colorValue = tcEl("tcBotColor")?.value || "random";
+
+  tcBotLevel = TC_BOT_LEVELS[levelValue] ? levelValue : "medium";
+
+  tcBotPlayerSide =
+    colorValue === "w" || colorValue === "b"
+      ? colorValue
+      : (Math.random() < 0.5 ? "w" : "b");
+
+  // Fresh game (also cancels any bot move that is still scheduled).
+  tcBotGameId++;
+  tcBotClearTimer();
+  tcClosePromotion();
+  tcBotPromotionPending = null;
+  tcBotDestroyBoard();
+
+  tcBotChess = new Chess();
+  tcBotChecks = { w: 0, b: 0 };
+  tcBotShownChecks = { w: 0, b: 0 };
+  tcBotActive = true;
+  tcBotOver = false;
+  tcBotThinking = false;
+  tcBotResult = "";
+
+  tcBotShowPanels(true);
+
+  if (!tcBotInitBoard()) {
+    tcBotActive = false;
+    tcBotShowPanels(false);
+    return;
+  }
+
+  tcBotUpdateUI();
+  tcBotResizeBoard();
+
+  // Bot plays White → it moves first.
+  tcBotScheduleMove();
+}
+
+function tcBotResign() {
+
+  if (!tcBotChess || !tcBotActive || tcBotOver) return;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to resign this game?"
+  );
+
+  if (!confirmed) return;
+
+  if (!tcBotChess || !tcBotActive || tcBotOver) return;
+
+  tcBotGameId++;
+  tcBotClearTimer();
+  tcClosePromotion();
+  tcBotPromotionPending = null;
+
+  tcBotOver = true;
+  tcBotThinking = false;
+  tcBotActive = false;
+  tcBotResult = tcBotResultMessage({
+    winner: tcBotBotSide(),
+    reason: "resign"
+  });
+
+  tcBotUpdateUI();
+}
+
+// Back to the setup card (change difficulty / color, then start again).
+function tcBotNewGame() {
+
+  if (tcBotActive && !tcBotOver) {
+    const confirmed = window.confirm(
+      "Leave the current game and start a new one?"
+    );
+
+    if (!confirmed) return;
+  }
+
+  tcBotReset();
+}
+
+function tcBotReset() {
+
+  tcBotGameId++;
+  tcBotClearTimer();
+  tcClosePromotion();
+  tcBotPromotionPending = null;
+  tcBotDestroyBoard();
+
+  tcBotChess = null;
+  tcBotChecks = { w: 0, b: 0 };
+  tcBotShownChecks = { w: 0, b: 0 };
+  tcBotActive = false;
+  tcBotOver = false;
+  tcBotThinking = false;
+  tcBotResult = "";
+
+  const boardEl = tcEl("tcBotBoard");
+  if (boardEl) boardEl.innerHTML = "";
+
+  const moves = tcEl("tcBotMoves");
+  if (moves) moves.innerHTML = "";
+
+  tcBotShowPanels(false);
+}
+
+
+// =========================================================
 // ♚ INITIALIZE THREE-CHECK MULTIPLAYER
 // =========================================================
 
@@ -128669,7 +130927,9 @@ async function tcInitialize() {
   if (!currentUser) return;
 
   tcInjectStyles();
+  tcInjectBotStyles();
   tcBindEvents();
+  tcApplyMode();
   tcStartPendingPolling();
 
   const panel = tcEl("tcSupervisorPanel");
@@ -128685,6 +130945,7 @@ async function tcInitialize() {
   // Already showing a match – just make sure the board is sized.
   if (tcRoom && !tcIsTerminal(tcRoom.status)) {
     tcResizeBoard();
+    tcBotResizeBoard();
     return;
   }
 
@@ -128714,6 +130975,13 @@ function tcBindEvents() {
   tcBindOnce("tcDeclineBtn", tcDeclineChallenge);
   tcBindOnce("tcResignBtn", tcResignGame);
   tcBindOnce("tcCancelMatchBtn", tcAdminCancelMatch);
+
+  // 🔀 MODE SWITCH + 🤖 BOT
+  tcBindOnce("tcModeBotBtn", () => tcSetMode("bot"));
+  tcBindOnce("tcModeMultiBtn", () => tcSetMode("multi"));
+  tcBindOnce("tcBotStartBtn", tcBotStartGame);
+  tcBindOnce("tcBotResignBtn", tcBotResign);
+  tcBindOnce("tcBotNewGameBtn", tcBotNewGame);
 
   // 🤝 DRAW OFFER
   tcBindOnce("tcDrawBtn", tcOfferDraw);
@@ -131972,6 +134240,8 @@ async function c9ApplyRoom(room, saveSession = true) {
 
   c9PlayerName = c9GetPlayerNameForSide(side, room);
   c9OpponentName = c9GetPlayerNameForSide(side === "w" ? "b" : "w", room);
+  // 🔔 Immediately refresh the Multiplayer badge whenever room status changes.
+c9UpdateModeBadge();
 
   // 🔊 Play the move sound on BOTH players' UIs.
   if (
@@ -132432,6 +134702,1584 @@ async function c9RestoreSession() {
 }
 
 
+
+// =========================================================
+// 🤖 CHESS960 — PLAY WITH BOT
+// Same architecture as the King of the Hill bot:
+// difficulty + color + local game lifecycle + separate board.
+// The Chess960 engine above is reused directly, including
+// Chess960 castling, promotion, checkmate, stalemate, etc.
+// =========================================================
+
+const C9_BOT_LEVELS = {
+  easy:   { label: "Easy",   maxDepth: 1, timeMs: 300,  noise: 140, randomChance: 0.12, tolerance: 0 },
+  medium: { label: "Medium", maxDepth: 3, timeMs: 700,  noise: 0,   randomChance: 0,    tolerance: 20 },
+  hard:   { label: "Hard",   maxDepth: 7, timeMs: 1500, noise: 0,   randomChance: 0,    tolerance: 5 }
+};
+
+const C9_BOT_VALUES = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 0
+};
+
+const C9_BOT_MATE = 100000;
+const C9_BOT_THINK_DELAY = 450;
+
+let c9Mode = "multi";
+
+let c9BotGame = null;
+let c9BotBoard = null;
+let c9BotPlayerSide = "w";
+let c9BotLevel = "medium";
+let c9BotPositionNumber = 518;
+
+let c9BotActive = false;
+let c9BotOver = false;
+let c9BotThinking = false;
+let c9BotResult = "";
+
+let c9BotTimer = null;
+let c9BotGameId = 0;
+let c9BotPromotionPending = null;
+let c9BotPromotionResolver = null;
+
+let c9BotNodes = 0;
+let c9BotDeadline = 0;
+
+
+// =========================================================
+// 🤖 BOT STYLES
+// =========================================================
+
+function c9InjectBotStyles() {
+  if (c9El("c9BotInjectedStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "c9BotInjectedStyles";
+
+  style.textContent = `
+    #c9ModeBar {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:center;
+      align-items:center;
+      max-width:1100px;
+      margin:0 auto 18px;
+    }
+
+    .c9-mode-btn {
+      min-height:44px;
+      padding:10px 22px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.05);
+      color:inherit;
+      font-weight:800;
+      font-size:15px;
+      cursor:pointer;
+      transition:transform .16s ease, filter .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+
+    .c9-mode-btn:hover {
+      transform:translateY(-2px);
+      filter:brightness(1.08);
+    }
+
+    .c9-mode-btn:active {
+      transform:translateY(0) scale(.97);
+    }
+
+    .c9-mode-btn.c9-mode-active {
+      background:linear-gradient(135deg,#1d4ed8,#0ea5e9)!important;
+      color:#fff!important;
+      border-color:rgba(255,255,255,.30);
+      box-shadow:0 6px 20px rgba(14,165,233,.30);
+    }
+
+    #c9MultiBadge {
+      display:none;
+      padding:3px 9px;
+      border-radius:999px;
+      background:#ef4444;
+      color:#fff;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.4px;
+    }
+
+    #c9MultiWrap,
+    #c9BotWrap {
+      width:100%;
+    }
+
+    #c9BotWrap {
+      max-width:1100px;
+      margin:0 auto;
+    }
+
+    .c9-bot-card {
+      padding:16px;
+      border-radius:12px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      box-sizing:border-box;
+    }
+
+    .c9-bot-setup-grid {
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      align-items:flex-end;
+    }
+
+    .c9-bot-field label {
+      display:block;
+      margin-bottom:6px;
+      font-size:13px;
+      font-weight:700;
+      opacity:.85;
+    }
+
+    .c9-bot-field input,
+    .c9-bot-field select {
+      min-width:180px;
+      min-height:40px;
+      padding:9px 10px;
+      border-radius:8px;
+      background:#15182b;
+      color:inherit;
+      border:1px solid rgba(255,255,255,.12);
+      outline:none;
+      box-sizing:border-box;
+    }
+
+    .c9-bot-field input {
+      width:180px;
+      font-size:17px;
+      font-weight:800;
+      text-align:center;
+    }
+
+    .c9-bot-field input:focus,
+    .c9-bot-field select:focus {
+      border-color:rgba(96,165,250,.85);
+      box-shadow:0 0 0 3px rgba(96,165,250,.20);
+    }
+
+    .c9-bot-preview {
+      margin-top:12px;
+      min-height:24px;
+      font-size:14px;
+      font-weight:800;
+      opacity:.9;
+    }
+
+    .c9-bot-hint {
+      margin-top:8px;
+      font-size:13px;
+      line-height:1.5;
+      opacity:.72;
+    }
+
+    #c9BotWrap button {
+      min-height:40px;
+      padding:9px 16px;
+      border:none;
+      border-radius:9px;
+      cursor:pointer;
+      font-weight:700;
+      transition:transform .16s ease,filter .16s ease,box-shadow .16s ease;
+    }
+
+    #c9BotWrap button:not(:disabled):hover {
+      transform:translateY(-2px);
+      filter:brightness(1.08);
+    }
+
+    #c9BotWrap button:not(:disabled):active {
+      transform:translateY(0) scale(.97);
+    }
+
+    #c9BotWrap button:disabled {
+      opacity:.48;
+      cursor:not-allowed;
+      transform:none;
+      filter:grayscale(.35);
+    }
+
+    #c9BotStartBtn {
+      background:linear-gradient(135deg,#1d4ed8,#0ea5e9)!important;
+      color:#fff!important;
+      border:1px solid rgba(255,255,255,.20)!important;
+      box-shadow:0 5px 18px rgba(14,165,233,.30);
+    }
+
+    #c9BotResignBtn {
+      background:linear-gradient(135deg,#475569,#64748b)!important;
+      color:#fff!important;
+      border:1px solid rgba(255,255,255,.18)!important;
+    }
+
+    #c9BotNewGameBtn {
+      background:linear-gradient(135deg,#0369a1,#0ea5e9)!important;
+      color:#fff!important;
+      border:1px solid rgba(255,255,255,.18)!important;
+    }
+
+    .c9-bot-layout {
+      display:flex;
+      gap:24px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+
+    #c9BotOpponentInfo,
+    #c9BotYouInfo {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:8px 12px;
+      font-weight:700;
+      border-radius:8px;
+      background:#252b55;
+      border:1px solid rgba(255,255,255,.12);
+      box-sizing:border-box;
+    }
+
+    #c9BotBoard {
+      width:600px;
+      max-width:90vw;
+      margin:8px 0;
+      border-radius:10px;
+      overflow:hidden;
+      box-shadow:0 12px 35px rgba(0,0,0,.28);
+    }
+
+    /* ===== BOT BOARD — PLAYER PIECE GRAB CURSOR ===== */
+
+    #chess960-section #c9BotBoard .piece-417db,
+    #chess960-section #c9BotBoard .piece {
+      cursor:grab !important;
+    }
+
+    #chess960-section #c9BotBoard .piece-417db:active,
+    #chess960-section #c9BotBoard .piece:active {
+      cursor:grabbing !important;
+    }
+
+    /* ===== MULTIPLAYER BOARD — PLAYER PIECE GRAB CURSOR ===== */
+
+    #chess960-section #c9Board .piece-417db,
+    #chess960-section #c9Board .piece {
+      cursor:grab !important;
+    }
+
+    #chess960-section #c9Board .piece-417db:active,
+    #chess960-section #c9Board .piece:active {
+      cursor:grabbing !important;
+    }
+
+    .c9-bot-position-card {
+      margin-bottom:14px;
+      padding:10px 12px;
+      border-radius:10px;
+      background:rgba(14,165,233,.08);
+      border:1px solid rgba(14,165,233,.20);
+    }
+
+    .c9-bot-position-title {
+      font-weight:800;
+      font-size:14px;
+      margin-bottom:6px;
+    }
+
+    .c9-bot-position-number {
+      font-size:20px;
+      font-weight:900;
+      margin-bottom:7px;
+    }
+
+    .c9-bot-position-back {
+      font-size:13px;
+      letter-spacing:2px;
+      opacity:.9;
+    }
+
+    #c9BotMoves {
+      height:150px;
+      max-height:150px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      line-height:1.6;
+      background:#0f1224;
+      padding:8px;
+      border-radius:8px;
+      box-sizing:border-box;
+    }
+
+    #c9BotStatus {
+      padding:12px 16px;
+      border-radius:10px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      font-weight:700;
+    }
+
+    #c9BotPromotionOverlay {
+      position:fixed;
+      inset:0;
+      z-index:100000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,.68);
+      backdrop-filter:blur(5px);
+    }
+
+    #c9BotPromotionOverlay .c9-bot-promo-box {
+      background:linear-gradient(145deg,#111827,#1f2937);
+      color:#fff;
+      padding:22px;
+      border-radius:16px;
+      text-align:center;
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 20px 60px rgba(0,0,0,.55);
+    }
+
+    #c9BotPromotionOverlay .c9-bot-promo-row {
+      display:flex;
+      gap:10px;
+      margin:16px 0;
+      justify-content:center;
+    }
+
+    #c9BotPromotionOverlay .c9-bot-promo-row button {
+      font-size:38px;
+      width:64px;
+      height:64px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(145deg,#334155,#475569);
+      color:#fff;
+      cursor:pointer;
+    }
+
+    #c9BotPromotionOverlay .c9-bot-promo-cancel {
+      width:auto;
+      font-size:14px;
+      padding:8px 14px;
+      background:rgba(255,255,255,.08);
+      color:#fff;
+    }
+
+    @media (max-width:768px) {
+      #c9BotWrap .c9-bot-layout {
+        flex-direction:column;
+      }
+
+      #c9BotBoard {
+        width:90vw;
+        max-width:90vw;
+      }
+
+      .c9-bot-field {
+        width:100%;
+      }
+
+      .c9-bot-field input,
+      .c9-bot-field select {
+        width:100%;
+        min-width:0;
+      }
+
+      #c9BotStartBtn {
+        width:100%;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+// =========================================================
+// 🔔 MULTIPLAYER NOTIFICATION BADGE
+// =========================================================
+
+function c9UpdateModeBadge() {
+
+  const badge = c9El("c9MultiBadge");
+  if (!badge) return;
+
+  const hasActiveRoom =
+    !!c9Room &&
+    !c9IsTerminal(c9Room.status);
+
+  const isChallenge =
+    hasActiveRoom &&
+    c9Room.status === "pending" &&
+    c9Room.challenged_id === currentUser?.id;
+
+  // 🔔 ALWAYS show the multiplayer notification
+  // regardless of whether Bot or Multiplayer tab is active.
+  badge.style.display = hasActiveRoom ? "inline-block" : "none";
+
+  if (isChallenge) {
+    badge.textContent = "CHALLENGE!";
+  } else if (hasActiveRoom) {
+    badge.textContent = "LIVE";
+  }
+}
+
+
+// =========================================================
+// 🔀 MODE SWITCH
+// =========================================================
+
+function c9ApplyMode() {
+
+  const multi = c9El("c9MultiWrap");
+  const bot = c9El("c9BotWrap");
+
+  if (multi) {
+    multi.style.display =
+      c9Mode === "multi" ? "block" : "none";
+  }
+
+  if (bot) {
+    bot.style.display =
+      c9Mode === "bot" ? "block" : "none";
+  }
+
+  const multiBtn = c9El("c9ModeMultiBtn");
+  const botBtn = c9El("c9ModeBotBtn");
+
+  if (multiBtn) {
+    multiBtn.classList.toggle(
+      "c9-mode-active",
+      c9Mode === "multi"
+    );
+  }
+
+  if (botBtn) {
+    botBtn.classList.toggle(
+      "c9-mode-active",
+      c9Mode === "bot"
+    );
+  }
+
+  // 🔔 Refresh badge whenever the selected mode changes.
+  c9UpdateModeBadge();
+}
+
+function c9SetMode(mode) {
+  c9Mode = mode === "bot" ? "bot" : "multi";
+
+  c9InjectBotStyles();
+  c9ApplyMode();
+
+  if (c9Mode === "bot") {
+    c9BotResizeBoard();
+  } else {
+    c9ResizeBoard();
+  }
+}
+
+
+// =========================================================
+// 🤖 BOT SEARCH HELPERS
+// =========================================================
+
+const C9B_FILES = "abcdefgh";
+const C9B_PIECE_VALUES = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 0
+};
+
+const C9B_KING_STEPS = [
+  [-1,-1],[-1,0],[-1,1],
+  [0,-1],[0,1],
+  [1,-1],[1,0],[1,1]
+];
+
+const C9B_KNIGHT_STEPS = [
+  [-2,-1],[-2,1],[-1,-2],[-1,2],
+  [1,-2],[1,2],[2,-1],[2,1]
+];
+
+function c9bTick() {
+  c9BotNodes++;
+
+  if ((c9BotNodes & 1023) === 0 && performance.now() >= c9BotDeadline) {
+    throw new Error("C9_BOT_TIMEOUT");
+  }
+}
+
+function c9bMaterial(pos, side) {
+  let score = 0;
+
+  for (let i = 0; i < 64; i++) {
+    const p = pos.board[i];
+    if (!p) continue;
+
+    const value = C9B_PIECE_VALUES[p.toLowerCase()] || 0;
+    score += c9ColorOf(p) === side ? value : -value;
+  }
+
+  return score;
+}
+
+function c9bCenterActivity(pos, side) {
+  let score = 0;
+
+  for (let i = 0; i < 64; i++) {
+    const p = pos.board[i];
+    if (!p || c9ColorOf(p) !== side) continue;
+
+    const r = Math.floor(i / 8);
+    const f = i % 8;
+
+    const df = Math.abs(3.5 - f);
+    const dr = Math.abs(3.5 - r);
+
+    score += Math.max(0, 4 - (df + dr)) * (p.toLowerCase() === "p" ? 2 : 4);
+  }
+
+  return score;
+}
+
+function c9bKingSafety(pos, side) {
+  const king = c9FindKing(pos.board, side);
+  if (king < 0) return -10000;
+
+  const r = Math.floor(king / 8);
+  const f = king % 8;
+
+  // Keep this deliberately small: material and legal-move quality
+  // remain the main evaluation terms.
+  let score = 0;
+
+  if (r >= 2 && r <= 5 && f >= 2 && f <= 5) {
+    score -= 18;
+  }
+
+  if (c9InCheck(pos, side)) {
+    score -= 55;
+  }
+
+  return score;
+}
+
+function c9bEvaluate(pos) {
+  const side = pos.turn;
+  const opp = c9Opp(side);
+  const legal = c9LegalMoves(pos);
+
+  if (!legal.length) {
+    if (c9InCheck(pos, side)) return -C9_BOT_MATE;
+    return 0;
+  }
+
+  if (c9InsufficientMaterial(pos.board)) return 0;
+  if (pos.half >= 100) return 0;
+
+  let score = c9bMaterial(pos, side) * 1.0;
+
+  score += (c9bCenterActivity(pos, side) - c9bCenterActivity(pos, opp)) * 1.15;
+
+  score += (c9bKingSafety(pos, side) - c9bKingSafety(pos, opp)) * 0.55;
+
+  // Mobility matters, but only modestly.
+  let opponentMobility = 0;
+
+  for (const move of legal) {
+    const after = c9Apply(pos, move);
+    opponentMobility += c9LegalMoves(after).length;
+  }
+
+  score += legal.length * 2.0;
+  score -= opponentMobility * 0.15;
+
+  // Small castling bonus.
+  if (pos.rights[side]?.length) score += 3;
+  if (pos.rights[opp]?.length) score -= 3;
+
+  return score;
+}
+
+function c9bOrderMoves(pos, moves) {
+  return moves.slice().sort((a, b) => {
+
+    const score = move => {
+      let s = 0;
+
+      if (move.capture) {
+        const captured = pos.board[move.to];
+        const victim = captured
+          ? C9B_PIECE_VALUES[captured.toLowerCase()] || 0
+          : 0;
+
+        s += 1000 + victim - (C9B_PIECE_VALUES[move.piece] || 0) * 0.15;
+      }
+
+      if (move.promotion) {
+        s += 900 + (C9B_PIECE_VALUES[move.promotion] || 0);
+      }
+
+      if (move.castle) {
+        s += 120;
+      }
+
+      // Prefer central destinations very slightly.
+      const r = Math.floor(move.to / 8);
+      const f = move.to % 8;
+      s += Math.max(0, 4 - (Math.abs(3.5 - r) + Math.abs(3.5 - f))) * 4;
+
+      return s;
+    };
+
+    return score(b) - score(a);
+  });
+}
+
+function c9bNegamax(pos, depth, alpha, beta, ply) {
+  c9bTick();
+
+  const legal = c9LegalMoves(pos);
+
+  if (!legal.length) {
+    if (c9InCheck(pos, pos.turn)) {
+      return -C9_BOT_MATE + ply;
+    }
+
+    return 0;
+  }
+
+  if (depth <= 0) {
+    return c9bEvaluate(pos);
+  }
+
+  if (pos.half >= 100 || c9InsufficientMaterial(pos.board)) {
+    return 0;
+  }
+
+  let best = -Infinity;
+
+  for (const move of c9bOrderMoves(pos, legal)) {
+    c9bTick();
+
+    const child = c9Apply(pos, move);
+    const score = -c9bNegamax(child, depth - 1, -beta, -alpha, ply + 1);
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+function c9bChooseMove() {
+  if (!c9BotGame) return null;
+
+  const root = c9BotGame.pos;
+  const legal = c9bOrderMoves(root, c9BotGame.legal);
+
+  if (!legal.length) return null;
+
+  const level = C9_BOT_LEVELS[c9BotLevel] || C9_BOT_LEVELS.medium;
+
+  // Easy mode occasionally makes a simple legal choice.
+  if (
+    level.randomChance > 0 &&
+    Math.random() < level.randomChance
+  ) {
+    return legal[Math.floor(Math.random() * legal.length)];
+  }
+
+  c9BotNodes = 0;
+  c9BotDeadline = performance.now() + level.timeMs;
+
+  let bestMove = legal[0];
+  let bestScore = -Infinity;
+
+  for (let depth = 1; depth <= level.maxDepth; depth++) {
+
+    try {
+      let iterationBest = null;
+      let iterationScore = -Infinity;
+
+      for (const move of c9bOrderMoves(root, legal)) {
+        c9bTick();
+
+        const child = c9Apply(root, move);
+        const score = -c9bNegamax(
+          child,
+          depth - 1,
+          -Infinity,
+          Infinity,
+          1
+        );
+
+        let adjusted = score;
+
+        if (level.noise) {
+          adjusted += (Math.random() * 2 - 1) * level.noise;
+        }
+
+        if (
+          iterationBest === null ||
+          adjusted > iterationScore
+        ) {
+          iterationBest = move;
+          iterationScore = adjusted;
+        }
+      }
+
+      if (iterationBest) {
+        bestMove = iterationBest;
+        bestScore = iterationScore;
+      }
+
+      // A forced mate should stop iterative deepening immediately.
+      if (bestScore >= C9_BOT_MATE - 100) break;
+
+    } catch (error) {
+      if (error?.message === "C9_BOT_TIMEOUT") break;
+      throw error;
+    }
+  }
+
+  // Medium / hard can choose among very close moves.
+  if (level.tolerance > 0 && legal.length > 1) {
+
+    const scored = [];
+
+    for (const move of legal) {
+      try {
+        c9BotNodes = 0;
+        c9BotDeadline = performance.now() + Math.min(80, level.timeMs);
+
+        const child = c9Apply(root, move);
+        const score = -c9bNegamax(
+          child,
+          Math.max(0, Math.min(2, level.maxDepth - 1)),
+          -Infinity,
+          Infinity,
+          1
+        );
+
+        scored.push({ move, score });
+      } catch (_) {
+        break;
+      }
+    }
+
+    if (scored.length) {
+      const top = Math.max(...scored.map(item => item.score));
+      const candidates = scored.filter(
+        item => item.score >= top - level.tolerance
+      );
+
+      if (candidates.length) {
+        return candidates[Math.floor(Math.random() * candidates.length)].move;
+      }
+    }
+  }
+
+  return bestMove;
+}
+
+
+// =========================================================
+// 🤖 BOT UI HELPERS
+// =========================================================
+
+function c9BotName() {
+  const level = C9_BOT_LEVELS[c9BotLevel] || C9_BOT_LEVELS.medium;
+  return `🤖 Bot (${level.label})`;
+}
+
+function c9BotPlayerName() {
+  const name =
+    typeof currentProfile !== "undefined" &&
+    currentProfile &&
+    currentProfile.username
+      ? currentProfile.username
+      : "You";
+
+  return name;
+}
+
+function c9BotSide() {
+  return c9BotPlayerSide === "w" ? "b" : "w";
+}
+
+function c9BotClearTimer() {
+  if (c9BotTimer) {
+    clearTimeout(c9BotTimer);
+    c9BotTimer = null;
+  }
+}
+
+function c9BotDestroyBoard() {
+  if (c9BotBoard) {
+    try {
+      if (typeof c9BotBoard.destroy === "function") {
+        c9BotBoard.destroy();
+      }
+    } catch (error) {
+      console.warn("♟️ Chess960 bot board destroy failed:", error);
+    }
+  }
+
+  c9BotBoard = null;
+}
+
+function c9BotResizeBoard() {
+  const board = c9BotBoard;
+
+  if (board && typeof board.resize === "function") {
+    setTimeout(() => {
+      if (board !== c9BotBoard) return;
+
+      try {
+        board.resize();
+      } catch (error) {
+        console.warn("♟️ Chess960 bot board resize failed:", error);
+      }
+    }, 50);
+  }
+}
+
+function c9BotShowPanels(showGame) {
+  const setup = c9El("c9BotSetupPanel");
+  const game = c9El("c9BotGamePanel");
+
+  if (setup) setup.style.display = showGame ? "none" : "block";
+  if (game) game.style.display = showGame ? "block" : "none";
+}
+
+function c9BotUpdatePositionCard() {
+  const host = c9El("c9BotPositionDisplay");
+  if (!host) return;
+
+  const back = c9BackRank(c9BotPositionNumber);
+
+  host.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "c9-bot-position-title";
+  title.textContent = "♟️ Chess960 Position";
+  host.appendChild(title);
+
+  const number = document.createElement("div");
+  number.className = "c9-bot-position-number";
+  number.textContent = `#${c9BotPositionNumber}`;
+  host.appendChild(number);
+
+  const preview = document.createElement("div");
+  preview.className = "c9-bot-position-back";
+  preview.innerHTML = c9Figurines(back);
+  host.appendChild(preview);
+}
+
+function c9BotUpdateNumberPreview() {
+  const input = c9El("c9BotNumber");
+  const host = c9El("c9BotNumberPreview");
+
+  if (!host) return;
+
+  const raw = String(input?.value ?? "").trim();
+
+  if (!/^\d+$/.test(raw)) {
+    host.textContent = "Enter a whole number from 1 to 960.";
+    return;
+  }
+
+  const number = parseInt(raw, 10);
+
+  if (number < C9_MIN_NUMBER || number > C9_MAX_NUMBER) {
+    host.textContent = "Position number must be between 1 and 960.";
+    return;
+  }
+
+  const back = c9BackRank(number);
+
+  host.textContent =
+    `Position #${number}` +
+    (number === 518 ? " — Standard chess starting position" : ` — ${back}`);
+}
+
+function c9BotRenderMoves() {
+  const container = c9El("c9BotMoves");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const moves = c9BotGame?.sans || [];
+
+  if (!moves.length) {
+    container.textContent = "No moves yet.";
+    return;
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const row = document.createElement("span");
+
+    row.style.display = "inline-block";
+    row.style.marginRight = "10px";
+
+    row.textContent =
+      `${i / 2 + 1}. ${moves[i]}` +
+      (moves[i + 1] ? ` ${moves[i + 1]}` : "");
+
+    container.appendChild(row);
+  }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function c9BotUpdateUI() {
+  if (!c9BotGame) return;
+
+  const mySide = c9BotPlayerSide;
+
+  const opponent = c9El("c9BotOpponentInfo");
+  const you = c9El("c9BotYouInfo");
+
+  if (opponent) opponent.textContent = `Opponent: ${c9BotName()}`;
+  if (you) you.textContent = `You: ${c9BotPlayerName()}`;
+
+  const turnEl = c9El("c9BotTurnDisplay");
+
+  if (turnEl) {
+    if (!c9BotActive || c9BotOver) {
+      turnEl.textContent = "Turn: —";
+    } else if (c9BotGame.pos.turn === mySide) {
+      turnEl.textContent = `Turn: ${c9BotPlayerName()} (You)`;
+    } else {
+      turnEl.textContent = `Turn: ${c9BotName()}`;
+    }
+  }
+
+  const status = c9El("c9BotStatus");
+
+  if (status) {
+    if (c9BotOver) {
+      status.textContent = c9BotResult;
+    } else if (c9BotThinking) {
+      status.textContent = "🤖 Bot is thinking...";
+    } else if (c9BotGame.pos.turn === mySide) {
+      status.textContent = "♟️ Your move";
+    } else {
+      status.textContent = "⏳ Bot's turn";
+    }
+  }
+
+  const resign = c9El("c9BotResignBtn");
+
+  if (resign) {
+    resign.disabled = !(c9BotActive && !c9BotOver);
+  }
+
+  c9BotUpdatePositionCard();
+  c9BotRenderMoves();
+}
+
+
+// =========================================================
+// 🤖 BOT PROMOTION
+// =========================================================
+
+function c9BotClosePromotion() {
+  const overlay = c9El("c9BotPromotionOverlay");
+
+  if (overlay) overlay.remove();
+
+  if (c9BotPromotionResolver) {
+    const resolve = c9BotPromotionResolver;
+    c9BotPromotionResolver = null;
+    resolve(null);
+  }
+}
+
+function c9BotAskPromotion(color) {
+  c9BotClosePromotion();
+
+  return new Promise(resolve => {
+
+    c9BotPromotionResolver = resolve;
+
+    const symbols = color === "w"
+      ? { q: "♕", r: "♖", b: "♗", n: "♘" }
+      : { q: "♛", r: "♜", b: "♝", n: "♞" };
+
+    const overlay = document.createElement("div");
+    overlay.id = "c9BotPromotionOverlay";
+
+    overlay.innerHTML = `
+      <div class="c9-bot-promo-box">
+        <div><strong>Promote pawn to:</strong></div>
+        <div class="c9-bot-promo-row"></div>
+        <button type="button" class="c9-bot-promo-cancel">
+          Cancel move
+        </button>
+      </div>
+    `;
+
+    const row = overlay.querySelector(".c9-bot-promo-row");
+
+    ["q", "r", "b", "n"].forEach(code => {
+
+      const button = document.createElement("button");
+
+      button.type = "button";
+      button.textContent = symbols[code];
+      button.title = c9GetPieceName(code);
+
+      button.onclick = () => {
+
+        const done = c9BotPromotionResolver;
+
+        c9BotPromotionResolver = null;
+        overlay.remove();
+
+        if (done) done(code);
+      };
+
+      row.appendChild(button);
+    });
+
+    overlay.querySelector(".c9-bot-promo-cancel").onclick =
+      () => c9BotClosePromotion();
+
+    document.body.appendChild(overlay);
+  });
+}
+
+
+// =========================================================
+// 🤖 BOT BOARD + PLAYER MOVES
+// =========================================================
+
+function c9BotCanMove() {
+  return !!(
+    c9BotGame &&
+    c9BotBoard &&
+    c9BotActive &&
+    !c9BotOver &&
+    !c9BotThinking &&
+    !c9BotPromotionPending &&
+    c9BotGame.pos.turn === c9BotPlayerSide
+  );
+}
+
+function c9BotOnDragStart(source) {
+  if (!c9BotCanMove()) return false;
+
+  const from = c9SqIdx(source);
+
+  const sourcePiece = c9BotGame.pos.board[from];
+
+  if (!sourcePiece) return false;
+  if (c9ColorOf(sourcePiece) !== c9BotPlayerSide) return false;
+
+  return c9BotGame.legal.some(move => move.from === from);
+}
+
+function c9BotResolveMoves(source, target) {
+  const from = c9SqIdx(source);
+  const to = c9SqIdx(target);
+
+  return c9BotGame.legal.filter(
+    move => move.from === from && move.to === to
+  );
+}
+
+function c9BotOnDrop(source, target) {
+  if (target === "offboard" || source === target) {
+    return "snapback";
+  }
+
+  if (!c9BotCanMove()) {
+    return "snapback";
+  }
+
+  const sourcePiece = c9BotGame.pos.board[c9SqIdx(source)];
+
+  if (!sourcePiece || c9ColorOf(sourcePiece) !== c9BotPlayerSide) {
+    return "snapback";
+  }
+
+  const candidates = c9BotResolveMoves(source, target);
+
+  if (!candidates.length) {
+    return "snapback";
+  }
+
+  if (candidates.some(move => move.promotion)) {
+
+    c9BotPromotionPending = { source, target };
+
+    c9BotAskPromotion(c9BotPlayerSide).then(choice => {
+
+      const pending = c9BotPromotionPending;
+      c9BotPromotionPending = null;
+
+      if (!pending || !c9BotGame || !c9BotBoard) return;
+
+      if (choice) {
+        c9BotTryMove(pending.source, pending.target, choice);
+      }
+
+      try {
+        c9BotBoard.position(c9ToFen(c9BotGame.pos), false);
+      } catch (_) {}
+    });
+
+    return undefined;
+  }
+
+  return c9BotTryMove(source, target, undefined)
+    ? undefined
+    : "snapback";
+}
+
+function c9BotOnSnapEnd() {
+  if (c9BotPromotionPending) return;
+
+  if (c9BotBoard && c9BotGame) {
+    c9BotBoard.position(c9ToFen(c9BotGame.pos), false);
+  }
+}
+
+function c9BotTryMove(source, target, promotion) {
+  if (!c9BotGame || c9BotOver) return false;
+  if (c9BotGame.pos.turn !== c9BotPlayerSide) return false;
+
+  const candidates = c9BotResolveMoves(source, target);
+
+  const move =
+    candidates.find(
+      item => (item.promotion || "") === (promotion || "")
+    ) || null;
+
+  if (!move) return false;
+
+  try {
+    c9GamePlayMove(c9BotGame, move);
+  } catch (error) {
+    console.warn("♟️ Illegal Chess960 bot-game move:", error);
+    return false;
+  }
+
+  if (c9BotBoard) {
+    try {
+      c9BotBoard.position(c9ToFen(c9BotGame.pos), false);
+    } catch (_) {}
+  }
+
+  c9BotAfterMove(move, c9BotPlayerSide);
+
+  return true;
+}
+
+function c9BotInitBoard() {
+  if (c9BotBoard) return true;
+
+  if (typeof Chessboard === "undefined") {
+    console.error("♟️ Chessboard.js is not available.");
+    return false;
+  }
+
+  const config = {
+    position: c9BotGame ? c9ToFen(c9BotGame.pos) : "start",
+    orientation: c9BotPlayerSide === "b" ? "black" : "white",
+    draggable: true,
+    dropOffBoard: "snapback",
+    onDragStart: c9BotOnDragStart,
+    onDrop: c9BotOnDrop,
+    onSnapEnd: c9BotOnSnapEnd
+  };
+
+  if (
+    typeof getPieceThemePath === "function" &&
+    typeof currentPieceTheme !== "undefined"
+  ) {
+    config.pieceTheme = getPieceThemePath(currentPieceTheme);
+  }
+
+  c9BotBoard = Chessboard("c9BotBoard", config);
+
+  return true;
+}
+
+
+// =========================================================
+// 🤖 BOT RESULT / MOVE FLOW
+// =========================================================
+
+function c9BotPlaySound(info) {
+  if (!info || typeof playSound !== "function") return;
+
+  try {
+    if (info.castle) {
+      playSound("castle");
+      return;
+    }
+
+    if (info.capture) {
+      playSound("capture");
+      return;
+    }
+
+    if (info.check) {
+      playSound("check");
+      return;
+    }
+
+    playSound("move");
+
+  } catch (error) {
+    console.warn("♟️ Chess960 bot sound failed:", error);
+  }
+}
+
+function c9BotResultMessage(result) {
+  const youWon = result.winner === c9BotPlayerSide;
+  const botName = c9BotName();
+
+  if (result.reason === "resign") {
+    return youWon
+      ? `🏆 ${botName} resigned. You win!`
+      : `🏳️ You resigned. ${botName} wins.`;
+  }
+
+  if (result.reason === "checkmate") {
+    return youWon
+      ? "🏆 Checkmate! You won!"
+      : `🏆 Checkmate! ${botName} won the game.`;
+  }
+
+  const reasons = {
+    stalemate: " (stalemate)",
+    insufficient_material: " (insufficient material)",
+    threefold_repetition: " (threefold repetition)",
+    fifty_move: " (50-move rule)"
+  };
+
+  return `🤝 Game drawn${reasons[result.reason] || ""}.`;
+}
+
+function c9BotAnnounce(result) {
+  if (!result || typeof showJoinBanner !== "function") return;
+
+  showJoinBanner(c9BotResultMessage(result), false);
+}
+
+function c9BotAfterMove(move, mover) {
+  if (!c9BotGame) return;
+
+  const info =
+    c9BotGame.infos[c9BotGame.infos.length - 1] || null;
+
+  c9BotPlaySound(info);
+
+  const result = c9BotGame.result;
+
+  if (result?.over) {
+
+    c9BotOver = true;
+    c9BotThinking = false;
+    c9BotActive = false;
+    c9BotResult = c9BotResultMessage(result);
+
+    c9BotClearTimer();
+  }
+
+  c9BotUpdateUI();
+
+  if (result?.over) {
+    c9BotAnnounce(result);
+    return;
+  }
+
+  c9BotScheduleMove();
+}
+
+
+// =========================================================
+// 🤖 BOT TURN
+// =========================================================
+
+function c9BotScheduleMove() {
+  if (!c9BotGame || c9BotOver || !c9BotActive) return;
+  if (c9BotGame.pos.turn === c9BotPlayerSide) return;
+
+  const gameId = c9BotGameId;
+
+  c9BotThinking = true;
+  c9BotUpdateUI();
+
+  c9BotClearTimer();
+
+  c9BotTimer = setTimeout(() => {
+
+    c9BotTimer = null;
+
+    if (
+      gameId !== c9BotGameId ||
+      c9BotOver ||
+      !c9BotGame ||
+      !c9BotActive
+    ) {
+      return;
+    }
+
+    let chosen = null;
+
+    try {
+      chosen = c9bChooseMove();
+    } catch (error) {
+      console.error(
+        "♟️ Chess960 bot search failed, using a legal fallback:",
+        error
+      );
+
+      const legal = c9BotGame.legal || [];
+
+      chosen = legal.length
+        ? legal[Math.floor(Math.random() * legal.length)]
+        : null;
+    }
+
+    if (
+      gameId !== c9BotGameId ||
+      c9BotOver ||
+      !c9BotGame ||
+      !c9BotActive
+    ) {
+      return;
+    }
+
+    c9BotThinking = false;
+
+    if (!chosen) {
+      c9BotUpdateUI();
+      return;
+    }
+
+    const move = c9FindMove(
+      c9BotGame.legal,
+      chosen.from,
+      chosen.to,
+      chosen.promotion
+    );
+
+    if (!move) {
+      console.error("♟️ Chess960 bot selected a stale/illegal move.");
+      c9BotUpdateUI();
+      return;
+    }
+
+    try {
+      c9GamePlayMove(c9BotGame, move);
+    } catch (error) {
+      console.error("♟️ Chess960 bot produced an illegal move:", error);
+      c9BotUpdateUI();
+      return;
+    }
+
+    if (c9BotBoard) {
+      try {
+        c9BotBoard.position(c9ToFen(c9BotGame.pos), true);
+      } catch (_) {}
+    }
+
+    c9BotAfterMove(move, c9BotSide());
+
+  }, C9_BOT_THINK_DELAY);
+}
+
+
+// =========================================================
+// 🤖 BOT START / RESIGN / NEW GAME
+// =========================================================
+
+function c9BotStartGame() {
+
+  const rawNumber = String(c9El("c9BotNumber")?.value ?? "").trim();
+
+  if (!/^\d+$/.test(rawNumber)) {
+    alert("Please enter a whole Chess960 position number from 1 to 960.");
+    return;
+  }
+
+  const positionNumber = parseInt(rawNumber, 10);
+
+  if (
+    !Number.isInteger(positionNumber) ||
+    positionNumber < C9_MIN_NUMBER ||
+    positionNumber > C9_MAX_NUMBER
+  ) {
+    alert("Chess960 position number must be between 1 and 960.");
+    return;
+  }
+
+  const levelValue = c9El("c9BotLevel")?.value || "medium";
+  const colorValue = c9El("c9BotColor")?.value || "random";
+
+  c9BotLevel =
+    C9_BOT_LEVELS[levelValue]
+      ? levelValue
+      : "medium";
+
+  c9BotPlayerSide =
+    colorValue === "w" || colorValue === "b"
+      ? colorValue
+      : (Math.random() < 0.5 ? "w" : "b");
+
+  c9BotPositionNumber = positionNumber;
+
+  const startFen = c9StartFen(positionNumber);
+
+  if (!startFen) {
+    alert("Could not build that Chess960 position.");
+    return;
+  }
+
+  // Fresh game also cancels any previous bot search.
+  c9BotGameId++;
+  c9BotClearTimer();
+  c9BotClosePromotion();
+  c9BotPromotionPending = null;
+  c9BotDestroyBoard();
+
+  try {
+    c9BotGame = c9MakeGame(startFen, []);
+  } catch (error) {
+    console.error("♟️ Failed to create Chess960 bot game:", error);
+    alert("Could not start the Chess960 game.");
+    return;
+  }
+
+  c9BotActive = true;
+  c9BotOver = false;
+  c9BotThinking = false;
+  c9BotResult = "";
+
+  c9BotShowPanels(true);
+
+  if (!c9BotInitBoard()) {
+    c9BotActive = false;
+    c9BotShowPanels(false);
+    return;
+  }
+
+  c9BotUpdateUI();
+  c9BotResizeBoard();
+
+  // Bot is Black if the player chose White.
+  // Bot is White if the player chose Black.
+  c9BotScheduleMove();
+}
+
+function c9BotResign() {
+
+  if (!c9BotGame || !c9BotActive || c9BotOver) return;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to resign this Chess960 game?"
+  );
+
+  if (!confirmed) return;
+
+  if (!c9BotGame || !c9BotActive || c9BotOver) return;
+
+  c9BotGameId++;
+  c9BotClearTimer();
+  c9BotClosePromotion();
+  c9BotPromotionPending = null;
+
+  c9BotOver = true;
+  c9BotThinking = false;
+  c9BotActive = false;
+
+  c9BotResult = c9BotResultMessage({
+    winner: c9BotSide(),
+    reason: "resign"
+  });
+
+  c9BotUpdateUI();
+}
+
+function c9BotNewGame() {
+
+  if (c9BotActive && !c9BotOver) {
+    const confirmed = window.confirm(
+      "Leave the current game and start a new one?"
+    );
+
+    if (!confirmed) return;
+  }
+
+  c9BotReset();
+}
+
+function c9BotReset() {
+
+  c9BotGameId++;
+  c9BotClearTimer();
+  c9BotClosePromotion();
+  c9BotPromotionPending = null;
+  c9BotDestroyBoard();
+
+  c9BotGame = null;
+  c9BotActive = false;
+  c9BotOver = false;
+  c9BotThinking = false;
+  c9BotResult = "";
+
+  const boardEl = c9El("c9BotBoard");
+  if (boardEl) boardEl.innerHTML = "";
+
+  const moves = c9El("c9BotMoves");
+  if (moves) moves.innerHTML = "";
+
+  c9BotShowPanels(false);
+}
+
+
+// =========================================================
+// 🤖 BOT NUMBER PREVIEW
+// =========================================================
+
+function c9BindBotNumberPreview() {
+
+  const input = c9El("c9BotNumber");
+
+  if (!input || input.dataset.c9NumberBound) return;
+
+  input.dataset.c9NumberBound = "1";
+
+  input.addEventListener("input", c9BotUpdateNumberPreview);
+
+  c9BotUpdateNumberPreview();
+}
+
+
 // =========================================================
 // ♚ INITIALIZE CHESS960 MULTIPLAYER
 // =========================================================
@@ -132440,7 +136288,10 @@ async function c9Initialize() {
   if (!currentUser) return;
 
   c9InjectStyles();
+  c9InjectBotStyles();
   c9BindEvents();
+  c9BindBotNumberPreview();
+  c9ApplyMode();
   c9StartPendingPolling();
 
   const panel = c9El("c9SupervisorPanel");
@@ -132456,6 +136307,7 @@ async function c9Initialize() {
   // Already showing a match – just make sure the board is sized.
   if (c9Room && !c9IsTerminal(c9Room.status)) {
     c9ResizeBoard();
+    c9BotResizeBoard();
     return;
   }
 
@@ -132485,6 +136337,13 @@ function c9BindEvents() {
   c9BindOnce("c9DeclineBtn", c9DeclineChallenge);
   c9BindOnce("c9ResignBtn", c9ResignGame);
   c9BindOnce("c9CancelMatchBtn", c9AdminCancelMatch);
+
+  // 🔀 MODE SWITCH + 🤖 BOT
+  c9BindOnce("c9ModeBotBtn", () => c9SetMode("bot"));
+  c9BindOnce("c9ModeMultiBtn", () => c9SetMode("multi"));
+  c9BindOnce("c9BotStartBtn", c9BotStartGame);
+  c9BindOnce("c9BotResignBtn", c9BotResign);
+  c9BindOnce("c9BotNewGameBtn", c9BotNewGame);
 
   // 🤝 DRAW OFFER
   c9BindOnce("c9DrawBtn", c9OfferDraw);
@@ -134823,6 +138682,7 @@ async function khApplyRoom(room, saveSession = true) {
 
   khPlayerName = khGetPlayerNameForSide(side, room);
   khOpponentName = khGetPlayerNameForSide(side === "w" ? "b" : "w", room);
+  khUpdateModeBadge();
 
   // 🔊 Play the move sound on BOTH players' UIs.
   if (
@@ -135262,6 +139122,1559 @@ async function khRestoreSession() {
 }
 
 
+// 🤖 KING OF THE HILL — PLAY WITH BOT  (local game, no Supabase)
+// Separate from multiplayer. Works for students AND admins.
+// Same KOTH rule: move your king legally onto d4/e4/d5/e5 to win,
+// plus checkmate, stalemate, threefold repetition, 50-move rule and resignation.
+// =========================================================
+
+const KH_BOT_LEVELS = {
+  easy:   { label: "Easy",   maxDepth: 1, timeMs: 300,  noise: 140, randomChance: 0.12, tolerance: 0,  quiesce: false },
+  medium: { label: "Medium", maxDepth: 3, timeMs: 700,  noise: 0,   randomChance: 0,    tolerance: 20, quiesce: true  },
+  hard:   { label: "Hard",   maxDepth: 7, timeMs: 1500, noise: 0,   randomChance: 0,    tolerance: 5,  quiesce: true  }
+};
+
+const KH_BOT_VALUES = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const KH_BOT_WIN = 100000;
+const KH_BOT_TIMEOUT = { timeout: true };
+const KH_BOT_THINK_DELAY = 450;
+
+
+
+let khMode = "multi";                 // "multi" | "bot"
+
+let khBotChess = null;
+let khBotBoard = null;
+let khBotPlayerSide = "w";
+let khBotLevel = "medium";
+let khBotActive = false;
+let khBotOver = false;
+let khBotResult = "";
+let khBotThinking = false;
+let khBotTimer = null;
+let khBotGameId = 0;
+let khBotPromotionPending = null;
+
+let khBotNodes = 0;
+let khBotDeadline = 0;
+
+
+// =========================================================
+// 🤖 BOT STYLES (injected once – every selector is tc-prefixed)
+// =========================================================
+
+function khInjectBotStyles() {
+  if (khEl("khBotInjectedStyles")) return;
+  const style = document.createElement("style");
+  style.id = "khBotInjectedStyles";
+  style.textContent = `
+    #khModeBar { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:1100px; margin:0 auto 18px; }
+    .kh-mode-btn { min-height:44px; padding:10px 22px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:inherit; font-weight:800; font-size:15px; cursor:pointer; }
+    .kh-mode-btn.kh-mode-active { background:linear-gradient(135deg,#b45309,#f59e0b)!important; color:#fff!important; border-color:rgba(255,255,255,.30); box-shadow:0 6px 20px rgba(245,158,11,.30); }
+    #khMultiBadge { display:none; margin-left:8px; padding:2px 8px; border-radius:999px; background:#ef4444; color:#fff; font-size:11px; font-weight:900; letter-spacing:.4px; vertical-align:middle; }
+    #khMultiWrap,#khBotWrap { width:100%; }
+    #khBotWrap { max-width:1100px; margin:0 auto; }
+    .kh-bot-card { padding:16px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); box-sizing:border-box; }
+    .kh-bot-setup-grid { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+    .kh-bot-field label { display:block; margin-bottom:6px; font-size:13px; font-weight:700; opacity:.85; }
+    .kh-bot-field select { min-width:190px; min-height:40px; padding:9px 10px; border-radius:8px; background:#15182b; color:inherit; border:1px solid rgba(255,255,255,.12); outline:none; }
+    .kh-bot-hint { margin-top:12px; font-size:13px; line-height:1.5; opacity:.72; }
+    #khBotWrap button { min-height:40px; padding:9px 16px; border:none; border-radius:9px; cursor:pointer; font-weight:700; transition:transform .16s ease,filter .16s ease,box-shadow .16s ease; }
+    #khBotWrap button:not(:disabled):hover { transform:translateY(-2px); filter:brightness(1.08); }
+    #khBotWrap button:not(:disabled):active { transform:translateY(0) scale(.97); }
+    #khBotWrap button:disabled { opacity:.48; cursor:not-allowed; transform:none; filter:grayscale(.35); }
+    #khBotStartBtn { background:linear-gradient(135deg,#b45309,#f59e0b)!important; color:#fff!important; border:1px solid rgba(255,255,255,.20)!important; box-shadow:0 5px 18px rgba(245,158,11,.30); }
+    #khBotResignBtn { background:linear-gradient(135deg,#475569,#64748b)!important; color:#fff!important; border:1px solid rgba(255,255,255,.18)!important; }
+    #khBotNewGameBtn { background:linear-gradient(135deg,#0369a1,#0ea5e9)!important; color:#fff!important; border:1px solid rgba(255,255,255,.18)!important; }
+    .kh-bot-layout { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+    #khBotOpponentInfo,#khBotYouInfo { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; font-weight:700; border-radius:8px; background:#252b55; border:1px solid rgba(255,255,255,.12); box-sizing:border-box; }
+    #khBotBoard { width:600px; max-width:90vw; margin:8px 0; border-radius:10px; overflow:hidden; box-shadow:0 12px 35px rgba(0,0,0,.28); }
+    /* ---------- PLAYER PIECES — GRAB CURSOR ---------- */
+#king-of-the-hill-section #khBotBoard .piece-417db,
+#king-of-the-hill-section #khBotBoard .piece {
+  cursor: grab !important;
+}
+/* ---------- KOTH CENTRAL SQUARES ---------- */
+#king-of-the-hill-section #khBotBoard .square-d4,
+#king-of-the-hill-section #khBotBoard .square-e4,
+#king-of-the-hill-section #khBotBoard .square-d5,
+#king-of-the-hill-section #khBotBoard .square-e5 {
+  box-shadow: inset 0 0 0 3px rgba(245,158,11,0.75);
+}
+    #khBotHillDisplay { margin-bottom:14px; }
+    #khBotMoves { height:150px; max-height:150px; overflow-y:auto; overflow-x:hidden; line-height:1.6; background:#0f1224; padding:8px; border-radius:8px; box-sizing:border-box; }
+    #khBotStatus { padding:12px 16px; border-radius:10px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); font-weight:700; margin-bottom:10px; }
+    .kh-bot-hill-title { font-weight:800; font-size:15px; margin-bottom:10px; }
+    .kh-bot-hill-squares { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+    .kh-bot-hill-chip { padding:4px 8px; border-radius:999px; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.25); font-size:12px; font-weight:800; }
+    .kh-bot-hill-hint { font-size:12px; line-height:1.45; opacity:.72; }
+    .kh-bot-hill-warn { margin-top:9px; padding:8px 10px; border-radius:8px; font-size:12px; font-weight:800; }
+    .kh-bot-warn-good { background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.25); }
+    #khBotPromotionOverlay { position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.68); backdrop-filter:blur(5px); }
+    #khBotPromotionOverlay .kh-bot-promo-box { background:linear-gradient(145deg,#111827,#1f2937); color:#fff; padding:22px; border-radius:16px; text-align:center; border:1px solid rgba(255,255,255,.12); box-shadow:0 20px 60px rgba(0,0,0,.55); }
+    #khBotPromotionOverlay .kh-bot-promo-row { display:flex; gap:10px; margin:16px 0; justify-content:center; }
+    #khBotPromotionOverlay .kh-bot-promo-row button { font-size:38px; width:64px; height:64px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:linear-gradient(145deg,#334155,#475569); color:#fff; cursor:pointer; }
+    #khBotPromotionOverlay .kh-bot-promo-cancel { width:auto; font-size:14px; padding:8px 14px; background:rgba(255,255,255,.08); color:#fff; }
+    @media (max-width:768px) { #khBotWrap .kh-bot-layout{flex-direction:column;} #khBotBoard{width:90vw;max-width:90vw;} .kh-bot-field select{width:100%;min-width:0;} .kh-bot-field{width:100%;} #khBotStartBtn{width:100%;} }
+  `;
+  document.head.appendChild(style);
+}
+
+
+// =========================================================
+// 🔀 MODE SWITCH  (Play with Bot  /  Multiplayer)
+// =========================================================
+
+function khApplyMode() {
+  const multi = khEl("khMultiWrap");
+  const bot = khEl("khBotWrap");
+  if (multi) multi.style.display = khMode === "multi" ? "block" : "none";
+  if (bot) bot.style.display = khMode === "bot" ? "block" : "none";
+
+  const multiBtn = khEl("khModeMultiBtn");
+  const botBtn = khEl("khModeBotBtn");
+  if (multiBtn) multiBtn.classList.toggle("kh-mode-active", khMode === "multi");
+  if (botBtn) botBtn.classList.toggle("kh-mode-active", khMode === "bot");
+
+  khUpdateModeBadge();
+}
+
+function khSetMode(mode) {
+  khMode = mode === "bot" ? "bot" : "multi";
+  khInjectBotStyles();
+  khApplyMode();
+  if (khMode === "bot") khBotResizeBoard();
+  else khResizeBoard();
+}
+
+function khUpdateModeBadge() {
+
+  const badge = khEl("khMultiBadge");
+
+  if (!badge) return;
+
+  const hasActiveRoom =
+    !!khRoom &&
+    !khIsTerminal(khRoom.status);
+
+  const isChallenge =
+    hasActiveRoom &&
+    khRoom.status === "pending" &&
+    khRoom.challenged_id === currentUser?.id;
+
+  // 🔔 ALWAYS show the multiplayer notification
+  // regardless of which tab is currently selected.
+  badge.style.display = hasActiveRoom ? "inline-block" : "none";
+
+  if (isChallenge) {
+    badge.textContent = "CHALLENGE!";
+  } else if (hasActiveRoom) {
+    badge.textContent = "LIVE";
+  }
+}
+
+
+// =========================================================
+// ⚙️ BOT MOVE GENERATOR (tiny, fast, self-contained)
+// chess.js is too slow to search with, so the bot thinks with this
+// generator and only hands its final move back to chess.js.
+// =========================================================
+
+const KHB_FILES = "abcdefgh";
+const KHB_KNIGHT_STEPS = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const KHB_KING_STEPS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const KHB_ROOK_DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+const KHB_BISHOP_DIRS = [[-1,-1],[-1,1],[1,-1],[1,1]];
+
+function khbSqName(i) {
+  return KHB_FILES[i % 8] + (8 - Math.floor(i / 8));
+}
+
+function khbSqIdx(name) {
+  const f = KHB_FILES.indexOf(name[0]);
+  const rank = parseInt(name[1], 10);
+  if (f < 0 || !(rank >= 1 && rank <= 8)) return -1;
+  return (8 - rank) * 8 + f;
+}
+
+function khbColorOf(piece) {
+  return piece === piece.toUpperCase() ? "w" : "b";
+}
+
+function khbOpp(color) {
+  return color === "w" ? "b" : "w";
+}
+
+function khbKingFile(board, color) {
+  const row = color === "w" ? 7 : 0;
+  const king = color === "w" ? "K" : "k";
+
+  for (let f = 0; f < 8; f++) {
+    if (board[row * 8 + f] === king) return f;
+  }
+
+  return -1;
+}
+
+function khbParseCastling(text, board) {
+  const rights = { w: [], b: [] };
+  if (!text || text === "-") return rights;
+
+  for (const ch of text) {
+    const lower = ch.toLowerCase();
+    const color = ch === ch.toUpperCase() ? "w" : "b";
+    const row = color === "w" ? 7 : 0;
+    const rook = color === "w" ? "R" : "r";
+    const kf = khbKingFile(board, color);
+
+    if (kf < 0) continue;
+
+    let file = -1;
+
+    if (lower === "k") {
+      for (let f = 7; f > kf; f--) {
+        if (board[row * 8 + f] === rook) { file = f; break; }
+      }
+    } else if (lower === "q") {
+      for (let f = 0; f < kf; f++) {
+        if (board[row * 8 + f] === rook) { file = f; break; }
+      }
+    } else if (lower >= "a" && lower <= "h") {
+      const f = KHB_FILES.indexOf(lower);
+      if (board[row * 8 + f] === rook && f !== kf) file = f;
+    }
+
+    if (file >= 0 && !rights[color].includes(file)) {
+      rights[color].push(file);
+    }
+  }
+
+  return rights;
+}
+
+function khbParseFen(fen) {
+  const parts = String(fen || "").trim().split(/\s+/);
+
+  if (parts.length < 4) throw new Error("Invalid FEN: " + fen);
+
+  const rows = parts[0].split("/");
+
+  if (rows.length !== 8) throw new Error("Invalid FEN rows: " + fen);
+
+  const board = new Array(64).fill(null);
+
+  for (let r = 0; r < 8; r++) {
+    let f = 0;
+
+    for (const ch of rows[r]) {
+      if (ch >= "1" && ch <= "8") {
+        f += parseInt(ch, 10);
+      } else if (/[pnbrqkPNBRQK]/.test(ch)) {
+        if (f > 7) throw new Error("Invalid FEN row: " + fen);
+        board[r * 8 + f] = ch;
+        f++;
+      } else {
+        throw new Error("Invalid FEN piece: " + fen);
+      }
+    }
+
+    if (f !== 8) throw new Error("Invalid FEN row length: " + fen);
+  }
+
+  const half = parseInt(parts[4], 10);
+  const full = parseInt(parts[5], 10);
+
+  return {
+    board,
+    turn: parts[1] === "b" ? "b" : "w",
+    rights: khbParseCastling(parts[2], board),
+    ep: parts[3] && parts[3] !== "-" ? khbSqIdx(parts[3]) : -1,
+    half: Number.isFinite(half) ? half : 0,
+    full: Number.isFinite(full) ? full : 1
+  };
+}
+
+function khbAttacked(board, idx, by) {
+  const r = Math.floor(idx / 8);
+  const f = idx % 8;
+
+  // pawns
+  const pawn = by === "w" ? "P" : "p";
+  const pr = by === "w" ? r + 1 : r - 1;
+
+  if (pr >= 0 && pr < 8) {
+    if (f > 0 && board[pr * 8 + f - 1] === pawn) return true;
+    if (f < 7 && board[pr * 8 + f + 1] === pawn) return true;
+  }
+
+  // knights
+  const knight = by === "w" ? "N" : "n";
+
+  for (const [dr, df] of KHB_KNIGHT_STEPS) {
+    const nr = r + dr, nf = f + df;
+    if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+    if (board[nr * 8 + nf] === knight) return true;
+  }
+
+  // king
+  const king = by === "w" ? "K" : "k";
+
+  for (const [dr, df] of KHB_KING_STEPS) {
+    const nr = r + dr, nf = f + df;
+    if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+    if (board[nr * 8 + nf] === king) return true;
+  }
+
+  // sliders
+  const rook = by === "w" ? "R" : "r";
+  const bishop = by === "w" ? "B" : "b";
+  const queen = by === "w" ? "Q" : "q";
+
+  for (const [dr, df] of KHB_ROOK_DIRS) {
+    let nr = r + dr, nf = f + df;
+
+    while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+      const p = board[nr * 8 + nf];
+
+      if (p) {
+        if (p === rook || p === queen) return true;
+        break;
+      }
+
+      nr += dr; nf += df;
+    }
+  }
+
+  for (const [dr, df] of KHB_BISHOP_DIRS) {
+    let nr = r + dr, nf = f + df;
+
+    while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+      const p = board[nr * 8 + nf];
+
+      if (p) {
+        if (p === bishop || p === queen) return true;
+        break;
+      }
+
+      nr += dr; nf += df;
+    }
+  }
+
+  return false;
+}
+
+function khbFindKing(board, color) {
+  const king = color === "w" ? "K" : "k";
+
+  for (let i = 0; i < 64; i++) {
+    if (board[i] === king) return i;
+  }
+
+  return -1;
+}
+
+function khbInCheckPos(pos, color) {
+  const side = color || pos.turn;
+  const k = khbFindKing(pos.board, side);
+
+  return k >= 0 && khbAttacked(pos.board, k, khbOpp(side));
+}
+
+function khbBoardAfter(board, m) {
+  const b = board.slice();
+
+  if (m.castle) {
+    const king = b[m.from];
+    const rook = b[m.to];
+
+    b[m.from] = null;
+    b[m.to] = null;
+    b[m.kingDest] = king;
+    b[m.rookDest] = rook;
+
+    return b;
+  }
+
+  const piece = b[m.from];
+
+  b[m.from] = null;
+
+  if (m.ep) {
+    b[m.to + (m.color === "w" ? 8 : -8)] = null;
+  }
+
+  b[m.to] = m.promotion
+    ? (m.color === "w" ? m.promotion.toUpperCase() : m.promotion)
+    : piece;
+
+  return b;
+}
+
+function khbPseudoMoves(pos) {
+  const { board, turn } = pos;
+  const moves = [];
+
+  for (let from = 0; from < 64; from++) {
+    const p = board[from];
+
+    if (!p || khbColorOf(p) !== turn) continue;
+
+    const type = p.toLowerCase();
+    const r = Math.floor(from / 8);
+    const f = from % 8;
+
+    if (type === "p") {
+      const dir = turn === "w" ? -1 : 1;
+      const startRow = turn === "w" ? 6 : 1;
+      const promoRow = turn === "w" ? 0 : 7;
+
+      const push = (to, extra) => {
+        const base = Object.assign(
+          { from, to, piece: "p", color: turn, capture: false, ep: false, promotion: null, castle: null, double: false },
+          extra
+        );
+
+        if (Math.floor(to / 8) === promoRow) {
+          ["q", "r", "b", "n"].forEach(promo => {
+            moves.push(Object.assign({}, base, { promotion: promo }));
+          });
+        } else {
+          moves.push(base);
+        }
+      };
+
+      const one = (r + dir) * 8 + f;
+
+      if (r + dir >= 0 && r + dir < 8 && !board[one]) {
+        push(one, {});
+
+        const two = (r + 2 * dir) * 8 + f;
+
+        if (r === startRow && !board[two]) {
+          push(two, { double: true });
+        }
+      }
+
+      for (const df of [-1, 1]) {
+        const nf = f + df;
+        const nr = r + dir;
+
+        if (nf < 0 || nf > 7 || nr < 0 || nr > 7) continue;
+
+        const to = nr * 8 + nf;
+        const target = board[to];
+
+        if (target && khbColorOf(target) !== turn) {
+          push(to, { capture: true });
+        } else if (!target && to === pos.ep) {
+          push(to, { capture: true, ep: true });
+        }
+      }
+
+      continue;
+    }
+
+    const step = (to) => {
+      const target = board[to];
+
+      if (target && khbColorOf(target) === turn) return false;
+
+      moves.push({
+        from, to, piece: type, color: turn,
+        capture: !!target, ep: false, promotion: null, castle: null, double: false
+      });
+
+      return !target;   // keep sliding only through empty squares
+    };
+
+    if (type === "n" || type === "k") {
+      const steps = type === "n" ? KHB_KNIGHT_STEPS : KHB_KING_STEPS;
+
+      for (const [dr, df] of steps) {
+        const nr = r + dr, nf = f + df;
+        if (nr < 0 || nr > 7 || nf < 0 || nf > 7) continue;
+        step(nr * 8 + nf);
+      }
+
+      continue;
+    }
+
+    const dirs =
+      type === "r" ? KHB_ROOK_DIRS :
+      type === "b" ? KHB_BISHOP_DIRS :
+      KHB_ROOK_DIRS.concat(KHB_BISHOP_DIRS);
+
+    for (const [dr, df] of dirs) {
+      let nr = r + dr, nf = f + df;
+
+      while (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+        if (!step(nr * 8 + nf)) break;
+        nr += dr; nf += df;
+      }
+    }
+  }
+
+  return moves;
+}
+
+function khbCastleMoves(pos) {
+  const { board, turn } = pos;
+  const files = pos.rights[turn];
+
+  if (!files.length) return [];
+
+  const row = turn === "w" ? 7 : 0;
+  const king = turn === "w" ? "K" : "k";
+  const rook = turn === "w" ? "R" : "r";
+  const opp = khbOpp(turn);
+  const kf = khbKingFile(board, turn);
+
+  if (kf < 0) return [];
+
+  const kIdx = row * 8 + kf;
+
+  if (board[kIdx] !== king) return [];
+  if (khbAttacked(board, kIdx, opp)) return [];     // cannot castle out of check
+
+  const moves = [];
+
+  for (const rf of files) {
+    const rIdx = row * 8 + rf;
+
+    if (board[rIdx] !== rook || rf === kf) continue;
+
+    const side = rf > kf ? "k" : "q";
+    const kdf = side === "k" ? 6 : 2;
+    const rdf = side === "k" ? 5 : 3;
+
+    const lo = Math.min(kf, rf, kdf, rdf);
+    const hi = Math.max(kf, rf, kdf, rdf);
+
+    // Everything between must be empty (except the castling king and rook)
+    let blocked = false;
+
+    for (let f = lo; f <= hi; f++) {
+      const idx = row * 8 + f;
+      if (idx === kIdx || idx === rIdx) continue;
+      if (board[idx]) { blocked = true; break; }
+    }
+
+    if (blocked) continue;
+
+    // The king may not pass through or land on an attacked square
+    let unsafe = false;
+
+    for (let f = Math.min(kf, kdf); f <= Math.max(kf, kdf); f++) {
+      if (khbAttacked(board, row * 8 + f, opp)) { unsafe = true; break; }
+    }
+
+    if (unsafe) continue;
+
+    const move = {
+      from: kIdx, to: rIdx, piece: "k", color: turn,
+      capture: false, ep: false, promotion: null, double: false,
+      castle: side, kingDest: row * 8 + kdf, rookDest: row * 8 + rdf
+    };
+
+    // Final position: king must not be attacked (rook leaving the rank
+    // can expose the king to a rook/queen behind it – a Chess960 special case)
+    const after = khbBoardAfter(board, move);
+
+    if (khbAttacked(after, move.kingDest, opp)) continue;
+
+    moves.push(move);
+  }
+
+  return moves;
+}
+
+function khbLegalMoves(pos) {
+
+  const board = pos.board;
+  const turn = pos.turn;
+  const opp = turn === "w" ? "b" : "w";
+
+  const kingIdx = khbFindKing(board, turn);
+  const legal = [];
+
+  for (const m of khbPseudoMoves(pos)) {
+
+    // make the move IN PLACE (fast) …
+    const movedPiece = board[m.from];
+    const targetPiece = board[m.to];
+
+    let epIdx = -1;
+    let epPiece = null;
+
+    board[m.from] = null;
+
+    if (m.ep) {
+      epIdx = m.to + (turn === "w" ? 8 : -8);
+      epPiece = board[epIdx];
+      board[epIdx] = null;
+    }
+
+    board[m.to] = m.promotion
+      ? (turn === "w" ? m.promotion.toUpperCase() : m.promotion)
+      : movedPiece;
+
+    const kingSquare = m.piece === "k" ? m.to : kingIdx;
+    const safe = kingSquare >= 0 && !khbAttacked(board, kingSquare, opp);
+
+    // … and take it back
+    board[m.to] = targetPiece;
+    board[m.from] = movedPiece;
+
+    if (epIdx >= 0) board[epIdx] = epPiece;
+
+    if (safe) legal.push(m);
+  }
+
+  return legal.concat(khbCastleMoves(pos));
+}
+
+function khbApply(pos, m) {
+  const turn = pos.turn;
+  const opp = khbOpp(turn);
+  const board = khbBoardAfter(pos.board, m);
+
+  const rights = { w: pos.rights.w.slice(), b: pos.rights.b.slice() };
+
+  if (m.piece === "k") {
+    rights[turn] = [];
+  }
+
+  const homeRow = turn === "w" ? 7 : 0;
+
+  if (m.piece === "r" && Math.floor(m.from / 8) === homeRow) {
+    rights[turn] = rights[turn].filter(f => f !== m.from % 8);
+  }
+
+  const oppHomeRow = opp === "w" ? 7 : 0;
+
+  if (m.capture && !m.ep && Math.floor(m.to / 8) === oppHomeRow) {
+    rights[opp] = rights[opp].filter(f => f !== m.to % 8);
+  }
+
+  // en-passant target is only recorded when an enemy pawn could use it
+  let ep = -1;
+
+  if (m.double) {
+    const enemyPawn = opp === "w" ? "P" : "p";
+    const toRow = Math.floor(m.to / 8);
+    const toFile = m.to % 8;
+
+    const near =
+      (toFile > 0 && board[toRow * 8 + toFile - 1] === enemyPawn) ||
+      (toFile < 7 && board[toRow * 8 + toFile + 1] === enemyPawn);
+
+    if (near) ep = (m.from + m.to) / 2;
+  }
+
+  return {
+    board,
+    turn: opp,
+    rights,
+    ep,
+    half: (m.piece === "p" || m.capture) ? 0 : pos.half + 1,
+    full: turn === "b" ? pos.full + 1 : pos.full
+  };
+}
+
+
+// =========================================================
+// 🤖 BOT BRAIN  (negamax + alpha-beta + quiescence, Three-Check aware)
+// =========================================================
+
+// Static evaluation from the point of view of the side to move.
+function khbKingOnHillPos(pos, color) {
+  const king = color === "w" ? "K" : "k";
+  for (const square of KH_HILL_SQUARES) {
+    const idx = khbSqIdx(square);
+    if (idx >= 0 && pos.board[idx] === king) return true;
+  }
+  return false;
+}
+
+function khbDistanceToHill(pos, color) {
+  const king = khbFindKing(pos.board, color);
+  if (king < 0) return 99;
+  const r = Math.floor(king / 8);
+  const f = king % 8;
+  let best = 99;
+  for (const square of KH_HILL_SQUARES) {
+    const idx = khbSqIdx(square);
+    const tr = Math.floor(idx / 8);
+    const tf = idx % 8;
+    best = Math.min(best, Math.max(Math.abs(r - tr), Math.abs(f - tf)));
+  }
+  return best;
+}
+
+// Static evaluation from the point of view of the side to move.
+// King-of-the-Hill is heavily weighted toward a legal route to the hill,
+// while still retaining normal chess material, development and mating ideas.
+function khbEvaluate(pos) {
+  const board = pos.board;
+  let score = 0;
+
+  for (let i = 0; i < 64; i++) {
+    const p = board[i];
+    if (!p) continue;
+
+    const white = p === p.toUpperCase();
+    const type = p.toLowerCase();
+    const r = i >> 3;
+    const f = i & 7;
+    let value = KH_BOT_VALUES[type];
+    const centre = 7 - (Math.abs(3.5 - r) + Math.abs(3.5 - f));
+
+    if (type === "n") value += centre * 6;
+    else if (type === "b") value += centre * 3;
+    else if (type === "q") value += centre;
+    else if (type === "p") {
+      value += centre * 2;
+      value += (white ? 6 - r : r - 1) * 5;
+    }
+
+    score += white ? value : -value;
+  }
+
+  // KOTH objective: getting your king closer to a legal winning square is
+  // valuable, while allowing the enemy king closer is dangerous.
+  const whiteDist = khbDistanceToHill(pos, "w");
+  const blackDist = khbDistanceToHill(pos, "b");
+  score += (7 - whiteDist) * 95;
+  score -= (7 - blackDist) * 95;
+
+  // Immediate winning positions are handled by the search as well, but
+  // keeping a very large static signal improves move ordering near the hill.
+  if (khbKingOnHillPos(pos, "w")) score += KH_BOT_WIN;
+  if (khbKingOnHillPos(pos, "b")) score -= KH_BOT_WIN;
+
+  return pos.turn === "w" ? score : -score;
+}
+
+// Captures / promotions first = far more pruning.
+function khbOrder(pos, moves) {
+
+  return moves
+    .map(m => {
+      let s = 0;
+
+      if (m.capture) {
+        const victim = m.ep ? "p" : pos.board[m.to].toLowerCase();
+        s += 1000 + 10 * KH_BOT_VALUES[victim] - KH_BOT_VALUES[m.piece];
+      }
+
+      if (m.promotion) s += 800 + KH_BOT_VALUES[m.promotion];
+
+      return { m, s };
+    })
+    .sort((a, b) => b.s - a.s)
+    .map(x => x.m);
+}
+
+function khbTick() {
+  khBotNodes++;
+
+  if (
+    khBotDeadline &&
+    (khBotNodes & 1023) === 0 &&
+    Date.now() > khBotDeadline
+  ) {
+    throw KH_BOT_TIMEOUT;
+  }
+}
+
+// Plays move `m` on `pos`; returns { next, checks, win } where win = the
+// mover just delivered the THIRD check.
+// Plays move m on pos. A legal king move onto the hill is an instant win.
+function khbStep(pos, m) {
+  const mover = pos.turn;
+  const next = khbApply(pos, m);
+  const win = khbKingOnHillPos(next, mover);
+  return { next, win };
+}
+
+// Only captures / promotions (and check evasions) so the evaluation is "quiet".
+function khbQuiesce(pos, alpha, beta, ply, qd) {
+  khbTick();
+
+  const inCheck = khbInCheckPos(pos);
+  let moves = khbLegalMoves(pos);
+
+  if (!moves.length) return inCheck ? -(KH_BOT_WIN - ply) : 0;
+
+  let best = khbEvaluate(pos);
+
+  if (!inCheck) {
+    if (best >= beta) return best;
+    if (best > alpha) alpha = best;
+    moves = moves.filter(m => m.capture || m.promotion);
+  } else {
+    best = -Infinity;
+  }
+
+  if (qd >= 8) return best;
+
+  for (const m of khbOrder(pos, moves)) {
+    const step = khbStep(pos, m);
+    const score = step.win
+      ? KH_BOT_WIN - ply
+      : -khbQuiesce(step.next, -beta, -alpha, ply + 1, qd + 1);
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+function khbSearch(pos, depth, alpha, beta, ply, quiesce) {
+  khbTick();
+
+  const moves = khbLegalMoves(pos);
+  if (!moves.length) return khbInCheckPos(pos) ? -(KH_BOT_WIN - ply) : 0;
+
+  if (depth <= 0) {
+    return quiesce
+      ? khbQuiesce(pos, alpha, beta, ply, 0)
+      : khbEvaluate(pos);
+  }
+
+  let best = -Infinity;
+
+  for (const m of khbOrder(pos, moves)) {
+    const step = khbStep(pos, m);
+    const score = step.win
+      ? KH_BOT_WIN - ply
+      : -khbSearch(step.next, depth - 1, -beta, -alpha, ply + 1, quiesce);
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+function khbToChessMove(m) {
+  return {
+    from: khbSqName(m.from),
+    to: khbSqName(m.castle ? m.kingDest : m.to),
+    promotion: m.promotion || undefined
+  };
+}
+
+function khBotChooseMove() {
+  const cfg = KH_BOT_LEVELS[khBotLevel] || KH_BOT_LEVELS.medium;
+  const g = khBotChess;
+  const pos = khbParseFen(g.fen());
+  const rootMoves = khbLegalMoves(pos);
+
+  if (!rootMoves.length) return null;
+
+  // Easy bot intentionally varies and sometimes chooses any legal move.
+  if (cfg.randomChance && Math.random() < cfg.randomChance) {
+    return khbToChessMove(rootMoves[Math.floor(Math.random() * rootMoves.length)]);
+  }
+
+  const startTime = Date.now();
+  khBotNodes = 0;
+  khBotDeadline = 0;
+  let completed = null;
+
+  for (let depth = 1; depth <= cfg.maxDepth; depth++) {
+    khBotDeadline = depth > 1 ? startTime + cfg.timeMs : 0;
+
+    const order = completed
+      ? completed.slice().sort((a, b) => b.score - a.score).map(x => x.move)
+      : khbOrder(pos, rootMoves);
+
+    const scored = [];
+
+    try {
+      for (const m of order) {
+        const step = khbStep(pos, m);
+        const score = step.win
+          ? KH_BOT_WIN - 1
+          : -khbSearch(step.next, depth - 1, -Infinity, Infinity, 1, cfg.quiesce);
+        scored.push({ move: m, score });
+      }
+    } catch (error) {
+      khBotDeadline = 0;
+      if (error === KH_BOT_TIMEOUT) break;
+      throw error;
+    }
+
+    completed = scored;
+
+    if (completed.some(s => s.score >= KH_BOT_WIN - 50)) break;
+    if (Date.now() - startTime > cfg.timeMs) break;
+  }
+
+  khBotDeadline = 0;
+
+  if (!completed || !completed.length) {
+    return khbToChessMove(khbOrder(pos, rootMoves)[0]);
+  }
+
+  completed.sort((a, b) => b.score - a.score);
+
+  // Avoid unnecessary threefold repetitions when a clearly viable alternative exists.
+  for (const s of completed.slice(0, 6)) {
+    if (Math.abs(s.score) >= KH_BOT_WIN - 100) continue;
+    const input = khbToChessMove(s.move);
+    const moved = g.move(input);
+    if (moved) {
+      const repeated = khInThreefold(g);
+      g.undo();
+      if (repeated) s.score -= 80;
+    }
+  }
+
+  if (cfg.noise) {
+    completed.forEach(s => {
+      if (Math.abs(s.score) < KH_BOT_WIN - 100) {
+        s.score += (Math.random() - 0.5) * 2 * cfg.noise;
+      }
+    });
+  }
+
+  completed.sort((a, b) => b.score - a.score);
+  const best = completed[0].score;
+
+  if (best >= KH_BOT_WIN - 100) return khbToChessMove(completed[0].move);
+
+  const pool = completed.filter(s => s.score >= best - cfg.tolerance);
+  return khbToChessMove(pool[Math.floor(Math.random() * pool.length)].move);
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — HELPERS
+// =========================================================
+
+function khBotName() {
+  const level = KH_BOT_LEVELS[khBotLevel] || KH_BOT_LEVELS.medium;
+  return `🤖 Bot (${level.label})`;
+}
+
+function khBotPlayerName() {
+  const name =
+    typeof currentProfile !== "undefined" && currentProfile && currentProfile.username
+      ? currentProfile.username
+      : "You";
+
+  return name;
+}
+
+function khBotBotSide() {
+  return khBotPlayerSide === "w" ? "b" : "w";
+}
+
+function khBotNameForSide(side) {
+  return side === khBotPlayerSide ? khBotPlayerName() : khBotName();
+}
+
+function khBotClearTimer() {
+  if (khBotTimer) {
+    clearTimeout(khBotTimer);
+    khBotTimer = null;
+  }
+}
+
+function khBotDestroyBoard() {
+  if (khBotBoard) {
+    try {
+      if (typeof khBotBoard.destroy === "function") khBotBoard.destroy();
+    } catch (error) {
+      console.warn("♚ Bot board destroy failed:", error);
+    }
+  }
+
+  khBotBoard = null;
+}
+
+function khBotResizeBoard() {
+  const board = khBotBoard;
+
+  if (board && typeof board.resize === "function") {
+    setTimeout(() => {
+      if (board !== khBotBoard) return;      // destroyed / replaced meanwhile
+
+      try {
+        board.resize();
+      } catch (error) {
+        console.warn("♚ Bot board resize failed:", error);
+      }
+    }, 50);
+  }
+}
+
+function khBotShowPanels(showGame) {
+  const setup = khEl("khBotSetupPanel");
+  const game = khEl("khBotGamePanel");
+
+  if (setup) setup.style.display = showGame ? "none" : "block";
+  if (game) game.style.display = showGame ? "block" : "none";
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — UI
+// =========================================================
+
+function khBotRenderMoves() {
+  const container = khEl("khBotMoves");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const moves = khBotChess && typeof khBotChess.history === "function"
+    ? khBotChess.history() : [];
+
+  if (!moves.length) {
+    container.textContent = "No moves yet.";
+    return;
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const row = document.createElement("span");
+    row.style.display = "inline-block";
+    row.style.marginRight = "10px";
+    row.textContent = `${i / 2 + 1}. ${moves[i]}${moves[i + 1] ? " " + moves[i + 1] : ""}`;
+    container.appendChild(row);
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+function khBotUpdateHillCard() {
+  const host = khEl("khBotHillDisplay");
+  if (!host || !khBotChess) return;
+  host.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "kh-bot-hill-title";
+  title.textContent = "⛰️ King of the Hill";
+  host.appendChild(title);
+
+  const squares = document.createElement("div");
+  squares.className = "kh-bot-hill-squares";
+  KH_HILL_SQUARES.forEach(square => {
+    const chip = document.createElement("span");
+    chip.className = "kh-bot-hill-chip";
+    chip.textContent = square;
+    squares.appendChild(chip);
+  });
+  host.appendChild(squares);
+
+  const hint = document.createElement("div");
+  hint.className = "kh-bot-hill-hint";
+  hint.textContent = "Move your KING onto d4, e4, d5 or e5 to win instantly.";
+  host.appendChild(hint);
+
+  if (khBotActive && !khBotOver) {
+    const mySide = khBotPlayerSide;
+    const myMoves = khBotChess.turn() === mySide ? khBotChess.moves({ verbose: true }) : [];
+    const canWinNow = myMoves.some(m => m.piece === "k" && KH_HILL_SQUARES.includes(m.to));
+    if (canWinNow) {
+      const warn = document.createElement("div");
+      warn.className = "kh-bot-hill-warn kh-bot-warn-good";
+      warn.textContent = "🎯 Your king can reach the hill — move it now!";
+      host.appendChild(warn);
+    }
+  }
+}
+
+function khBotUpdateUI() {
+  if (!khBotChess) return;
+
+  const mySide = khBotPlayerSide;
+  const botSide = khBotBotSide();
+  const playing = khBotActive && !khBotOver;
+
+  const opponent = khEl("khBotOpponentInfo");
+  const you = khEl("khBotYouInfo");
+  if (opponent) opponent.textContent = `Opponent: ${khBotName()}`;
+  if (you) you.textContent = `You: ${khBotPlayerName()}`;
+
+  const turnEl = khEl("khBotTurnDisplay");
+  if (turnEl) {
+    if (!playing) turnEl.textContent = "Turn: —";
+    else if (khBotChess.turn() === mySide) turnEl.textContent = `Turn: ${khBotPlayerName()} (You)`;
+    else turnEl.textContent = `Turn: ${khBotName()}`;
+  }
+
+  khBotUpdateHillCard();
+
+  const statusEl = khEl("khBotStatus");
+  if (statusEl) {
+    if (khBotOver) statusEl.textContent = khBotResult;
+    else if (khBotThinking) statusEl.textContent = "🤖 Bot is thinking...";
+    else if (khBotChess.turn() === mySide) statusEl.textContent = "♟️ Your move";
+    else statusEl.textContent = "⏳ Bot's turn";
+  }
+
+  const resign = khEl("khBotResignBtn");
+  if (resign) resign.disabled = !playing;
+  khBotRenderMoves();
+}
+
+
+function khBotClosePromotion() {
+  const overlay = khEl("khBotPromotionOverlay");
+  if (overlay) overlay.remove();
+  if (khBotPromotionResolver) {
+    const resolve = khBotPromotionResolver;
+    khBotPromotionResolver = null;
+    resolve(null);
+  }
+}
+
+let khBotPromotionResolver = null;
+
+function khBotAskPromotion(color) {
+  khBotClosePromotion();
+  return new Promise(resolve => {
+    khBotPromotionResolver = resolve;
+    const symbols = color === "w"
+      ? { q: "♕", r: "♖", b: "♗", n: "♘" }
+      : { q: "♛", r: "♜", b: "♝", n: "♞" };
+
+    const overlay = document.createElement("div");
+    overlay.id = "khBotPromotionOverlay";
+    overlay.innerHTML = `
+      <div class="kh-bot-promo-box">
+        <div><strong>Promote pawn to:</strong></div>
+        <div class="kh-bot-promo-row"></div>
+        <button type="button" class="kh-bot-promo-cancel">Cancel move</button>
+      </div>`;
+
+    const row = overlay.querySelector(".kh-bot-promo-row");
+    ["q", "r", "b", "n"].forEach(code => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = symbols[code];
+      button.title = khGetPieceName(code);
+      button.onclick = () => {
+        const done = khBotPromotionResolver;
+        khBotPromotionResolver = null;
+        overlay.remove();
+        if (done) done(code);
+      };
+      row.appendChild(button);
+    });
+
+    overlay.querySelector(".kh-bot-promo-cancel").onclick = () => khBotClosePromotion();
+    document.body.appendChild(overlay);
+  });
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — BOARD + PLAYER MOVES
+// =========================================================
+
+function khBotCanMove() {
+  return !!(
+    khBotChess &&
+    khBotBoard &&
+    khBotActive &&
+    !khBotOver &&
+    !khBotThinking &&
+    !khBotPromotionPending &&
+    khBotChess.turn() === khBotPlayerSide
+  );
+}
+
+function khBotOnDragStart(source, piece) {
+  if (!khBotCanMove()) return false;
+
+  const sourcePiece = khBotChess.get(source);
+  if (!sourcePiece) return false;
+
+  if (sourcePiece.color !== khBotPlayerSide) return false;
+
+  // Nothing to drag if this piece has no legal move.
+  if (khBotChess.moves({ square: source }).length === 0) return false;
+
+  return true;
+}
+
+function khBotOnDrop(source, target) {
+  if (target === "offboard" || source === target) return "snapback";
+  if (!khBotCanMove()) return "snapback";
+
+  const sourcePiece = khBotChess.get(source);
+
+  if (!sourcePiece || sourcePiece.color !== khBotPlayerSide) {
+    return "snapback";
+  }
+
+  const candidates = khBotChess
+    .moves({ square: source, verbose: true })
+    .filter(move => move.to === target);
+
+  if (!candidates.length) return "snapback";
+
+  // ♟ Promotion: ask which piece, then commit.
+  if (candidates.some(move => move.promotion)) {
+
+    khBotPromotionPending = { source, target };
+
+    khBotAskPromotion(khBotPlayerSide).then(choice => {
+
+      const pending = khBotPromotionPending;
+      khBotPromotionPending = null;
+
+      if (!pending || !khBotChess || !khBotBoard) return;
+
+      if (choice) {
+        khBotTryMove(pending.source, pending.target, choice);
+      }
+
+      // Either show the new position or put the pawn back.
+      try {
+        khBotBoard.position(khBotChess.fen(), false);
+      } catch (_) {}
+    });
+
+    return undefined;
+  }
+
+  return khBotTryMove(source, target, undefined) ? undefined : "snapback";
+}
+
+function khBotOnSnapEnd() {
+  // While the promotion picker is open the pawn must stay where it was dropped.
+  if (khBotPromotionPending) return;
+
+  if (khBotBoard && khBotChess) {
+    khBotBoard.position(khBotChess.fen());
+  }
+}
+
+function khBotTryMove(source, target, promotion) {
+
+  if (!khBotChess || khBotOver) return false;
+  if (khBotChess.turn() !== khBotPlayerSide) return false;
+
+  let move = null;
+
+  try {
+    move = khBotChess.move({ from: source, to: target, promotion });
+  } catch (error) {
+    console.warn("♚ Illegal bot-game move:", error);
+    return false;
+  }
+
+  if (!move) return false;
+
+  khBotAfterMove(move, khBotPlayerSide);
+  return true;
+}
+
+function khBotInitBoard() {
+
+  if (khBotBoard) return true;
+
+  if (typeof Chessboard === "undefined") {
+    console.error("♚ Chessboard.js is not available.");
+    return false;
+  }
+
+  const config = {
+    position: khBotChess ? khBotChess.fen() : "start",
+    orientation: khBotPlayerSide === "b" ? "black" : "white",
+    draggable: true,
+    dropOffBoard: "snapback",
+    onDragStart: khBotOnDragStart,
+    onDrop: khBotOnDrop,
+    onSnapEnd: khBotOnSnapEnd
+  };
+
+  if (
+    typeof getPieceThemePath === "function" &&
+    typeof currentPieceTheme !== "undefined"
+  ) {
+    config.pieceTheme = getPieceThemePath(currentPieceTheme);
+  }
+
+  khBotBoard = Chessboard("khBotBoard", config);
+
+  return true;
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — AFTER EVERY MOVE (player or bot)
+// =========================================================
+
+function khBotPlaySound(move, inCheck) {
+  if (typeof playSound !== "function") return;
+  try {
+    const flags = (move && move.flags) || "";
+    if (flags.includes("k") || flags.includes("q")) return playSound("castle");
+    if (flags.includes("c") || flags.includes("e")) return playSound("capture");
+    if (inCheck) return playSound("check");
+    playSound("move");
+  } catch (error) {
+    console.warn("♚ King of the Hill bot sound failed:", error);
+  }
+}
+
+function khBotResultMessage(over) {
+  const youWon = over.winner === khBotPlayerSide;
+  const botName = khBotName();
+
+  if (over.reason === "resign") return `🏳️ You resigned. ${botName} wins.`;
+  if (over.reason === "king_of_the_hill") {
+    return youWon
+      ? "⛰️ King of the Hill! Your king reached the center. You won!"
+      : `⛰️ King of the Hill! ${botName}'s king reached the center. ${botName} won the game.`;
+  }
+  if (over.reason === "checkmate") return youWon ? "🏆 Checkmate! You won!" : `🏆 Checkmate! ${botName} won the game.`;
+
+  const reasons = {
+    stalemate: " (stalemate)",
+    threefold_repetition: " (threefold repetition)",
+    fifty_move: " (50-move rule)"
+  };
+  return `🤝 Game drawn${reasons[over.reason] || ""}.`;
+}
+
+function khBotAnnounce(over) {
+  if (!over || typeof showJoinBanner !== "function") return;
+  showJoinBanner(khBotResultMessage(over), false);
+}
+
+function khBotAfterMove(move, mover) {
+  if (!khBotChess) return;
+
+  const inCheck = khInCheck(khBotChess);
+  khBotPlaySound(move, inCheck);
+
+  let over = null;
+
+  if (khKingOnHill(khBotChess, mover)) {
+    over = { winner: mover, reason: "king_of_the_hill" };
+  } else if (khInCheckmate(khBotChess)) {
+    over = { winner: mover, reason: "checkmate" };
+  } else if (khInStalemate(khBotChess)) {
+    over = { winner: null, reason: "stalemate" };
+  } else if (khInThreefold(khBotChess)) {
+    over = { winner: null, reason: "threefold_repetition" };
+  } else if (khHalfmoveClock(khBotChess.fen()) >= 100) {
+    over = { winner: null, reason: "fifty_move" };
+  }
+
+  if (over) {
+    khBotOver = true;
+    khBotThinking = false;
+    khBotActive = false;
+    khBotResult = khBotResultMessage(over);
+    khBotClearTimer();
+  }
+
+  khBotUpdateUI();
+  if (over) khBotAnnounce(over);
+  if (!over) khBotScheduleMove();
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — THE BOT'S TURN
+// =========================================================
+
+function khBotScheduleMove() {
+
+  if (!khBotChess || khBotOver || !khBotActive) return;
+  if (khBotChess.turn() === khBotPlayerSide) return;
+
+  const gameId = khBotGameId;
+
+  khBotThinking = true;
+  khBotUpdateUI();
+
+  khBotClearTimer();
+
+  khBotTimer = setTimeout(() => {
+
+    khBotTimer = null;
+
+    if (gameId !== khBotGameId || khBotOver || !khBotChess) return;
+
+    let chosen = null;
+
+    try {
+      chosen = khBotChooseMove();
+    } catch (error) {
+      console.error("♚ Bot search failed, playing a random move:", error);
+
+      const legal = khBotChess.moves({ verbose: true });
+      chosen = legal.length
+        ? legal[Math.floor(Math.random() * legal.length)]
+        : null;
+    }
+
+    if (gameId !== khBotGameId || khBotOver || !khBotChess) return;
+
+    khBotThinking = false;
+
+    if (!chosen) {
+      khBotUpdateUI();
+      return;
+    }
+
+    let move = null;
+
+    try {
+      move = khBotChess.move({
+        from: chosen.from,
+        to: chosen.to,
+        promotion: chosen.promotion
+      });
+    } catch (error) {
+      console.error("♚ Bot produced an illegal move:", error);
+    }
+
+    if (!move) {
+      khBotUpdateUI();
+      return;
+    }
+
+    if (khBotBoard) {
+      try {
+        khBotBoard.position(khBotChess.fen(), true);
+      } catch (_) {}
+    }
+
+    khBotAfterMove(move, khBotBotSide());
+
+  }, KH_BOT_THINK_DELAY);
+}
+
+
+// =========================================================
+// 🤖 BOT GAME — START / RESIGN / NEW GAME
+// =========================================================
+
+function khBotStartGame() {
+
+  if (typeof Chess === "undefined") {
+    alert("chess.js is not available.");
+    return;
+  }
+
+  const levelValue = khEl("khBotLevel")?.value || "medium";
+  const colorValue = khEl("khBotColor")?.value || "random";
+
+  khBotLevel = KH_BOT_LEVELS[levelValue] ? levelValue : "medium";
+
+  khBotPlayerSide =
+    colorValue === "w" || colorValue === "b"
+      ? colorValue
+      : (Math.random() < 0.5 ? "w" : "b");
+
+  // Fresh game (also cancels any bot move that is still scheduled).
+  khBotGameId++;
+  khBotClearTimer();
+  khBotClosePromotion();
+  khBotPromotionPending = null;
+  khBotDestroyBoard();
+
+  khBotChess = new Chess();
+  khBotActive = true;
+  khBotOver = false;
+  khBotThinking = false;
+  khBotResult = "";
+
+  khBotShowPanels(true);
+
+  if (!khBotInitBoard()) {
+    khBotActive = false;
+    khBotShowPanels(false);
+    return;
+  }
+
+  khBotUpdateUI();
+  khBotResizeBoard();
+
+  // Bot plays White → it moves first.
+  khBotScheduleMove();
+}
+
+function khBotResign() {
+
+  if (!khBotChess || !khBotActive || khBotOver) return;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to resign this game?"
+  );
+
+  if (!confirmed) return;
+
+  if (!khBotChess || !khBotActive || khBotOver) return;
+
+  khBotGameId++;
+  khBotClearTimer();
+  khBotClosePromotion();
+  khBotPromotionPending = null;
+
+  khBotOver = true;
+  khBotThinking = false;
+  khBotActive = false;
+  khBotResult = khBotResultMessage({
+    winner: khBotBotSide(),
+    reason: "resign"
+  });
+
+  khBotUpdateUI();
+}
+
+// Back to the setup card (change difficulty / color, then start again).
+function khBotNewGame() {
+
+  if (khBotActive && !khBotOver) {
+    const confirmed = window.confirm(
+      "Leave the current game and start a new one?"
+    );
+
+    if (!confirmed) return;
+  }
+
+  khBotReset();
+}
+
+function khBotReset() {
+
+  khBotGameId++;
+  khBotClearTimer();
+  khBotClosePromotion();
+  khBotPromotionPending = null;
+  khBotDestroyBoard();
+
+  khBotChess = null;
+  khBotActive = false;
+  khBotOver = false;
+  khBotThinking = false;
+  khBotResult = "";
+
+  const boardEl = khEl("khBotBoard");
+  if (boardEl) boardEl.innerHTML = "";
+
+  const moves = khEl("khBotMoves");
+  if (moves) moves.innerHTML = "";
+
+  khBotShowPanels(false);
+}
+
+
+// =========================================================
+
+
 // =========================================================
 // ♚ INITIALIZE KING OF THE HILL MULTIPLAYER
 // =========================================================
@@ -135270,7 +140683,9 @@ async function khInitialize() {
   if (!currentUser) return;
 
   khInjectStyles();
+  khInjectBotStyles();
   khBindEvents();
+  khApplyMode();
   khStartPendingPolling();
 
   const panel = khEl("khSupervisorPanel");
@@ -135286,6 +140701,7 @@ async function khInitialize() {
   // Already showing a match – just make sure the board is sized.
   if (khRoom && !khIsTerminal(khRoom.status)) {
     khResizeBoard();
+    khBotResizeBoard();
     return;
   }
 
@@ -135315,6 +140731,13 @@ function khBindEvents() {
   khBindOnce("khDeclineBtn", khDeclineChallenge);
   khBindOnce("khResignBtn", khResignGame);
   khBindOnce("khCancelMatchBtn", khAdminCancelMatch);
+
+  // 🔀 MODE SWITCH + 🤖 BOT
+  khBindOnce("khModeBotBtn", () => khSetMode("bot"));
+  khBindOnce("khModeMultiBtn", () => khSetMode("multi"));
+  khBindOnce("khBotStartBtn", khBotStartGame);
+  khBindOnce("khBotResignBtn", khBotResign);
+  khBindOnce("khBotNewGameBtn", khBotNewGame);
 
   // 🤝 DRAW OFFER
   khBindOnce("khDrawBtn", khOfferDraw);
