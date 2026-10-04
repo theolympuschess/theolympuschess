@@ -72247,7 +72247,7 @@ winClose?.addEventListener("click", function() {
 
         <label class="ogr-toggle">
           <input type="checkbox" id="ogrArrowToggle" checked>
-          Show Stockfish's best move arrow
+          Show Engine best move arrow
         </label>
 
         <!-- EVAL GRAPH -->
@@ -72361,7 +72361,7 @@ winClose?.addEventListener("click", function() {
      
 
               <div class="ogr-muted" style="padding:0 4px;">
-          Stockfish runs inside your browser. The whole review is capped at 1 minute,
+          Olympus AI runs inside your browser. The whole review is capped at 1 minute,
           so the search depth depends on game length and your device. Keep this tab open while it runs.
         </div>
 
@@ -73105,7 +73105,7 @@ winClose?.addEventListener("click", function() {
 
         <label class="ogr-toggle">
           <input type="checkbox" id="ogrArrowToggle" checked>
-          Show Stockfish's best move arrow
+          Show Engine best move arrow
         </label>
 
         <!-- EVAL GRAPH -->
@@ -73781,7 +73781,7 @@ winClose?.addEventListener("click", function() {
       return { error: "The FEN in the PGN header is not valid." };
     }
 
-    if (headers.Variant && !/^(standard|chess)$/i.test(headers.Variant)) {
+    if (headers.Variant && !/^(standard|chess|from\s*position)$/i.test(headers.Variant.trim())) {
       return { error: "Only standard chess games are supported (variant: " + headers.Variant + ")." };
     }
 
@@ -107408,6 +107408,109 @@ function initTrainerDrawing(wrapper, boardEl, canvas) {
 
 let coachWaitingBestMove = false;
 let coachBestMoveForReview = null;
+// ==========================================
+// 🧠 COACH REVIEW — DEDICATED STOCKFISH 19 LITE
+// ==========================================
+//
+// Coach Review gets its OWN worker.
+// It uses the exact same Stockfish 19 Lite
+// engine file as Game Review.
+//
+// IMPORTANT:
+// This worker is completely separate from
+// the normal Study Engine worker.
+//
+
+let coachReviewEngine = null;
+let coachReviewEngineReady = false;
+let coachReviewEngineInitializing = false;
+
+
+function initCoachReviewEngine() {
+
+  if (coachReviewEngine) return;
+
+  coachReviewEngine =
+    new Worker(
+      "./stockfish/stockfish-19-lite-single.js"
+    );
+
+  coachReviewEngineReady = false;
+  coachReviewEngineInitializing = true;
+
+
+  coachReviewEngine.onmessage = (e) => {
+
+    const line = e.data;
+
+    if (typeof line !== "string") return;
+
+
+    // ==========================================
+    // UCI HANDSHAKE
+    // ==========================================
+
+    if (line === "uciok") {
+
+      coachReviewEngine.postMessage(
+        "setoption name Hash value 32"
+      );
+
+      coachReviewEngine.postMessage(
+        "setoption name MultiPV value 1"
+      );
+
+      coachReviewEngine.postMessage(
+        "setoption name UCI_AnalyseMode value true"
+      );
+
+      coachReviewEngine.postMessage(
+        "isready"
+      );
+
+      return;
+    }
+
+
+    // ==========================================
+    // ENGINE READY
+    // ==========================================
+
+    if (line === "readyok") {
+
+      coachReviewEngineInitializing = false;
+      coachReviewEngineReady = true;
+
+      console.log(
+        "✅ Coach Review Stockfish 19 Lite ready"
+      );
+
+      return;
+    }
+
+  };
+
+
+  coachReviewEngine.onerror = (err) => {
+
+    console.error(
+      "❌ Coach Review Stockfish worker error:",
+      err
+    );
+
+    coachReviewEngineReady = false;
+    coachReviewEngineInitializing = false;
+
+  };
+
+
+  // ==========================================
+  // START UCI
+  // ==========================================
+
+  coachReviewEngine.postMessage("uci");
+
+}
 window.criticalMomentSAN = null;
 
 // ⭐ CRITICAL MOMENT TRACKER (GLOBAL SAFE)
@@ -107437,7 +107540,7 @@ let studyEnginePendingAnalysis = null; // { generation, fen }
 function initStudyEngine() {
   if (studyEngine) return; // ONE persistent worker for the whole session
 
-  studyEngine = new Worker("./stockfish/stockfish.js");
+  studyEngine = new Worker("./stockfish/stockfish-19-lite-single.js");
   studyEngineInitializing = true;
   studyEngineReady = false;
 
@@ -172774,22 +172877,210 @@ window.toggleMiniScorePanel = function(){
 
 
 
-function classifyMove(evalDiff, moveSAN){
+// =====================================================
+// 📐 LICHESS-STYLE REVIEW MATH  (same formulas as the
+//    Game Review section)
+// -----------------------------------------------------
+// All evaluations below are in PAWNS (1.0 = 100 centipawns).
+// Everything is prefixed "coachRv" so it cannot clash
+// with any existing function in the app.
+// =====================================================
+
+// Mate score -> pawns, exactly like the Game Review.
+// mate > 0 means the side being scored is mating.
+function coachRvMateToPawns(mate){
+
+  const m = Number(mate);
+
+  if(!Number.isFinite(m) || m === 0) return 0;
+
+  const sign = m > 0 ? 1 : -1;
+
+  return sign * (21 - Math.min(10, Math.abs(m)));
+
+}
+
+// winning chances in [-1, 1] from centipawns
+function coachRvWinChance(cp){
+
+  const clamped = Math.max(-1000, Math.min(1000, Number(cp) || 0));
+
+  return 2 / (1 + Math.exp(-0.00368208 * clamped)) - 1;
+
+}
+
+// win percent in [0, 100] from centipawns
+function coachRvWinPercent(cp){
+
+  return 50 + 50 * coachRvWinChance(cp);
+
+}
+
+// accuracy of one move from the mover's win percent before / after
+function coachRvMoveAccuracy(winBefore, winAfter){
+
+  if(winAfter >= winBefore) return 100;
+
+  const raw =
+    103.1668 * Math.exp(-0.04354 * (winBefore - winAfter)) - 3.1669 + 1;
+
+  return Math.max(0, Math.min(100, raw));
+
+}
+
+function coachRvStdDev(list){
+
+  const mean = list.reduce((a, b) => a + b, 0) / list.length;
+
+  const variance =
+    list.reduce((a, b) => a + (b - mean) * (b - mean), 0) / list.length;
+
+  return Math.sqrt(variance);
+
+}
+
+// volatility weights per ply from the whole game's white win% series
+function coachRvWeights(series, plyCount){
+
+  const windowSize = Math.max(2, Math.min(8, Math.floor(plyCount / 10)));
+
+  const windows = [];
+
+  for(let k = 0; k < windowSize - 2; k++){
+    windows.push(series.slice(0, windowSize));
+  }
+
+  for(let k = 0; k + windowSize <= series.length; k++){
+    windows.push(series.slice(k, k + windowSize));
+  }
+
+  const weights = [];
+
+  for(let k = 0; k < plyCount; k++){
+
+    const w = windows[k] || windows[windows.length - 1] || [50, 50];
+
+    weights.push(Math.max(0.5, Math.min(12, coachRvStdDev(w))));
+
+  }
+
+  return weights;
+
+}
+
+// final accuracy from a list of move accuracies (optionally weighted)
+function coachRvCombine(accs, weights){
+
+  if(!accs || !accs.length) return null;
+
+  let sumW = 0;
+  let sumWA = 0;
+  let sumInv = 0;
+
+  accs.forEach((acc, i) => {
+
+    const w = weights && Number.isFinite(weights[i]) ? weights[i] : 1;
+    const a = Math.max(acc, 0.01);
+
+    sumW += w;
+    sumWA += w * a;
+    sumInv += 1 / a;
+
+  });
+
+  const weighted = sumWA / sumW;
+  const harmonic = accs.length / sumInv;
+
+  return (weighted + harmonic) / 2;
+
+}
+
+// ⭐ FULL-GAME ACCURACY, identical to the Game Review.
+// evalsWhitePawns = evaluation of every position from WHITE's point
+// of view, in pawns, starting with the position before move 1
+// (so a game of N plies needs N + 1 numbers).
+// For mate scores use coachRvMateToPawns(mate) (white POV sign).
+// Returns { white, black } with one decimal, or null.
+function coachGameAccuracy(evalsWhitePawns, startColor){
+
+  if(!Array.isArray(evalsWhitePawns) || evalsWhitePawns.length < 2) return null;
+
+  const n = evalsWhitePawns.length - 1;
+
+  const series = evalsWhitePawns.map(e => coachRvWinPercent(Number(e) * 100));
+
+  const weights = coachRvWeights(series, n);
+
+  const whiteFirst = startColor !== "b";
+
+  const acc = { w: [], b: [] };
+  const wts = { w: [], b: [] };
+
+  for(let i = 0; i < n; i++){
+
+    const color = ((i % 2 === 0) === whiteFirst) ? "w" : "b";
+
+    const before = color === "w" ? series[i] : 100 - series[i];
+    const after = color === "w" ? series[i + 1] : 100 - series[i + 1];
+
+    acc[color].push(coachRvMoveAccuracy(before, after));
+    wts[color].push(weights[i]);
+
+  }
+
+  const round1 = v => v === null ? null : Math.round(v * 10) / 10;
+
+  return {
+    white: round1(coachRvCombine(acc.w, wts.w)),
+    black: round1(coachRvCombine(acc.b, wts.b))
+  };
+
+}
+
+
+
+// ⭐ MOVE CLASSIFICATION (Lichess thresholds on winning chances)
+//
+//   evalDiff    = size of the evaluation drop in pawns (old way)
+//   evalBefore  = OPTIONAL, eval before the move, mover's point of view, pawns
+//   evalAfter   = OPTIONAL, eval after the move, mover's point of view, pawns
+//
+// Old calls  classifyMove(diff, san)  still work.
+// New calls  classifyMove(diff, san, before, after)  are exact,
+// because the same drop matters more in an equal position than in a
+// position that is already won or lost.
+function classifyMove(evalDiff, moveSAN, evalBefore, evalAfter){
 
   // ⭐ checkmate detection
   if(moveSAN && moveSAN.includes("#")){
     return "mate";
   }
 
-  const diff = Math.abs(evalDiff);
+  let before;
+  let after;
 
-  // tuned thresholds
-  if(diff < 0.30) return "best";
-  if(diff < 0.80) return "good";
-  if(diff < 1.50) return "inaccuracy";
-  if(diff < 3.00) return "mistake";
+  if(Number.isFinite(evalBefore) && Number.isFinite(evalAfter)){
 
-  return "blunder";
+    before = evalBefore;
+    after = evalAfter;
+
+  } else {
+
+    // only the size of the drop is known: assume an equal position
+    before = 0;
+    after = -Math.abs(Number(evalDiff) || 0);
+
+  }
+
+  const loss =
+    coachRvWinChance(before * 100) - coachRvWinChance(after * 100);
+
+  if(loss >= 0.30) return "blunder";
+  if(loss >= 0.20) return "mistake";
+  if(loss >= 0.10) return "inaccuracy";
+  if(loss >= 0.03) return "good";
+
+  return "best";
 
 }
 
@@ -172867,43 +173158,199 @@ function coachReviewSpeech(moveSAN, type, bestMove){
 
 function analyzeFenForBestMove(fen, callback){
 
-  if(!studyEngine) return;
+  // ==========================================
+  // 🧠 COACH REVIEW — DEDICATED ENGINE
+  // ==========================================
 
-  const handleBest = (e) => {
+  if (!fen || typeof callback !== "function") {
+    callback(null);
+    return;
+  }
 
-    const line = e.data;
 
-    if(typeof line !== "string") return;
+  // Make sure the dedicated Coach Review
+  // Stockfish worker exists.
+  initCoachReviewEngine();
 
-    if(line.startsWith("bestmove")){
 
-      studyEngine.removeEventListener("message", handleBest);
+  // ==========================================
+  // WAIT UNTIL ENGINE IS READY
+  // ==========================================
 
-      const move = line.split(" ")[1];
+  const waitForReady = () => {
 
-      if(!move){
-        callback(null);
-        return;
+    if (!coachReviewEngine) {
+      callback(null);
+      return;
+    }
+
+
+    if (!coachReviewEngineReady) {
+
+      setTimeout(() => {
+        waitForReady();
+      }, 50);
+
+      return;
+    }
+
+
+    // ==========================================
+    // ENGINE IS READY
+    // ==========================================
+
+    let finished = false;
+    let timeoutId = null;
+
+
+    const cleanup = () => {
+
+      if (!coachReviewEngine) return;
+
+      coachReviewEngine.removeEventListener(
+        "message",
+        handleMessage
+      );
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
       }
+    };
 
-      const temp = new Chess();
-      temp.load(fen);
 
-      const san = temp.move({
-        from: move.slice(0,2),
-        to: move.slice(2,4),
-        promotion: move[4]
-      })?.san;
+    const finish = (san) => {
+
+      if (finished) return;
+
+      finished = true;
+
+      cleanup();
 
       callback(san || null);
+    };
+
+
+    const handleMessage = (e) => {
+
+      const line = e.data;
+
+      if (typeof line !== "string") return;
+
+
+      // ==========================================
+      // BEST MOVE RECEIVED
+      // ==========================================
+
+      if (line.startsWith("bestmove")) {
+
+        const parts = line.trim().split(/\s+/);
+        const move = parts[1];
+
+
+        if (!move || move === "(none)") {
+          finish(null);
+          return;
+        }
+
+
+        // ==========================================
+        // UCI → SAN
+        // ==========================================
+
+        try {
+
+          const temp = new Chess();
+
+          if (!temp.load(fen)) {
+            finish(null);
+            return;
+          }
+
+
+          const chessMove = temp.move({
+            from: move.slice(0, 2),
+            to: move.slice(2, 4),
+            promotion: move[4]
+          });
+
+
+          finish(
+            chessMove ? chessMove.san : null
+          );
+
+        } catch (err) {
+
+          console.error(
+            "❌ Coach Review UCI → SAN conversion failed:",
+            err
+          );
+
+          finish(null);
+        }
+
+      }
+
+    };
+
+
+    // ==========================================
+    // LISTEN FOR THIS SEARCH ONLY
+    // ==========================================
+
+    coachReviewEngine.addEventListener(
+      "message",
+      handleMessage
+    );
+
+
+    // ==========================================
+    // SAFETY TIMEOUT
+    // ==========================================
+
+    timeoutId = setTimeout(() => {
+
+      console.warn(
+        "⚠️ Coach Review Stockfish search timed out."
+      );
+
+      finish(null);
+
+    }, 5000);
+
+
+    // ==========================================
+    // START SEARCH
+    // ==========================================
+
+    try {
+
+      coachReviewEngine.postMessage(
+        "stop"
+      );
+
+      coachReviewEngine.postMessage(
+        "position fen " + fen
+      );
+
+      coachReviewEngine.postMessage(
+        "go movetime 1000"
+      );
+
+    } catch (err) {
+
+      console.error(
+        "❌ Coach Review Stockfish search failed:",
+        err
+      );
+
+      finish(null);
     }
 
   };
 
-  studyEngine.addEventListener("message", handleBest);
 
-  studyEngine.postMessage("position fen " + fen);
-  studyEngine.postMessage("go movetime 1000");
+  waitForReady();
 
 }
 
@@ -172964,32 +173411,68 @@ if(text.startsWith("M")){
   return "Good game!.";
 }
 
+
+
+// ⭐ ACCURACY
+//
+// Best way (matches the Game Review exactly): keep the per-move
+// accuracies while reviewing and store them in the stats object:
+//     stats.accs    = [ coachRvMoveAccuracy(winBefore, winAfter), ... ]
+//     stats.weights = optional volatility weights (coachRvWeights)
+// Or skip stats entirely and call coachGameAccuracy(evals) once.
+//
+// Old way (only counts) still works and now gives a Lichess-like
+// ESTIMATE instead of a flat penalty per mistake.
 function calculateAccuracy(stats){
 
-  if(stats.total === 0) return 100;
+  if(!stats || stats.total === 0) return 100;
 
-  const penalty =
-    stats.inaccuracy * 5 +
-    stats.mistake * 10 +
-    stats.blunder * 20;
+  // exact path
+  if(Array.isArray(stats.accs) && stats.accs.length){
 
-  let accuracy = 100 - penalty;
+    const exact = coachRvCombine(stats.accs, stats.weights);
 
-  if(accuracy < 0) accuracy = 0;
+    return Math.round(Math.max(0, Math.min(100, exact)));
 
-  return Math.round(accuracy);
+  }
+
+  // estimate from counts: typical accuracy of each kind of move
+  const inaccuracy = stats.inaccuracy || 0;
+  const mistake = stats.mistake || 0;
+  const blunder = stats.blunder || 0;
+
+  const total = Math.max(stats.total, inaccuracy + mistake + blunder);
+
+  const goodCount = Math.max(0, total - inaccuracy - mistake - blunder);
+
+  const sumAcc =
+    goodCount * 98 + inaccuracy * 80 + mistake * 65 + blunder * 33;
+
+  const sumInv =
+    goodCount / 98 + inaccuracy / 80 + mistake / 65 + blunder / 33;
+
+  const arithmetic = sumAcc / total;
+  const harmonic = total / sumInv;
+
+  const accuracy = (arithmetic + harmonic) / 2;
+
+  return Math.round(Math.max(0, Math.min(100, accuracy)));
 }
 
 
 function nagFromType(type){
 
+  // normal moves (best / good) get NO sign, like Lichess;
+  // only unusual moves are marked
   const map = {
-    best: "!",        // best move
-    good: "!",        // good move
+    best: "!",         // best move  -> no sign
+    good: "",         // good move  -> no sign
     inaccuracy: "?!", // small mistake
     mistake: "?",     // mistake
     blunder: "??",    // blunder
-    mate: "!!"        // checkmate
+    mate: "!!",       // checkmate
+    brilliant: "!!",  // brilliant move
+    only: "!"         // only move
   };
 
   return map[type] || "";
