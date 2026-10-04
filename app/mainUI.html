@@ -42193,6 +42193,14 @@ right:0;
   💯
   Perfect Capture Challenge
 </button>
+<button
+  class="nav-btn"
+  data-tab="impossibleCheck"
+  id="impossibleCheckNavBtn"
+>
+  <span style="font-size: 1.35em; color: #07aab3; font-weight: 900;">♚</span>
+  Impossible Check Challenge
+</button>
 <button 
   class="nav-btn" 
   data-tab="gameReview" 
@@ -69979,6 +69987,1382 @@ winClose?.addEventListener("click", function() {
   }
   .ocp-shake { animation: ocpShake 260ms ease; }
 </style>
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #ic-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start;}
+  @media (max-width:960px){#ic-layout{grid-template-columns:1fr;}}
+
+  .ic-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:16px;box-sizing:border-box;}
+  .ic-card-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:12px;}
+  .ic-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .ic-stat-row strong{color:#fff;}
+
+  .ic-piece-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:12px;font-weight:800;cursor:pointer;}
+  .ic-piece-btn img{width:42px;height:42px;object-fit:contain;pointer-events:none;}
+  .ic-piece-btn .ic-glyph{font-size:36px;line-height:42px;height:42px;color:#fff;}
+  .ic-piece-btn.ic-active{border-color:#ffd700;background:rgba(255,215,0,0.13);}
+
+  .ic-check{display:flex;align-items:center;gap:8px;margin-top:10px;color:#aeb3cf;font-size:12px;font-weight:700;cursor:pointer;}
+
+  .ic-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .ic-btn-green{background:#78b887;color:#000;}
+  .ic-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  .ic-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.80);backdrop-filter:blur(7px);}
+  .ic-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes icShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+  .ic-shake{animation:icShake .35s;}
+</style>
+
+<section
+  class="section hidden"
+  id="impossibleCheck-section"
+>
+
+  <div
+    id="ic-shell"
+    style="width:100%;max-width:1200px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">♚</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Impossible Check</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            One piece against a whole army. Find a safe check. One mistake ends the level.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="icHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="icResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="ic-layout">
+
+      <!-- BOARD CARD -->
+      <div style="background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:20px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="icStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Find a safe check</div>
+          </div>
+          <div style="color:#ffd700;font-size:22px;font-weight:900;white-space:nowrap;" title="Black pieces left (besides the king)">
+            ♟ <span id="icLeft">0</span>
+            <span style="color:#777d99;font-size:14px;">/</span>
+            <span id="icTotal" style="color:#fff;font-size:18px;">0</span>
+          </div>
+        </div>
+
+        <div id="icMessage"
+          style="margin-bottom:15px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:13px;font-weight:800;text-align:center;">
+          Level 1
+        </div>
+
+        <div id="icBoardArea" style="width:100%;display:flex;justify-content:center;overflow:visible;padding:10px 24px 30px;box-sizing:border-box;">
+          <div id="icBoard" aria-label="Impossible check board"
+            style="position:relative;width:min(100%,600px);aspect-ratio:1 / 1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);user-select:none;touch-action:manipulation;"></div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:2px;">
+          Click a square to move your piece. Landing on an attacked square loses the level.
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <div class="ic-card">
+          <div class="ic-card-title">♞ Choose Your Piece</div>
+          <div id="icPieceGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+
+          <label class="ic-check"><input type="checkbox" id="icMovesToggle"> Show my legal moves</label>
+          <label class="ic-check"><input type="checkbox" id="icDangerToggle"> Show attacked (danger) squares</label>
+        </div>
+
+        <div class="ic-card">
+          <div class="ic-card-title">♚ Your Mission</div>
+          <div style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+            Attack the black king with your <strong style="color:#fff;">safe check</strong>:
+            the square you give check from must not be covered by any black piece.
+            <br><br>
+            You may capture black pieces on the way, but <strong style="color:#fff;">only on squares that are safe after the capture</strong>.
+            Sometimes a capture is the only way to open the path.
+          </div>
+        </div>
+
+        <div class="ic-card">
+          <div class="ic-card-title" style="margin-bottom:12px;">📊 Challenge Stats</div>
+          <div style="display:grid;gap:10px;">
+            <div class="ic-stat-row"><span>Piece</span><strong id="icPieceStat">Knight</strong></div>
+            <div class="ic-stat-row"><span>Level</span><strong id="icLevelStat">1</strong></div>
+            <div class="ic-stat-row"><span>Moves made</span><strong id="icMovesStat">0</strong></div>
+            <div class="ic-stat-row"><span>Black pieces left</span><strong id="icRemainingStat">0</strong></div>
+            <div class="ic-stat-row"><span>Shortest solution</span><strong id="icParStat">-</strong></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:16px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+          <div style="font-size:22px;line-height:1;">💡</div>
+          <div>
+            <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">Coach Tip</strong>
+            <div id="icTip" style="color:#aeb3cf;font-size:12px;line-height:1.5;font-weight:600;">Look at which squares are safe before you move.</div>
+          </div>
+        </div>
+
+        <button type="button" id="icResetSideBtn" class="ic-btn ic-btn-green">↻ Try Again</button>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="icHowToModal" class="ic-modal" style="z-index:99999;">
+    <div class="ic-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;">
+      <button type="button" id="icHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="color:#ffd700;font-size:42px;text-align:center;margin-bottom:10px;">♚</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        You have one piece. Black has a king and an army. Black never moves, but it captures anything that lands on an attacked square.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ Choose Knight, Bishop or Rook.</div>
+        <div>2️⃣ Move to squares that no black piece attacks.</div>
+        <div>3️⃣ Bishops and Rooks cannot jump over pieces.</div>
+        <div>4️⃣ You can capture a piece only if the square stays safe afterwards. Removing a piece can open lines for other black pieces.</div>
+        <div>5️⃣ Attack the king from a safe square to win. You cannot capture the king.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="icWinModal" class="ic-modal">
+    <div class="ic-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;color:#ffd700;margin-bottom:8px;">♚</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">SAFE CHECK</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Brilliant! 🎉</h3>
+      <p id="icWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You gave a safe check.</p>
+      <button type="button" id="icWinNext" class="ic-btn ic-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="icWinClose" class="ic-btn ic-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- FAIL MODAL -->
+  <div id="icFailModal" class="ic-modal">
+    <div class="ic-modal-box" style="border:1px solid rgba(255,77,90,0.40);">
+      <div style="font-size:48px;color:#ff4d5a;margin-bottom:8px;">✕</div>
+      <div style="color:#ff6570;font-size:11px;font-weight:900;letter-spacing:1px;">LEVEL FAILED</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Not quite!</h3>
+      <p id="icFailMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">Your piece was captured.</p>
+      <button type="button" id="icFailRetry" class="ic-btn ic-btn-green" style="margin-top:12px;">↻ Try This Level Again</button>
+      <button type="button" id="icFailClose" class="ic-btn ic-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   ♚ OLYMPUS IMPOSSIBLE CHECK
+   ---------------------------------------------------------
+   Completely isolated game engine.
+
+   - Fixed 8x8 board, black never moves
+   - Your pieces: Knight, Bishop, Rook
+   - Black: King + pawns / knights / bishops / rooks / queens
+   - A move is SAFE if no black piece attacks the landing
+     square (after any capture is removed)
+   - Win = safe move that attacks the black king
+   - Level N = N+1 black pieces (capped), then infinite
+     levels with harder, deeper, fresh positions
+   - Every position is verified by a breadth-first solver
+     that uses the SAME move rules as the game, so each
+     level is guaranteed solvable
+   - Reset = replay the SAME position
+   - Changing piece = back to Level 1
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* ENGINE START */
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const SIZE = 8;
+  const ASSET_PATH = "assets/pieces/";
+
+  /* Set to true if clicking an unreachable square should fail the level. */
+  const ILLEGAL_CLICK_FAILS = false;
+
+  /* Solver safety limit (states explored per search). */
+  const NODE_CAP = 40000;
+
+  /* max = maximum black pieces (besides the king) for that mode */
+  const USERS = {
+    knight: { label: "Knight", file: "wN.png", glyph: "♘", letter: "n", max: 14 },
+    bishop: { label: "Bishop", file: "wB.png", glyph: "♗", letter: "b", max: 14 },
+    rook:   { label: "Rook",   file: "wR.png", glyph: "♖", letter: "r", max: 13 }
+  };
+
+  const PIECE_ORDER = ["knight", "bishop", "rook"];
+
+  const BLACK = {
+    k: { name: "King",   file: "bK.png", glyph: "♚" },
+    q: { name: "Queen",  file: "bQ.png", glyph: "♛" },
+    r: { name: "Rook",   file: "bR.png", glyph: "♜" },
+    b: { name: "Bishop", file: "bB.png", glyph: "♝" },
+    n: { name: "Knight", file: "bN.png", glyph: "♞" },
+    p: { name: "Pawn",   file: "bP.png", glyph: "♟" }
+  };
+
+  /* weighted pool of black pieces */
+  const BAG = ["p", "p", "p", "n", "n", "b", "b", "r", "r", "q"];
+
+  const TIPS = {
+    knight: "Knights jump over everything, so only the landing square matters. Count what attacks it.",
+    bishop: "Bishops stay on one colour. The king must be on that colour too, and your path cannot be blocked.",
+    rook: "Rooks slide along ranks and files. A single black piece can close a whole line."
+  };
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function toIdx(row, col) { return row * SIZE + col; }
+  function rowOf(idx) { return Math.floor(idx / SIZE); }
+  function colOf(idx) { return idx % SIZE; }
+  function inside(row, col) { return row >= 0 && row < SIZE && col >= 0 && col < SIZE; }
+
+  function shuffle(list) {
+    const arr = list.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function squareName(idx) {
+    return "abcdefgh"[colOf(idx)] + (SIZE - rowOf(idx));
+  }
+
+  const KNIGHT_STEPS = [
+    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+    [1, -2], [1, 2], [2, -1], [2, 1]
+  ];
+  const ORTHO = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+
+
+  /* =========================================================
+     RULES ENGINE (shared by the game AND the solver)
+     ---------------------------------------------------------
+     pcs      = [{ t:'p'|'n'|'b'|'r'|'q', sq }]   (black, no king)
+     kingSq   = black king square
+     mask     = bit i set  ->  pcs[i] has been captured
+     occ      = Int8Array(64): -1 empty, 100 king, i = pcs index
+  ========================================================= */
+
+  function buildOcc(pcs, kingSq, mask) {
+    const occ = new Int8Array(64).fill(-1);
+    for (let i = 0; i < pcs.length; i++) {
+      if (((mask >> i) & 1) === 0) occ[pcs[i].sq] = i;
+    }
+    occ[kingSq] = 100;
+    return occ;
+  }
+
+  /* All squares strictly between from and to (aligned) are empty? */
+  function clearPath(from, to, occ) {
+    const fr = rowOf(from), fc = colOf(from);
+    const tr = rowOf(to), tc = colOf(to);
+    const sr = Math.sign(tr - fr), sc = Math.sign(tc - fc);
+    let r = fr + sr, c = fc + sc;
+    while (r !== tr || c !== tc) {
+      if (occ[toIdx(r, c)] !== -1) return false;
+      r += sr; c += sc;
+    }
+    return true;
+  }
+
+  /* Does a piece of type t standing on "from" attack square "to"? */
+  function pieceAttacks(t, from, to, occ) {
+    const dr = rowOf(to) - rowOf(from);
+    const dc = colOf(to) - colOf(from);
+    const adr = Math.abs(dr), adc = Math.abs(dc);
+
+    if (adr === 0 && adc === 0) return false;
+
+    switch (t) {
+      case "p": return dr === 1 && adc === 1;               /* black pawns attack downwards */
+      case "n": return (adr === 1 && adc === 2) || (adr === 2 && adc === 1);
+      case "k": return adr <= 1 && adc <= 1;
+      case "r": return (dr === 0 || dc === 0) && clearPath(from, to, occ);
+      case "b": return adr === adc && clearPath(from, to, occ);
+      case "q": return (dr === 0 || dc === 0 || adr === adc) && clearPath(from, to, occ);
+    }
+    return false;
+  }
+
+  /* First black piece (or king) attacking "to". Returns its square, or -1. */
+  function findAttacker(to, pcs, kingSq, occ, mask, skip) {
+    for (let i = 0; i < pcs.length; i++) {
+      if (i === skip || ((mask >> i) & 1)) continue;
+      if (pieceAttacks(pcs[i].t, pcs[i].sq, to, occ)) return pcs[i].sq;
+    }
+    if (pieceAttacks("k", kingSq, to, occ)) return kingSq;
+    return -1;
+  }
+
+  /* Geometric moves of the user's piece: { to, cap } (cap = pcs index or -1). */
+  function genMoves(type, cur, occ) {
+
+    const out = [];
+    const row = rowOf(cur), col = colOf(cur);
+
+    if (type === "knight") {
+      for (let i = 0; i < KNIGHT_STEPS.length; i++) {
+        const r = row + KNIGHT_STEPS[i][0];
+        const c = col + KNIGHT_STEPS[i][1];
+        if (!inside(r, c)) continue;
+        const to = toIdx(r, c);
+        const o = occ[to];
+        if (o === 100) continue;              /* the king cannot be captured */
+        out.push({ to: to, cap: o });
+      }
+      return out;
+    }
+
+    const dirs = type === "rook" ? ORTHO : DIAG;
+
+    for (let d = 0; d < dirs.length; d++) {
+      let r = row + dirs[d][0];
+      let c = col + dirs[d][1];
+      while (inside(r, c)) {
+        const to = toIdx(r, c);
+        const o = occ[to];
+        if (o === -1) {
+          out.push({ to: to, cap: -1 });
+        } else {
+          if (o !== 100) out.push({ to: to, cap: o });
+          break;                              /* blocked */
+        }
+        r += dirs[d][0];
+        c += dirs[d][1];
+      }
+    }
+
+    return out;
+  }
+
+  /* Result of a move: safe or not, and whether it gives check. */
+  function evalMove(type, pcs, kingSq, occ, mask, mv) {
+
+    const attacker = findAttacker(mv.to, pcs, kingSq, occ, mask, mv.cap);
+
+    if (attacker !== -1) {
+      return { safe: false, attacker: attacker, check: false };
+    }
+
+    return {
+      safe: true,
+      attacker: -1,
+      check: pieceAttacks(USERS[type].letter, mv.to, kingSq, occ)
+    };
+  }
+
+  /*
+    Breadth-first solver.
+    Returns: n > 0  -> shortest number of moves to a safe check
+             0      -> no solution exists from this state
+             -1     -> search limit reached (unknown)
+  */
+  function solveDepth(type, pcs, kingSq, startSq, startMask, allowCapture) {
+
+    let frontier = [[startSq, startMask]];
+    const seen = new Set([startSq + 64 * startMask]);
+    let depth = 0;
+    let nodes = 0;
+
+    while (frontier.length) {
+
+      depth++;
+      const next = [];
+
+      for (let f = 0; f < frontier.length; f++) {
+
+        if (++nodes > NODE_CAP) return -1;
+
+        const sq = frontier[f][0];
+        const mask = frontier[f][1];
+        const occ = buildOcc(pcs, kingSq, mask);
+        const moves = genMoves(type, sq, occ);
+
+        for (let m = 0; m < moves.length; m++) {
+
+          const mv = moves[m];
+          if (mv.cap !== -1 && !allowCapture) continue;
+
+          const ev = evalMove(type, pcs, kingSq, occ, mask, mv);
+          if (!ev.safe) continue;
+          if (ev.check) return depth;
+
+          const nm = mv.cap === -1 ? mask : (mask | (1 << mv.cap));
+          const key = mv.to + 64 * nm;
+
+          if (!seen.has(key)) {
+            seen.add(key);
+            next.push([mv.to, nm]);
+          }
+        }
+      }
+
+      frontier = next;
+    }
+
+    return 0;
+  }
+
+
+  /* =========================================================
+     LAYOUT GENERATOR
+     ---------------------------------------------------------
+     1. Random position, rejected unless the start is safe,
+        not already checking, and the solver finds a solution.
+     2. Hill-climbing: pieces are nudged around while the
+        position stays solvable and the shortest solution
+        gets longer (or a capture becomes mandatory).
+     Every returned layout has been solved by the engine.
+  ========================================================= */
+
+  function randomPosition(type, n) {
+
+    const sq = shuffle(Array.from({ length: 64 }, function (_, i) { return i; }));
+    let k = 0;
+
+    const king = sq[k++];
+    const start = sq[k++];
+    const pcs = [];
+
+    for (let i = 0; i < n; i++) {
+      let t = BAG[Math.floor(Math.random() * BAG.length)];
+      const s = sq[k++];
+      if (t === "p" && (rowOf(s) === 0 || rowOf(s) === 7)) t = "n";
+      pcs.push({ t: t, sq: s });
+    }
+
+    return { king: king, start: start, pcs: pcs };
+  }
+
+  function validStart(pos, type) {
+
+    const occ = buildOcc(pos.pcs, pos.king, 0);
+
+    if (findAttacker(pos.start, pos.pcs, pos.king, occ, 0, -1) !== -1) return false;
+    if (pieceAttacks(USERS[type].letter, pos.start, pos.king, occ)) return false;
+
+    return true;
+  }
+
+  function mutate(pos) {
+
+    const p = {
+      king: pos.king,
+      start: pos.start,
+      pcs: pos.pcs.map(function (x) { return { t: x.t, sq: x.sq }; })
+    };
+
+    const taken = new Set([p.king, p.start]);
+    p.pcs.forEach(function (x) { taken.add(x.sq); });
+
+    const free = [];
+    for (let s = 0; s < 64; s++) if (!taken.has(s)) free.push(s);
+
+    const which = Math.floor(Math.random() * (p.pcs.length + 2));
+    const s = free[Math.floor(Math.random() * free.length)];
+
+    if (which === p.pcs.length) {
+      p.king = s;
+    } else if (which === p.pcs.length + 1) {
+      p.start = s;
+    } else {
+      const piece = p.pcs[which];
+      if (Math.random() < 0.25) {
+        piece.t = BAG[Math.floor(Math.random() * BAG.length)];
+      }
+      if (piece.t === "p" && (rowOf(s) === 0 || rowOf(s) === 7)) return null;
+      piece.sq = s;
+    }
+
+    return p;
+  }
+
+  function evaluate(pos, type) {
+
+    const d = solveDepth(type, pos.pcs, pos.king, pos.start, 0, true);
+    if (d <= 0) return null;
+
+    const noCap = solveDepth(type, pos.pcs, pos.king, pos.start, 0, false);
+
+    return { d: d, needsCapture: noCap <= 0 };
+  }
+
+  /* Known-good emergency positions (never expected to be used). */
+  function fallbackLayout(type) {
+    if (type === "rook") return { king: 0, start: toIdx(7, 7), pcs: [], par: 1 };
+    if (type === "bishop") return { king: 0, start: toIdx(7, 5), pcs: [], par: 1 };
+    return { king: 0, start: toIdx(3, 3), pcs: [], par: 1 };
+  }
+
+  function pawnsForLevel(type, lvl) {
+    return Math.min(lvl + 1, USERS[type].max);
+  }
+
+  function generateLevel(type, lvl) {
+
+    const target = Math.min(1 + Math.floor(lvl * 0.5), 12);
+    const wantCapture = lvl >= 3 && lvl % 2 === 1;
+
+    function ok(ev) {
+      return ev.d >= target && (!wantCapture || ev.needsCapture);
+    }
+
+    function score(ev) {
+      return Math.min(ev.d, target) * 10 +
+        (wantCapture && ev.needsCapture ? 15 : 0) +
+        ev.d * 0.1;
+    }
+
+    let n = pawnsForLevel(type, lvl);
+
+    for (let round = 0; round < 6 && n >= 1; round++, n--) {
+
+      const deadline = performance.now() + (round === 0 ? 450 : 250);
+      let best = null;
+      let bestScore = -1;
+
+      while (performance.now() < deadline) {
+
+        let pos = randomPosition(type, n);
+        if (!validStart(pos, type)) continue;
+
+        let ev = evaluate(pos, type);
+        if (!ev) continue;
+
+        for (let k = 0; k < 50 && performance.now() < deadline; k++) {
+
+          if (ok(ev)) break;
+
+          const m = mutate(pos);
+          if (!m || !validStart(m, type)) continue;
+
+          const e2 = evaluate(m, type);
+          if (!e2) continue;
+
+          if (score(e2) >= score(ev)) {
+            pos = m;
+            ev = e2;
+          }
+        }
+
+        if (ok(ev)) {
+          return { king: pos.king, start: pos.start, pcs: pos.pcs, par: ev.d };
+        }
+
+        const sc = score(ev);
+        if (sc > bestScore) {
+          bestScore = sc;
+          best = { king: pos.king, start: pos.start, pcs: pos.pcs, par: ev.d };
+        }
+      }
+
+      if (best) return best;
+    }
+
+    return fallbackLayout(type);
+  }
+
+  /* ENGINE END */
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let pieceType = "knight";
+  let level = 1;
+
+  let layout = null;      // { king, start, pcs, par }
+  let pcs = [];           // black pieces (no king)
+  let kingSq = 0;
+  let mask = 0;           // captured black pieces
+  let current = 0;
+  let moves = 0;
+  let totalPieces = 0;
+
+  let locked = false;
+  let movesOn = false;
+  let dangerOn = false;
+
+  let lastFrom = -1;
+  let lastTo = -1;
+  let failIdx = -1;
+  let attackerIdx = -1;
+  let winIdx = -1;
+
+  let modalTimer = null;
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section = document.getElementById("impossibleCheck-section");
+  const board = document.getElementById("icBoard");
+
+  const pieceGrid = document.getElementById("icPieceGrid");
+  const movesToggle = document.getElementById("icMovesToggle");
+  const dangerToggle = document.getElementById("icDangerToggle");
+
+  const resetBtn = document.getElementById("icResetBtn");
+  const resetSideBtn = document.getElementById("icResetSideBtn");
+
+  const howToBtn = document.getElementById("icHowToBtn");
+  const howToModal = document.getElementById("icHowToModal");
+  const howToClose = document.getElementById("icHowToClose");
+
+  const winModal = document.getElementById("icWinModal");
+  const winNext = document.getElementById("icWinNext");
+  const winClose = document.getElementById("icWinClose");
+  const winMessage = document.getElementById("icWinMessage");
+
+  const failModal = document.getElementById("icFailModal");
+  const failRetry = document.getElementById("icFailRetry");
+  const failClose = document.getElementById("icFailClose");
+  const failMessage = document.getElementById("icFailMessage");
+
+  const statusEl = document.getElementById("icStatus");
+  const messageEl = document.getElementById("icMessage");
+  const leftEl = document.getElementById("icLeft");
+  const totalEl = document.getElementById("icTotal");
+
+  const pieceStatEl = document.getElementById("icPieceStat");
+  const levelStatEl = document.getElementById("icLevelStat");
+  const movesStatEl = document.getElementById("icMovesStat");
+  const remainingStatEl = document.getElementById("icRemainingStat");
+  const parStatEl = document.getElementById("icParStat");
+
+  const tipEl = document.getElementById("icTip");
+
+  if (!section || !board) {
+    return;
+  }
+
+
+  /* =========================================================
+     SOUND HELPERS (use your existing global sounds if present)
+  ========================================================= */
+
+  function playGoodSound() {
+    try {
+      if (typeof window.emojiMemoryPlayRevealSound === "function") {
+        window.emojiMemoryPlayRevealSound();
+      }
+    } catch (e) {}
+  }
+
+  function playBadSound() {
+    try {
+      if (typeof window.emojiMemoryPlayWrongSound === "function") {
+        window.emojiMemoryPlayWrongSound();
+      }
+    } catch (e) {}
+  }
+
+
+  /* =========================================================
+     CREATE BOARD (squares only, pieces are drawn in render)
+  ========================================================= */
+
+  function createBoard() {
+
+    board.innerHTML = "";
+
+    for (let row = 0; row < SIZE; row++) {
+      for (let col = 0; col < SIZE; col++) {
+
+        const square = document.createElement("div");
+        const isLight = (row + col) % 2 === 0;
+
+        square.className = "ic-square";
+        square.dataset.idx = String(toIdx(row, col));
+
+        Object.assign(square.style, {
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          minWidth: "0",
+          minHeight: "0",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          background: isLight ? "#d9c8a4" : "#806b50",
+          border: "1px solid rgba(0,0,0,0.08)",
+          transition: "filter 120ms ease",
+          zIndex: "1"
+        });
+
+        square.setAttribute("role", "button");
+        square.setAttribute("tabindex", "0");
+
+        square.addEventListener("mouseenter", function () { square.style.filter = "brightness(1.10)"; });
+        square.addEventListener("mouseleave", function () { square.style.filter = "none"; });
+
+        square.addEventListener("click", function () { handleSquare(toIdx(row, col)); });
+
+        square.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleSquare(toIdx(row, col));
+          }
+        });
+
+        board.appendChild(square);
+      }
+    }
+  }
+
+  function getSquare(idx) {
+    return board.children[idx] || null;
+  }
+
+
+  /* =========================================================
+     IMAGE ELEMENTS (with a text fallback if an asset is missing)
+  ========================================================= */
+
+  function createPieceImage(src, alt, glyph, glyphColor) {
+
+    const img = document.createElement("img");
+
+    img.src = src;
+    img.alt = alt;
+    img.draggable = false;
+
+    Object.assign(img.style, {
+      position: "relative",
+      zIndex: "30",
+      width: "90%",
+      height: "90%",
+      objectFit: "contain",
+      display: "block",
+      pointerEvents: "none",
+      userSelect: "none",
+      
+    });
+
+    img.addEventListener("error", function () {
+
+      const span = document.createElement("span");
+      span.textContent = glyph;
+
+      Object.assign(span.style, {
+        position: "relative",
+        zIndex: "30",
+        fontSize: "clamp(24px, 6vw, 58px)",
+        lineHeight: "1",
+        color: glyphColor,
+        textShadow: glyphColor === "#ffffff" ? "0 1px 3px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.4)",
+        pointerEvents: "none",
+        userSelect: "none"
+      });
+
+      if (img.parentNode) {
+        img.parentNode.replaceChild(span, img);
+      }
+    });
+
+    return img;
+  }
+
+  function addOverlay(square, css) {
+    const el = document.createElement("div");
+    Object.assign(el.style, {
+      position: "absolute",
+      pointerEvents: "none"
+    }, css);
+    square.appendChild(el);
+  }
+
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
+  function renderBoard() {
+
+    const occ = buildOcc(pcs, kingSq, mask);
+    const live = !locked;
+
+    const legal = movesOn && live ? genMoves(pieceType, current, occ) : [];
+    const legalMap = new Map();
+    legal.forEach(function (m) { legalMap.set(m.to, m); });
+
+    for (let idx = 0; idx < SIZE * SIZE; idx++) {
+
+      const square = getSquare(idx);
+      if (!square) continue;
+
+      while (square.firstChild) {
+        square.removeChild(square.firstChild);
+      }
+
+      square.style.boxShadow = "none";
+
+      /* danger tint */
+      if (dangerOn && live && idx !== current && idx !== kingSq) {
+        const o = occ[idx];
+        const skip = o >= 0 && o < 100 ? o : -1;
+        if (findAttacker(idx, pcs, kingSq, occ, mask, skip) !== -1) {
+          addOverlay(square, {
+            inset: "0",
+            background: "rgba(255,77,90,0.32)",
+            zIndex: "5"
+          });
+        }
+      }
+
+      /* highlights */
+      if (idx === lastFrom) {
+        square.style.boxShadow = "inset 0 0 0 3px rgba(255,215,0,0.45)";
+      }
+      if (idx === lastTo) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(255,215,0,0.90), inset 0 0 18px rgba(255,215,0,0.25)";
+      }
+      if (idx === winIdx) {
+        square.style.boxShadow =
+          "inset 0 0 0 4px rgba(120,184,135,0.95), inset 0 0 24px rgba(120,184,135,0.45)";
+      }
+      if (idx === attackerIdx) {
+        square.style.boxShadow =
+          "inset 0 0 0 4px rgba(255,140,60,0.95), inset 0 0 22px rgba(255,140,60,0.40)";
+      }
+      if (idx === failIdx) {
+        square.style.boxShadow =
+          "inset 0 0 0 3px rgba(255,77,90,0.95), inset 0 0 22px rgba(255,77,90,0.35)";
+      }
+
+      /* contents */
+      if (idx === current) {
+        square.appendChild(
+          createPieceImage(
+            ASSET_PATH + USERS[pieceType].file,
+            "White " + USERS[pieceType].label,
+            USERS[pieceType].glyph,
+            "#ffffff"
+          )
+        );
+      } else if (idx === kingSq) {
+        square.appendChild(
+          createPieceImage(ASSET_PATH + BLACK.k.file, "Black King", BLACK.k.glyph, "#111111")
+        );
+      } else if (occ[idx] >= 0 && occ[idx] < 100) {
+        const p = pcs[occ[idx]];
+        square.appendChild(
+          createPieceImage(ASSET_PATH + BLACK[p.t].file, "Black " + BLACK[p.t].name, BLACK[p.t].glyph, "#111111")
+        );
+      }
+
+      /* legal-move markers */
+      if (legalMap.has(idx)) {
+        const isCap = legalMap.get(idx).cap !== -1;
+        addOverlay(square, isCap
+          ? {
+              inset: "6%",
+              borderRadius: "50%",
+              border: "4px solid rgba(120,184,135,0.95)",
+              boxSizing: "border-box",
+              zIndex: "40"
+            }
+          : {
+              width: "26%",
+              height: "26%",
+              left: "37%",
+              top: "37%",
+              borderRadius: "50%",
+              background: "rgba(120,184,135,0.90)",
+              zIndex: "40"
+            });
+      }
+    }
+
+    updateUI();
+  }
+
+
+  /* =========================================================
+     UPDATE UI
+  ========================================================= */
+
+  function popcount(x) {
+    let c = 0;
+    while (x) { c += x & 1; x >>= 1; }
+    return c;
+  }
+
+  function updateUI() {
+
+    const left = totalPieces - popcount(mask);
+    const info = USERS[pieceType];
+
+    leftEl.textContent = String(left);
+    totalEl.textContent = String(totalPieces);
+
+    pieceStatEl.textContent = info.label;
+    levelStatEl.textContent = String(level);
+    movesStatEl.textContent = String(moves);
+    remainingStatEl.textContent = String(left);
+    parStatEl.textContent = layout ? String(layout.par) : "-";
+
+    if (!locked) {
+      messageEl.textContent =
+        "Level " + level + " · " + totalPieces +
+        (totalPieces === 1 ? " black piece" : " black pieces") +
+        " + king · " + info.label;
+      messageEl.style.color = "#aeb3cf";
+      messageEl.style.background = "rgba(255,255,255,0.05)";
+    }
+
+    if (winIdx !== -1) {
+      statusEl.textContent = "Safe check!";
+    } else if (locked) {
+      statusEl.textContent = "Level failed";
+    } else if (moves === 0) {
+      statusEl.textContent = "Find a safe check";
+    } else {
+      statusEl.textContent = "Move " + (moves + 1) + " · stay safe";
+    }
+
+    if (!locked) {
+      const atCap = totalPieces >= USERS[pieceType].max;
+      tipEl.textContent = atCap
+        ? TIPS[pieceType] + " The piece count is maxed out, so new levels keep getting trickier instead."
+        : TIPS[pieceType];
+    }
+  }
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function clearModalTimer() {
+    if (modalTimer) {
+      clearTimeout(modalTimer);
+      modalTimer = null;
+    }
+  }
+
+  function hideResultModals() {
+    winModal.style.display = "none";
+    failModal.style.display = "none";
+  }
+
+  /* Replay the CURRENT layout from the beginning. */
+  function restoreLevel() {
+
+    clearModalTimer();
+    hideResultModals();
+
+    pcs = layout.pcs.map(function (p) { return { t: p.t, sq: p.sq }; });
+    kingSq = layout.king;
+    current = layout.start;
+    totalPieces = pcs.length;
+
+    mask = 0;
+    moves = 0;
+    locked = false;
+    lastFrom = -1;
+    lastTo = -1;
+    failIdx = -1;
+    attackerIdx = -1;
+    winIdx = -1;
+
+    renderBoard();
+  }
+
+  /* Generate a brand-new, solver-verified layout for the current level. */
+  function startNewLevel() {
+
+    statusEl.textContent = "Building a position…";
+
+    layout = generateLevel(pieceType, level);
+
+    restoreLevel();
+  }
+
+  /* Full restart (used when the piece changes). */
+  function selectPiece(type) {
+
+    if (!USERS[type]) return;
+    if (type === pieceType) return;
+
+    pieceType = type;
+    level = 1;
+
+    refreshPieceButtons();
+    startNewLevel();
+  }
+
+
+  /* =========================================================
+     MOVE HANDLING
+  ========================================================= */
+
+  function nameAt(sq) {
+    if (sq === kingSq) return "King";
+    for (let i = 0; i < pcs.length; i++) {
+      if (pcs[i].sq === sq && ((mask >> i) & 1) === 0) return BLACK[pcs[i].t].name;
+    }
+    return "piece";
+  }
+
+  function shakeSquare(idx) {
+    const square = getSquare(idx);
+    if (!square) return;
+    square.classList.remove("ic-shake");
+    void square.offsetWidth;
+    square.classList.add("ic-shake");
+  }
+
+  function illegalClick(idx, message) {
+
+    if (ILLEGAL_CLICK_FAILS) {
+      failLevel(idx, -1, message);
+      return;
+    }
+
+    tipEl.textContent = message;
+    shakeSquare(idx);
+  }
+
+  function handleSquare(idx) {
+
+    if (locked) return;
+    if (idx === current) return;
+
+    const occ = buildOcc(pcs, kingSq, mask);
+    const label = USERS[pieceType].label;
+
+    if (idx === kingSq) {
+      illegalClick(idx, "You cannot capture the king. Attack it from a safe square instead.");
+      return;
+    }
+
+    const mv = genMoves(pieceType, current, occ).find(function (m) {
+      return m.to === idx;
+    });
+
+    if (!mv) {
+      illegalClick(
+        idx,
+        pieceType === "knight"
+          ? "A Knight moves in an L shape. It cannot go there."
+          : "The " + label + " cannot reach that square. Check its lines and any pieces in the way."
+      );
+      return;
+    }
+
+    const ev = evalMove(pieceType, pcs, kingSq, occ, mask, mv);
+
+    if (!ev.safe) {
+      failLevel(
+        idx,
+        ev.attacker,
+        "The " + label + " moved to " + squareName(idx) + ", which is attacked by the black " +
+        nameAt(ev.attacker) + " on " + squareName(ev.attacker) + ". It was captured."
+      );
+      return;
+    }
+
+    /* Safe move. */
+    if (mv.cap !== -1) {
+      mask |= (1 << mv.cap);
+    }
+
+    lastFrom = current;
+    lastTo = idx;
+    current = idx;
+    moves++;
+
+    playGoodSound();
+
+    if (ev.check) {
+      winIdx = kingSq;
+      renderBoard();
+      winLevel();
+      return;
+    }
+
+    renderBoard();
+
+    /* Dead end: no safe route to a check remains. */
+    if (solveDepth(pieceType, pcs, kingSq, current, mask, true) === 0) {
+      failLevel(-1, -1, "No safe route to a check remains from here. Try again from the start.");
+    }
+  }
+
+
+  /* =========================================================
+     FAIL / WIN
+  ========================================================= */
+
+  function failLevel(idx, attacker, message) {
+
+    locked = true;
+    failIdx = idx;
+    attackerIdx = attacker;
+
+    playBadSound();
+
+    renderBoard();
+
+    statusEl.textContent = "Level failed";
+    tipEl.textContent = message;
+    messageEl.textContent = "Level failed · press Try Again";
+    messageEl.style.color = "#ff6570";
+    messageEl.style.background = "rgba(255,77,90,0.10)";
+
+    if (idx !== -1) shakeSquare(idx);
+
+    if (failMessage) failMessage.textContent = message;
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      failModal.style.display = "flex";
+    }, 900);
+  }
+
+  function winLevel() {
+
+    locked = true;
+
+    statusEl.textContent = "Safe check!";
+    tipEl.textContent = "Brilliant! The king is attacked and your piece cannot be taken.";
+
+    messageEl.textContent = "Safe check!";
+    messageEl.style.color = "#78b887";
+    messageEl.style.background = "rgba(120,184,135,0.09)";
+
+    const nextLevel = level + 1;
+    const nextPieces = pawnsForLevel(pieceType, nextLevel);
+
+    winMessage.textContent =
+      "You gave a safe check with the " + USERS[pieceType].label +
+      " in " + moves + (moves === 1 ? " move" : " moves") +
+      " (shortest possible: " + layout.par + ").";
+
+    winNext.textContent =
+      "Next Level (Level " + nextLevel + " · " + nextPieces + " black pieces)";
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      winModal.style.display = "flex";
+    }, 1000);
+  }
+
+
+  /* =========================================================
+     PIECE BUTTONS
+  ========================================================= */
+
+  function buildPieceButtons() {
+
+    pieceGrid.innerHTML = "";
+
+    PIECE_ORDER.forEach(function (type) {
+
+      const info = USERS[type];
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ic-piece-btn";
+      btn.dataset.piece = type;
+
+      const img = document.createElement("img");
+      img.src = ASSET_PATH + info.file;
+      img.alt = info.label;
+      img.draggable = false;
+
+      img.addEventListener("error", function () {
+        const g = document.createElement("div");
+        g.className = "ic-glyph";
+        g.textContent = info.glyph;
+        if (img.parentNode) {
+          img.parentNode.replaceChild(g, img);
+        }
+      });
+
+      const label = document.createElement("span");
+      label.textContent = info.label;
+
+      btn.appendChild(img);
+      btn.appendChild(label);
+
+      btn.addEventListener("click", function () { selectPiece(type); });
+
+      pieceGrid.appendChild(btn);
+    });
+
+    refreshPieceButtons();
+  }
+
+  function refreshPieceButtons() {
+
+    pieceGrid.querySelectorAll(".ic-piece-btn").forEach(function (btn) {
+      btn.classList.toggle("ic-active", btn.dataset.piece === pieceType);
+    });
+  }
+
+
+  /* =========================================================
+     MODALS
+  ========================================================= */
+
+  function openHowTo() { howToModal.style.display = "flex"; }
+  function closeHowTo() { howToModal.style.display = "none"; }
+  function closeWinModal() { winModal.style.display = "none"; }
+  function closeFailModal() { failModal.style.display = "none"; }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  /* Reset = replay only THIS position (same layout). */
+  resetBtn?.addEventListener("click", restoreLevel);
+  resetSideBtn?.addEventListener("click", restoreLevel);
+
+  movesToggle?.addEventListener("change", function () {
+    movesOn = this.checked;
+    renderBoard();
+  });
+
+  dangerToggle?.addEventListener("change", function () {
+    dangerOn = this.checked;
+    renderBoard();
+  });
+
+  howToBtn?.addEventListener("click", openHowTo);
+  howToClose?.addEventListener("click", closeHowTo);
+
+  winNext?.addEventListener("click", function () {
+    closeWinModal();
+    level++;
+    startNewLevel();
+  });
+
+  winClose?.addEventListener("click", closeWinModal);
+
+  failRetry?.addEventListener("click", restoreLevel);
+  failClose?.addEventListener("click", closeFailModal);
+
+  howToModal?.addEventListener("click", function (event) {
+    if (event.target === howToModal) closeHowTo();
+  });
+
+  winModal?.addEventListener("click", function (event) {
+    if (event.target === winModal) closeWinModal();
+  });
+
+  failModal?.addEventListener("click", function (event) {
+    if (event.target === failModal) closeFailModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Escape") return;
+
+    if (howToModal.style.display === "flex") closeHowTo();
+    if (winModal.style.display === "flex") closeWinModal();
+    if (failModal.style.display === "flex") closeFailModal();
+  });
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  buildPieceButtons();
+  createBoard();
+  startNewLevel();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.ImpossibleCheck = {
+
+    reset: function () {
+      restoreLevel();
+    },
+
+    setPiece: function (type) {
+      selectPiece(type);
+    },
+
+    getState: function () {
+      return {
+        piece: pieceType,
+        level: level,
+        piecesLeft: totalPieces - popcount(mask),
+        totalPieces: totalPieces,
+        moves: moves,
+        locked: locked
+      };
+    }
+
+  };
+
+})();
+
+</script>
+
 
 <section
   class="section hidden"
@@ -71024,13 +72408,13 @@ winClose?.addEventListener("click", function() {
     Object.assign(img.style, {
       position: "relative",
       zIndex: "30",
-      width: "80%",
-      height: "80%",
+      width: "90%",
+      height: "90%",
       objectFit: "contain",
       display: "block",
       pointerEvents: "none",
       userSelect: "none",
-      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.65))"
+      
     });
 
     img.addEventListener("error", function () {
@@ -156441,6 +157825,7 @@ const lockedTabs = [
   "lichessAnalysis", "dice-multiplayer", "chessConcepts", "three-check", 
   "chessBaseTournament", "chessPlayerQuiz", "king-of-the-hill", "chess960",
   "chessLegends", "todayChessNews", "captureChallenge", "gameReview", 
+  "impossibleCheck"  ,  "captureChallenge" ,
 
   // 🎮 Standalone games
   "cardClash",
@@ -229359,6 +230744,7 @@ style="
 training: [
    '[data-tab="guessElo"]',
    '[data-tab="captureChallenge"]',
+   '[data-tab="impossibleCheck" ]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
