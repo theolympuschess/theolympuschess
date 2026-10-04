@@ -71771,7 +71771,7 @@ winClose?.addEventListener("click", function() {
     grid-template-rows: repeat(8, 1fr);
     user-select: none;
     border-radius: 6px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   #gameReview-section .ogr-sq {
@@ -71801,13 +71801,13 @@ winClose?.addEventListener("click", function() {
   #gameReview-section .ogr-piece {
     position: relative;
     z-index: 3;
-    width: 80%;
-    height: 80%;
+    width: 90%;
+    height: 90%;
     object-fit: contain;
     display: block;
     pointer-events: none;
     user-select: none;
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+    
   }
   #gameReview-section .ogr-glyph {
     position: relative;
@@ -71831,8 +71831,8 @@ winClose?.addEventListener("click", function() {
   #gameReview-section .ogr-sq-badge {
     position: absolute;
     z-index: 6;
-    top: -2px;
-    right: -2px;
+    top: -5px;
+    right: -5px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -71959,7 +71959,9 @@ winClose?.addEventListener("click", function() {
   }
 
   /* ---------- graph ---------- */
+  /* ---------- graph ---------- */
   #gameReview-section #ogrGraphBox {
+    position: relative;
     max-width: 660px;
     margin: 14px auto 0;
   }
@@ -71970,6 +71972,56 @@ winClose?.addEventListener("click", function() {
     border-radius: 8px;
     background: #2a2723;
     cursor: pointer;
+  }
+
+  #gameReview-section #ogrGraphHover {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(255, 255, 255, 0.55);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  #gameReview-section #ogrGraphTip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    z-index: 30;
+    min-width: 150px;
+    max-width: 280px;
+    padding: 8px 11px;
+    border-radius: 10px;
+    background: #0d1020;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    color: #e4e7f5;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.55;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  #gameReview-section #ogrGraphTip .ogr-tip-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 17px;
+    padding: 0 5px;
+    margin: 0 4px 0 2px;
+    border-radius: 9px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    vertical-align: 1px;
+  }
+
+  #gameReview-section #ogrGraphTip .ogr-tip-sub {
+    color: #aeb3cf;
+    font-weight: 700;
   }
 
   /* ---------- notation ---------- */
@@ -72253,6 +72305,8 @@ winClose?.addEventListener("click", function() {
         <!-- EVAL GRAPH -->
         <div id="ogrGraphBox" class="ogr-hidden">
           <svg id="ogrGraph" viewBox="0 0 400 90" preserveAspectRatio="none"></svg>
+                    <div id="ogrGraphHover" class="ogr-hidden"></div>
+          <div id="ogrGraphTip" class="ogr-hidden"></div>
         </div>
 
       </div>
@@ -72373,859 +72427,7 @@ winClose?.addEventListener("click", function() {
 
 </section>
 
-<!-- =========================================================
-     📊 OLYMPUS GAME REVIEW  (Lichess-style Stockfish analysis)
-     ---------------------------------------------------------
-     NAV BUTTON  (paste inside your nav bar, next to the others)
 
-     <button
-       class="nav-btn"
-       data-tab="gameReview"
-       id="gameReviewNavBtn"
-     >
-       📊
-       Game Review
-     </button>
-
-     Completely isolated:
-       - every CSS rule is scoped under #gameReview-section
-       - every id starts with "ogr"
-       - own chess rules engine (does NOT use chess_min.js)
-       - only global created: window.OlympusGameReview
-       - needs: stockfish.js (Web Worker) next to your page
-========================================================= -->
-
-<style>
-  #gameReview-section * { box-sizing: border-box; }
-
-  #gameReview-section #ogr-layout {
-    display: grid;
-    grid-template-columns: 250px minmax(0, 1fr) 340px;
-    gap: 18px;
-    align-items: start;
-  }
-
-  @media (max-width: 1180px) {
-    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr) 320px; }
-    #gameReview-section #ogr-left { grid-column: 1 / -1; order: 3; }
-    #gameReview-section #ogr-left .ogr-movelist { max-height: 260px; }
-  }
-
-  @media (max-width: 860px) {
-    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr); }
-    #gameReview-section #ogr-right { order: 1; }
-    #gameReview-section #ogr-center { order: 2; }
-    #gameReview-section #ogr-left { order: 3; }
-  }
-
-  #gameReview-section .ogr-card {
-    background: rgba(20, 24, 42, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 16px;
-  }
-
-  #gameReview-section .ogr-card-title {
-    color: #fff;
-    font-size: 15px;
-    font-weight: 900;
-    margin-bottom: 10px;
-  }
-
-  #gameReview-section .ogr-btn {
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-    font-weight: 800;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  #gameReview-section .ogr-btn:hover { background: rgba(255, 255, 255, 0.12); }
-  #gameReview-section .ogr-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  #gameReview-section .ogr-btn-primary {
-    border: none;
-    background: #78b887;
-    color: #000;
-    font-weight: 900;
-  }
-  #gameReview-section .ogr-btn-primary:hover { background: #8cc999; }
-
-  #gameReview-section .ogr-btn-gold {
-    border: 1px solid rgba(255, 215, 0, 0.25);
-    background: rgba(255, 215, 0, 0.10);
-    color: #ffd700;
-  }
-
-  /* ---------- PGN input ---------- */
-  #gameReview-section #ogrPgnInput {
-    width: 100%;
-    min-height: 130px;
-    resize: vertical;
-    padding: 11px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: #171b2d;
-    color: #fff;
-    font-size: 12px;
-    line-height: 1.5;
-    font-family: Consolas, Menlo, monospace;
-    outline: none;
-  }
-  #gameReview-section #ogrPgnInput:focus { border-color: rgba(255, 215, 0, 0.45); }
-
-  #gameReview-section .ogr-error {
-    margin-top: 8px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: rgba(255, 77, 90, 0.10);
-    color: #ff7b85;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.45;
-  }
-
-  #gameReview-section .ogr-warn {
-    margin-top: 8px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: rgba(230, 159, 0, 0.10);
-    color: #e6b34d;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.45;
-  }
-
-  /* ---------- progress ---------- */
-  #gameReview-section .ogr-bar {
-    position: relative;
-    width: 100%;
-    height: 22px;
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-  }
-  #gameReview-section .ogr-bar-fill {
-    height: 100%;
-    width: 0%;
-    border-radius: 11px;
-    background: linear-gradient(90deg, #5ea06f, #78b887);
-    transition: width 140ms linear;
-  }
-  #gameReview-section .ogr-bar-label {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 900;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  }
-  #gameReview-section .ogr-bar-thin {
-    height: 6px;
-    margin-top: 8px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-  }
-  #gameReview-section .ogr-bar-thin > div {
-    height: 100%;
-    width: 0%;
-    background: #ffd700;
-    transition: width 140ms linear;
-  }
-
-  /* ---------- info rows ---------- */
-  #gameReview-section .ogr-info-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 12px;
-    font-weight: 700;
-  }
-  #gameReview-section .ogr-info-row:last-child { border-bottom: none; }
-  #gameReview-section .ogr-info-row span:first-child { color: #858ba8; white-space: nowrap; }
-  #gameReview-section .ogr-info-row span:last-child { color: #fff; text-align: right; word-break: break-word; }
-
-  /* ---------- board ---------- */
-  #gameReview-section .ogr-board-row {
-    display: flex;
-    gap: 10px;
-    align-items: stretch;
-    width: 100%;
-    max-width: 660px;
-    margin: 0 auto;
-  }
-
-  #gameReview-section #ogrEvalBar {
-    position: relative;
-    width: 24px;
-    flex: 0 0 24px;
-    border-radius: 6px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background: #403d39;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-  }
-  #gameReview-section #ogrEvalBar.ogr-flipped { flex-direction: column-reverse; }
-  #gameReview-section #ogrEvalBlack { background: #403d39; transition: height 250ms ease; }
-  #gameReview-section #ogrEvalWhite { background: #f2f2f2; flex: 1; }
-  #gameReview-section #ogrEvalLabel {
-    position: absolute;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: -0.3px;
-    pointer-events: none;
-  }
-
-  #gameReview-section #ogrBoardWrap {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-  }
-
-  #gameReview-section #ogrBoard {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    user-select: none;
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  #gameReview-section .ogr-sq {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 0;
-    min-height: 0;
-  }
-  #gameReview-section .ogr-sq-light { background: #d9c8a4; }
-  #gameReview-section .ogr-sq-dark { background: #806b50; }
-
-  #gameReview-section .ogr-sq-hl::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(155, 199, 0, 0.42);
-  }
-  #gameReview-section .ogr-sq-check::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at center, rgba(255, 0, 0, 1) 0%, rgba(231, 0, 0, 1) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%);
-  }
-
-  #gameReview-section .ogr-piece {
-    position: relative;
-    z-index: 3;
-    width: 80%;
-    height: 80%;
-    object-fit: contain;
-    display: block;
-    pointer-events: none;
-    user-select: none;
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
-  }
-  #gameReview-section .ogr-glyph {
-    position: relative;
-    z-index: 3;
-    line-height: 1;
-    pointer-events: none;
-    user-select: none;
-  }
-
-  #gameReview-section .ogr-coord {
-    position: absolute;
-    z-index: 2;
-    font-size: 10px;
-    font-weight: 800;
-    pointer-events: none;
-    opacity: 0.85;
-  }
-  #gameReview-section .ogr-coord-rank { top: 2px; left: 3px; }
-  #gameReview-section .ogr-coord-file { bottom: 1px; right: 3px; }
-
-  #gameReview-section .ogr-sq-badge {
-    position: absolute;
-    z-index: 6;
-    top: -2px;
-    right: -2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: #fff;
-    font-weight: 900;
-    line-height: 1;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
-    border: 1.5px solid rgba(255, 255, 255, 0.9);
-    pointer-events: none;
-  }
-
-  #gameReview-section #ogrArrows {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 8;
-  }
-
-  /* ---------- players ---------- */
-  #gameReview-section .ogr-player {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    width: 100%;
-    max-width: 660px;
-    margin: 0 auto;
-    padding: 7px 10px 7px 44px;
-    min-height: 40px;
-  }
-  #gameReview-section .ogr-player-name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 800;
-    min-width: 0;
-  }
-  #gameReview-section .ogr-chip {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    flex: 0 0 12px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-  }
-  #gameReview-section .ogr-player-name .ogr-nm {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #gameReview-section .ogr-elo { color: #858ba8; font-size: 12px; font-weight: 700; }
-  #gameReview-section .ogr-diff-pos { color: #78b887; font-size: 11px; font-weight: 800; }
-  #gameReview-section .ogr-diff-neg { color: #ff6570; font-size: 11px; font-weight: 800; }
-  #gameReview-section .ogr-clock {
-    min-width: 62px;
-    text-align: center;
-    padding: 4px 9px;
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 900;
-    font-family: Consolas, Menlo, monospace;
-  }
-  #gameReview-section .ogr-score {
-    padding: 2px 8px;
-    border-radius: 6px;
-    background: rgba(255, 215, 0, 0.14);
-    color: #ffd700;
-    font-size: 12px;
-    font-weight: 900;
-  }
-
-  /* ---------- nav ---------- */
-  #gameReview-section .ogr-nav {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin: 10px auto 0;
-    max-width: 660px;
-  }
-  #gameReview-section .ogr-nav button {
-    flex: 1;
-    max-width: 90px;
-    padding: 10px 0;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 900;
-    cursor: pointer;
-  }
-  #gameReview-section .ogr-nav button:hover { background: rgba(255, 255, 255, 0.14); }
-  #gameReview-section .ogr-nav button:disabled { opacity: 0.35; cursor: not-allowed; }
-
-  #gameReview-section #ogrMoveInfo {
-    max-width: 660px;
-    margin: 12px auto 0;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #aeb3cf;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.5;
-    text-align: center;
-  }
-
-  #gameReview-section .ogr-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 10px;
-    color: #858ba8;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  /* ---------- graph ---------- */
-  #gameReview-section #ogrGraphBox {
-    max-width: 660px;
-    margin: 14px auto 0;
-  }
-  #gameReview-section #ogrGraph {
-    width: 100%;
-    height: 90px;
-    display: block;
-    border-radius: 8px;
-    background: #2a2723;
-    cursor: pointer;
-  }
-
-  /* ---------- notation ---------- */
-  #gameReview-section .ogr-movelist {
-    max-height: 640px;
-    overflow-y: auto;
-    position: relative;
-    padding-right: 4px;
-  }
-  #gameReview-section .ogr-row {
-    display: grid;
-    grid-template-columns: 32px 1fr 1fr;
-    gap: 2px;
-    align-items: stretch;
-    margin-bottom: 2px;
-  }
-  #gameReview-section .ogr-num {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
-    color: #777d99;
-    font-size: 11px;
-    font-weight: 800;
-  }
-  #gameReview-section .ogr-move {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    padding: 6px 8px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #e4e7f5;
-    font-size: 13px;
-    font-weight: 800;
-    text-align: left;
-    cursor: pointer;
-    min-height: 30px;
-  }
-  #gameReview-section .ogr-move:hover { background: rgba(255, 255, 255, 0.09); }
-  #gameReview-section .ogr-move.ogr-active {
-    background: rgba(255, 215, 0, 0.20);
-    color: #ffd700;
-    box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.45);
-  }
-  #gameReview-section .ogr-move-empty { color: #555b78; cursor: default; }
-  #gameReview-section .ogr-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 17px;
-    padding: 0 4px;
-    border-radius: 9px;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 900;
-    line-height: 1;
-  }
-  #gameReview-section .ogr-result-row {
-    margin: 8px 0 2px;
-    text-align: center;
-    color: #858ba8;
-    font-size: 12px;
-    font-weight: 800;
-  }
-  #gameReview-section .ogr-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    margin-bottom: 10px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #858ba8;
-  }
-  #gameReview-section .ogr-legend span { display: inline-flex; align-items: center; gap: 5px; }
-
-  /* ---------- summary ---------- */
-  #gameReview-section .ogr-sum-head {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  #gameReview-section .ogr-sum-player {
-    padding: 10px 8px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    text-align: center;
-    min-width: 0;
-  }
-  #gameReview-section .ogr-sum-name {
-    color: #aeb3cf;
-    font-size: 11px;
-    font-weight: 800;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #gameReview-section .ogr-sum-acc { color: #fff; font-size: 26px; font-weight: 900; margin-top: 3px; }
-  #gameReview-section .ogr-sum-acc-label { color: #777d99; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
-
-  #gameReview-section .ogr-sum-row {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr 1fr;
-    align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 13px;
-    font-weight: 800;
-    text-align: center;
-  }
-  #gameReview-section .ogr-sum-row:last-child { border-bottom: none; }
-  #gameReview-section .ogr-sum-row .ogr-sum-mid {
-    color: #aeb3cf;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  #gameReview-section .ogr-sum-row span { color: #fff; }
-  #gameReview-section .ogr-sum-row .ogr-sum-mid { color: #aeb3cf; }
-
-  #gameReview-section .ogr-stack {
-    display: flex;
-    width: 100%;
-    height: 9px;
-    border-radius: 5px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.08);
-    margin-top: 8px;
-  }
-  #gameReview-section .ogr-stack > div { height: 100%; }
-
-  #gameReview-section .ogr-dot {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-
-  #gameReview-section .ogr-hidden { display: none !important; }
-
-  #gameReview-section .ogr-muted {
-    color: #858ba8;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.55;
-  }
-</style>
-
-<section
-  class="section hidden"
-  id="gameReview-section"
->
-
-  <div
-    id="ogr-shell"
-    style="
-      width:100%;
-      max-width:1320px;
-      margin:0 auto;
-      padding:20px;
-      box-sizing:border-box;
-    "
-  >
-
-    <!-- =====================================================
-         HEADER
-    ====================================================== -->
-
-    <div
-      style="
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:16px;
-        flex-wrap:wrap;
-        margin-bottom:20px;
-      "
-    >
-
-      <div style="display:flex; align-items:center; gap:14px;">
-
-        <div style="font-size:42px; line-height:1; color:#ffd700;">📊</div>
-
-        <div>
-          <h2 style="margin:0; color:#fff; font-size:26px; font-weight:900;">
-            Game Review
-          </h2>
-          <p style="margin:5px 0 0; color:#aeb3cf; font-size:14px; font-weight:600;">
-            Paste a PGN and get a Lichess-style Stockfish analysis in about 1 minute.
-          </p>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <!-- =====================================================
-         MAIN LAYOUT: notation | board | panel
-    ====================================================== -->
-
-    <div id="ogr-layout">
-
-
-      <!-- ===================================================
-           LEFT: NOTATION
-      ==================================================== -->
-
-      <div id="ogr-left" class="ogr-card">
-
-        <div class="ogr-card-title">📝 Moves</div>
-
-        <div class="ogr-legend">
-          <span><i class="ogr-dot" style="background:#1baca6;"></i>!! Brilliant</span>
-          <span><i class="ogr-dot" style="background:#81b64c;"></i>★ Best</span>
-          <span><i class="ogr-dot" style="background:#a5c47a;"></i>✓ Good</span>
-          <span><i class="ogr-dot" style="background:#56b4e9;"></i>?! Inaccuracy</span>
-          <span><i class="ogr-dot" style="background:#e69f00;"></i>? Mistake</span>
-          <span><i class="ogr-dot" style="background:#db3031;"></i>?? Blunder</span>
-        </div>
-
-        <div id="ogrMoveList" class="ogr-movelist">
-          <div class="ogr-muted">
-            Moves will appear here once you load a PGN.
-          </div>
-        </div>
-
-      </div>
-
-
-      <!-- ===================================================
-           CENTER: BOARD
-      ==================================================== -->
-
-      <div
-        id="ogr-center"
-        style="
-          background:rgba(20,24,42,0.96);
-          border:1px solid rgba(255,215,0,0.18);
-          border-radius:18px;
-          padding:18px 16px 20px;
-          box-shadow:0 20px 55px rgba(0,0,0,0.25);
-        "
-      >
-
-        <!-- TOP PLAYER -->
-        <div class="ogr-player" id="ogrPlayerTop">
-          <div class="ogr-player-name">
-            <span class="ogr-chip" data-role="chip"></span>
-            <span class="ogr-nm" data-role="name">Black</span>
-            <span class="ogr-elo" data-role="elo"></span>
-            <span data-role="diff"></span>
-            <span class="ogr-score ogr-hidden" data-role="score"></span>
-          </div>
-          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
-        </div>
-
-        <!-- BOARD + EVAL BAR -->
-        <div class="ogr-board-row">
-
-          <div id="ogrEvalBar" title="Evaluation">
-            <div id="ogrEvalBlack" style="height:50%;"></div>
-            <div id="ogrEvalWhite"></div>
-            <div id="ogrEvalLabel">0.0</div>
-          </div>
-
-          <div id="ogrBoardWrap">
-            <div id="ogrBoard" aria-label="Game review board"></div>
-            <svg id="ogrArrows" viewBox="0 0 8 8" preserveAspectRatio="none"></svg>
-          </div>
-
-        </div>
-
-        <!-- BOTTOM PLAYER -->
-        <div class="ogr-player" id="ogrPlayerBottom">
-          <div class="ogr-player-name">
-            <span class="ogr-chip" data-role="chip"></span>
-            <span class="ogr-nm" data-role="name">White</span>
-            <span class="ogr-elo" data-role="elo"></span>
-            <span data-role="diff"></span>
-            <span class="ogr-score ogr-hidden" data-role="score"></span>
-          </div>
-          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
-        </div>
-
-        <!-- NAVIGATION -->
-        <div class="ogr-nav">
-          <button type="button" id="ogrFirstBtn" title="First position (Home)">⏮</button>
-          <button type="button" id="ogrPrevBtn" title="Previous move (←)">◀</button>
-          <button type="button" id="ogrNextBtn" title="Next move (→)">▶</button>
-          <button type="button" id="ogrLastBtn" title="Last position (End)">⏭</button>
-          <button type="button" id="ogrFlipBtn" title="Flip board">⇅</button>
-        </div>
-
-        <!-- MOVE INFO -->
-        <div id="ogrMoveInfo">Load a PGN to start.</div>
-
-        <label class="ogr-toggle">
-          <input type="checkbox" id="ogrArrowToggle" checked>
-          Show Engine best move arrow
-        </label>
-
-        <!-- EVAL GRAPH -->
-        <div id="ogrGraphBox" class="ogr-hidden">
-          <svg id="ogrGraph" viewBox="0 0 400 90" preserveAspectRatio="none"></svg>
-        </div>
-
-      </div>
-
-
-      <!-- ===================================================
-           RIGHT: PANEL
-      ==================================================== -->
-
-      <div id="ogr-right" style="display:flex; flex-direction:column; gap:14px;">
-
-        <!-- PGN INPUT -->
-        <div class="ogr-card">
-
-          <div class="ogr-card-title">♟ Paste your PGN</div>
-
-          <textarea
-            id="ogrPgnInput"
-            spellcheck="false"
-            placeholder='[Event "Casual game"]&#10;[White "Player 1"]&#10;[Black "Player 2"]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'
-          ></textarea>
-
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-
-            <button type="button" id="ogrAnalyseBtn" class="ogr-btn ogr-btn-primary" style="flex:1; min-width:130px;">
-              🔍 Analyse
-            </button>
-
-            <button type="button" id="ogrCancelBtn" class="ogr-btn ogr-hidden">
-              ✕ Cancel
-            </button>
-
-          </div>
-
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-
-            <button type="button" id="ogrSampleBtn" class="ogr-btn" style="flex:1;">
-              Sample game
-            </button>
-
-            <button type="button" id="ogrFileBtn" class="ogr-btn" style="flex:1;">
-              📂 Open .pgn
-            </button>
-
-            <button type="button" id="ogrClearBtn" class="ogr-btn ogr-btn-gold" style="flex:1;">
-              ↻ Clear
-            </button>
-
-            <input type="file" id="ogrFileInput" accept=".pgn,.txt" class="ogr-hidden">
-
-          </div>
-
-          <div id="ogrMessage" class="ogr-hidden"></div>
-
-        </div>
-
-
-        <!-- PROGRESS -->
-        <div id="ogrProgressCard" class="ogr-card ogr-hidden">
-
-          <div class="ogr-card-title" id="ogrProgressTitle">⚙️ Analysing…</div>
-
-          <div class="ogr-bar">
-            <div class="ogr-bar-fill" id="ogrProgressFill"></div>
-            <div class="ogr-bar-label" id="ogrProgressLabel">0%</div>
-          </div>
-
-          <div class="ogr-bar-thin" title="Time used of the 30 second limit">
-            <div id="ogrTimeFill"></div>
-          </div>
-
-          <div
-            id="ogrProgressText"
-            style="
-              display:flex;
-              justify-content:space-between;
-              gap:8px;
-              margin-top:8px;
-              color:#aeb3cf;
-              font-size:12px;
-              font-weight:700;
-            "
-          >
-            <span id="ogrProgressStatus">Starting Stockfish…</span>
-            <span id="ogrProgressTime">0.0s / 30s</span>
-          </div>
-
-        </div>
-
-
-        <!-- GAME INFO -->
-        <div id="ogrInfoCard" class="ogr-card ogr-hidden">
-          <div class="ogr-card-title">ℹ️ Game Info</div>
-          <div id="ogrInfoBody"></div>
-        </div>
-
-
-        <!-- SUMMARY -->
-        <div id="ogrSummaryCard" class="ogr-card ogr-hidden">
-          <div class="ogr-card-title">🏁 Computer Analysis</div>
-          <div id="ogrSummaryBody"></div>
-        </div>
-
-        <div class="ogr-muted" style="padding:0 4px;">
-          Stockfish runs inside your browser. The whole review is capped at 1 minute,
-          so the search depth depends on game length and your device. Keep this tab open while it runs.
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
 
 <script>
 
@@ -73652,7 +72854,7 @@ winClose?.addEventListener("click", function() {
         if (m.cap) out += FILES[m.from & 7];
       } else {
         const others = legal.filter(function (o) {
-          return o !== m && o.p === m.p && o.to === m.to;
+          return o.p === m.p && o.to === m.to && o.from !== m.from;
         });
 
         if (others.length) {
@@ -74655,6 +73857,8 @@ winClose?.addEventListener("click", function() {
 
   const graphBox = $("ogrGraphBox");
   const graphEl = $("ogrGraph");
+    const graphHoverEl = $("ogrGraphHover");
+  const graphTipEl = $("ogrGraphTip");
 
   const arrowToggle = $("ogrArrowToggle");
 
@@ -74805,9 +74009,9 @@ winClose?.addEventListener("click", function() {
           badge.className = "ogr-sq-badge";
           badge.textContent = info.symbol;
           badge.style.background = info.color;
-          badge.style.width = Math.round(sqSize * 0.36) + "px";
-          badge.style.height = Math.round(sqSize * 0.36) + "px";
-          badge.style.fontSize = Math.round(sqSize * 0.19) + "px";
+          badge.style.width = Math.round(sqSize * 0.46) + "px";
+          badge.style.height = Math.round(sqSize * 0.46) + "px";
+          badge.style.fontSize = Math.round(sqSize * 0.25) + "px";
 
           sq.appendChild(badge);
         }
@@ -75311,6 +74515,8 @@ winClose?.addEventListener("click", function() {
 
     if (!evals || !game) {
       graphBox.classList.add("ogr-hidden");
+      if (graphTipEl) graphTipEl.classList.add("ogr-hidden");
+      if (graphHoverEl) graphHoverEl.classList.add("ogr-hidden");
       return;
     }
 
@@ -75678,6 +74884,86 @@ winClose?.addEventListener("click", function() {
     "1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 " +
     "8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 " +
     "14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0";
+
+      /* =========================================================
+     EVAL GRAPH HOVER TOOLTIP
+     (move + badge + evaluation, follows the mouse / finger)
+  ========================================================= */
+
+  function graphTipHtml(p) {
+
+    if (p === 0) {
+      return "<strong>Start position</strong><br>" +
+        '<span class="ogr-tip-sub">Eval ' + esc(formatEval(evals[0])) + "</span>";
+    }
+
+    const i = p - 1;
+    const key = badgeOf(i);
+    const m = review ? review.moves[i] : null;
+
+    let html = "<strong>" + esc(plyLabel(i)) + "</strong>";
+
+    if (key) {
+      const info = JUDGE[key];
+      html += ' <span class="ogr-tip-badge" style="background:' + info.color + ';">' +
+        esc(info.symbol) + '</span><span style="color:' + info.color + ';">' +
+        esc(info.label) + "</span>";
+    } else {
+      html += ' <span class="ogr-tip-sub">Okay move</span>';
+    }
+
+    html += '<br><span class="ogr-tip-sub">Eval after move: ' + esc(formatEval(evals[p])) + "</span>";
+
+    if (m && m.judgement && m.best) {
+      const before = game.states[i];
+      const bm = uciToMove(before, m.best);
+
+      if (bm) {
+        html += '<br><span class="ogr-tip-sub">Best was <strong style="color:#fff;">' +
+          esc(moveToSAN(before, bm, legalMoves(before))) + "</strong></span>";
+      }
+    }
+
+    return html;
+  }
+
+  function hideGraphTip() {
+    graphTipEl.classList.add("ogr-hidden");
+    graphHoverEl.classList.add("ogr-hidden");
+  }
+
+  function showGraphTip(event) {
+
+    if (!game || !evals) {
+      hideGraphTip();
+      return;
+    }
+
+    const rect = graphEl.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const n = game.plies.length;
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const p = Math.round(ratio * n);
+
+    const x = n === 0 ? 0 : (p / n) * rect.width;
+
+    graphHoverEl.style.left = x + "px";
+    graphHoverEl.classList.remove("ogr-hidden");
+
+    graphTipEl.innerHTML = graphTipHtml(p);
+    graphTipEl.classList.remove("ogr-hidden");
+
+    const tipW = graphTipEl.offsetWidth;
+    const boxW = graphBox.clientWidth;
+
+    graphTipEl.style.left = Math.max(0, Math.min(boxW - tipW, x - tipW / 2)) + "px";
+  }
+
+  graphEl.addEventListener("pointermove", showGraphTip);
+  graphEl.addEventListener("pointerdown", showGraphTip);
+  graphEl.addEventListener("pointerleave", hideGraphTip);
+  graphEl.addEventListener("pointercancel", hideGraphTip);
 
 
   /* =========================================================
