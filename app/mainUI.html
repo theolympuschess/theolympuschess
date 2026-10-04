@@ -42193,7 +42193,14 @@ right:0;
   💯
   Perfect Capture Challenge
 </button>
-
+<button 
+  class="nav-btn" 
+  data-tab="gameReview" 
+  id="gameReviewNavBtn" 
+>
+  📊
+  Olympus Game Review Engine
+</button>
 <button
   class="nav-btn"
   data-tab="emojiMemory"
@@ -71534,7 +71541,4287 @@ winClose?.addEventListener("click", function() {
 
 </script>
 
+<!-- =========================================================
+     📊 OLYMPUS GAME REVIEW  (Lichess-style Stockfish analysis)
+     ---------------------------------------------------------
+     NAV BUTTON  (paste inside your nav bar, next to the others)
 
+     <button
+       class="nav-btn"
+       data-tab="gameReview"
+       id="gameReviewNavBtn"
+     >
+       📊
+       Game Review
+     </button>
+
+     Completely isolated:
+       - every CSS rule is scoped under #gameReview-section
+       - every id starts with "ogr"
+       - own chess rules engine (does NOT use chess_min.js)
+       - only global created: window.OlympusGameReview
+       - needs: stockfish.js (Web Worker) next to your page
+========================================================= -->
+
+<style>
+  #gameReview-section * { box-sizing: border-box; }
+
+  #gameReview-section #ogr-layout {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr) 340px;
+    gap: 18px;
+    align-items: start;
+  }
+
+  @media (max-width: 1180px) {
+    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+    #gameReview-section #ogr-left { grid-column: 1 / -1; order: 3; }
+    #gameReview-section #ogr-left .ogr-movelist { max-height: 260px; }
+  }
+
+  @media (max-width: 860px) {
+    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr); }
+    #gameReview-section #ogr-right { order: 1; }
+    #gameReview-section #ogr-center { order: 2; }
+    #gameReview-section #ogr-left { order: 3; }
+  }
+
+  #gameReview-section .ogr-card {
+    background: rgba(20, 24, 42, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  #gameReview-section .ogr-card-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 900;
+    margin-bottom: 10px;
+  }
+
+  #gameReview-section .ogr-btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #gameReview-section .ogr-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  #gameReview-section .ogr-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  #gameReview-section .ogr-btn-primary {
+    border: none;
+    background: #78b887;
+    color: #000;
+    font-weight: 900;
+  }
+  #gameReview-section .ogr-btn-primary:hover { background: #8cc999; }
+
+  #gameReview-section .ogr-btn-gold {
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    background: rgba(255, 215, 0, 0.10);
+    color: #ffd700;
+  }
+
+  /* ---------- PGN input ---------- */
+  #gameReview-section #ogrPgnInput {
+    width: 100%;
+    min-height: 130px;
+    resize: vertical;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #171b2d;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: Consolas, Menlo, monospace;
+    outline: none;
+  }
+  #gameReview-section #ogrPgnInput:focus { border-color: rgba(255, 215, 0, 0.45); }
+
+  #gameReview-section .ogr-error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 77, 90, 0.10);
+    color: #ff7b85;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  #gameReview-section .ogr-warn {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(230, 159, 0, 0.10);
+    color: #e6b34d;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  /* ---------- progress ---------- */
+  #gameReview-section .ogr-bar {
+    position: relative;
+    width: 100%;
+    height: 22px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  #gameReview-section .ogr-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 11px;
+    background: linear-gradient(90deg, #5ea06f, #78b887);
+    transition: width 140ms linear;
+  }
+  #gameReview-section .ogr-bar-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+  #gameReview-section .ogr-bar-thin {
+    height: 6px;
+    margin-top: 8px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  #gameReview-section .ogr-bar-thin > div {
+    height: 100%;
+    width: 0%;
+    background: #ffd700;
+    transition: width 140ms linear;
+  }
+
+  /* ---------- info rows ---------- */
+  #gameReview-section .ogr-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #gameReview-section .ogr-info-row:last-child { border-bottom: none; }
+  #gameReview-section .ogr-info-row span:first-child { color: #858ba8; white-space: nowrap; }
+  #gameReview-section .ogr-info-row span:last-child { color: #fff; text-align: right; word-break: break-word; }
+
+  /* ---------- board ---------- */
+  #gameReview-section .ogr-board-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 660px;
+    margin: 0 auto;
+  }
+
+  #gameReview-section #ogrEvalBar {
+    position: relative;
+    width: 24px;
+    flex: 0 0 24px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #403d39;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  #gameReview-section #ogrEvalBar.ogr-flipped { flex-direction: column-reverse; }
+  #gameReview-section #ogrEvalBlack { background: #403d39; transition: height 250ms ease; }
+  #gameReview-section #ogrEvalWhite { background: #f2f2f2; flex: 1; }
+  #gameReview-section #ogrEvalLabel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: -0.3px;
+    pointer-events: none;
+  }
+
+  #gameReview-section #ogrBoardWrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  #gameReview-section #ogrBoard {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    user-select: none;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  #gameReview-section .ogr-sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+  }
+  #gameReview-section .ogr-sq-light { background: #d9c8a4; }
+  #gameReview-section .ogr-sq-dark { background: #806b50; }
+
+  #gameReview-section .ogr-sq-hl::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(155, 199, 0, 0.42);
+  }
+  #gameReview-section .ogr-sq-check::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255, 0, 0, 1) 0%, rgba(231, 0, 0, 1) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%);
+  }
+
+  #gameReview-section .ogr-piece {
+    position: relative;
+    z-index: 3;
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  }
+  #gameReview-section .ogr-glyph {
+    position: relative;
+    z-index: 3;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  #gameReview-section .ogr-coord {
+    position: absolute;
+    z-index: 2;
+    font-size: 10px;
+    font-weight: 800;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  #gameReview-section .ogr-coord-rank { top: 2px; left: 3px; }
+  #gameReview-section .ogr-coord-file { bottom: 1px; right: 3px; }
+
+  #gameReview-section .ogr-sq-badge {
+    position: absolute;
+    z-index: 6;
+    top: -2px;
+    right: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+  }
+
+  #gameReview-section #ogrArrows {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 8;
+  }
+
+  /* ---------- players ---------- */
+  #gameReview-section .ogr-player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    max-width: 660px;
+    margin: 0 auto;
+    padding: 7px 10px 7px 44px;
+    min-height: 40px;
+  }
+  #gameReview-section .ogr-player-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    min-width: 0;
+  }
+  #gameReview-section .ogr-chip {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  #gameReview-section .ogr-player-name .ogr-nm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #gameReview-section .ogr-elo { color: #858ba8; font-size: 12px; font-weight: 700; }
+  #gameReview-section .ogr-diff-pos { color: #78b887; font-size: 11px; font-weight: 800; }
+  #gameReview-section .ogr-diff-neg { color: #ff6570; font-size: 11px; font-weight: 800; }
+  #gameReview-section .ogr-clock {
+    min-width: 62px;
+    text-align: center;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 900;
+    font-family: Consolas, Menlo, monospace;
+  }
+  #gameReview-section .ogr-score {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255, 215, 0, 0.14);
+    color: #ffd700;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  /* ---------- nav ---------- */
+  #gameReview-section .ogr-nav {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px auto 0;
+    max-width: 660px;
+  }
+  #gameReview-section .ogr-nav button {
+    flex: 1;
+    max-width: 90px;
+    padding: 10px 0;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  #gameReview-section .ogr-nav button:hover { background: rgba(255, 255, 255, 0.14); }
+  #gameReview-section .ogr-nav button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  #gameReview-section #ogrMoveInfo {
+    max-width: 660px;
+    margin: 12px auto 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #aeb3cf;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  #gameReview-section .ogr-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* ---------- graph ---------- */
+  #gameReview-section #ogrGraphBox {
+    max-width: 660px;
+    margin: 14px auto 0;
+  }
+  #gameReview-section #ogrGraph {
+    width: 100%;
+    height: 90px;
+    display: block;
+    border-radius: 8px;
+    background: #2a2723;
+    cursor: pointer;
+  }
+
+  /* ---------- notation ---------- */
+  #gameReview-section .ogr-movelist {
+    max-height: 640px;
+    overflow-y: auto;
+    position: relative;
+    padding-right: 4px;
+  }
+  #gameReview-section .ogr-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 1fr;
+    gap: 2px;
+    align-items: stretch;
+    margin-bottom: 2px;
+  }
+  #gameReview-section .ogr-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    color: #777d99;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  #gameReview-section .ogr-move {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #e4e7f5;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    min-height: 30px;
+  }
+  #gameReview-section .ogr-move:hover { background: rgba(255, 255, 255, 0.09); }
+  #gameReview-section .ogr-move.ogr-active {
+    background: rgba(255, 215, 0, 0.20);
+    color: #ffd700;
+    box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.45);
+  }
+  #gameReview-section .ogr-move-empty { color: #555b78; cursor: default; }
+  #gameReview-section .ogr-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  #gameReview-section .ogr-result-row {
+    margin: 8px 0 2px;
+    text-align: center;
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  #gameReview-section .ogr-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #858ba8;
+  }
+  #gameReview-section .ogr-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* ---------- summary ---------- */
+  #gameReview-section .ogr-sum-head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  #gameReview-section .ogr-sum-player {
+    padding: 10px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    text-align: center;
+    min-width: 0;
+  }
+  #gameReview-section .ogr-sum-name {
+    color: #aeb3cf;
+    font-size: 11px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #gameReview-section .ogr-sum-acc { color: #fff; font-size: 26px; font-weight: 900; margin-top: 3px; }
+  #gameReview-section .ogr-sum-acc-label { color: #777d99; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+
+  #gameReview-section .ogr-sum-row {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+  }
+  #gameReview-section .ogr-sum-row:last-child { border-bottom: none; }
+  #gameReview-section .ogr-sum-row .ogr-sum-mid {
+    color: #aeb3cf;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  #gameReview-section .ogr-sum-row span { color: #fff; }
+  #gameReview-section .ogr-sum-row .ogr-sum-mid { color: #aeb3cf; }
+
+  #gameReview-section .ogr-stack {
+    display: flex;
+    width: 100%;
+    height: 9px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    margin-top: 8px;
+  }
+  #gameReview-section .ogr-stack > div { height: 100%; }
+
+  #gameReview-section .ogr-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  #gameReview-section .ogr-hidden { display: none !important; }
+
+  #gameReview-section .ogr-muted {
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.55;
+  }
+</style>
+
+<section
+  class="section hidden"
+  id="gameReview-section"
+>
+
+  <div
+    id="ogr-shell"
+    style="
+      width:100%;
+      max-width:1320px;
+      margin:0 auto;
+      padding:20px;
+      box-sizing:border-box;
+    "
+  >
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+
+
+
+    <!-- =====================================================
+         MAIN LAYOUT: notation | board | panel
+    ====================================================== -->
+
+    <div id="ogr-layout">
+
+
+      <!-- ===================================================
+           LEFT: NOTATION
+      ==================================================== -->
+
+      <div id="ogr-left" class="ogr-card">
+
+        <div class="ogr-card-title">📝 Moves</div>
+
+           <div class="ogr-legend">
+          <span><i class="ogr-dot" style="background:#1baca6;"></i>!! Brilliant</span>
+          <span><i class="ogr-dot" style="background:#81b64c;"></i>★ Best</span>
+          <span><i class="ogr-dot" style="background:#a5c47a;"></i>✓ Good</span>
+          <span><i class="ogr-dot" style="background:#56b4e9;"></i>?! Inaccuracy</span>
+          <span><i class="ogr-dot" style="background:#e69f00;"></i>? Mistake</span>
+          <span><i class="ogr-dot" style="background:#db3031;"></i>?? Blunder</span>
+        </div>
+
+        <div id="ogrMoveList" class="ogr-movelist">
+          <div class="ogr-muted">
+            Moves will appear here once you load a PGN.
+          </div>
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           CENTER: BOARD
+      ==================================================== -->
+
+      <div
+        id="ogr-center"
+        style="
+          background:rgba(20,24,42,0.96);
+          border:1px solid rgba(255,215,0,0.18);
+          border-radius:18px;
+          padding:18px 16px 20px;
+          box-shadow:0 20px 55px rgba(0,0,0,0.25);
+        "
+      >
+
+        <!-- TOP PLAYER -->
+        <div class="ogr-player" id="ogrPlayerTop">
+          <div class="ogr-player-name">
+            <span class="ogr-chip" data-role="chip"></span>
+            <span class="ogr-nm" data-role="name">Black</span>
+            <span class="ogr-elo" data-role="elo"></span>
+            <span data-role="diff"></span>
+            <span class="ogr-score ogr-hidden" data-role="score"></span>
+          </div>
+          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
+        </div>
+
+        <!-- BOARD + EVAL BAR -->
+        <div class="ogr-board-row">
+
+          <div id="ogrEvalBar" title="Evaluation">
+            <div id="ogrEvalBlack" style="height:50%;"></div>
+            <div id="ogrEvalWhite"></div>
+            <div id="ogrEvalLabel">0.0</div>
+          </div>
+
+          <div id="ogrBoardWrap">
+            <div id="ogrBoard" aria-label="Game review board"></div>
+            <svg id="ogrArrows" viewBox="0 0 8 8" preserveAspectRatio="none"></svg>
+          </div>
+
+        </div>
+
+        <!-- BOTTOM PLAYER -->
+        <div class="ogr-player" id="ogrPlayerBottom">
+          <div class="ogr-player-name">
+            <span class="ogr-chip" data-role="chip"></span>
+            <span class="ogr-nm" data-role="name">White</span>
+            <span class="ogr-elo" data-role="elo"></span>
+            <span data-role="diff"></span>
+            <span class="ogr-score ogr-hidden" data-role="score"></span>
+          </div>
+          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
+        </div>
+
+        <!-- NAVIGATION -->
+        <div class="ogr-nav">
+          <button type="button" id="ogrFirstBtn" title="First position (Home)">⏮</button>
+          <button type="button" id="ogrPrevBtn" title="Previous move (←)">◀</button>
+          <button type="button" id="ogrNextBtn" title="Next move (→)">▶</button>
+          <button type="button" id="ogrLastBtn" title="Last position (End)">⏭</button>
+          <button type="button" id="ogrFlipBtn" title="Flip board">⇅</button>
+        </div>
+
+        <!-- MOVE INFO -->
+        <div id="ogrMoveInfo">Load a PGN to start.</div>
+
+        <label class="ogr-toggle">
+          <input type="checkbox" id="ogrArrowToggle" checked>
+          Show Stockfish's best move arrow
+        </label>
+
+        <!-- EVAL GRAPH -->
+        <div id="ogrGraphBox" class="ogr-hidden">
+          <svg id="ogrGraph" viewBox="0 0 400 90" preserveAspectRatio="none"></svg>
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           RIGHT: PANEL
+      ==================================================== -->
+
+      <div id="ogr-right" style="display:flex; flex-direction:column; gap:14px;">
+
+        <!-- PGN INPUT -->
+        <div class="ogr-card">
+
+
+           <div id="ogrSummaryCard" class="ogr-card ogr-hidden">
+          <div class="ogr-card-title">🏁 Olympus AI Analysis</div>
+          <div id="ogrSummaryBody"></div>
+        </div>
+
+          <div class="ogr-card-title">♟ Paste your PGN</div>
+
+          <textarea
+            id="ogrPgnInput"
+            spellcheck="false"
+            placeholder='[Event "Casual game"]&#10;[White "Player 1"]&#10;[Black "Player 2"]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'
+          ></textarea>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+
+            <button type="button" id="ogrAnalyseBtn" class="ogr-btn ogr-btn-primary" style="flex:1; min-width:130px;">
+              🔍 Analyse
+            </button>
+
+            <button type="button" id="ogrCancelBtn" class="ogr-btn ogr-hidden">
+              ✕ Cancel
+            </button>
+
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+
+            <button type="button" id="ogrSampleBtn" class="ogr-btn" style="flex:1;">
+              Sample game
+            </button>
+
+            <button type="button" id="ogrFileBtn" class="ogr-btn" style="flex:1;">
+              📂 Open .pgn
+            </button>
+
+            <button type="button" id="ogrClearBtn" class="ogr-btn ogr-btn-gold" style="flex:1;">
+              ↻ Clear
+            </button>
+
+            <input type="file" id="ogrFileInput" accept=".pgn,.txt" class="ogr-hidden">
+
+          </div>
+
+          <div id="ogrMessage" class="ogr-hidden"></div>
+
+        </div>
+
+
+        <!-- PROGRESS -->
+        <div id="ogrProgressCard" class="ogr-card ogr-hidden">
+
+          <div class="ogr-card-title" id="ogrProgressTitle">⚙️ Analysing…</div>
+
+          <div class="ogr-bar">
+            <div class="ogr-bar-fill" id="ogrProgressFill"></div>
+            <div class="ogr-bar-label" id="ogrProgressLabel">0%</div>
+          </div>
+
+          <div class="ogr-bar-thin" title="Time used of the 30 second limit">
+            <div id="ogrTimeFill"></div>
+          </div>
+
+          <div
+            id="ogrProgressText"
+            style="
+              display:flex;
+              justify-content:space-between;
+              gap:8px;
+              margin-top:8px;
+              color:#aeb3cf;
+              font-size:12px;
+              font-weight:700;
+            "
+          >
+            <span id="ogrProgressStatus">Starting Stockfish…</span>
+            <span id="ogrProgressTime">0.0s / 30s</span>
+          </div>
+
+        </div>
+           <!-- SUMMARY -->
+       
+
+
+        <!-- GAME INFO -->
+        <div id="ogrInfoCard" class="ogr-card ogr-hidden">
+          <div class="ogr-card-title">ℹ️ Game Info</div>
+          <div id="ogrInfoBody"></div>
+        </div>
+
+
+     
+
+              <div class="ogr-muted" style="padding:0 4px;">
+          Stockfish runs inside your browser. The whole review is capped at 1 minute,
+          so the search depth depends on game length and your device. Keep this tab open while it runs.
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+<!-- =========================================================
+     📊 OLYMPUS GAME REVIEW  (Lichess-style Stockfish analysis)
+     ---------------------------------------------------------
+     NAV BUTTON  (paste inside your nav bar, next to the others)
+
+     <button
+       class="nav-btn"
+       data-tab="gameReview"
+       id="gameReviewNavBtn"
+     >
+       📊
+       Game Review
+     </button>
+
+     Completely isolated:
+       - every CSS rule is scoped under #gameReview-section
+       - every id starts with "ogr"
+       - own chess rules engine (does NOT use chess_min.js)
+       - only global created: window.OlympusGameReview
+       - needs: stockfish.js (Web Worker) next to your page
+========================================================= -->
+
+<style>
+  #gameReview-section * { box-sizing: border-box; }
+
+  #gameReview-section #ogr-layout {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr) 340px;
+    gap: 18px;
+    align-items: start;
+  }
+
+  @media (max-width: 1180px) {
+    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+    #gameReview-section #ogr-left { grid-column: 1 / -1; order: 3; }
+    #gameReview-section #ogr-left .ogr-movelist { max-height: 260px; }
+  }
+
+  @media (max-width: 860px) {
+    #gameReview-section #ogr-layout { grid-template-columns: minmax(0, 1fr); }
+    #gameReview-section #ogr-right { order: 1; }
+    #gameReview-section #ogr-center { order: 2; }
+    #gameReview-section #ogr-left { order: 3; }
+  }
+
+  #gameReview-section .ogr-card {
+    background: rgba(20, 24, 42, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  #gameReview-section .ogr-card-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 900;
+    margin-bottom: 10px;
+  }
+
+  #gameReview-section .ogr-btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #gameReview-section .ogr-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  #gameReview-section .ogr-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  #gameReview-section .ogr-btn-primary {
+    border: none;
+    background: #78b887;
+    color: #000;
+    font-weight: 900;
+  }
+  #gameReview-section .ogr-btn-primary:hover { background: #8cc999; }
+
+  #gameReview-section .ogr-btn-gold {
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    background: rgba(255, 215, 0, 0.10);
+    color: #ffd700;
+  }
+
+  /* ---------- PGN input ---------- */
+  #gameReview-section #ogrPgnInput {
+    width: 100%;
+    min-height: 130px;
+    resize: vertical;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #171b2d;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: Consolas, Menlo, monospace;
+    outline: none;
+  }
+  #gameReview-section #ogrPgnInput:focus { border-color: rgba(255, 215, 0, 0.45); }
+
+  #gameReview-section .ogr-error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 77, 90, 0.10);
+    color: #ff7b85;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  #gameReview-section .ogr-warn {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(230, 159, 0, 0.10);
+    color: #e6b34d;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  /* ---------- progress ---------- */
+  #gameReview-section .ogr-bar {
+    position: relative;
+    width: 100%;
+    height: 22px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  #gameReview-section .ogr-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 11px;
+    background: linear-gradient(90deg, #5ea06f, #78b887);
+    transition: width 140ms linear;
+  }
+  #gameReview-section .ogr-bar-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+  #gameReview-section .ogr-bar-thin {
+    height: 6px;
+    margin-top: 8px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+  #gameReview-section .ogr-bar-thin > div {
+    height: 100%;
+    width: 0%;
+    background: #ffd700;
+    transition: width 140ms linear;
+  }
+
+  /* ---------- info rows ---------- */
+  #gameReview-section .ogr-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #gameReview-section .ogr-info-row:last-child { border-bottom: none; }
+  #gameReview-section .ogr-info-row span:first-child { color: #858ba8; white-space: nowrap; }
+  #gameReview-section .ogr-info-row span:last-child { color: #fff; text-align: right; word-break: break-word; }
+
+  /* ---------- board ---------- */
+  #gameReview-section .ogr-board-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 660px;
+    margin: 0 auto;
+  }
+
+  #gameReview-section #ogrEvalBar {
+    position: relative;
+    width: 24px;
+    flex: 0 0 24px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #403d39;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+  #gameReview-section #ogrEvalBar.ogr-flipped { flex-direction: column-reverse; }
+  #gameReview-section #ogrEvalBlack { background: #403d39; transition: height 250ms ease; }
+  #gameReview-section #ogrEvalWhite { background: #f2f2f2; flex: 1; }
+  #gameReview-section #ogrEvalLabel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: -0.3px;
+    pointer-events: none;
+  }
+
+  #gameReview-section #ogrBoardWrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  #gameReview-section #ogrBoard {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    user-select: none;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  #gameReview-section .ogr-sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+  }
+  #gameReview-section .ogr-sq-light { background: #d9c8a4; }
+  #gameReview-section .ogr-sq-dark { background: #806b50; }
+
+  #gameReview-section .ogr-sq-hl::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(155, 199, 0, 0.42);
+  }
+  #gameReview-section .ogr-sq-check::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255, 0, 0, 1) 0%, rgba(231, 0, 0, 1) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%);
+  }
+
+  #gameReview-section .ogr-piece {
+    position: relative;
+    z-index: 3;
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  }
+  #gameReview-section .ogr-glyph {
+    position: relative;
+    z-index: 3;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  #gameReview-section .ogr-coord {
+    position: absolute;
+    z-index: 2;
+    font-size: 10px;
+    font-weight: 800;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  #gameReview-section .ogr-coord-rank { top: 2px; left: 3px; }
+  #gameReview-section .ogr-coord-file { bottom: 1px; right: 3px; }
+
+  #gameReview-section .ogr-sq-badge {
+    position: absolute;
+    z-index: 6;
+    top: -2px;
+    right: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+  }
+
+  #gameReview-section #ogrArrows {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 8;
+  }
+
+  /* ---------- players ---------- */
+  #gameReview-section .ogr-player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    max-width: 660px;
+    margin: 0 auto;
+    padding: 7px 10px 7px 44px;
+    min-height: 40px;
+  }
+  #gameReview-section .ogr-player-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    min-width: 0;
+  }
+  #gameReview-section .ogr-chip {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  #gameReview-section .ogr-player-name .ogr-nm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #gameReview-section .ogr-elo { color: #858ba8; font-size: 12px; font-weight: 700; }
+  #gameReview-section .ogr-diff-pos { color: #78b887; font-size: 11px; font-weight: 800; }
+  #gameReview-section .ogr-diff-neg { color: #ff6570; font-size: 11px; font-weight: 800; }
+  #gameReview-section .ogr-clock {
+    min-width: 62px;
+    text-align: center;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 900;
+    font-family: Consolas, Menlo, monospace;
+  }
+  #gameReview-section .ogr-score {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255, 215, 0, 0.14);
+    color: #ffd700;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  /* ---------- nav ---------- */
+  #gameReview-section .ogr-nav {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px auto 0;
+    max-width: 660px;
+  }
+  #gameReview-section .ogr-nav button {
+    flex: 1;
+    max-width: 90px;
+    padding: 10px 0;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  #gameReview-section .ogr-nav button:hover { background: rgba(255, 255, 255, 0.14); }
+  #gameReview-section .ogr-nav button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  #gameReview-section #ogrMoveInfo {
+    max-width: 660px;
+    margin: 12px auto 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #aeb3cf;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  #gameReview-section .ogr-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* ---------- graph ---------- */
+  #gameReview-section #ogrGraphBox {
+    max-width: 660px;
+    margin: 14px auto 0;
+  }
+  #gameReview-section #ogrGraph {
+    width: 100%;
+    height: 90px;
+    display: block;
+    border-radius: 8px;
+    background: #2a2723;
+    cursor: pointer;
+  }
+
+  /* ---------- notation ---------- */
+  #gameReview-section .ogr-movelist {
+    max-height: 640px;
+    overflow-y: auto;
+    position: relative;
+    padding-right: 4px;
+  }
+  #gameReview-section .ogr-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 1fr;
+    gap: 2px;
+    align-items: stretch;
+    margin-bottom: 2px;
+  }
+  #gameReview-section .ogr-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    color: #777d99;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  #gameReview-section .ogr-move {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #e4e7f5;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    min-height: 30px;
+  }
+  #gameReview-section .ogr-move:hover { background: rgba(255, 255, 255, 0.09); }
+  #gameReview-section .ogr-move.ogr-active {
+    background: rgba(255, 215, 0, 0.20);
+    color: #ffd700;
+    box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.45);
+  }
+  #gameReview-section .ogr-move-empty { color: #555b78; cursor: default; }
+  #gameReview-section .ogr-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  #gameReview-section .ogr-result-row {
+    margin: 8px 0 2px;
+    text-align: center;
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  #gameReview-section .ogr-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #858ba8;
+  }
+  #gameReview-section .ogr-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* ---------- summary ---------- */
+  #gameReview-section .ogr-sum-head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  #gameReview-section .ogr-sum-player {
+    padding: 10px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    text-align: center;
+    min-width: 0;
+  }
+  #gameReview-section .ogr-sum-name {
+    color: #aeb3cf;
+    font-size: 11px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #gameReview-section .ogr-sum-acc { color: #fff; font-size: 26px; font-weight: 900; margin-top: 3px; }
+  #gameReview-section .ogr-sum-acc-label { color: #777d99; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+
+  #gameReview-section .ogr-sum-row {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+  }
+  #gameReview-section .ogr-sum-row:last-child { border-bottom: none; }
+  #gameReview-section .ogr-sum-row .ogr-sum-mid {
+    color: #aeb3cf;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  #gameReview-section .ogr-sum-row span { color: #fff; }
+  #gameReview-section .ogr-sum-row .ogr-sum-mid { color: #aeb3cf; }
+
+  #gameReview-section .ogr-stack {
+    display: flex;
+    width: 100%;
+    height: 9px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    margin-top: 8px;
+  }
+  #gameReview-section .ogr-stack > div { height: 100%; }
+
+  #gameReview-section .ogr-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  #gameReview-section .ogr-hidden { display: none !important; }
+
+  #gameReview-section .ogr-muted {
+    color: #858ba8;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.55;
+  }
+</style>
+
+<section
+  class="section hidden"
+  id="gameReview-section"
+>
+
+  <div
+    id="ogr-shell"
+    style="
+      width:100%;
+      max-width:1320px;
+      margin:0 auto;
+      padding:20px;
+      box-sizing:border-box;
+    "
+  >
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <div
+      style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        flex-wrap:wrap;
+        margin-bottom:20px;
+      "
+    >
+
+      <div style="display:flex; align-items:center; gap:14px;">
+
+        <div style="font-size:42px; line-height:1; color:#ffd700;">📊</div>
+
+        <div>
+          <h2 style="margin:0; color:#fff; font-size:26px; font-weight:900;">
+            Game Review
+          </h2>
+          <p style="margin:5px 0 0; color:#aeb3cf; font-size:14px; font-weight:600;">
+            Paste a PGN and get a Lichess-style Stockfish analysis in about 1 minute.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MAIN LAYOUT: notation | board | panel
+    ====================================================== -->
+
+    <div id="ogr-layout">
+
+
+      <!-- ===================================================
+           LEFT: NOTATION
+      ==================================================== -->
+
+      <div id="ogr-left" class="ogr-card">
+
+        <div class="ogr-card-title">📝 Moves</div>
+
+        <div class="ogr-legend">
+          <span><i class="ogr-dot" style="background:#1baca6;"></i>!! Brilliant</span>
+          <span><i class="ogr-dot" style="background:#81b64c;"></i>★ Best</span>
+          <span><i class="ogr-dot" style="background:#a5c47a;"></i>✓ Good</span>
+          <span><i class="ogr-dot" style="background:#56b4e9;"></i>?! Inaccuracy</span>
+          <span><i class="ogr-dot" style="background:#e69f00;"></i>? Mistake</span>
+          <span><i class="ogr-dot" style="background:#db3031;"></i>?? Blunder</span>
+        </div>
+
+        <div id="ogrMoveList" class="ogr-movelist">
+          <div class="ogr-muted">
+            Moves will appear here once you load a PGN.
+          </div>
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           CENTER: BOARD
+      ==================================================== -->
+
+      <div
+        id="ogr-center"
+        style="
+          background:rgba(20,24,42,0.96);
+          border:1px solid rgba(255,215,0,0.18);
+          border-radius:18px;
+          padding:18px 16px 20px;
+          box-shadow:0 20px 55px rgba(0,0,0,0.25);
+        "
+      >
+
+        <!-- TOP PLAYER -->
+        <div class="ogr-player" id="ogrPlayerTop">
+          <div class="ogr-player-name">
+            <span class="ogr-chip" data-role="chip"></span>
+            <span class="ogr-nm" data-role="name">Black</span>
+            <span class="ogr-elo" data-role="elo"></span>
+            <span data-role="diff"></span>
+            <span class="ogr-score ogr-hidden" data-role="score"></span>
+          </div>
+          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
+        </div>
+
+        <!-- BOARD + EVAL BAR -->
+        <div class="ogr-board-row">
+
+          <div id="ogrEvalBar" title="Evaluation">
+            <div id="ogrEvalBlack" style="height:50%;"></div>
+            <div id="ogrEvalWhite"></div>
+            <div id="ogrEvalLabel">0.0</div>
+          </div>
+
+          <div id="ogrBoardWrap">
+            <div id="ogrBoard" aria-label="Game review board"></div>
+            <svg id="ogrArrows" viewBox="0 0 8 8" preserveAspectRatio="none"></svg>
+          </div>
+
+        </div>
+
+        <!-- BOTTOM PLAYER -->
+        <div class="ogr-player" id="ogrPlayerBottom">
+          <div class="ogr-player-name">
+            <span class="ogr-chip" data-role="chip"></span>
+            <span class="ogr-nm" data-role="name">White</span>
+            <span class="ogr-elo" data-role="elo"></span>
+            <span data-role="diff"></span>
+            <span class="ogr-score ogr-hidden" data-role="score"></span>
+          </div>
+          <div class="ogr-clock ogr-hidden" data-role="clock"></div>
+        </div>
+
+        <!-- NAVIGATION -->
+        <div class="ogr-nav">
+          <button type="button" id="ogrFirstBtn" title="First position (Home)">⏮</button>
+          <button type="button" id="ogrPrevBtn" title="Previous move (←)">◀</button>
+          <button type="button" id="ogrNextBtn" title="Next move (→)">▶</button>
+          <button type="button" id="ogrLastBtn" title="Last position (End)">⏭</button>
+          <button type="button" id="ogrFlipBtn" title="Flip board">⇅</button>
+        </div>
+
+        <!-- MOVE INFO -->
+        <div id="ogrMoveInfo">Load a PGN to start.</div>
+
+        <label class="ogr-toggle">
+          <input type="checkbox" id="ogrArrowToggle" checked>
+          Show Stockfish's best move arrow
+        </label>
+
+        <!-- EVAL GRAPH -->
+        <div id="ogrGraphBox" class="ogr-hidden">
+          <svg id="ogrGraph" viewBox="0 0 400 90" preserveAspectRatio="none"></svg>
+        </div>
+
+      </div>
+
+
+      <!-- ===================================================
+           RIGHT: PANEL
+      ==================================================== -->
+
+      <div id="ogr-right" style="display:flex; flex-direction:column; gap:14px;">
+
+        <!-- PGN INPUT -->
+        <div class="ogr-card">
+
+          <div class="ogr-card-title">♟ Paste your PGN</div>
+
+          <textarea
+            id="ogrPgnInput"
+            spellcheck="false"
+            placeholder='[Event "Casual game"]&#10;[White "Player 1"]&#10;[Black "Player 2"]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'
+          ></textarea>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+
+            <button type="button" id="ogrAnalyseBtn" class="ogr-btn ogr-btn-primary" style="flex:1; min-width:130px;">
+              🔍 Analyse
+            </button>
+
+            <button type="button" id="ogrCancelBtn" class="ogr-btn ogr-hidden">
+              ✕ Cancel
+            </button>
+
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+
+            <button type="button" id="ogrSampleBtn" class="ogr-btn" style="flex:1;">
+              Sample game
+            </button>
+
+            <button type="button" id="ogrFileBtn" class="ogr-btn" style="flex:1;">
+              📂 Open .pgn
+            </button>
+
+            <button type="button" id="ogrClearBtn" class="ogr-btn ogr-btn-gold" style="flex:1;">
+              ↻ Clear
+            </button>
+
+            <input type="file" id="ogrFileInput" accept=".pgn,.txt" class="ogr-hidden">
+
+          </div>
+
+          <div id="ogrMessage" class="ogr-hidden"></div>
+
+        </div>
+
+
+        <!-- PROGRESS -->
+        <div id="ogrProgressCard" class="ogr-card ogr-hidden">
+
+          <div class="ogr-card-title" id="ogrProgressTitle">⚙️ Analysing…</div>
+
+          <div class="ogr-bar">
+            <div class="ogr-bar-fill" id="ogrProgressFill"></div>
+            <div class="ogr-bar-label" id="ogrProgressLabel">0%</div>
+          </div>
+
+          <div class="ogr-bar-thin" title="Time used of the 30 second limit">
+            <div id="ogrTimeFill"></div>
+          </div>
+
+          <div
+            id="ogrProgressText"
+            style="
+              display:flex;
+              justify-content:space-between;
+              gap:8px;
+              margin-top:8px;
+              color:#aeb3cf;
+              font-size:12px;
+              font-weight:700;
+            "
+          >
+            <span id="ogrProgressStatus">Starting Stockfish…</span>
+            <span id="ogrProgressTime">0.0s / 30s</span>
+          </div>
+
+        </div>
+
+
+        <!-- GAME INFO -->
+        <div id="ogrInfoCard" class="ogr-card ogr-hidden">
+          <div class="ogr-card-title">ℹ️ Game Info</div>
+          <div id="ogrInfoBody"></div>
+        </div>
+
+
+        <!-- SUMMARY -->
+        <div id="ogrSummaryCard" class="ogr-card ogr-hidden">
+          <div class="ogr-card-title">🏁 Computer Analysis</div>
+          <div id="ogrSummaryBody"></div>
+        </div>
+
+        <div class="ogr-muted" style="padding:0 4px;">
+          Stockfish runs inside your browser. The whole review is capped at 1 minute,
+          so the search depth depends on game length and your device. Keep this tab open while it runs.
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   📊 OLYMPUS GAME REVIEW
+   Isolated engine: own rules, own PGN parser, Stockfish worker.
+   No chess_min.js needed. Only global: window.OlympusGameReview
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* =========================================================
+     CONFIGURATION  (safe to edit)
+  ========================================================= */
+
+  /* Path to your Stockfish web worker, relative to the page. */
+  const STOCKFISH_PATH = "stockfish/stockfish.js";
+
+  /* Piece images: assets/pieces/wK.png, bQ.png, ... */
+  const ASSET_PATH = "assets/pieces/";
+
+  const TOTAL_LIMIT_MS = 60000;   // the review never goes beyond this (1 min)
+  const SOFT_LIMIT_MS = 56000;     // normal search time is planned to end here
+  const HARD_LIMIT_MS = 59000;     // anything unfinished is stopped here
+  const MAX_MOVETIME_MS = 5000;   // max thinking time per position
+  const MIN_MOVETIME_MS = 40;
+  const MAX_DEPTH = 26;
+  const MAX_PLIES = 300;          // longer games are cut
+  const MAX_WORKERS = 4;          // parallel Stockfish workers
+
+  const JUDGE = {
+    brilliant: { symbol: "!!", label: "Brilliant move", color: "#1baca6" },
+    best: { symbol: "★", label: "Best move", color: "#81b64c" },
+    good: { symbol: "✓", label: "Good move", color: "#a5c47a" },
+    inaccuracy: { symbol: "?!", label: "Inaccuracy", color: "#56b4e9" },
+    mistake: { symbol: "?", label: "Mistake", color: "#e69f00" },
+    blunder: { symbol: "??", label: "Blunder", color: "#db3031" }
+  };
+
+  /* =========================================================
+     SELF-CONTAINED CHESS RULES (no dependency on chess_min.js)
+     Board index 0 = a8 ... 63 = h1
+  ========================================================= */
+
+  const FILES = "abcdefgh";
+  const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+  const KNIGHT_D = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+  const KING_D = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  const BISHOP_D = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  const ROOK_D = [[-1,0],[1,0],[0,-1],[0,1]];
+
+  function sqName(i) {
+    return FILES[i & 7] + (8 - (i >> 3));
+  }
+
+  function sqIdx(name) {
+    return (8 - parseInt(name[1], 10)) * 8 + FILES.indexOf(name[0]);
+  }
+
+  function parseFEN(fen) {
+
+    const parts = String(fen).trim().split(/\s+/);
+    if (parts.length < 2) return null;
+
+    const rows = parts[0].split("/");
+    if (rows.length !== 8) return null;
+
+    const board = new Array(64).fill(null);
+
+    for (let r = 0; r < 8; r++) {
+      let f = 0;
+      for (const ch of rows[r]) {
+        if (/[1-8]/.test(ch)) {
+          f += parseInt(ch, 10);
+        } else if (/[pnbrqkPNBRQK]/.test(ch)) {
+          if (f > 7) return null;
+          board[r * 8 + f] = {
+            c: ch === ch.toUpperCase() ? "w" : "b",
+            t: ch.toLowerCase()
+          };
+          f++;
+        } else {
+          return null;
+        }
+      }
+      if (f !== 8) return null;
+    }
+
+    const cast = parts[2] || "-";
+
+    return {
+      board: board,
+      turn: parts[1] === "b" ? "b" : "w",
+      castle: {
+        K: cast.indexOf("K") >= 0,
+        Q: cast.indexOf("Q") >= 0,
+        k: cast.indexOf("k") >= 0,
+        q: cast.indexOf("q") >= 0
+      },
+      ep: parts[3] && parts[3] !== "-" ? sqIdx(parts[3]) : -1,
+      half: parseInt(parts[4], 10) || 0,
+      full: parseInt(parts[5], 10) || 1
+    };
+  }
+
+  function toFEN(s) {
+
+    let out = "";
+
+    for (let r = 0; r < 8; r++) {
+      let empty = 0;
+      for (let f = 0; f < 8; f++) {
+        const p = s.board[r * 8 + f];
+        if (!p) {
+          empty++;
+        } else {
+          if (empty) { out += empty; empty = 0; }
+          out += p.c === "w" ? p.t.toUpperCase() : p.t;
+        }
+      }
+      if (empty) out += empty;
+      if (r < 7) out += "/";
+    }
+
+    let cast = "";
+    if (s.castle.K) cast += "K";
+    if (s.castle.Q) cast += "Q";
+    if (s.castle.k) cast += "k";
+    if (s.castle.q) cast += "q";
+
+    return out + " " + s.turn + " " + (cast || "-") + " " +
+      (s.ep >= 0 ? sqName(s.ep) : "-") + " " + s.half + " " + s.full;
+  }
+
+  function inBounds(r, f) {
+    return r >= 0 && r < 8 && f >= 0 && f < 8;
+  }
+
+  function isAttacked(board, sq, by) {
+
+    const r = sq >> 3;
+    const f = sq & 7;
+
+    /* pawns */
+    const pr = by === "w" ? r + 1 : r - 1;
+    for (const df of [-1, 1]) {
+      if (inBounds(pr, f + df)) {
+        const p = board[pr * 8 + f + df];
+        if (p && p.c === by && p.t === "p") return true;
+      }
+    }
+
+    /* knights */
+    for (const d of KNIGHT_D) {
+      const rr = r + d[0], ff = f + d[1];
+      if (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p && p.c === by && p.t === "n") return true;
+      }
+    }
+
+    /* king */
+    for (const d of KING_D) {
+      const rr = r + d[0], ff = f + d[1];
+      if (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p && p.c === by && p.t === "k") return true;
+      }
+    }
+
+    /* sliders */
+    for (const d of BISHOP_D) {
+      let rr = r + d[0], ff = f + d[1];
+      while (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p) {
+          if (p.c === by && (p.t === "b" || p.t === "q")) return true;
+          break;
+        }
+        rr += d[0]; ff += d[1];
+      }
+    }
+
+    for (const d of ROOK_D) {
+      let rr = r + d[0], ff = f + d[1];
+      while (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p) {
+          if (p.c === by && (p.t === "r" || p.t === "q")) return true;
+          break;
+        }
+        rr += d[0]; ff += d[1];
+      }
+    }
+
+    return false;
+  }
+
+  function findKing(board, color) {
+    for (let i = 0; i < 64; i++) {
+      const p = board[i];
+      if (p && p.c === color && p.t === "k") return i;
+    }
+    return -1;
+  }
+
+  function otherColor(c) {
+    return c === "w" ? "b" : "w";
+  }
+
+  function inCheck(s) {
+    const k = findKing(s.board, s.turn);
+    return k >= 0 && isAttacked(s.board, k, otherColor(s.turn));
+  }
+
+  function pseudoMoves(s) {
+
+    const moves = [];
+    const us = s.turn;
+    const them = otherColor(us);
+    const b = s.board;
+
+    for (let from = 0; from < 64; from++) {
+
+      const p = b[from];
+      if (!p || p.c !== us) continue;
+
+      const r = from >> 3;
+      const f = from & 7;
+
+      if (p.t === "p") {
+
+        const dir = us === "w" ? -1 : 1;
+        const startRow = us === "w" ? 6 : 1;
+        const promoRow = us === "w" ? 0 : 7;
+
+        const addPawn = function (to, cap, flag) {
+          if ((to >> 3) === promoRow) {
+            ["q", "r", "b", "n"].forEach(function (pr) {
+              moves.push({ from: from, to: to, p: "p", cap: cap, promo: pr, flag: flag || "" });
+            });
+          } else {
+            moves.push({ from: from, to: to, p: "p", cap: cap, flag: flag || "" });
+          }
+        };
+
+        const r1 = r + dir;
+
+        if (inBounds(r1, f) && !b[r1 * 8 + f]) {
+          addPawn(r1 * 8 + f, null, "");
+          const r2 = r + 2 * dir;
+          if (r === startRow && !b[r2 * 8 + f]) {
+            moves.push({ from: from, to: r2 * 8 + f, p: "p", cap: null, flag: "d" });
+          }
+        }
+
+        for (const df of [-1, 1]) {
+          const ff = f + df;
+          if (!inBounds(r1, ff)) continue;
+          const to = r1 * 8 + ff;
+          const target = b[to];
+          if (target && target.c === them) {
+            addPawn(to, target.t, "");
+          } else if (!target && to === s.ep) {
+            moves.push({ from: from, to: to, p: "p", cap: "p", flag: "e" });
+          }
+        }
+
+        continue;
+      }
+
+      if (p.t === "n" || p.t === "k") {
+
+        const dirs = p.t === "n" ? KNIGHT_D : KING_D;
+
+        for (const d of dirs) {
+          const rr = r + d[0], ff = f + d[1];
+          if (!inBounds(rr, ff)) continue;
+          const to = rr * 8 + ff;
+          const target = b[to];
+          if (!target) {
+            moves.push({ from: from, to: to, p: p.t, cap: null, flag: "" });
+          } else if (target.c === them) {
+            moves.push({ from: from, to: to, p: p.t, cap: target.t, flag: "" });
+          }
+        }
+
+        if (p.t === "k") {
+
+          const row = us === "w" ? 7 : 0;
+          const kingHome = row * 8 + 4;
+
+          if (from === kingHome && !isAttacked(b, from, them)) {
+
+            const ks = us === "w" ? s.castle.K : s.castle.k;
+            const qs = us === "w" ? s.castle.Q : s.castle.q;
+
+            const rookK = b[row * 8 + 7];
+            const rookQ = b[row * 8];
+
+            if (ks && rookK && rookK.t === "r" && rookK.c === us &&
+                !b[row * 8 + 5] && !b[row * 8 + 6] &&
+                !isAttacked(b, row * 8 + 5, them) &&
+                !isAttacked(b, row * 8 + 6, them)) {
+              moves.push({ from: from, to: row * 8 + 6, p: "k", cap: null, flag: "k" });
+            }
+
+            if (qs && rookQ && rookQ.t === "r" && rookQ.c === us &&
+                !b[row * 8 + 1] && !b[row * 8 + 2] && !b[row * 8 + 3] &&
+                !isAttacked(b, row * 8 + 3, them) &&
+                !isAttacked(b, row * 8 + 2, them)) {
+              moves.push({ from: from, to: row * 8 + 2, p: "k", cap: null, flag: "q" });
+            }
+          }
+        }
+
+        continue;
+      }
+
+      const dirs = p.t === "b" ? BISHOP_D :
+                   p.t === "r" ? ROOK_D :
+                   BISHOP_D.concat(ROOK_D);
+
+      for (const d of dirs) {
+        let rr = r + d[0], ff = f + d[1];
+        while (inBounds(rr, ff)) {
+          const to = rr * 8 + ff;
+          const target = b[to];
+          if (!target) {
+            moves.push({ from: from, to: to, p: p.t, cap: null, flag: "" });
+          } else {
+            if (target.c === them) {
+              moves.push({ from: from, to: to, p: p.t, cap: target.t, flag: "" });
+            }
+            break;
+          }
+          rr += d[0]; ff += d[1];
+        }
+      }
+    }
+
+    return moves;
+  }
+
+  function makeMove(s, m) {
+
+    const board = s.board.slice();
+    const us = s.turn;
+    const piece = board[m.from];
+
+    board[m.from] = null;
+    board[m.to] = m.promo ? { c: us, t: m.promo } : piece;
+
+    if (m.flag === "e") {
+      board[(m.from >> 3) * 8 + (m.to & 7)] = null;
+    }
+
+    if (m.flag === "k") {
+      const row = us === "w" ? 7 : 0;
+      board[row * 8 + 5] = board[row * 8 + 7];
+      board[row * 8 + 7] = null;
+    }
+
+    if (m.flag === "q") {
+      const row = us === "w" ? 7 : 0;
+      board[row * 8 + 3] = board[row * 8];
+      board[row * 8] = null;
+    }
+
+    const castle = { K: s.castle.K, Q: s.castle.Q, k: s.castle.k, q: s.castle.q };
+
+    if (piece.t === "k") {
+      if (us === "w") { castle.K = false; castle.Q = false; }
+      else { castle.k = false; castle.q = false; }
+    }
+
+    [[56, "Q"], [63, "K"], [0, "q"], [7, "k"]].forEach(function (rc) {
+      if (m.from === rc[0] || m.to === rc[0]) castle[rc[1]] = false;
+    });
+
+    let ep = -1;
+    if (m.flag === "d") {
+      ep = ((m.from >> 3) + (m.to >> 3)) / 2 * 8 + (m.from & 7);
+    }
+
+    return {
+      board: board,
+      turn: otherColor(us),
+      castle: castle,
+      ep: ep,
+      half: (piece.t === "p" || m.cap) ? 0 : s.half + 1,
+      full: us === "b" ? s.full + 1 : s.full
+    };
+  }
+
+  function legalMoves(s) {
+
+    const us = s.turn;
+    const them = otherColor(us);
+
+    return pseudoMoves(s).filter(function (m) {
+      const ns = makeMove(s, m);
+      const k = findKing(ns.board, us);
+      return k >= 0 && !isAttacked(ns.board, k, them);
+    });
+  }
+
+  function moveToSAN(s, m, legal) {
+
+    let out;
+
+    if (m.flag === "k") {
+      out = "O-O";
+    } else if (m.flag === "q") {
+      out = "O-O-O";
+    } else {
+
+      out = m.p === "p" ? "" : m.p.toUpperCase();
+
+      if (m.p === "p") {
+        if (m.cap) out += FILES[m.from & 7];
+      } else {
+        const others = legal.filter(function (o) {
+          return o !== m && o.p === m.p && o.to === m.to;
+        });
+
+        if (others.length) {
+          const sameFile = others.some(function (o) { return (o.from & 7) === (m.from & 7); });
+          const sameRank = others.some(function (o) { return (o.from >> 3) === (m.from >> 3); });
+
+          if (!sameFile) out += FILES[m.from & 7];
+          else if (!sameRank) out += String(8 - (m.from >> 3));
+          else out += sqName(m.from);
+        }
+      }
+
+      if (m.cap) out += "x";
+      out += sqName(m.to);
+      if (m.promo) out += "=" + m.promo.toUpperCase();
+    }
+
+    const ns = makeMove(s, m);
+
+    if (inCheck(ns)) {
+      out += legalMoves(ns).length ? "+" : "#";
+    }
+
+    return out;
+  }
+
+  function moveToUCI(m) {
+    return sqName(m.from) + sqName(m.to) + (m.promo || "");
+  }
+
+  function uciToMove(s, uci) {
+    const legal = legalMoves(s);
+    return legal.find(function (m) { return moveToUCI(m) === uci; }) || null;
+  }
+
+  /* Accepts normal SAN and slightly sloppy SAN. Returns move, or null. */
+  function sanToMove(s, token, legal) {
+
+    let t = String(token).replace(/[+#!?]+/g, "").replace(/0/g, "O").replace(/e\.p\./g, "");
+
+    if (/^O-O-O$/i.test(t)) {
+      return legal.find(function (m) { return m.flag === "q"; }) || null;
+    }
+
+    if (/^O-O$/i.test(t)) {
+      return legal.find(function (m) { return m.flag === "k"; }) || null;
+    }
+
+    const match = /^([NBRQK])?([a-h])?([1-8])?x?([a-h][1-8])(?:=?([NBRQnbrq]))?$/.exec(t);
+    if (!match) return null;
+
+    const pieceType = match[1] ? match[1].toLowerCase() : "p";
+    const fileHint = match[2] ? FILES.indexOf(match[2]) : -1;
+    const rankHint = match[3] ? 8 - parseInt(match[3], 10) : -1;
+    const dest = sqIdx(match[4]);
+    const promo = match[5] ? match[5].toLowerCase() : null;
+
+    const candidates = legal.filter(function (m) {
+
+      if (m.p !== pieceType || m.to !== dest) return false;
+      if (m.flag === "k" || m.flag === "q") return false;
+
+      if (m.promo) {
+        if ((promo || "q") !== m.promo) return false;
+      } else if (promo) {
+        return false;
+      }
+
+      if (fileHint >= 0 && (m.from & 7) !== fileHint) return false;
+      if (rankHint >= 0 && (m.from >> 3) !== rankHint) return false;
+
+      if (pieceType === "p" && fileHint < 0 && (m.from & 7) !== (m.to & 7)) return false;
+
+      return true;
+    });
+
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  /* =========================================================
+     PGN PARSER
+  ========================================================= */
+
+  function parseClock(text) {
+    const m = /\[%clk\s+(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)\]/.exec(text) ||
+              /\[%clk\s+(\d{1,2}):(\d{1,2}(?:\.\d+)?)\]/.exec(text);
+    if (!m) return null;
+    if (m.length === 4) {
+      return parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseFloat(m[3]);
+    }
+    return parseInt(m[1], 10) * 60 + parseFloat(m[2]);
+  }
+
+  function parsePGN(raw) {
+
+    const text = String(raw || "").replace(/\r/g, "").replace(/^\uFEFF/, "");
+    const lines = text.split("\n");
+
+    const headers = {};
+    let idx = 0;
+
+    /* header block (skip leading blank lines) */
+    while (idx < lines.length) {
+      const line = lines[idx].trim();
+      if (line === "") { idx++; continue; }
+      const h = /^\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]$/.exec(line);
+      if (!h) break;
+      headers[h[1]] = h[2].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      idx++;
+    }
+
+    const movetext = lines.slice(idx).join("\n");
+
+    if (!movetext.trim()) {
+      return { error: "No moves found in the PGN." };
+    }
+
+    let startFen = START_FEN;
+
+    if (headers.FEN && (headers.SetUp === "1" || !headers.SetUp)) {
+      startFen = headers.FEN;
+    }
+
+    let state = parseFEN(startFen);
+    if (!state) {
+      return { error: "The FEN in the PGN header is not valid." };
+    }
+
+    if (headers.Variant && !/^(standard|chess)$/i.test(headers.Variant)) {
+      return { error: "Only standard chess games are supported (variant: " + headers.Variant + ")." };
+    }
+
+    const plies = [];
+    const states = [state];
+    const fens = [toFEN(state)];
+
+    let result = headers.Result || "*";
+    let error = null;
+
+    let i = 0;
+    const len = movetext.length;
+
+    while (i < len) {
+
+      const ch = movetext[i];
+
+      if (/\s/.test(ch)) { i++; continue; }
+
+      if (ch === "{") {
+        const end = movetext.indexOf("}", i + 1);
+        const body = movetext.substring(i + 1, end === -1 ? len : end);
+        if (plies.length) {
+          const clk = parseClock(body);
+          if (clk !== null) plies[plies.length - 1].clk = clk;
+        }
+        i = end === -1 ? len : end + 1;
+        continue;
+      }
+
+      if (ch === ";") {
+        const end = movetext.indexOf("\n", i);
+        i = end === -1 ? len : end + 1;
+        continue;
+      }
+
+      if (ch === "(") {
+        let depth = 1;
+        i++;
+        while (i < len && depth > 0) {
+          if (movetext[i] === "(") depth++;
+          else if (movetext[i] === ")") depth--;
+          else if (movetext[i] === "{") {
+            const end = movetext.indexOf("}", i + 1);
+            i = end === -1 ? len : end;
+          }
+          i++;
+        }
+        continue;
+      }
+
+      let j = i;
+      while (j < len && !/[\s{};()]/.test(movetext[j])) j++;
+      const token = movetext.substring(i, j);
+      i = j;
+
+      if (!token) { i++; continue; }
+
+      if (/^(1-0|0-1|1\/2-1\/2|½-½|\*)$/.test(token)) {
+        result = token === "½-½" ? "1/2-1/2" : token;
+        break;
+      }
+
+      if (/^\$\d+$/.test(token)) continue;
+
+      /* move number, possibly glued to a move: "12.Nf3" or "12..." */
+      let san = token.replace(/^\d+\.(\.\.)?/, "").replace(/^\.+/, "");
+      if (!san) continue;
+      if (/^\d+$/.test(san)) continue;
+
+      const legal = legalMoves(state);
+      const move = sanToMove(state, san, legal);
+
+      if (!move) {
+        const moveNo = state.full;
+        error = "Could not read move \"" + san + "\" (move " + moveNo +
+          (state.turn === "w" ? ", White" : ", Black") +
+          "). Analysis covers the moves before it.";
+        break;
+      }
+
+      const sanOut = moveToSAN(state, move, legal);
+      const next = makeMove(state, move);
+
+      plies.push({
+        san: sanOut,
+        uci: moveToUCI(move),
+        from: move.from,
+        to: move.to,
+        color: state.turn,
+        piece: move.p,
+        promo: move.promo || null,
+        flag: move.flag,
+        clk: null
+      });
+
+      state = next;
+      states.push(state);
+      fens.push(toFEN(state));
+    }
+
+    if (!plies.length) {
+      return { error: error || "No moves found in the PGN." };
+    }
+
+    return {
+      headers: headers,
+      startFen: startFen,
+      plies: plies,
+      states: states,
+      fens: fens,
+      result: result,
+      error: error
+    };
+  }
+
+
+  /* =========================================================
+     SCORING (Lichess formulas)
+  ========================================================= */
+
+  function cpClamp(cp) {
+    return Math.max(-1000, Math.min(1000, cp));
+  }
+
+  /* white-POV {cp, mate} -> centipawn equivalent, like Lichess */
+  function evalToCp(ev) {
+    if (ev.mate !== null && ev.mate !== undefined) {
+      const sign = ev.mate > 0 ? 1 : -1;
+      return sign * (21 - Math.min(10, Math.abs(ev.mate))) * 100;
+    }
+    return ev.cp || 0;
+  }
+
+  /* winning chances in [-1, 1] */
+  function winningChances(cp) {
+    return 2 / (1 + Math.exp(-0.00368208 * cpClamp(cp))) - 1;
+  }
+
+  /* win percent in [0, 100] */
+  function winPercent(cp) {
+    return 50 + 50 * winningChances(cp);
+  }
+
+  function evalWinPercentWhite(ev) {
+    return winPercent(evalToCp(ev));
+  }
+
+  function formatEval(ev) {
+
+    if (!ev) return "–";
+
+    if (ev.terminal) {
+      return ev.mate !== null ? "#" : "0.0";
+    }
+
+    if (ev.mate !== null && ev.mate !== undefined) {
+      return (ev.mate > 0 ? "#" : "#-") + Math.abs(ev.mate);
+    }
+
+    const v = (ev.cp || 0) / 100;
+    return (v > 0 ? "+" : "") + v.toFixed(1);
+  }
+
+  /*
+    Judge one move.
+    prev / next are white-POV evals; mover is "w" or "b".
+    Returns { judgement, loss } where loss is in winning-chances units [0..2].
+  */
+  function judgeMove(prev, next, mover) {
+
+    const sign = mover === "w" ? 1 : -1;
+
+    const prevCp = evalToCp(prev) * sign;
+    const nextCp = evalToCp(next) * sign;
+
+    const prevMate = prev.mate !== null && prev.mate !== undefined ? prev.mate * sign : null;
+    const nextMate = next.mate !== null && next.mate !== undefined ? next.mate * sign : null;
+
+    const loss = Math.max(0, winningChances(prevCp) - winningChances(nextCp));
+
+    /* mate-related rules (same idea as Lichess) */
+    if (prevMate === null && nextMate !== null && nextMate < 0) {
+      const before = (prev.cp || 0) * sign;
+      if (before < -999) return { judgement: "inaccuracy", loss: loss };
+      if (before < -700) return { judgement: "mistake", loss: loss };
+      return { judgement: "blunder", loss: loss };
+    }
+
+    if (prevMate !== null && prevMate > 0 && nextMate === null) {
+      const after = (next.cp || 0) * sign;
+      if (after > 999) return { judgement: "inaccuracy", loss: loss };
+      if (after > 700) return { judgement: "mistake", loss: loss };
+      return { judgement: "blunder", loss: loss };
+    }
+
+    if (prevMate !== null && prevMate > 0 && nextMate !== null && nextMate < 0) {
+      return { judgement: "blunder", loss: loss };
+    }
+
+    if (loss >= 0.3) return { judgement: "blunder", loss: loss };
+    if (loss >= 0.2) return { judgement: "mistake", loss: loss };
+    if (loss >= 0.1) return { judgement: "inaccuracy", loss: loss };
+
+    return { judgement: null, loss: loss };
+  }
+
+  function stdDev(arr) {
+    const mean = arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
+    const variance = arr.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / arr.length;
+    return Math.sqrt(variance);
+  }
+
+  function moveAccuracy(winBefore, winAfter) {
+    if (winAfter >= winBefore) return 100;
+    const raw = 103.1668 * Math.exp(-0.04354 * (winBefore - winAfter)) - 3.1669 + 1;
+    return Math.max(0, Math.min(100, raw));
+  }
+
+  /* ---------- sacrifice detection (static exchange) ---------- */
+
+  const PIECE_VALUE = { p: 100, n: 300, b: 300, r: 500, q: 900, k: 10000 };
+
+  /* values of every piece of `color` attacking `sq`, lowest first */
+  function attackerValues(board, sq, color) {
+
+    const out = [];
+    const r = sq >> 3;
+    const f = sq & 7;
+
+    const pr = color === "w" ? r + 1 : r - 1;
+    for (const df of [-1, 1]) {
+      if (inBounds(pr, f + df)) {
+        const p = board[pr * 8 + f + df];
+        if (p && p.c === color && p.t === "p") out.push(PIECE_VALUE.p);
+      }
+    }
+
+    for (const d of KNIGHT_D) {
+      const rr = r + d[0], ff = f + d[1];
+      if (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p && p.c === color && p.t === "n") out.push(PIECE_VALUE.n);
+      }
+    }
+
+    for (const d of KING_D) {
+      const rr = r + d[0], ff = f + d[1];
+      if (inBounds(rr, ff)) {
+        const p = board[rr * 8 + ff];
+        if (p && p.c === color && p.t === "k") out.push(PIECE_VALUE.k);
+      }
+    }
+
+    const rays = [[BISHOP_D, "b"], [ROOK_D, "r"]];
+
+    rays.forEach(function (pair) {
+      pair[0].forEach(function (d) {
+        let rr = r + d[0], ff = f + d[1];
+        while (inBounds(rr, ff)) {
+          const p = board[rr * 8 + ff];
+          if (p) {
+            if (p.c === color && (p.t === pair[1] || p.t === "q")) {
+              out.push(PIECE_VALUE[p.t]);
+            }
+            break;
+          }
+          rr += d[0]; ff += d[1];
+        }
+      });
+    });
+
+    return out.sort(function (a, b) { return a - b; });
+  }
+
+  /*
+    How much material the mover risks by moving to the destination
+    (0 when the piece is safe). Simple swap-off, no x-rays.
+  */
+  function materialAtRisk(stateAfter, ply) {
+
+    const board = stateAfter.board;
+    const mover = ply.color;
+    const opp = otherColor(mover);
+
+    const onSquare = board[ply.to];
+    if (!onSquare) return 0;
+
+    const attackers = [attackerValues(board, ply.to, opp), attackerValues(board, ply.to, mover)];
+
+    if (!attackers[0].length) return 0;
+
+    const gains = [PIECE_VALUE[onSquare.t]];
+    const used = [0, 0];
+
+    let side = 0;
+    let pieceOnSquare = attackers[0][0];
+    used[0] = 1;
+
+    for (let d = 1; d < 32; d++) {
+
+      side = 1 - side;
+
+      if (used[side] >= attackers[side].length) break;
+
+      gains[d] = pieceOnSquare - gains[d - 1];
+      pieceOnSquare = attackers[side][used[side]];
+      used[side]++;
+    }
+
+    for (let d = gains.length - 1; d > 0; d--) {
+      gains[d - 1] = -Math.max(-gains[d - 1], gains[d]);
+    }
+
+    return Math.max(0, gains[0]);
+  }
+
+  /*
+    Builds per-move info and the summary for both players.
+    evals[i] = white-POV eval of position i, bests[i] = best UCI move in position i.
+  */
+  function buildReview(game, evals, bests) {
+
+    const n = game.plies.length;
+    const moves = [];
+
+    const stats = {
+      w: { brilliant: 0, best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0, cpLoss: 0, count: 0, accs: [], idx: [] },
+      b: { brilliant: 0, best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0, cpLoss: 0, count: 0, accs: [], idx: [] }
+    };
+
+    const series = evals.map(evalWinPercentWhite);
+
+    for (let i = 0; i < n; i++) {
+
+      const ply = game.plies[i];
+      const color = ply.color;
+      const sign = color === "w" ? 1 : -1;
+
+      const prev = evals[i];
+      const next = evals[i + 1];
+
+      const j = judgeMove(prev, next, color);
+      const isBest = !!bests[i] && bests[i] === ply.uci;
+
+      let judgement = j.judgement;
+      let loss = j.loss;
+
+      if (isBest) {
+        judgement = null;
+        loss = 0;
+      }
+
+      const winBefore = color === "w" ? series[i] : 100 - series[i];
+      const winAfter = color === "w" ? series[i + 1] : 100 - series[i + 1];
+
+      const acc = isBest ? 100 : moveAccuracy(winBefore, winAfter);
+
+      const cpBefore = cpClamp(evalToCp(prev)) * sign;
+      const cpAfter = cpClamp(evalToCp(next)) * sign;
+      const cpLoss = isBest ? 0 : Math.max(0, cpBefore - cpAfter);
+
+      /* positive badges */
+      let quality = null;
+
+      if (!judgement) {
+
+        quality = isBest ? "best" : (loss < 0.04 ? "good" : null);
+
+        /* brilliant = a sound sacrifice that keeps (or wins) the game */
+        if (loss < 0.03 && !prev.terminal) {
+
+          const risk = materialAtRisk(game.states[i + 1], ply);
+          const captured = game.states[i].board[ply.to];
+          const capturedValue = captured ? PIECE_VALUE[captured.t] : 0;
+          const promoGain = ply.promo ? PIECE_VALUE[ply.promo] - PIECE_VALUE.p : 0;
+          const netLoss = risk - capturedValue - promoGain;
+
+          const moverMateAfter = next.mate !== null && next.mate !== undefined && next.mate * sign > 0;
+          const moverMateBefore = prev.mate !== null && prev.mate !== undefined && prev.mate * sign > 0;
+
+          if (netLoss >= 250 &&
+              ply.piece !== "k" &&
+              (winAfter >= 55 || moverMateAfter) &&
+              (winBefore < 90 || moverMateAfter) &&
+              !(moverMateBefore && !moverMateAfter)) {
+            quality = "brilliant";
+          }
+        }
+      }
+
+      const st = stats[color];
+      st.count++;
+      st.cpLoss += cpLoss;
+      st.accs.push(acc);
+      st.idx.push(i);
+
+      if (judgement) st[judgement]++;
+      else if (isBest || quality === "best" || quality === "brilliant") st.best++;
+      else st.good++;
+
+      if (quality === "brilliant") st.brilliant++;
+
+      moves.push({
+        judgement: judgement,
+        quality: quality,
+        isBest: isBest,
+        loss: loss,
+        best: bests[i] || null,
+        accuracy: acc
+      });
+    }
+
+    /* volatility-weighted accuracy, as on Lichess */
+    const windowSize = Math.max(2, Math.min(8, Math.floor(n / 10)));
+    const windows = [];
+
+    for (let k = 0; k < windowSize - 2; k++) {
+      windows.push(series.slice(0, windowSize));
+    }
+
+    for (let k = 0; k + windowSize <= series.length; k++) {
+      windows.push(series.slice(k, k + windowSize));
+    }
+
+    const weights = [];
+    for (let k = 0; k < n; k++) {
+      const w = windows[k] || windows[windows.length - 1] || [50, 50];
+      weights.push(Math.max(0.5, Math.min(12, stdDev(w))));
+    }
+
+    ["w", "b"].forEach(function (c) {
+
+      const st = stats[c];
+
+      if (!st.count) {
+        st.accuracy = null;
+        st.acpl = null;
+        return;
+      }
+
+      let sumW = 0, sumWA = 0, sumInv = 0;
+
+      st.idx.forEach(function (gi, k) {
+        const w = weights[gi];
+        const a = Math.max(st.accs[k], 0.01);
+        sumW += w;
+        sumWA += w * a;
+        sumInv += 1 / a;
+      });
+
+      const weighted = sumWA / sumW;
+      const harmonic = st.count / sumInv;
+
+      st.accuracy = (weighted + harmonic) / 2;
+      st.acpl = st.cpLoss / st.count;
+    });
+
+    return { moves: moves, stats: stats };
+  }
+
+
+  /* =========================================================
+     HEADER HELPERS
+  ========================================================= */
+
+  function formatTimeControl(tc) {
+
+    if (!tc || tc === "-" || tc === "?") return null;
+
+    const m = /^(\d+)(?:\+(\d+))?$/.exec(tc);
+    if (!m) return tc;
+
+    const base = parseInt(m[1], 10);
+    const inc = m[2] ? parseInt(m[2], 10) : 0;
+
+    const est = base + 40 * inc;
+
+    let cat = "Classical";
+    if (est < 30) cat = "UltraBullet";
+    else if (est < 180) cat = "Bullet";
+    else if (est < 480) cat = "Blitz";
+    else if (est < 1500) cat = "Rapid";
+
+    const baseTxt = base >= 60 && base % 60 === 0 ? String(base / 60) :
+                    base < 60 ? "0:" + String(base).padStart(2, "0") :
+                    (base / 60).toFixed(1).replace(/\.0$/, "");
+
+    return baseTxt + "+" + inc + " • " + cat;
+  }
+
+  function formatClock(sec) {
+
+    if (sec === null || sec === undefined) return "";
+
+    const s = Math.max(0, sec);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = Math.floor(s % 60);
+
+    if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+    return m + ":" + String(r).padStart(2, "0");
+  }
+
+  function resultText(game) {
+
+    const h = game.headers;
+    const term = h.Termination ? " (" + h.Termination + ")" : "";
+
+    if (game.result === "1-0") return "White won" + term;
+    if (game.result === "0-1") return "Black won" + term;
+    if (game.result === "1/2-1/2") return "Draw" + term;
+
+    return "Game in progress / unknown result";
+  }
+
+  /* =========================================================
+     STOCKFISH WORKER WRAPPER
+  ========================================================= */
+
+  function EngineWorker(path) {
+
+    const self = this;
+
+    this.worker = new Worker(path);
+    this.waiter = null;
+    this.job = null;
+    this.dead = false;
+
+    this.worker.onmessage = function (e) {
+      const data = e.data;
+      const line = typeof data === "string"
+        ? data
+        : (data && typeof data.data === "string" ? data.data : String(data));
+      self.onLine(line);
+    };
+
+    this.worker.onerror = function () {
+      self.dead = true;
+
+      if (self.waiter) {
+        const w = self.waiter;
+        self.waiter = null;
+        clearTimeout(w.timer);
+        w.reject(new Error("Stockfish worker error"));
+      }
+
+      if (self.job) {
+        const j = self.job;
+        self.job = null;
+        clearTimeout(j.timer);
+        j.resolve(null);
+      }
+    };
+  }
+
+  EngineWorker.prototype.send = function (cmd) {
+    try {
+      this.worker.postMessage(cmd);
+    } catch (e) {}
+  };
+
+  EngineWorker.prototype.waitFor = function (re, timeoutMs) {
+
+    const self = this;
+
+    return new Promise(function (resolve, reject) {
+      const w = { re: re, resolve: resolve, reject: reject, timer: null };
+
+      w.timer = setTimeout(function () {
+        if (self.waiter === w) self.waiter = null;
+        reject(new Error("Stockfish did not answer in time"));
+      }, timeoutMs);
+
+      self.waiter = w;
+    });
+  };
+
+  EngineWorker.prototype.init = async function () {
+
+    this.send("uci");
+    await this.waitFor(/^uciok/, 20000);
+
+    this.send("setoption name Contempt value 0");
+    this.send("setoption name Analysis Contempt value Off");
+    this.send("setoption name Move Overhead value 0");
+    this.send("setoption name Minimum Thinking Time value 0");
+    this.send("setoption name UCI_AnalyseMode value true");
+    this.send("setoption name Hash value 32");
+
+    this.send("isready");
+    await this.waitFor(/^readyok/, 20000);
+  };
+
+  EngineWorker.prototype.onLine = function (raw) {
+
+    const line = String(raw).trim();
+
+    if (this.waiter && this.waiter.re.test(line)) {
+      const w = this.waiter;
+      this.waiter = null;
+      clearTimeout(w.timer);
+      w.resolve(line);
+      return;
+    }
+
+    const job = this.job;
+    if (!job) return;
+
+    if (line.indexOf("info") === 0) {
+
+      if (/\b(lowerbound|upperbound)\b/.test(line)) return;
+
+      const mp = /\bmultipv (\d+)/.exec(line);
+      if (mp && mp[1] !== "1") return;
+
+      const sm = /\bscore (cp|mate) (-?\d+)/.exec(line);
+      if (!sm) return;
+
+      const dm = /\bdepth (\d+)/.exec(line);
+      const pm = / pv (.+)$/.exec(line);
+
+      job.score = { type: sm[1], value: parseInt(sm[2], 10) };
+      if (dm) job.depth = parseInt(dm[1], 10);
+      if (pm) job.pv = pm[1].trim().split(/\s+/);
+      return;
+    }
+
+    const bm = /^bestmove\s+(\S+)/.exec(line);
+
+    if (bm) {
+      this.job = null;
+      clearTimeout(job.timer);
+      job.finish(bm[1]);
+    }
+  };
+
+  /* Resolves { ev (white POV), best, pv, depth } or null. */
+  EngineWorker.prototype.analyse = function (fen, turn, movetime, depth) {
+
+    const self = this;
+
+    return new Promise(function (resolve) {
+
+      const job = { score: null, pv: [], depth: 0, timer: null, resolve: resolve };
+
+      job.finish = function (bestmove) {
+
+        let ev = null;
+
+        if (job.score) {
+          const sign = turn === "w" ? 1 : -1;
+          ev = job.score.type === "mate"
+            ? { cp: null, mate: sign * job.score.value }
+            : { cp: sign * job.score.value, mate: null };
+          ev.depth = job.depth;
+        }
+
+        const best = bestmove && bestmove !== "(none)" && bestmove !== "0000"
+          ? bestmove
+          : (job.pv[0] || null);
+
+        resolve({ ev: ev, best: best, pv: job.pv, depth: job.depth });
+      };
+
+      job.timer = setTimeout(function () {
+        self.send("stop");
+        job.timer = setTimeout(function () {
+          if (self.job === job) {
+            self.job = null;
+            job.finish(null);
+          }
+        }, 1500);
+      }, movetime + 2500);
+
+      self.job = job;
+
+      self.send("position fen " + fen);
+      self.send("go depth " + depth + " movetime " + movetime);
+    });
+  };
+
+  EngineWorker.prototype.terminate = function () {
+    try { this.worker.terminate(); } catch (e) {}
+  };
+
+
+  /* =========================================================
+     ANALYSIS RUNNER (worker pool + hard 30 s budget)
+  ========================================================= */
+
+  async function runAnalysis(game, run, onProgress) {
+
+    const n = game.plies.length;
+    const total = n + 1;
+
+    const evals = new Array(total).fill(null);
+    const bests = new Array(total).fill(null);
+    const depths = [];
+    const pending = [];
+
+    let done = 0;
+
+    /* finished positions need no engine */
+    for (let i = 0; i < total; i++) {
+      const st = game.states[i];
+
+      if (!legalMoves(st).length) {
+        evals[i] = inCheck(st)
+          ? { cp: null, mate: st.turn === "w" ? -1 : 1, terminal: true }
+          : { cp: 0, mate: null, terminal: true };
+        done++;
+      } else {
+        pending.push(i);
+      }
+    }
+
+    onProgress(done, total, "Starting Stockfish…");
+
+    const cores = (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2;
+    const wanted = Math.max(1, Math.min(MAX_WORKERS, cores - 1));
+
+    const inits = [];
+
+    for (let k = 0; k < wanted; k++) {
+      try {
+        const w = new EngineWorker(STOCKFISH_PATH);
+        run.workers.push(w);
+        inits.push(w.init().then(function () { return w; }).catch(function () { return null; }));
+      } catch (e) {
+        /* creating a Worker can throw (for example on file://) */
+      }
+    }
+
+    const ready = (await Promise.all(inits)).filter(Boolean);
+
+    if (run.cancelled) return null;
+
+    if (!ready.length) {
+      throw new Error("ENGINE_START");
+    }
+
+    onProgress(done, total, "Analysing positions…");
+
+    let forceResolve = null;
+    const forced = new Promise(function (resolve) { forceResolve = resolve; });
+
+    run.hardTimer = setTimeout(function () {
+      run.hardStopped = true;
+      pending.length = 0;
+      ready.forEach(function (w) { w.send("stop"); });
+      setTimeout(function () { forceResolve("forced"); }, 700);
+    }, Math.max(0, HARD_LIMIT_MS - 700 - (performance.now() - run.start)));
+
+    const loops = ready.map(async function (w) {
+
+      while (!run.cancelled && !run.hardStopped && pending.length) {
+
+        const i = pending.shift();
+
+        const elapsed = performance.now() - run.start;
+        const left = Math.max(0, SOFT_LIMIT_MS - elapsed);
+
+        let mt = left * ready.length / (pending.length + 1);
+        mt = Math.max(MIN_MOVETIME_MS, Math.min(MAX_MOVETIME_MS, mt));
+
+        const r = await w.analyse(game.fens[i], game.states[i].turn, Math.round(mt), MAX_DEPTH);
+
+        if (r && r.ev) {
+          evals[i] = r.ev;
+          bests[i] = r.best;
+          if (r.depth) depths.push(r.depth);
+        }
+
+        done++;
+        onProgress(done, total, "Analysing positions…");
+      }
+    });
+
+    await Promise.race([Promise.all(loops), forced]);
+
+    clearTimeout(run.hardTimer);
+
+    if (run.cancelled) return null;
+
+    return { evals: evals, bests: bests, depths: depths, hardStopped: !!run.hardStopped };
+  }
+
+  /* positions the engine did not finish get the previous evaluation */
+  function fillEvalGaps(evals) {
+
+    let last = { cp: 0, mate: null };
+
+    for (let i = 0; i < evals.length; i++) {
+      if (!evals[i]) {
+        evals[i] = { cp: last.cp, mate: last.mate, estimated: true };
+      } else {
+        last = evals[i];
+      }
+    }
+  }
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let game = null;
+  let evals = null;
+  let bests = null;
+  let review = null;
+  let analysisInfo = null;
+
+  let ply = 0;
+  let flipped = false;
+  let showArrow = true;
+
+  let analysing = false;
+  let currentRun = null;
+  let ticker = null;
+  let lastBoardWidth = 0;
+
+  const GLYPH = {
+    wk: "♔", wq: "♕", wr: "♖", wb: "♗", wn: "♘", wp: "♙",
+    bk: "♚", bq: "♛", br: "♜", bb: "♝", bn: "♞", bp: "♟"
+  };
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  const section = $("gameReview-section");
+  const boardEl = $("ogrBoard");
+
+  if (!section || !boardEl) {
+    return;
+  }
+
+  const arrowsEl = $("ogrArrows");
+  const evalBarEl = $("ogrEvalBar");
+  const evalBlackEl = $("ogrEvalBlack");
+  const evalLabelEl = $("ogrEvalLabel");
+
+  const moveListEl = $("ogrMoveList");
+  const moveInfoEl = $("ogrMoveInfo");
+
+  const pgnInput = $("ogrPgnInput");
+  const analyseBtn = $("ogrAnalyseBtn");
+  const cancelBtn = $("ogrCancelBtn");
+  const sampleBtn = $("ogrSampleBtn");
+  const fileBtn = $("ogrFileBtn");
+  const fileInput = $("ogrFileInput");
+  const clearBtn = $("ogrClearBtn");
+  const messageEl = $("ogrMessage");
+
+  const progressCard = $("ogrProgressCard");
+  const progressTitle = $("ogrProgressTitle");
+  const progressFill = $("ogrProgressFill");
+  const progressLabel = $("ogrProgressLabel");
+  const timeFill = $("ogrTimeFill");
+  const progressStatus = $("ogrProgressStatus");
+  const progressTime = $("ogrProgressTime");
+
+  const infoCard = $("ogrInfoCard");
+  const infoBody = $("ogrInfoBody");
+  const summaryCard = $("ogrSummaryCard");
+  const summaryBody = $("ogrSummaryBody");
+
+  const graphBox = $("ogrGraphBox");
+  const graphEl = $("ogrGraph");
+
+  const arrowToggle = $("ogrArrowToggle");
+
+  const firstBtn = $("ogrFirstBtn");
+  const prevBtn = $("ogrPrevBtn");
+  const nextBtn = $("ogrNextBtn");
+  const lastBtn = $("ogrLastBtn");
+  const flipBtn = $("ogrFlipBtn");
+
+  const playerTop = $("ogrPlayerTop");
+  const playerBottom = $("ogrPlayerBottom");
+
+
+  /* =========================================================
+     SMALL HELPERS
+  ========================================================= */
+
+  function esc(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function currentState() {
+    return game ? game.states[ply] : parseFEN(START_FEN);
+  }
+
+  function showMessage(text, kind) {
+    if (!text) {
+      messageEl.className = "ogr-hidden";
+      messageEl.textContent = "";
+      return;
+    }
+    messageEl.className = kind === "warn" ? "ogr-warn" : "ogr-error";
+    messageEl.textContent = text;
+  }
+
+  function judgementOf(plyIndex) {
+    if (!review || plyIndex < 0 || !review.moves[plyIndex]) return null;
+    return review.moves[plyIndex].judgement;
+  }
+
+  /* any badge for a move: a bad judgement wins, else brilliant / best / good */
+  function badgeOf(plyIndex) {
+    if (!review || plyIndex < 0 || !review.moves[plyIndex]) return null;
+    const m = review.moves[plyIndex];
+    return m.judgement || m.quality || null;
+  }
+
+  function plyLabel(plyIndex) {
+    const st = game.states[plyIndex];
+    const p = game.plies[plyIndex];
+    return st.full + (p.color === "w" ? ". " : "... ") + p.san;
+  }
+
+
+  /* =========================================================
+     BOARD
+  ========================================================= */
+
+  function renderBoard() {
+
+    const state = currentState();
+    const board = state.board;
+
+    const lastMove = game && ply > 0 ? game.plies[ply - 1] : null;
+    const judgement = badgeOf(ply - 1);
+
+    let checkSq = -1;
+    if (inCheck(state)) checkSq = findKing(board, state.turn);
+
+    boardEl.innerHTML = "";
+
+    const sqSize = boardEl.clientWidth / 8 || 70;
+
+    for (let vr = 0; vr < 8; vr++) {
+      for (let vc = 0; vc < 8; vc++) {
+
+        const r = flipped ? 7 - vr : vr;
+        const c = flipped ? 7 - vc : vc;
+        const idx = r * 8 + c;
+
+        const sq = document.createElement("div");
+        sq.className = "ogr-sq " + ((r + c) % 2 === 0 ? "ogr-sq-light" : "ogr-sq-dark");
+
+        if (lastMove && (idx === lastMove.from || idx === lastMove.to)) {
+          sq.classList.add("ogr-sq-hl");
+        }
+
+        if (idx === checkSq) {
+          sq.classList.add("ogr-sq-check");
+        }
+
+        /* coordinates on the board edge */
+        const light = (r + c) % 2 === 0;
+        const coordColor = light ? "#806b50" : "#d9c8a4";
+
+        if (vc === 0) {
+          const rk = document.createElement("span");
+          rk.className = "ogr-coord ogr-coord-rank";
+          rk.style.color = coordColor;
+          rk.textContent = String(8 - r);
+          sq.appendChild(rk);
+        }
+
+        if (vr === 7) {
+          const fl = document.createElement("span");
+          fl.className = "ogr-coord ogr-coord-file";
+          fl.style.color = coordColor;
+          fl.textContent = FILES[c];
+          sq.appendChild(fl);
+        }
+
+        const piece = board[idx];
+
+        if (piece) {
+
+          const key = piece.c + piece.t;
+          const src = ASSET_PATH + piece.c + piece.t.toUpperCase() + ".png";
+
+          const img = document.createElement("img");
+          img.className = "ogr-piece";
+          img.src = src;
+          img.alt = key;
+          img.draggable = false;
+
+          img.addEventListener("error", function () {
+            const g = document.createElement("span");
+            g.className = "ogr-glyph";
+            g.textContent = GLYPH[key];
+            g.style.fontSize = Math.round(sqSize * 0.72) + "px";
+            g.style.color = piece.c === "w" ? "#ffffff" : "#111111";
+            g.style.textShadow = piece.c === "w" ? "0 0 3px #000" : "0 0 3px #fff";
+            if (img.parentNode) img.parentNode.replaceChild(g, img);
+          });
+
+          sq.appendChild(img);
+        }
+
+        /* annotation badge on the destination square */
+        if (judgement && lastMove && idx === lastMove.to) {
+
+          const info = JUDGE[judgement];
+          const badge = document.createElement("div");
+
+          badge.className = "ogr-sq-badge";
+          badge.textContent = info.symbol;
+          badge.style.background = info.color;
+          badge.style.width = Math.round(sqSize * 0.36) + "px";
+          badge.style.height = Math.round(sqSize * 0.36) + "px";
+          badge.style.fontSize = Math.round(sqSize * 0.19) + "px";
+
+          sq.appendChild(badge);
+        }
+
+        boardEl.appendChild(sq);
+      }
+    }
+
+    renderArrows();
+  }
+
+  function renderArrows() {
+
+    arrowsEl.innerHTML = "";
+
+    if (!showArrow || !game || !bests || !evals) return;
+
+    const best = bests[ply];
+    if (!best || best.length < 4) return;
+
+    const from = sqIdx(best.substring(0, 2));
+    const to = sqIdx(best.substring(2, 4));
+
+    if (from < 0 || to < 0 || isNaN(from) || isNaN(to)) return;
+
+    function center(idx) {
+      const r = idx >> 3;
+      const c = idx & 7;
+      return {
+        x: (flipped ? 7 - c : c) + 0.5,
+        y: (flipped ? 7 - r : r) + 0.5
+      };
+    }
+
+    const a = center(from);
+    const b = center(to);
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+
+    if (len < 0.01) return;
+
+    const ux = dx / len;
+    const uy = dy / len;
+
+    const head = 0.34;
+    const startX = a.x + ux * 0.18;
+    const startY = a.y + uy * 0.18;
+    const baseX = b.x - ux * head;
+    const baseY = b.y - uy * head;
+
+    const NS = "http://www.w3.org/2000/svg";
+
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", String(startX));
+    line.setAttribute("y1", String(startY));
+    line.setAttribute("x2", String(baseX));
+    line.setAttribute("y2", String(baseY));
+    line.setAttribute("stroke", "#15781b");
+    line.setAttribute("stroke-width", "0.16");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("opacity", "0.82");
+
+    const px = -uy;
+    const py = ux;
+
+    const tri = document.createElementNS(NS, "polygon");
+    tri.setAttribute(
+      "points",
+      b.x + "," + b.y + " " +
+      (baseX + px * 0.2) + "," + (baseY + py * 0.2) + " " +
+      (baseX - px * 0.2) + "," + (baseY - py * 0.2)
+    );
+    tri.setAttribute("fill", "#15781b");
+    tri.setAttribute("opacity", "0.82");
+
+    arrowsEl.appendChild(line);
+    arrowsEl.appendChild(tri);
+  }
+
+
+  /* =========================================================
+     EVAL BAR
+  ========================================================= */
+
+  function renderEvalBar() {
+
+    const ev = evals ? evals[ply] : null;
+
+    let whitePct = 50;
+    let label = "0.0";
+
+    if (ev) {
+      whitePct = evalWinPercentWhite(ev);
+      label = formatEval(ev);
+    }
+
+    evalBlackEl.style.height = (100 - whitePct) + "%";
+    evalBarEl.classList.toggle("ogr-flipped", flipped);
+
+    evalLabelEl.textContent = evals ? label : "";
+
+    /* number sits on the side of the player who is ahead */
+    const whiteAhead = whitePct >= 50;
+    const onBottom = flipped ? !whiteAhead : whiteAhead;
+
+    evalLabelEl.style.top = onBottom ? "auto" : "4px";
+    evalLabelEl.style.bottom = onBottom ? "4px" : "auto";
+    evalLabelEl.style.color = whiteAhead ? "#333" : "#eee";
+  }
+
+
+  /* =========================================================
+     PLAYERS
+  ========================================================= */
+
+  function fillPlayer(el, color) {
+
+    const h = game ? game.headers : {};
+
+    const name = (color === "w" ? h.White : h.Black) || (color === "w" ? "White" : "Black");
+    const title = color === "w" ? h.WhiteTitle : h.BlackTitle;
+    const elo = color === "w" ? h.WhiteElo : h.BlackElo;
+    const diff = color === "w" ? h.WhiteRatingDiff : h.BlackRatingDiff;
+
+    const nameEl = el.querySelector('[data-role="name"]');
+    const eloEl = el.querySelector('[data-role="elo"]');
+    const diffEl = el.querySelector('[data-role="diff"]');
+    const chipEl = el.querySelector('[data-role="chip"]');
+    const scoreEl = el.querySelector('[data-role="score"]');
+    const clockEl = el.querySelector('[data-role="clock"]');
+
+    nameEl.textContent = (title ? title + " " : "") + name;
+    eloEl.textContent = elo && elo !== "?" ? "(" + elo + ")" : "";
+
+    if (diff && /^[+-]?\d+$/.test(diff)) {
+      const v = parseInt(diff, 10);
+      diffEl.className = v >= 0 ? "ogr-diff-pos" : "ogr-diff-neg";
+      diffEl.textContent = (v >= 0 ? "+" : "−") + Math.abs(v);
+    } else {
+      diffEl.className = "";
+      diffEl.textContent = "";
+    }
+
+    chipEl.style.background = color === "w" ? "#ffffff" : "#222222";
+
+    /* final score badge, only on the last position */
+    const atEnd = game && ply === game.plies.length;
+    let score = "";
+
+    if (atEnd) {
+      if (game.result === "1-0") score = color === "w" ? "1" : "0";
+      else if (game.result === "0-1") score = color === "b" ? "1" : "0";
+      else if (game.result === "1/2-1/2") score = "½";
+    }
+
+    scoreEl.textContent = score;
+    scoreEl.classList.toggle("ogr-hidden", !score);
+
+    /* clock at the current position */
+    let clk = null;
+
+    if (game) {
+      for (let i = Math.min(ply, game.plies.length) - 1; i >= 0; i--) {
+        if (game.plies[i].color === color && game.plies[i].clk !== null) {
+          clk = game.plies[i].clk;
+          break;
+        }
+      }
+    }
+
+    const hasClocks = game && game.plies.some(function (p) { return p.clk !== null; });
+
+    clockEl.textContent = clk !== null ? formatClock(clk) : "–:––";
+    clockEl.classList.toggle("ogr-hidden", !hasClocks);
+  }
+
+  function renderPlayers() {
+    fillPlayer(playerTop, flipped ? "w" : "b");
+    fillPlayer(playerBottom, flipped ? "b" : "w");
+  }
+
+
+  /* =========================================================
+     NOTATION LIST
+  ========================================================= */
+
+  function renderMoveList() {
+
+    moveListEl.innerHTML = "";
+
+    if (!game) {
+      moveListEl.innerHTML =
+        '<div class="ogr-muted">Moves will appear here once you load a PGN.</div>';
+      return;
+    }
+
+    let row = null;
+
+    game.plies.forEach(function (p, i) {
+
+      const st = game.states[i];
+
+      if (p.color === "w" || !row) {
+
+        row = document.createElement("div");
+        row.className = "ogr-row";
+
+        const num = document.createElement("div");
+        num.className = "ogr-num";
+        num.textContent = String(st.full);
+        row.appendChild(num);
+
+        if (p.color === "b") {
+          const gap = document.createElement("div");
+          gap.className = "ogr-move ogr-move-empty";
+          gap.textContent = "…";
+          row.appendChild(gap);
+        }
+
+        moveListEl.appendChild(row);
+      }
+
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "ogr-move";
+      cell.dataset.ply = String(i + 1);
+
+      const san = document.createElement("span");
+      san.textContent = p.san;
+      cell.appendChild(san);
+
+      const j = badgeOf(i);
+
+      if (j) {
+        const badge = document.createElement("span");
+        badge.className = "ogr-badge";
+        badge.style.background = JUDGE[j].color;
+        badge.textContent = JUDGE[j].symbol;
+        cell.appendChild(badge);
+      }
+
+      if (evals && evals[i + 1]) {
+        let tip = "Eval after move: " + formatEval(evals[i + 1]);
+        if (j) tip += "  •  " + JUDGE[j].label;
+        cell.title = tip;
+      }
+
+      row.appendChild(cell);
+    });
+
+    const res = document.createElement("div");
+    res.className = "ogr-result-row";
+    res.textContent = game.result && game.result !== "*" ? game.result : "";
+    moveListEl.appendChild(res);
+
+    updateActiveMove(false);
+  }
+
+  function updateActiveMove(scroll) {
+
+    const cells = moveListEl.querySelectorAll(".ogr-move[data-ply]");
+
+    let active = null;
+
+    cells.forEach(function (cell) {
+      const on = Number(cell.dataset.ply) === ply;
+      cell.classList.toggle("ogr-active", on);
+      if (on) active = cell;
+    });
+
+    if (active && scroll !== false) {
+      const top = active.offsetTop;
+      const h = moveListEl.clientHeight;
+
+      if (top < moveListEl.scrollTop + 30 || top > moveListEl.scrollTop + h - 50) {
+        moveListEl.scrollTop = Math.max(0, top - h / 2);
+      }
+    }
+  }
+
+
+  /* =========================================================
+     MOVE INFO LINE
+  ========================================================= */
+
+  function renderMoveInfo() {
+
+    if (!game) {
+      moveInfoEl.textContent = "Load a PGN to start.";
+      return;
+    }
+
+    if (ply === 0) {
+      moveInfoEl.textContent = review
+        ? "Start position — use ▶ or click a move."
+        : "Start position.";
+      return;
+    }
+
+    const i = ply - 1;
+    const p = game.plies[i];
+
+    let html = "<strong style='color:#fff;'>" + esc(plyLabel(i)) + "</strong>";
+
+    if (!review) {
+      moveInfoEl.innerHTML = html;
+      return;
+    }
+
+    const m = review.moves[i];
+    const ev = evals[ply];
+
+    const key = m.judgement || m.quality;
+
+    if (key) {
+      const info = JUDGE[key];
+      html += " <span style='color:" + info.color + ";'>" + esc(info.symbol + " " + info.label) + "</span>";
+    } else {
+      html += " <span style='color:#aeb3cf;'>Okay move</span>";
+    }
+
+    if (ev) {
+      html += " <span style='color:#858ba8;'>· Eval " + esc(formatEval(ev)) + "</span>";
+    }
+
+    if (m.judgement && m.best) {
+      const before = game.states[i];
+      const bm = uciToMove(before, m.best);
+
+      if (bm) {
+        const bsan = moveToSAN(before, bm, legalMoves(before));
+        html += "<br><span style='color:#aeb3cf;'>Best was <strong style='color:#fff;'>" +
+          esc(bsan) + "</strong>" +
+          (evals[i] ? " (" + esc(formatEval(evals[i])) + ")" : "") +
+          "</span>";
+      }
+    }
+
+    moveInfoEl.innerHTML = html;
+  }
+
+
+  /* =========================================================
+     GAME INFO CARD
+  ========================================================= */
+
+  function formatDate(h) {
+
+    const d = h.UTCDate || h.Date;
+    const t = h.UTCTime || h.Time;
+
+    if (!d || /^\?{4}/.test(d) && !t) return null;
+
+    let out = null;
+
+    const m = /^(\d{4})\.(\d{2})\.(\d{2})$/.exec(d);
+
+    if (m) {
+      const date = new Date(Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)));
+      try {
+        out = date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+      } catch (e) {
+        out = d.replace(/\./g, "-");
+      }
+    } else if (!/^\?{4}\.\?{2}\.\?{2}$/.test(d)) {
+      out = d.replace(/\.\?\?/g, "").replace(/\./g, "-");
+    }
+
+    if (out && t) out += " at " + t + (h.UTCTime ? " UTC" : "");
+
+    return out;
+  }
+
+  function renderInfo() {
+
+    if (!game) {
+      infoCard.classList.add("ogr-hidden");
+      return;
+    }
+
+    const h = game.headers;
+    const rows = [];
+
+    const tc = formatTimeControl(h.TimeControl);
+    if (tc) rows.push(["Time control", tc]);
+
+    const when = formatDate(h);
+    if (when) rows.push(["Played", when]);
+
+    if (h.Event && h.Event !== "?") rows.push(["Event", h.Event]);
+    if (h.Site && h.Site !== "?") rows.push(["Site", h.Site]);
+    if (h.Round && h.Round !== "?" && h.Round !== "-") rows.push(["Round", h.Round]);
+
+    const opening = [h.ECO, h.Opening].filter(Boolean).join(" ");
+    if (opening) rows.push(["Opening", opening]);
+
+    rows.push(["Result", resultText(game)]);
+    rows.push(["Moves", Math.ceil(game.plies.length / 2) + " (" + game.plies.length + " plies)"]);
+
+    infoBody.innerHTML = rows.map(function (r) {
+      return '<div class="ogr-info-row"><span>' + esc(r[0]) + "</span><span>" + esc(r[1]) + "</span></div>";
+    }).join("");
+
+    infoCard.classList.remove("ogr-hidden");
+  }
+
+
+  /* =========================================================
+     SUMMARY CARD
+  ========================================================= */
+
+  function renderSummary() {
+
+    if (!review || !game) {
+      summaryCard.classList.add("ogr-hidden");
+      return;
+    }
+
+    const w = review.stats.w;
+    const b = review.stats.b;
+    const h = game.headers;
+
+    const wn = h.White || "White";
+    const bn = h.Black || "Black";
+
+    function pct(v) {
+      return v === null || v === undefined ? "–" : v.toFixed(1) + "%";
+    }
+
+    function num(v) {
+      return v === null || v === undefined ? "–" : String(Math.round(v));
+    }
+
+    function row(label, a, c, color) {
+      const dot = color ? '<i class="ogr-dot" style="background:' + color + ';margin-right:6px;"></i>' : "";
+      return '<div class="ogr-sum-row"><span>' + esc(a) + '</span><span class="ogr-sum-mid">' +
+        dot + esc(label) + "</span><span>" + esc(c) + "</span></div>";
+    }
+
+    function stack(s) {
+
+      const total = Math.max(1, s.count);
+
+      const parts = [
+        [s.best + s.good, "#78b887"],
+        [s.inaccuracy, JUDGE.inaccuracy.color],
+        [s.mistake, JUDGE.mistake.color],
+        [s.blunder, JUDGE.blunder.color]
+      ];
+
+      return '<div class="ogr-stack">' + parts.map(function (p) {
+        return '<div style="width:' + (p[0] / total * 100) + "%;background:" + p[1] + ';"></div>';
+      }).join("") + "</div>";
+    }
+
+    const badW = w.inaccuracy + w.mistake + w.blunder;
+    const badB = b.inaccuracy + b.mistake + b.blunder;
+
+    let html = "";
+
+    html += '<div class="ogr-sum-head">' +
+      '<div class="ogr-sum-player"><div class="ogr-sum-name">⬜ ' + esc(wn) + "</div>" +
+      '<div class="ogr-sum-acc">' + pct(w.accuracy) + '</div><div class="ogr-sum-acc-label">ACCURACY</div>' +
+      stack(w) + "</div>" +
+      '<div class="ogr-sum-player"><div class="ogr-sum-name">⬛ ' + esc(bn) + "</div>" +
+      '<div class="ogr-sum-acc">' + pct(b.accuracy) + '</div><div class="ogr-sum-acc-label">ACCURACY</div>' +
+      stack(b) + "</div></div>";
+
+    html += row("Brilliant moves", w.brilliant, b.brilliant, JUDGE.brilliant.color);
+    html += row("Good moves", w.best + w.good, b.best + b.good, "#78b887");
+    html += row("⭐ Engine's top choice", w.best, b.best, null);
+    html += row("Inaccuracies", w.inaccuracy, b.inaccuracy, JUDGE.inaccuracy.color);
+    html += row("Mistakes", w.mistake, b.mistake, JUDGE.mistake.color);
+    html += row("Blunders", w.blunder, b.blunder, JUDGE.blunder.color);
+    html += row("Bad moves (total)", badW, badB, null);
+    html += row("Avg. centipawn loss", num(w.acpl), num(b.acpl), null);
+
+    if (analysisInfo) {
+      html += '<div class="ogr-muted" style="margin-top:10px;">' +
+        "Analysed " + analysisInfo.positions + " positions in " + analysisInfo.seconds.toFixed(1) + "s" +
+        (analysisInfo.avgDepth ? " · average depth " + analysisInfo.avgDepth.toFixed(0) : "") +
+        (analysisInfo.hardStopped ? " · time limit reached, last positions are quick estimates" : "") +
+        (analysisInfo.workers > 1 ? " · " + analysisInfo.workers + " engine threads" : "") +
+        "</div>";
+    }
+
+    summaryBody.innerHTML = html;
+    summaryCard.classList.remove("ogr-hidden");
+  }
+
+
+  /* =========================================================
+     EVAL GRAPH
+  ========================================================= */
+
+  function renderGraph() {
+
+    graphEl.innerHTML = "";
+
+    if (!evals || !game) {
+      graphBox.classList.add("ogr-hidden");
+      return;
+    }
+
+    graphBox.classList.remove("ogr-hidden");
+
+    const W = 400;
+    const H = 90;
+    const n = game.plies.length;
+
+    const xAt = function (i) { return n === 0 ? 0 : (i / n) * W; };
+    const yAt = function (i) { return H * (1 - evalWinPercentWhite(evals[i]) / 100); };
+
+    const NS = "http://www.w3.org/2000/svg";
+
+    function el(name, attrs) {
+      const node = document.createElementNS(NS, name);
+      Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+      graphEl.appendChild(node);
+      return node;
+    }
+
+    let pts = "";
+    for (let i = 0; i <= n; i++) {
+      pts += xAt(i).toFixed(1) + "," + yAt(i).toFixed(1) + " ";
+    }
+
+    el("polygon", {
+      points: "0," + H + " " + pts + W + "," + H,
+      fill: "rgba(240,240,240,0.88)"
+    });
+
+    el("line", {
+      x1: "0", y1: String(H / 2), x2: String(W), y2: String(H / 2),
+      stroke: "rgba(120,120,120,0.9)", "stroke-width": "1", "stroke-dasharray": "4 4",
+      "vector-effect": "non-scaling-stroke"
+    });
+
+    /* dots for inaccuracies / mistakes / blunders */
+    if (review) {
+      review.moves.forEach(function (m, i) {
+        const key = m.judgement || (m.quality === "brilliant" ? "brilliant" : null);
+        if (!key) return;
+        el("circle", {
+          cx: xAt(i + 1).toFixed(1),
+          cy: yAt(i + 1).toFixed(1),
+          r: key === "blunder" ? "3.4" : "2.8",
+          fill: JUDGE[key].color,
+          stroke: "#222",
+          "stroke-width": "0.8"
+        });
+      });
+    }
+
+    el("line", {
+      x1: xAt(ply).toFixed(1), y1: "0", x2: xAt(ply).toFixed(1), y2: String(H),
+      stroke: "#ffd700", "stroke-width": "2", "vector-effect": "non-scaling-stroke"
+    });
+  }
+
+
+  /* =========================================================
+     NAVIGATION
+  ========================================================= */
+
+  function renderNavState() {
+
+    const n = game ? game.plies.length : 0;
+
+    firstBtn.disabled = !game || ply <= 0;
+    prevBtn.disabled = !game || ply <= 0;
+    nextBtn.disabled = !game || ply >= n;
+    lastBtn.disabled = !game || ply >= n;
+  }
+
+  function goTo(target, scroll) {
+
+    if (!game) {
+      /* no game loaded: show the start position */
+      ply = 0;
+      renderBoard();
+      renderEvalBar();
+      renderPlayers();
+      renderMoveInfo();
+      renderNavState();
+      renderGraph();
+      return;
+    }
+
+    const n = game.plies.length;
+    ply = Math.max(0, Math.min(n, target));
+
+    renderBoard();
+    renderEvalBar();
+    renderPlayers();
+    renderMoveInfo();
+    renderNavState();
+    renderGraph();
+    updateActiveMove(scroll);
+  }
+
+  function renderAll() {
+    renderInfo();
+    renderMoveList();
+    renderSummary();
+    goTo(ply, true);
+  }
+
+
+  /* =========================================================
+     LOADING A GAME
+  ========================================================= */
+
+  function resetAnalysisState() {
+    evals = null;
+    bests = null;
+    review = null;
+    analysisInfo = null;
+  }
+
+  function loadGameFromText() {
+
+    const text = pgnInput.value;
+
+    if (!text.trim()) {
+      showMessage("Paste a PGN first (or press “Sample game”).", "error");
+      return false;
+    }
+
+    const parsed = parsePGN(text);
+
+    if (parsed.error && !parsed.plies) {
+      showMessage(parsed.error, "error");
+      return false;
+    }
+
+    /* very long games are cut so the 30 s limit stays realistic */
+    let truncated = false;
+
+    if (parsed.plies.length > MAX_PLIES) {
+      parsed.plies.length = MAX_PLIES;
+      parsed.states.length = MAX_PLIES + 1;
+      parsed.fens.length = MAX_PLIES + 1;
+      truncated = true;
+    }
+
+    game = parsed;
+    resetAnalysisState();
+
+    ply = 0;
+
+    if (parsed.error) {
+      showMessage(parsed.error, "warn");
+    } else if (truncated) {
+      showMessage("Only the first " + MAX_PLIES + " plies are analysed.", "warn");
+    } else {
+      showMessage("");
+    }
+
+    return true;
+  }
+
+
+  /* =========================================================
+     RUNNING THE ANALYSIS
+  ========================================================= */
+
+  function setAnalysing(on) {
+
+    analysing = on;
+
+    analyseBtn.disabled = on;
+    analyseBtn.textContent = on ? "⏳ Analysing…" : "🔍 Analyse";
+    cancelBtn.classList.toggle("ogr-hidden", !on);
+
+    sampleBtn.disabled = on;
+    fileBtn.disabled = on;
+    clearBtn.disabled = on;
+    pgnInput.disabled = on;
+  }
+
+  function updateProgress(done, total, status) {
+
+    const pct = Math.min(100, Math.round(done / total * 100));
+
+    progressFill.style.width = pct + "%";
+    progressLabel.textContent = pct + "%";
+
+    if (status) progressStatus.textContent = status === "Analysing positions…"
+      ? "Position " + Math.min(done, total) + " of " + total
+      : status;
+  }
+
+  function tickTimer() {
+
+    if (!currentRun) return;
+
+    const elapsed = (performance.now() - currentRun.start) / 1000;
+    const limit = TOTAL_LIMIT_MS / 1000;
+
+    timeFill.style.width = Math.min(100, elapsed / limit * 100) + "%";
+    progressTime.textContent = elapsed.toFixed(1) + "s / " + limit + "s";
+  }
+
+  async function diagnoseEngine() {
+
+    const wasmPath = STOCKFISH_PATH.replace(/\.js$/i, ".wasm");
+
+    try {
+
+      const res = await fetch(STOCKFISH_PATH, { cache: "no-store" });
+
+      if (!res.ok) {
+        return "“" + STOCKFISH_PATH + "” returned " + res.status +
+          ". The file is not at that path. Fix STOCKFISH_PATH.";
+      }
+
+      const text = await res.text();
+
+      if (/^\s*<(!doctype|html)/i.test(text) || text.indexOf("Stockfish") === -1) {
+        return "“" + STOCKFISH_PATH + "” is not the engine file (it looks like a web page). " +
+          "Download the raw file again.";
+      }
+
+      const wres = await fetch(wasmPath, { cache: "no-store" });
+
+      if (!wres.ok) {
+        return "“" + wasmPath + "” returned " + wres.status +
+          ". The .wasm file must be in the same folder with the same name as the .js file.";
+      }
+
+      const bytes = new Uint8Array((await wres.arrayBuffer()).slice(0, 4));
+
+      if (!(bytes[0] === 0 && bytes[1] === 97 && bytes[2] === 115 && bytes[3] === 109)) {
+        return "“" + wasmPath + "” is not a real .wasm file (it looks like a web page). " +
+          "Download the raw file again.";
+      }
+
+      return "Both files load fine, but the worker still failed to start. " +
+        "Open the browser console (F12) and send me the red error line.";
+
+    } catch (e) {
+      return "The browser cannot load “" + STOCKFISH_PATH +
+        "”. Open the page from a web server (http:// or https://), not from a local file.";
+    }
+  }
+
+  async function startAnalysis() {
+
+    if (analysing) return;
+
+    if (!loadGameFromText()) return;
+
+    renderAll();
+
+    const run = {
+      start: performance.now(),
+      cancelled: false,
+      hardStopped: false,
+      workers: [],
+      hardTimer: null
+    };
+
+    currentRun = run;
+
+    setAnalysing(true);
+
+    progressCard.classList.remove("ogr-hidden");
+    progressTitle.textContent = "⚙️ Analysing…";
+    progressFill.style.width = "0%";
+    progressLabel.textContent = "0%";
+    timeFill.style.width = "0%";
+    progressStatus.textContent = "Starting Stockfish…";
+    progressTime.textContent = "0.0s / " + TOTAL_LIMIT_MS / 1000 + "s";
+
+    ticker = setInterval(tickTimer, 100);
+
+    let outcome = null;
+    let failure = null;
+
+    try {
+      outcome = await runAnalysis(game, run, updateProgress);
+    } catch (err) {
+      failure = err;
+    }
+
+    clearInterval(ticker);
+    ticker = null;
+    clearTimeout(run.hardTimer);
+
+    run.workers.forEach(function (w) { w.terminate(); });
+
+    const seconds = (performance.now() - run.start) / 1000;
+
+    currentRun = null;
+    setAnalysing(false);
+
+    if (failure) {
+      progressCard.classList.add("ogr-hidden");
+
+      if (failure.message === "ENGINE_START") {
+        showMessage("Stockfish could not start. Checking why…", "error");
+        diagnoseEngine().then(function (reason) {
+          showMessage("Stockfish could not start. " + reason, "error");
+        });
+      } else {
+        showMessage("Analysis failed: " + failure.message, "error");
+      }
+      return;
+    }
+
+    if (!outcome || run.cancelled) {
+      progressCard.classList.add("ogr-hidden");
+      showMessage("Analysis cancelled. You can still step through the game.", "warn");
+      return;
+    }
+
+    fillEvalGaps(outcome.evals);
+
+    evals = outcome.evals;
+    bests = outcome.bests;
+    review = buildReview(game, evals, bests);
+
+    const depthSum = outcome.depths.reduce(function (a, b) { return a + b; }, 0);
+
+    analysisInfo = {
+      positions: game.plies.length + 1,
+      seconds: seconds,
+      avgDepth: outcome.depths.length ? depthSum / outcome.depths.length : 0,
+      hardStopped: outcome.hardStopped,
+      workers: run.workers.length
+    };
+
+    updateProgress(1, 1, "Done");
+    progressTitle.textContent = "✅ Analysis complete";
+    progressStatus.textContent = "Finished";
+    progressTime.textContent = seconds.toFixed(1) + "s / " + TOTAL_LIMIT_MS / 1000 + "s";
+    timeFill.style.width = Math.min(100, seconds / (TOTAL_LIMIT_MS / 1000) * 100) + "%";
+
+    renderAll();
+  }
+
+  function cancelAnalysis() {
+
+    if (!currentRun) return;
+
+    currentRun.cancelled = true;
+    currentRun.workers.forEach(function (w) { w.terminate(); });
+  }
+
+
+  /* =========================================================
+     SAMPLE GAME
+  ========================================================= */
+
+  const SAMPLE_PGN =
+    '[Event "Paris Opera House"]\n' +
+    '[Site "Paris FRA"]\n' +
+    '[Date "1858.??.??"]\n' +
+    '[Round "?"]\n' +
+    '[White "Paul Morphy"]\n' +
+    '[Black "Duke Karl / Count Isouard"]\n' +
+    '[Result "1-0"]\n' +
+    '[Opening "Philidor Defense"]\n' +
+    '[ECO "C41"]\n\n' +
+    "1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 " +
+    "8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 " +
+    "14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0";
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  analyseBtn.addEventListener("click", startAnalysis);
+  cancelBtn.addEventListener("click", cancelAnalysis);
+
+  sampleBtn.addEventListener("click", function () {
+    pgnInput.value = SAMPLE_PGN;
+    showMessage("");
+    if (loadGameFromText()) renderAll();
+  });
+
+  clearBtn.addEventListener("click", function () {
+    pgnInput.value = "";
+    game = null;
+    resetAnalysisState();
+    ply = 0;
+    showMessage("");
+    progressCard.classList.add("ogr-hidden");
+    renderAll();
+  });
+
+  fileBtn.addEventListener("click", function () { fileInput.click(); });
+
+  fileInput.addEventListener("change", function () {
+
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function () {
+      pgnInput.value = String(reader.result || "");
+      showMessage("");
+      if (loadGameFromText()) renderAll();
+    };
+
+    reader.readAsText(file);
+    fileInput.value = "";
+  });
+
+  firstBtn.addEventListener("click", function () { goTo(0); });
+  prevBtn.addEventListener("click", function () { goTo(ply - 1); });
+  nextBtn.addEventListener("click", function () { goTo(ply + 1); });
+  lastBtn.addEventListener("click", function () { goTo(game ? game.plies.length : 0); });
+
+  flipBtn.addEventListener("click", function () {
+    flipped = !flipped;
+    goTo(ply);
+  });
+
+  arrowToggle.addEventListener("change", function () {
+    showArrow = arrowToggle.checked;
+    renderArrows();
+  });
+
+  moveListEl.addEventListener("click", function (event) {
+
+    const cell = event.target.closest(".ogr-move[data-ply]");
+    if (!cell) return;
+
+    goTo(Number(cell.dataset.ply), false);
+  });
+
+  graphEl.addEventListener("click", function (event) {
+
+    if (!game) return;
+
+    const rect = graphEl.getBoundingClientRect();
+    const ratio = (event.clientX - rect.left) / rect.width;
+
+    goTo(Math.round(ratio * game.plies.length));
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (!game) return;
+    if (section.classList.contains("hidden") || section.offsetParent === null) return;
+
+    const tag = event.target && event.target.tagName;
+    if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
+
+    if (event.key === "ArrowLeft") { event.preventDefault(); goTo(ply - 1); }
+    else if (event.key === "ArrowRight") { event.preventDefault(); goTo(ply + 1); }
+    else if (event.key === "ArrowUp" || event.key === "Home") { event.preventDefault(); goTo(0); }
+    else if (event.key === "ArrowDown" || event.key === "End") { event.preventDefault(); goTo(game.plies.length); }
+    else if (event.key === "f" || event.key === "F") { flipped = !flipped; goTo(ply); }
+  });
+
+  /* keep badge / glyph sizes right when the board is resized */
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(function () {
+      const w = boardEl.clientWidth;
+      if (w && Math.abs(w - lastBoardWidth) > 2) {
+        lastBoardWidth = w;
+        renderBoard();
+      }
+    }).observe(boardEl);
+  }
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  renderAll();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.OlympusGameReview = {
+
+    loadPgn: function (pgn) {
+      pgnInput.value = String(pgn || "");
+      if (loadGameFromText()) renderAll();
+    },
+
+    analyse: function () {
+      return startAnalysis();
+    },
+
+    goTo: function (p) {
+      goTo(p);
+    },
+
+    getState: function () {
+      return {
+        plies: game ? game.plies.length : 0,
+        ply: ply,
+        analysed: !!review,
+        analysing: analysing
+      };
+    }
+
+  };
+
+})();
+
+</script>
 
 
 <!-- ========================= -->
@@ -152764,7 +157051,7 @@ const lockedTabs = [
   "chessBaseLiveTactics",  "fritzChess", "chessBasePlay","emojiMemory",
   "lichessAnalysis", "dice-multiplayer", "chessConcepts", "three-check", 
   "chessBaseTournament", "chessPlayerQuiz", "king-of-the-hill", "chess960",
-  "chessLegends", "todayChessNews", "captureChallenge",
+  "chessLegends", "todayChessNews", "captureChallenge", "gameReview", 
 
   // 🎮 Standalone games
   "cardClash",
@@ -225264,7 +229551,7 @@ style="
       '[data-tab="study"]',
       '[data-tab="chessConcepts"]',
        '[data-tab="lichessAnalysis"]',
-       
+       '[data-tab="gameReview"]',
       '[data-tab="editor"]',
       '[data-tab="board"]',
       '[data-tab="piecePractice"]',
