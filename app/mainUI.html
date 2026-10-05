@@ -42195,6 +42195,14 @@ right:0;
 </button>
 <button
   class="nav-btn"
+  data-tab="chessAssassin"
+  id="chessAssassinNavBtn"
+>
+ ⚔️
+  Assassination Challenge
+</button>
+<button
+  class="nav-btn"
   data-tab="impossibleCheck"
   id="impossibleCheckNavBtn"
 >
@@ -70233,11 +70241,15 @@ winClose?.addEventListener("click", function() {
 
   /* Difficulty curve: more hunters, fewer shortcuts, more queens. */
   function params(n, level) {
+
+    const capG = Math.min(8, 2 + Math.floor(n / 3));
+
     return {
-      enemies: Math.min(Math.floor(level / 2), enemyCap(n)),
-      queenChance: level < 4 ? 0 : Math.min(0.7, (level - 3) * 0.1),
-      braid: Math.max(0.05, 0.5 - 0.04 * level),
-      pillar: Math.max(0, 0.14 - 0.01 * level)
+      guards: Math.min(1 + Math.floor((level - 1) / 2), capG),
+      R: Math.min(MAXR, 3 + Math.floor((level - 1) / 4)),
+      patrolShare: 1,
+      crates: Math.min(0.20, 0.09 + level * 0.006),
+      wallSegs: Math.min(Math.floor(level / 4) + 1, Math.floor(n / 3))
     };
   }
 
@@ -71464,6 +71476,2548 @@ winClose?.addEventListener("click", function() {
 
 </script>
 
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #ca-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start;}
+  @media (max-width:1000px){#ca-layout{grid-template-columns:1fr;}}
+
+  .ca-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:10px;box-sizing:border-box;}
+  .ca-card-title{color:#ffd700;font-size:13px;font-weight:900;margin-bottom:8px;}
+  .ca-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:12px;font-weight:700;}
+  .ca-stat-row strong{color:#fff;}
+
+  .ca-size-btn{padding:8px 2px;border-radius:9px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:12px;font-weight:900;cursor:pointer;}
+  .ca-size-btn.ca-active{border-color:#ffd700;background:rgba(255,215,0,0.13);color:#ffd700;}
+
+  .ca-carousel{display:flex;align-items:center;justify-content:space-between;gap:8px;touch-action:pan-y;user-select:none;}
+  .ca-arrow{width:34px;height:44px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:#fff;font-size:15px;font-weight:900;cursor:pointer;flex:0 0 auto;}
+  .ca-pview{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;min-width:0;padding:6px 4px;border-radius:12px;border:1px solid rgba(255,215,0,0.28);background:rgba(255,215,0,0.08);}
+  .ca-pview img{width:46px;height:46px;object-fit:contain;pointer-events:none;flex:0 0 auto;}
+  .ca-pview .ca-glyph{font-size:38px;line-height:46px;height:46px;color:#fff;flex:0 0 auto;}
+  .ca-pname{color:#fff;font-size:15px;font-weight:900;}
+  .ca-pnote{color:#aeb3cf;font-size:10px;font-weight:700;line-height:1.3;}
+  .ca-dots{display:flex;justify-content:center;gap:6px;margin-top:8px;}
+  .ca-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.2);}
+  .ca-dot.ca-on{background:#ffd700;}
+
+  .ca-check{display:flex;align-items:center;gap:8px;margin-top:7px;color:#aeb3cf;font-size:11px;font-weight:700;cursor:pointer;}
+
+  .ca-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .ca-btn-green{background:#78b887;color:#000;}
+  .ca-btn-gold{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.30);color:#ffd700;}
+  .ca-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  #caBoardWrap{border:4px solid #1c1f33;border-radius:10px;box-sizing:border-box;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,0.45),0 0 0 1px rgba(255,215,0,0.18);background:#0b0e1a;}
+
+  .ca-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.82);backdrop-filter:blur(7px);}
+  .ca-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes caSlideL{from{transform:translateX(26px);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes caSlideR{from{transform:translateX(-26px);opacity:0}to{transform:translateX(0);opacity:1}}
+  .ca-slide-l{animation:caSlideL .22s ease-out;}
+  .ca-slide-r{animation:caSlideR .22s ease-out;}
+</style>
+
+<section
+  class="section hidden"
+  id="chessAssassin-section"
+>
+
+  <div
+    id="ca-shell"
+    style="width:100%;max-width:1400px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;">⚔️</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess Assassination</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Slip past the torchlights and eliminate every elite guard. One step into the light and you are done.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="caHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="caResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="ca-layout">
+
+      <!-- BOARD CARD -->
+      <div style="background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:20px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="caStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Eliminate every guard</div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:nowrap;">
+            <button type="button" id="caWaitBtn" class="ca-btn ca-btn-gold"
+              style="width:auto;padding:7px 12px;font-size:12px;border-radius:10px;white-space:nowrap;">⏳ Wait</button>
+            <button type="button" id="caResetSideBtn" class="ca-btn ca-btn-green"
+              style="width:auto;padding:7px 12px;font-size:12px;border-radius:10px;white-space:nowrap;">↻ Try Again</button>
+          </div>
+
+          <div id="caDiffBadge"
+            style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:900;letter-spacing:1px;color:#000;background:#78b887;white-space:nowrap;">
+            ROOKIE
+          </div>
+        </div>
+
+        <div id="caMessage"
+          style="margin-bottom:10px;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:11px;font-weight:800;text-align:center;">
+          Level 1
+        </div>
+
+        <div style="width:100%;display:flex;justify-content:center;padding:6px 0 18px;box-sizing:border-box;">
+          <div id="caBoardWrap"
+            style="position:relative;width:max(320px,min(100%,780px,calc(100vh - 230px)));aspect-ratio:1 / 1;">
+            <canvas id="caCanvas" style="display:block;width:100%;height:100%;cursor:pointer;touch-action:manipulation;"></canvas>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:2px;">
+          Click a green square to move. Capture a guard by moving onto it. Never end a move in the yellow light.
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+
+        <div class="ca-card">
+          <div class="ca-card-title">♞ Choose Your Piece <span style="color:#858ba8;font-weight:700;">· swipe ◀ ▶</span></div>
+          <div id="caCarousel" class="ca-carousel">
+            <button type="button" id="caPiecePrev" class="ca-arrow">◀</button>
+            <div id="caPieceView" class="ca-pview">
+              <div id="caPieceIcon"></div>
+              <div>
+                <div id="caPieceName" class="ca-pname">King</div>
+                <div id="caPieceNote" class="ca-pnote"></div>
+              </div>
+            </div>
+            <button type="button" id="caPieceNext" class="ca-arrow">▶</button>
+          </div>
+          <div id="caDots" class="ca-dots"></div>
+        </div>
+
+        <div class="ca-card">
+          <div class="ca-card-title">🔲 Board Size</div>
+          <div id="caSizeGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;"></div>
+        </div>
+
+        <div class="ca-card">
+          <div class="ca-card-title">⚙ Options</div>
+          <label class="ca-check" style="margin-top:0;"><input type="checkbox" id="caHintsToggle" checked> Show move hints (safe / spotted)</label>
+          <label class="ca-check"><input type="checkbox" id="caRoutesToggle" checked> Show patrol routes</label>
+          <label class="ca-check"><input type="checkbox" id="caPreviewToggle"> Preview next guard turn</label>
+          <label class="ca-check"><input type="checkbox" id="caSoundToggle" checked> Sound</label>
+        </div>
+
+        <div class="ca-card">
+          <div class="ca-card-title">📊 Mission Stats</div>
+          <div style="display:grid;gap:5px;">
+            <div class="ca-stat-row"><span>Piece</span><strong id="caPieceStat">King</strong></div>
+            <div class="ca-stat-row"><span>Board</span><strong id="caSizeStat">8 × 8</strong></div>
+            <div class="ca-stat-row"><span>Level</span><strong id="caLevelStat">1</strong></div>
+            <div class="ca-stat-row"><span>Guards left</span><strong id="caGuardStat">0</strong></div>
+            <div class="ca-stat-row"><span>Moves</span><strong id="caMovesStat">0</strong></div>
+            <div class="ca-stat-row"><span>Par</span><strong id="caParStat">-</strong></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:12px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+          <div style="font-size:20px;line-height:1;">💡</div>
+          <div>
+            <strong style="display:block;color:#fff;font-size:13px;margin-bottom:4px;">Coach Tip</strong>
+            <div id="caTip" style="color:#aeb3cf;font-size:12px;line-height:1.5;font-weight:600;">Plan your route before you move.</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="caHowToModal" class="ca-modal" style="z-index:99999;">
+    <div class="ca-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;">
+      <button type="button" id="caHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="font-size:42px;text-align:center;margin-bottom:10px;">🥷</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        You are a lone chess assassin. Black guards patrol with torches. Eliminate them all without being seen.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ Move your piece. Capture a guard by moving onto its square.</div>
+        <div>2️⃣ Yellow squares are torchlight. <b>Ending a move in the light fails the level.</b></div>
+        <div>3️⃣ Crates and walls block movement and light. Hide behind them.</div>
+        <div>4️⃣ After every move the guards act: sentries turn 90°, patrols walk their route.</div>
+        <div>5️⃣ Guards hear footsteps (King radius 3, Rook and Queen radius 4, kills are louder). They rush to the noise, so ambush them!</div>
+        <div>6️⃣ Use ⏳ Wait (or Space) to let a beam pass. Every level is beatable.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="caWinModal" class="ca-modal">
+    <div class="ca-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;margin-bottom:8px;">🥷</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">MISSION COMPLETE</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Ghost in the dark! 🎉</h3>
+      <div id="caWinStars" style="font-size:34px;letter-spacing:6px;margin:4px 0 8px;">⭐⭐⭐</div>
+      <p id="caWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">Every guard is down.</p>
+      <button type="button" id="caWinNext" class="ca-btn ca-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="caWinClose" class="ca-btn ca-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- FAIL MODAL -->
+  <div id="caFailModal" class="ca-modal">
+    <div class="ca-modal-box" style="border:1px solid rgba(255,77,90,0.40);">
+      <div style="font-size:48px;color:#ff4d5a;margin-bottom:8px;">🔦</div>
+      <div style="color:#ff6570;font-size:11px;font-weight:900;letter-spacing:1px;">SPOTTED</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Caught in the light!</h3>
+      <p id="caFailMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You were spotted by the elite guard.</p>
+      <button type="button" id="caFailRetry" class="ca-btn ca-btn-green" style="margin-top:12px;">↻ Try This Level Again</button>
+      <button type="button" id="caFailClose" class="ca-btn ca-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   🥷 OLYMPUS CHESS ASSASSIN
+   ---------------------------------------------------------
+   Completely isolated, lazy-loaded game (nothing is built
+   until the section is first shown).
+
+   - Boards 8x8, 9x9, 10x10, 11x11, 12x12, 13x13, 14x14, 16x16
+   - Pieces: King, Rook, Queen (swipe the piece card)
+   - Guards = black pieces with a torchlight cone. They turn,
+     patrol, and rush toward footsteps they hear
+   - Ending ANY move in the light = spotted = level failed
+   - Capture a guard by moving onto it. Kill them all to win
+   - Crates and walls block movement AND light
+   - Every level is generated, then SOLVED by a best-first
+     search that uses the exact same rules as the game, so
+     every level is guaranteed beatable
+   - Level N = more guards, longer torchlight, patrols,
+     more cover (capped), then infinite fresh levels
+   - Retry = replay the SAME level; changing size or piece =
+     back to Level 1
+   - One canvas, no per-square DOM, frames only when needed
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* ENGINE START */
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const SIZES = [8, 9, 10, 11, 12, 13, 14, 16];
+
+  const PLAYERS = {
+    king:  { label: "King",  file: "wK.png", glyph: "♔", noise: 3, note: "Hard" },
+    rook:  { label: "Rook",  file: "wR.png", glyph: "♖", noise: 4, note: "Very easy." },
+    queen: { label: "Queen", file: "wQ.png", glyph: "♕", noise: 4, note: "Most easiest" }
+  };
+
+  const PIECE_ORDER = ["king", "rook", "queen"];
+
+  /* 0=up, then clockwise in 45 degree steps */
+  const DIRS = [[-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1]];
+  const DIR_OF = { "-1,0": 0, "-1,1": 1, "0,1": 2, "1,1": 3, "1,0": 4, "1,-1": 5, "0,-1": 6, "-1,-1": 7 };
+
+  const MAXR = 6;          // longest torchlight
+  const ALERT_TTL = 3;     // turns a guard keeps rushing after hearing a noise
+
+  let CONE = null;
+
+  /* Lazy: the cone tables are only built when the game starts. */
+  function initCone() {
+
+    if (CONE) return;
+
+    CONE = [];
+
+    for (let f = 0; f < 8; f++) {
+
+      CONE[f] = [];
+      const fv = DIRS[f];
+      const fl = Math.hypot(fv[0], fv[1]);
+
+      for (let R = 0; R <= MAXR; R++) {
+
+        const list = [];
+
+        for (let dr = -R; dr <= R; dr++) {
+          for (let dc = -R; dc <= R; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const cos = (dr * fv[0] + dc * fv[1]) / (Math.hypot(dr, dc) * fl);
+            if (cos >= 0.70) list.push([dr, dc]);
+          }
+        }
+
+        CONE[f][R] = list;
+      }
+    }
+  }
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function randInt(a, b) {
+    return a + Math.floor(Math.random() * (b - a + 1));
+  }
+
+  function shuffle(list) {
+    const arr = list.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function cheb(a, b, n) {
+    return Math.max(
+      Math.abs(Math.floor(a / n) - Math.floor(b / n)),
+      Math.abs((a % n) - (b % n))
+    );
+  }
+
+  function dirIdx(dr, dc) {
+    return DIR_OF[Math.sign(dr) + "," + Math.sign(dc)];
+  }
+    /* How far footsteps carry. Scales with the board so guards hear you almost everywhere. */
+  function noiseRadius(type, n) {
+    return Math.ceil(n * (type === "king" ? 0.5 : 0.6));
+  }
+
+  function params(n, level) {
+
+    const capG = Math.min(8, 2 + Math.floor(n / 3));
+
+    return {
+      guards: Math.min(1 + Math.floor((level - 1) / 2), capG),
+      R: Math.min(MAXR, 3 + Math.floor((level - 1) / 4)),
+      patrolShare: level < 3 ? 0 : Math.min(0.65, (level - 2) * 0.1),
+      crates: Math.min(0.20, 0.09 + level * 0.006),
+      wallSegs: Math.min(Math.floor(level / 4) + 1, Math.floor(n / 3))
+    };
+  }
+
+
+  /* =========================================================
+     CONTEXT: obstacles, guard walking distances, light cache
+     obs: 0 = floor, 1 = crate, 2 = wall (both block moves AND light)
+  ========================================================= */
+
+  function buildCtx(n, obs) {
+
+    const total = n * n;
+    const nb4 = new Array(total);
+
+    for (let i = 0; i < total; i++) {
+
+      nb4[i] = [];
+      if (obs[i]) continue;
+
+      const r = Math.floor(i / n);
+      const c = i % n;
+
+      for (let d = 0; d < 8; d += 2) {
+        const nr = r + DIRS[d][0];
+        const nc = c + DIRS[d][1];
+        if (nr < 0 || nc < 0 || nr >= n || nc >= n) continue;
+        const ni = nr * n + nc;
+        if (!obs[ni]) nb4[i].push(ni);
+      }
+    }
+
+    const dist = new Array(total).fill(null);
+
+    for (let s = 0; s < total; s++) {
+
+      if (obs[s]) continue;
+
+      const d = new Int16Array(total).fill(9999);
+      d[s] = 0;
+      const q = [s];
+
+      for (let h = 0; h < q.length; h++) {
+        const cur = q[h];
+        const list = nb4[cur];
+        for (let k = 0; k < list.length; k++) {
+          if (d[list[k]] !== 9999) continue;
+          d[list[k]] = d[cur] + 1;
+          q.push(list[k]);
+        }
+      }
+
+      dist[s] = d;
+    }
+
+    return { n: n, obs: obs, nb4: nb4, dist: dist, lit: new Map() };
+  }
+
+
+  /* =========================================================
+     LIGHT (torchlight cone with line of sight)
+  ========================================================= */
+
+  function los(ctx, a, b) {
+
+    const n = ctx.n;
+    const r1 = Math.floor(b / n);
+    const c1 = b % n;
+
+    let r = Math.floor(a / n);
+    let c = a % n;
+
+    const dr = Math.abs(r1 - r);
+    const dc = Math.abs(c1 - c);
+    const sr = r < r1 ? 1 : -1;
+    const sc = c < c1 ? 1 : -1;
+
+    let err = dc - dr;
+
+    for (let guard = 0; guard < 64; guard++) {
+
+      if (r === r1 && c === c1) return true;
+
+      const e2 = 2 * err;
+      if (e2 > -dr) { err -= dr; c += sc; }
+      if (e2 < dc) { err += dc; r += sr; }
+
+      if (r === r1 && c === c1) return true;
+      if (ctx.obs[r * n + c]) return false;
+    }
+
+    return false;
+  }
+
+  /* Uint8Array(n*n): 1 where a guard on sq, facing f, range R, sees. */
+  function litMask(ctx, sq, f, R) {
+
+    const key = (sq * 8 + f) * 8 + R;
+    let mask = ctx.lit.get(key);
+    if (mask) return mask;
+
+    const n = ctx.n;
+    mask = new Uint8Array(n * n);
+
+    const gr = Math.floor(sq / n);
+    const gc = sq % n;
+    const list = CONE[f][R];
+
+    for (let i = 0; i < list.length; i++) {
+      const r = gr + list[i][0];
+      const c = gc + list[i][1];
+      if (r < 0 || c < 0 || r >= n || c >= n) continue;
+      const t = r * n + c;
+      if (los(ctx, sq, t)) mask[t] = 1;
+    }
+
+    ctx.lit.set(key, mask);
+    return mask;
+  }
+
+
+  /* =========================================================
+     RULES ENGINE (shared by the game AND the solver)
+     ---------------------------------------------------------
+     guard = { a, sq, f, k(0 sentry,1 patrol), rot, ri, rd,
+               ttl, tgt, R, route }
+     state = { p, guards }
+     Order of a turn:
+       1. the player moves (a capture removes the guard)
+       2. if the landing square is lit by a living guard -> SPOTTED
+       3. otherwise noise is made, then every guard acts
+  ========================================================= */
+
+   function guardPhase(ctx, guards, noiseT, noiseR, p) {
+
+    const n = ctx.n;
+
+    const out = guards.map(function (g) {
+      return g.a
+        ? { a: 1, sq: g.sq, f: g.f, k: g.k, rot: g.rot, ri: g.ri, rd: g.rd, ttl: g.ttl, tgt: g.tgt, R: g.R, route: g.route, rid: g.rid }
+        : g;
+    });
+
+    /* hearing: guards near the noise start rushing to it */
+    if (noiseT >= 0) {
+      for (let i = 0; i < out.length; i++) {
+        const g = out[i];
+        if (g.a && cheb(g.sq, noiseT, n) <= noiseR) {
+          g.ttl = ALERT_TTL;
+          g.tgt = noiseT;
+        }
+      }
+    }
+
+    function taken(i, t) {
+      for (let j = 0; j < out.length; j++) {
+        if (j !== i && out[j].a && out[j].sq === t) return true;
+      }
+      return false;
+    }
+
+    for (let i = 0; i < out.length; i++) {
+
+      const g = out[i];
+      if (!g.a) continue;
+
+      if (g.ttl > 0) {
+
+        /* alerted: one step toward the noise, torch pointing where it walks */
+        let moved = false;
+
+        if (g.sq !== g.tgt) {
+
+          const dT = ctx.dist[g.tgt];
+          const nbs = ctx.nb4[g.sq];
+          let best = -1;
+          let bd = dT[g.sq];
+
+          for (let k = 0; k < nbs.length; k++) {
+            const t = nbs[k];
+            if (t === p || dT[t] >= bd || taken(i, t)) continue;
+            best = t;
+            bd = dT[t];
+          }
+
+          if (best !== -1) {
+            g.f = dirIdx(Math.floor(best / n) - Math.floor(g.sq / n), (best % n) - (g.sq % n));
+            g.sq = best;
+            moved = true;
+          }
+        }
+
+        if (!moved && g.tgt !== g.sq) {
+          g.f = dirIdx(Math.floor(g.tgt / n) - Math.floor(g.sq / n), (g.tgt % n) - (g.sq % n));
+        }
+
+        g.ttl--;
+
+        if (g.ttl === 0) {
+
+          /* lost the trail: go back to patrolling from where it stands */
+          const startDir = g.f % 2 === 0 ? g.f : g.f - 1;
+          let route = null;
+
+          for (let q = 0; q < 4 && !route; q++) {
+            const rt = routeFrom(ctx, g.sq, (startDir + 2 * q) % 8, 6, null, null);
+            if (rt.length >= 3) route = rt;
+          }
+
+          if (route) {
+            g.k = 1;
+            g.route = route;
+            g.rid = route.join(".");
+            g.ri = 0;
+            g.rd = 1;
+          } else {
+            g.k = 0;
+            g.rot = 2;
+          }
+        }
+
+      } else if (g.k === 0) {
+
+        /* sentry: turns on the spot (only if no route is possible) */
+        g.f = (g.f + g.rot + 8) % 8;
+
+      } else {
+
+        /* patrol: walks its route back and forth */
+        let ni = g.ri + g.rd;
+
+        if (ni < 0 || ni >= g.route.length) {
+          g.rd = -g.rd;
+          ni = g.ri + g.rd;
+        }
+
+        const t = g.route[ni];
+
+        if (t !== p && !taken(i, t)) {
+          g.f = dirIdx(Math.floor(t / n) - Math.floor(g.sq / n), (t % n) - (g.sq % n));
+          g.sq = t;
+          g.ri = ni;
+        }
+      }
+    }
+
+    return out;
+  }
+
+  /* Every move the player can make: { to, kill, wait } */
+  function playerMoves(ctx, type, p, guards) {
+
+    const n = ctx.n;
+    const occ = new Int16Array(n * n).fill(-1);
+
+    for (let i = 0; i < guards.length; i++) {
+      if (guards[i].a) occ[guards[i].sq] = i;
+    }
+
+    const out = [];
+    const pr = Math.floor(p / n);
+    const pc = p % n;
+
+    if (type === "king") {
+
+      for (let d = 0; d < 8; d++) {
+        const r = pr + DIRS[d][0];
+        const c = pc + DIRS[d][1];
+        if (r < 0 || c < 0 || r >= n || c >= n) continue;
+        const t = r * n + c;
+        if (ctx.obs[t]) continue;
+        out.push({ to: t, kill: occ[t], wait: false });
+      }
+
+    } else {
+
+      const step = type === "rook" ? 2 : 1;
+
+      for (let d = 0; d < 8; d += step) {
+
+        let r = pr + DIRS[d][0];
+        let c = pc + DIRS[d][1];
+
+        while (r >= 0 && c >= 0 && r < n && c < n) {
+
+          const t = r * n + c;
+          if (ctx.obs[t]) break;
+
+          if (occ[t] >= 0) {
+            out.push({ to: t, kill: occ[t], wait: false });
+            break;
+          }
+
+          out.push({ to: t, kill: -1, wait: false });
+
+          r += DIRS[d][0];
+          c += DIRS[d][1];
+        }
+      }
+    }
+
+    out.push({ to: p, kill: -1, wait: true });
+
+    return out;
+  }
+
+  /*
+    Plays one move. Returns { win, spotted, spotter, state }.
+    Dead guards stay in the array as { a:0, sq }.
+  */
+  function step(ctx, type, state, mv) {
+
+    let gs = state.guards;
+
+    if (mv.kill >= 0) {
+      gs = gs.slice();
+      gs[mv.kill] = { a: 0, sq: gs[mv.kill].sq };
+    }
+
+    let alive = 0;
+    for (let i = 0; i < gs.length; i++) if (gs[i].a) alive++;
+
+    if (alive === 0) {
+      return { win: true, spotted: false, spotter: -1, state: { p: mv.to, guards: gs } };
+    }
+
+    for (let i = 0; i < gs.length; i++) {
+      const g = gs[i];
+      if (g.a && litMask(ctx, g.sq, g.f, g.R)[mv.to]) {
+        return { win: false, spotted: true, spotter: i, state: { p: mv.to, guards: gs } };
+      }
+    }
+
+    const noiseR = mv.wait ? -1 : noiseRadius(type, ctx.n) + (mv.kill >= 0 ? 1 : 0);
+    const ng = guardPhase(ctx, gs, mv.wait ? -1 : mv.to, noiseR, mv.to);
+
+    return { win: false, spotted: false, spotter: -1, state: { p: mv.to, guards: ng } };
+  }
+
+  function stateKey(state) {
+
+    let s = String(state.p);
+
+    for (let i = 0; i < state.guards.length; i++) {
+      const g = state.guards[i];
+      s += g.a
+        ? "|" + g.sq + "," + g.f + "," + g.k + "," + g.rot + "," + g.ri + "," + g.rd + "," + g.ttl + "," + g.tgt + "," + (g.rid || "")
+        : "|x";
+    }
+
+    return s;
+  }
+
+
+  /* =========================================================
+     SOLVER (best-first search over the real game rules)
+     Returns { ok:true, depth, path }  a winning line exists
+             { ok:false }              none found in the limits
+  ========================================================= */
+
+  function heuristic(ctx, state) {
+
+    let alive = 0;
+    let near = 99;
+
+    for (let i = 0; i < state.guards.length; i++) {
+      const g = state.guards[i];
+      if (!g.a) continue;
+      alive++;
+      const d = cheb(state.p, g.sq, ctx.n);
+      if (d < near) near = d;
+    }
+
+    return alive * 6 + (alive ? near : 0);
+  }
+
+  function heapPush(heap, node) {
+
+    heap.push(node);
+    let i = heap.length - 1;
+
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heap[parent].pri <= heap[i].pri) break;
+      const tmp = heap[parent]; heap[parent] = heap[i]; heap[i] = tmp;
+      i = parent;
+    }
+  }
+
+  function heapPop(heap) {
+
+    const top = heap[0];
+    const last = heap.pop();
+
+    if (heap.length) {
+
+      heap[0] = last;
+      let i = 0;
+
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < heap.length && heap[l].pri < heap[m].pri) m = l;
+        if (r < heap.length && heap[r].pri < heap[m].pri) m = r;
+        if (m === i) break;
+        const tmp = heap[m]; heap[m] = heap[i]; heap[i] = tmp;
+        i = m;
+      }
+    }
+
+    return top;
+  }
+
+  function solve(ctx, type, start, guards0, cap, timeMs) {
+
+    const t0 = performance.now();
+    const root = { state: { p: start, guards: guards0 }, depth: 0, prev: null, mv: null, pri: 0 };
+
+    const heap = [root];
+    const seen = new Set([stateKey(root.state)]);
+    let nodes = 0;
+
+    while (heap.length) {
+
+      const node = heapPop(heap);
+
+      if (++nodes > cap) return { ok: false };
+      if ((nodes & 63) === 0 && performance.now() - t0 > timeMs) return { ok: false };
+
+      const moves = playerMoves(ctx, type, node.state.p, node.state.guards);
+
+      for (let m = 0; m < moves.length; m++) {
+
+        const mv = moves[m];
+        const res = step(ctx, type, node.state, mv);
+
+        if (res.spotted) continue;
+
+        if (res.win) {
+          const path = [mv];
+          for (let s = node; s && s.mv; s = s.prev) path.unshift(s.mv);
+          return { ok: true, depth: node.depth + 1, path: path };
+        }
+
+        const key = stateKey(res.state);
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        heapPush(heap, {
+          state: res.state,
+          depth: node.depth + 1,
+          prev: node,
+          mv: mv,
+          pri: (node.depth + 1) + 2 * heuristic(ctx, res.state)
+        });
+      }
+    }
+
+    return { ok: false };
+  }
+
+
+  /* =========================================================
+     LEVEL GENERATOR
+     ---------------------------------------------------------
+     crates + wall segments -> start in a corner -> guards
+     (sentries and patrols) -> SOLVED. Only levels the solver
+     can win are ever returned. If a hard setup cannot be
+     verified in time, one guard fewer is tried.
+  ========================================================= */
+
+  function makeLayout(n, P) {
+
+    const obs = new Uint8Array(n * n);
+
+    /* wall segments */
+    for (let s = 0; s < P.wallSegs; s++) {
+
+      const horizontal = Math.random() < 0.5;
+      const len = randInt(3, Math.max(3, Math.min(6, n - 3)));
+      const r = randInt(1, n - 2);
+      const c = randInt(1, n - 2);
+
+      for (let k = 0; k < len; k++) {
+        const rr = horizontal ? r : r + k;
+        const cc = horizontal ? c + k : c;
+        if (rr >= 1 && rr < n - 1 && cc >= 1 && cc < n - 1) obs[rr * n + cc] = 2;
+      }
+    }
+
+    /* crates: single, domino, 2x2 */
+    const shapes = [[[0, 0]], [[0, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0]], [[0, 0], [0, 1], [1, 0], [1, 1]]];
+    const want = Math.floor(n * n * P.crates);
+
+    let placed = 0;
+
+    for (let tries = 0; tries < 500 && placed < want; tries++) {
+
+      const shape = pick(shapes);
+      const r = randInt(0, n - 1);
+      const c = randInt(0, n - 1);
+
+      let fits = true;
+
+      for (let k = 0; k < shape.length; k++) {
+        const rr = r + shape[k][0];
+        const cc = c + shape[k][1];
+        if (rr >= n || cc >= n || obs[rr * n + cc]) { fits = false; break; }
+      }
+
+      if (!fits) continue;
+
+      for (let k = 0; k < shape.length; k++) {
+        obs[(r + shape[k][0]) * n + (c + shape[k][1])] = 1;
+      }
+
+      placed += shape.length;
+    }
+
+    /* start: free square nearest a random corner */
+    const corners = [[0, 0], [0, n - 1], [n - 1, 0], [n - 1, n - 1]];
+    const corner = pick(corners);
+
+    let start = -1;
+    let bestD = 1e9;
+
+    for (let i = 0; i < n * n; i++) {
+      if (obs[i]) continue;
+      const d = Math.abs(Math.floor(i / n) - corner[0]) + Math.abs((i % n) - corner[1]);
+      if (d < bestD) { bestD = d; start = i; }
+    }
+
+    if (start < 0) return null;
+
+    /* anything the player cannot reach becomes a crate */
+    const seen = new Uint8Array(n * n);
+    const q = [start];
+    seen[start] = 1;
+
+    for (let h = 0; h < q.length; h++) {
+      const cur = q[h];
+      const cr = Math.floor(cur / n);
+      const cc = cur % n;
+      for (let d = 0; d < 8; d += 2) {
+        const nr = cr + DIRS[d][0];
+        const nc = cc + DIRS[d][1];
+        if (nr < 0 || nc < 0 || nr >= n || nc >= n) continue;
+        const ni = nr * n + nc;
+        if (obs[ni] || seen[ni]) continue;
+        seen[ni] = 1;
+        q.push(ni);
+      }
+    }
+
+    if (q.length < n * n * 0.55) return null;
+
+    for (let i = 0; i < n * n; i++) {
+      if (!obs[i] && !seen[i]) obs[i] = 1;
+    }
+
+    return { obs: obs, start: start };
+  }
+
+    /*
+    Deterministic wander route: walks straight, turns right (then left)
+    when something blocks it. Same input = same route, so the game and the
+    solver always agree.
+  */
+  function routeFrom(ctx, sq, dir, len, avoid, dS) {
+
+    const n = ctx.n;
+    const route = [sq];
+    const seen = new Set([sq]);
+
+    let d = dir % 2 === 0 ? dir : dir - 1;
+    let cur = sq;
+
+    while (route.length < len) {
+
+      const tries = [d, (d + 2) % 8, (d + 6) % 8];
+      let moved = false;
+
+      for (let k = 0; k < tries.length; k++) {
+
+        const nd = tries[k];
+        const r = Math.floor(cur / n) + DIRS[nd][0];
+        const c = (cur % n) + DIRS[nd][1];
+
+        if (r < 0 || c < 0 || r >= n || c >= n) continue;
+
+        const t = r * n + c;
+
+        if (ctx.obs[t] || seen.has(t)) continue;
+        if (avoid && avoid.has(t)) continue;
+        if (dS && dS[t] < 3) continue;
+
+        route.push(t);
+        seen.add(t);
+        cur = t;
+        d = nd;
+        moved = true;
+        break;
+      }
+
+      if (!moved) break;
+    }
+
+    return route;
+  }
+
+  function makePatrol(ctx, c, R, taken, dS) {
+
+    const n = ctx.n;
+    const dirs = shuffle([0, 2, 4, 6]);
+
+    for (let di = 0; di < dirs.length; di++) {
+
+      const route = routeFrom(ctx, c, dirs[di], randInt(5, 8), taken, dS);
+      if (route.length < 3) continue;
+
+      route.forEach(function (t) { taken.add(t); });
+
+      const ri = randInt(0, route.length - 1);
+      const rd = Math.random() < 0.5 ? 1 : -1;
+      const nx = route[ri + rd] !== undefined ? route[ri + rd] : route[ri - rd];
+
+      const face = dirIdx(
+        Math.floor(nx / n) - Math.floor(route[ri] / n),
+        (nx % n) - (route[ri] % n)
+      );
+
+      return {
+        a: 1, sq: route[ri], f: face, k: 1, rot: 0, ri: ri, rd: rd,
+        ttl: 0, tgt: -1, R: R, route: route, rid: route.join(".")
+      };
+    }
+
+    return null;
+  }
+
+  function placeGuards(ctx, start, P, count) {
+
+    const n = ctx.n;
+    const dS = ctx.dist[start];
+    const taken = new Set([start]);
+
+    const cand = [];
+    for (let i = 0; i < n * n; i++) {
+      if (!ctx.obs[i] && i !== start && dS[i] >= 4 && dS[i] < 9999) cand.push(i);
+    }
+
+    if (cand.length < count * 3) return null;
+
+    const cells = shuffle(cand);
+    const guards = [];
+
+    for (let ci = 0; ci < cells.length && guards.length < count; ci++) {
+
+      const c = cells[ci];
+
+      if (taken.has(c)) continue;
+      if (guards.some(function (g) { return cheb(g.sq, c, n) <= 2; })) continue;
+
+      const R = Math.min(MAXR, P.R + (Math.random() < 0.3 ? 1 : 0));
+
+      let g = null;
+
+      if (Math.random() < P.patrolShare) {
+        g = makePatrol(ctx, c, R, taken, dS);
+      }
+
+      /* every guard must be able to walk: skip spots that have no route */
+      if (!g && P.patrolShare >= 1) continue;
+
+      if (!g) {
+        g = {
+          a: 1, sq: c, f: pick([0, 2, 4, 6, 0, 2, 4, 6, 1, 3, 5, 7]), k: 0,
+          rot: Math.random() < 0.5 ? 2 : -2, ri: 0, rd: 1, ttl: 0, tgt: -1, R: R, route: null, rid: ""
+        };
+        taken.add(c);
+      }
+
+      guards.push(g);
+    }
+
+    if (guards.length < count) return null;
+
+    /* the assassin must not start in the light */
+    for (let i = 0; i < guards.length; i++) {
+      if (litMask(ctx, guards[i].sq, guards[i].f, guards[i].R)[start]) return null;
+    }
+
+    return guards;
+  }
+
+  function generateLevel(n, type, level) {
+
+    initCone();
+
+    const base = params(n, level);
+    let G = base.guards;
+
+    for (let round = 0; round < 6 && G >= 1; round++, G--) {
+
+      const P = Object.assign({}, base, { guards: G });
+      const deadline = performance.now() + (round === 0 ? 1100 : 500);
+
+      while (performance.now() < deadline) {
+
+        const lay = makeLayout(n, P);
+        if (!lay) continue;
+
+        const ctx = buildCtx(n, lay.obs);
+        const guards = placeGuards(ctx, lay.start, P, G);
+        if (!guards) continue;
+
+        const r = solve(ctx, type, lay.start, guards, 14000, 260);
+
+        if (r.ok) {
+          return { n: n, obs: lay.obs, start: lay.start, guards: guards, ctx: ctx, par: r.depth };
+        }
+      }
+    }
+
+    /* Safety net: one sentry, light cover. Verified by the solver. */
+    const P1 = Object.assign({}, params(n, 1), { guards: 1, patrolShare: 1 });
+    let last = null;
+
+    for (let t = 0; t < 400; t++) {
+
+      const lay = makeLayout(n, P1);
+      if (!lay) continue;
+
+      const ctx = buildCtx(n, lay.obs);
+      const guards = placeGuards(ctx, lay.start, P1, 1);
+      if (!guards) continue;
+
+      const r = solve(ctx, type, lay.start, guards, 14000, 260);
+      last = { n: n, obs: lay.obs, start: lay.start, guards: guards, ctx: ctx, par: r.ok ? r.depth : 1 };
+
+      if (r.ok) return last;
+    }
+
+    if (last) return last;
+
+    /* Never expected: an empty board, one sentry in the far corner. */
+    const obs = new Uint8Array(n * n);
+    const ctx = buildCtx(n, obs);
+    const g = { a: 1, sq: 0, f: 4, k: 0, rot: 2, ri: 0, rd: 1, ttl: 0, tgt: -1, R: 3, route: null };
+
+    return { n: n, obs: obs, start: n * n - 1, guards: [g], ctx: ctx, par: 3 };
+  }
+
+  /* ENGINE END */
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let ready = false;
+
+  let size = 8;
+  let pieceType = "king";
+  let level = 1;
+
+  let lay = null;           // { n, obs, start, guards, ctx, par }
+  let lctx = null;
+  let gs = [];              // current guards
+  let pp = 0;               // player square
+  let moves = 0;
+
+  let locked = true;
+  let building = false;
+  let buildToken = 0;
+
+  let curMoves = [];        // [{ to, kill, wait, spotted, win }]
+  let nextGuards = null;
+
+  let showHints = true;
+  let showRoutes = true;
+  let showPreview = false;
+  let soundOn = true;
+
+  let modalTimer = null;
+
+  /* visuals */
+  let vis = { p: { x: 0, y: 0 }, g: [] };
+  let particles = [];
+  let stains = [];
+  let spot = null;          // { t0, from, to }
+  let flash = 0;
+  let shake = 0;
+
+  let canvas = null;
+  let g2 = null;
+  let wrap = null;
+  let floorLayer = null;
+  let obsLayer = null;
+  let raf = 0;
+  let lastTs = 0;
+
+  const TIERS = [
+    { min: 1,  name: "Rookie",   color: "#78b887" },
+    { min: 4,  name: "Shadow",   color: "#ffd700" },
+    { min: 8,  name: "Assassin", color: "#ff9a3c" },
+    { min: 13, name: "Elite",    color: "#ff4d5a" },
+    { min: 20, name: "Ghost",    color: "#c77dff" },
+    { min: 30, name: "Legend",   color: "#29d3ff" }
+  ];
+
+  function tierOf(lv) {
+    let t = TIERS[0];
+    TIERS.forEach(function (x) { if (lv >= x.min) t = x; });
+    return t;
+  }
+
+  const TIPS = {
+    king: "The King makes the least noise. Creep around crates and strike from the dark.",
+    rook: "The Rook can strike from far away along a clear line. Slide in, capture, done.",
+    queen: "The Queen has the longest reach. Use diagonals to reach guards from behind."
+  };
+
+
+  /* =========================================================
+     DOM (looked up lazily when the game starts)
+  ========================================================= */
+
+  const section = document.getElementById("chessAssassin-section");
+  const navBtn = document.getElementById("chessAssassinNavBtn");
+
+  if (!section) {
+    return;
+  }
+
+  let el = {};
+
+  function grabDom() {
+
+    const ids = [
+      "caCanvas", "caBoardWrap", "caSizeGrid", "caDots", "caCarousel", "caPiecePrev", "caPieceNext",
+      "caPieceView", "caPieceIcon", "caPieceName", "caPieceNote",
+      "caHintsToggle", "caRoutesToggle", "caPreviewToggle", "caSoundToggle",
+      "caResetBtn", "caResetSideBtn", "caWaitBtn", "caHowToBtn", "caHowToModal", "caHowToClose",
+      "caWinModal", "caWinNext", "caWinClose", "caWinMessage", "caWinStars",
+      "caFailModal", "caFailRetry", "caFailClose", "caFailMessage",
+      "caStatus", "caMessage", "caDiffBadge", "caTip",
+      "caPieceStat", "caSizeStat", "caLevelStat", "caGuardStat", "caMovesStat", "caParStat"
+    ];
+
+    ids.forEach(function (id) { el[id] = document.getElementById(id); });
+  }
+
+
+  /* =========================================================
+     SOUND (tiny WebAudio synth, created on first click)
+  ========================================================= */
+
+  let actx = null;
+
+  function audio() {
+
+    if (!soundOn) return null;
+
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      return actx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function tone(freq, dur, type, vol, toFreq, delay) {
+
+    const a = audio();
+    if (!a) return;
+
+    const t = a.currentTime + (delay || 0);
+    const o = a.createOscillator();
+    const g = a.createGain();
+
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
+
+    g.gain.setValueAtTime(vol || 0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    o.connect(g);
+    g.connect(a.destination);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  }
+
+  function noise(dur, vol, delay) {
+
+    const a = audio();
+    if (!a) return;
+
+    const len = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const data = buf.getChannelData(0);
+
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+
+    const src = a.createBufferSource();
+    const g = a.createGain();
+
+    src.buffer = buf;
+    g.gain.value = vol || 0.05;
+
+    src.connect(g);
+    g.connect(a.destination);
+    src.start(a.currentTime + (delay || 0));
+  }
+
+  function sfx(name) {
+    switch (name) {
+      case "step":  noise(0.05, 0.04); tone(140, 0.06, "sine", 0.04, 80); break;
+      case "slide": noise(0.12, 0.05); tone(220, 0.12, "triangle", 0.04, 120); break;
+      case "kill":  noise(0.16, 0.10); tone(200, 0.2, "sawtooth", 0.07, 45); break;
+      case "alert": tone(880, 0.08, "square", 0.04); tone(660, 0.1, "square", 0.04, 0, 0.1); break;
+      case "wait":  tone(320, 0.05, "sine", 0.025); break;
+      case "bad":   tone(150, 0.08, "square", 0.04); break;
+      case "spot":  tone(760, 0.55, "sawtooth", 0.07, 260); tone(760, 0.55, "sawtooth", 0.05, 260, 0.28); break;
+      case "win":   [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.22, "triangle", 0.06, 0, i * 0.11); }); break;
+    }
+  }
+
+
+  /* =========================================================
+     SMALL HELPERS
+  ========================================================= */
+
+  function colName(c) { return "abcdefghijklmnop"[c]; }
+
+  function squareName(idx) {
+    return colName(idx % size) + (size - Math.floor(idx / size));
+  }
+
+  function cloneGuards(list) {
+    return list.map(function (g) {
+      return g.a ? Object.assign({}, g) : { a: 0, sq: g.sq };
+    });
+  }
+
+  function clearTimers() {
+    if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+  }
+
+  function isVisible() {
+    return section.getClientRects().length > 0;
+  }
+
+
+  /* =========================================================
+     IMAGES (loaded only when first drawn, glyph fallback)
+  ========================================================= */
+
+  const imgCache = {};
+
+  function getImg(file) {
+
+    let o = imgCache[file];
+    if (o) return o;
+
+    o = { img: new Image(), ok: false };
+
+    o.img.onload = function () { o.ok = true; requestFrame(); };
+    o.img.onerror = function () { o.ok = false; };
+    o.img.src = "assets/pieces/" + file;
+
+    imgCache[file] = o;
+    return o;
+  }
+
+  /* Pieces: bigger than the reference, no shadow. */
+  const PIECE_SCALE = 1.04;
+
+  function drawPiece(g, file, glyph, white, cx, cy, s) {
+
+    const o = getImg(file);
+    const size2 = s * PIECE_SCALE;
+
+    if (o.ok) {
+      g.drawImage(o.img, cx - size2 / 2, cy - size2 / 2, size2, size2);
+      return;
+    }
+
+    g.font = Math.round(s * 0.9) + "px serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.lineWidth = Math.max(1.5, s * 0.05);
+    g.lineJoin = "round";
+
+    if (white) {
+      g.strokeStyle = "#000";
+      g.strokeText(glyph, cx, cy + s * 0.04);
+      g.fillStyle = "#fff";
+    } else {
+      g.strokeStyle = "rgba(255,255,255,0.55)";
+      g.strokeText(glyph, cx, cy + s * 0.04);
+      g.fillStyle = "#101319";
+    }
+
+    g.fillText(glyph, cx, cy + s * 0.04);
+  }
+
+  function roundRectPath(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+
+  /* =========================================================
+     STATIC LAYERS (floor and cover are drawn once per level)
+  ========================================================= */
+
+  function drawCrate(g, x, y, s) {
+
+    const p = s * 0.07;
+    const x0 = x + p;
+    const y0 = y + p;
+    const w = s - 2 * p;
+
+    const gr = g.createLinearGradient(x0, y0, x0, y0 + w);
+    gr.addColorStop(0, "#cf9455");
+    gr.addColorStop(1, "#8a5428");
+
+    g.fillStyle = gr;
+    roundRectPath(g, x0, y0, w, w, s * 0.09);
+    g.fill();
+
+    g.lineWidth = Math.max(1.5, s * 0.05);
+    g.strokeStyle = "#4a2a12";
+    g.stroke();
+
+    const q = s * 0.19;
+
+    g.strokeStyle = "rgba(255,218,168,0.40)";
+    g.lineWidth = Math.max(1, s * 0.03);
+    g.strokeRect(x0 + q, y0 + q, w - 2 * q, w - 2 * q);
+
+    g.strokeStyle = "rgba(58,32,12,0.75)";
+    g.lineWidth = Math.max(1.2, s * 0.05);
+    g.beginPath();
+    g.moveTo(x0 + q, y0 + q);
+    g.lineTo(x0 + w - q, y0 + w - q);
+    g.moveTo(x0 + w - q, y0 + q);
+    g.lineTo(x0 + q, y0 + w - q);
+    g.stroke();
+
+    g.fillStyle = "#ecd3a2";
+    [[q, q], [w - q, q], [q, w - q], [w - q, w - q]].forEach(function (pt) {
+      g.beginPath();
+      g.arc(x0 + pt[0], y0 + pt[1], Math.max(1.2, s * 0.028), 0, Math.PI * 2);
+      g.fill();
+    });
+  }
+
+  function drawWall(g, x, y, s) {
+
+    const gr = g.createLinearGradient(x, y, x, y + s);
+    gr.addColorStop(0, "#666d8c");
+    gr.addColorStop(1, "#3a3f58");
+
+    g.fillStyle = gr;
+    g.fillRect(x, y, s + 0.5, s + 0.5);
+
+    g.strokeStyle = "rgba(15,17,30,0.55)";
+    g.lineWidth = Math.max(1, s * 0.035);
+
+    g.beginPath();
+    g.moveTo(x, y + s / 3); g.lineTo(x + s, y + s / 3);
+    g.moveTo(x, y + 2 * s / 3); g.lineTo(x + s, y + 2 * s / 3);
+    g.moveTo(x + s / 2, y); g.lineTo(x + s / 2, y + s / 3);
+    g.moveTo(x + s / 4, y + s / 3); g.lineTo(x + s / 4, y + 2 * s / 3);
+    g.moveTo(x + 3 * s / 4, y + s / 3); g.lineTo(x + 3 * s / 4, y + 2 * s / 3);
+    g.moveTo(x + s / 2, y + 2 * s / 3); g.lineTo(x + s / 2, y + s);
+    g.stroke();
+
+    g.fillStyle = "rgba(255,255,255,0.16)";
+    g.fillRect(x, y, s, Math.max(2, s * 0.07));
+    g.fillStyle = "rgba(0,0,0,0.28)";
+    g.fillRect(x, y + s - Math.max(2, s * 0.07), s, Math.max(2, s * 0.07));
+  }
+
+  function buildStatic() {
+
+    if (!lay || !canvas) return;
+
+    const W = canvas.width;
+    const n = size;
+    const cell = W / n;
+
+    floorLayer = document.createElement("canvas");
+    floorLayer.width = floorLayer.height = W;
+    let g = floorLayer.getContext("2d");
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        g.fillStyle = ((r + c) & 1) ? "#171d36" : "#1d2542";
+        g.fillRect(c * cell, r * cell, cell + 0.5, cell + 0.5);
+        g.strokeStyle = "rgba(255,255,255,0.035)";
+        g.lineWidth = 1;
+        g.strokeRect(c * cell + 0.5, r * cell + 0.5, cell - 1, cell - 1);
+      }
+    }
+
+    const vg = g.createRadialGradient(W / 2, W / 2, W * 0.30, W / 2, W / 2, W * 0.78);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.55)");
+    g.fillStyle = vg;
+    g.fillRect(0, 0, W, W);
+
+    obsLayer = document.createElement("canvas");
+    obsLayer.width = obsLayer.height = W;
+    g = obsLayer.getContext("2d");
+
+    for (let i = 0; i < n * n; i++) {
+      const o = lay.obs[i];
+      if (!o) continue;
+      const x = (i % n) * cell;
+      const y = Math.floor(i / n) * cell;
+      if (o === 1) drawCrate(g, x, y, cell); else drawWall(g, x, y, cell);
+    }
+  }
+
+
+  /* =========================================================
+     DRAW
+  ========================================================= */
+
+  function drawLight(g, cell, ts) {
+
+    const n = size;
+    const pulse = 0.88 + 0.12 * Math.sin(ts / 140);
+
+    for (let gi = 0; gi < gs.length; gi++) {
+
+      const gd = gs[gi];
+      if (!gd.a) continue;
+
+      const mask = litMask(lctx, gd.sq, gd.f, gd.R);
+      const gr = Math.floor(gd.sq / n);
+      const gc = gd.sq % n;
+      const alert = gd.ttl > 0;
+
+      for (let i = 0; i < n * n; i++) {
+
+        if (!mask[i] || lctx.obs[i]) continue;
+
+        const r = Math.floor(i / n);
+        const c = i % n;
+        const d = Math.max(Math.abs(r - gr), Math.abs(c - gc));
+
+        let a = 0.46 - 0.30 * (d / (gd.R + 1));
+        if (alert) a *= pulse;
+
+        g.fillStyle = alert
+          ? "rgba(255,120,90," + a.toFixed(3) + ")"
+          : "rgba(255,226,120," + a.toFixed(3) + ")";
+
+        g.fillRect(c * cell, r * cell, cell, cell);
+      }
+    }
+  }
+
+  function drawPreview(g, cell) {
+
+    if (!nextGuards) return;
+
+    const n = size;
+
+    g.save();
+    g.setLineDash([4, 4]);
+    g.strokeStyle = "rgba(255,150,150,0.65)";
+    g.lineWidth = Math.max(1.2, cell * 0.04);
+
+    for (let gi = 0; gi < nextGuards.length; gi++) {
+
+      const gd = nextGuards[gi];
+      if (!gd.a) continue;
+
+      const mask = litMask(lctx, gd.sq, gd.f, gd.R);
+
+      for (let i = 0; i < n * n; i++) {
+        if (!mask[i] || lctx.obs[i]) continue;
+        g.strokeRect((i % n) * cell + 3, Math.floor(i / n) * cell + 3, cell - 6, cell - 6);
+      }
+    }
+
+    g.restore();
+  }
+
+  function drawRoutes(g, cell) {
+
+    const n = size;
+
+    g.save();
+    g.setLineDash([cell * 0.12, cell * 0.14]);
+    g.strokeStyle = "rgba(255,255,255,0.26)";
+    g.lineWidth = Math.max(1.2, cell * 0.04);
+
+    for (let gi = 0; gi < gs.length; gi++) {
+
+      const gd = gs[gi];
+      if (!gd.a || gd.k !== 1 || gd.ttl > 0 || !gd.route) continue;
+
+      g.beginPath();
+
+      gd.route.forEach(function (t, i) {
+        const x = (t % n + 0.5) * cell;
+        const y = (Math.floor(t / n) + 0.5) * cell;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      });
+
+      g.stroke();
+    }
+
+    g.restore();
+  }
+
+  function drawHints(g, cell, ts) {
+
+    const n = size;
+    const pulse = 0.85 + 0.15 * Math.sin(ts / 200);
+
+    for (let i = 0; i < curMoves.length; i++) {
+
+      const m = curMoves[i];
+      if (m.wait) continue;
+
+      const cx = (m.to % n + 0.5) * cell;
+      const cy = (Math.floor(m.to / n) + 0.5) * cell;
+
+      if (m.kill >= 0) {
+
+        g.strokeStyle = m.spotted ? "rgba(255,120,60,0.95)" : "rgba(255,215,0,0.98)";
+        g.lineWidth = Math.max(2, cell * 0.07);
+        g.beginPath();
+        g.arc(cx, cy, cell * 0.44 * pulse, 0, Math.PI * 2);
+        g.stroke();
+
+      } else if (m.spotted) {
+
+        g.fillStyle = "rgba(255,77,90,0.75)";
+        g.beginPath();
+        g.arc(cx, cy, cell * 0.08, 0, Math.PI * 2);
+        g.fill();
+
+      } else {
+
+        g.fillStyle = "rgba(90,235,150,0.92)";
+        g.beginPath();
+        g.arc(cx, cy, cell * 0.14, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  }
+
+  function drawGuard(g, gd, v, cell, ts) {
+
+    const x = (v.x + 0.5) * cell;
+    const y = (v.y + 0.5) * cell;
+    const alert = gd.ttl > 0;
+    const patrol = gd.k === 1 && !alert;
+
+    /* base ring */
+    g.lineWidth = Math.max(2, cell * 0.06);
+    g.strokeStyle = alert ? "rgba(255,70,70,0.95)" : (patrol ? "rgba(255,160,60,0.9)" : "rgba(255,90,110,0.85)");
+    g.fillStyle = alert ? "rgba(255,60,60,0.22)" : "rgba(0,0,0,0.25)";
+    g.beginPath();
+    g.arc(x, y, cell * 0.42, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+
+    drawPiece(g, patrol ? "bN.png" : "bR.png", patrol ? "♞" : "♜", false, x, y, cell * 0.92);
+
+    /* torch + facing arrow */
+    const a = v.ang * Math.PI / 180;
+    const tx = x + Math.sin(a) * cell * 0.46;
+    const ty = y - Math.cos(a) * cell * 0.46;
+
+    g.fillStyle = "#fff3b0";
+    g.beginPath();
+    g.arc(tx, ty, Math.max(2.5, cell * 0.075), 0, Math.PI * 2);
+    g.fill();
+
+    g.fillStyle = alert ? "rgba(255,90,90,0.95)" : "rgba(255,226,120,0.95)";
+    g.beginPath();
+    g.moveTo(x + Math.sin(a) * cell * 0.58, y - Math.cos(a) * cell * 0.58);
+    g.lineTo(x + Math.sin(a + 2.6) * cell * 0.13 + Math.sin(a) * cell * 0.40, y - Math.cos(a + 2.6) * cell * 0.13 - Math.cos(a) * cell * 0.40);
+    g.lineTo(x + Math.sin(a - 2.6) * cell * 0.13 + Math.sin(a) * cell * 0.40, y - Math.cos(a - 2.6) * cell * 0.13 - Math.cos(a) * cell * 0.40);
+    g.closePath();
+    g.fill();
+
+    /* sentry turn direction */
+    if (!patrol && !alert) {
+      g.fillStyle = "rgba(255,255,255,0.75)";
+      g.font = "bold " + Math.round(cell * 0.24) + "px sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(gd.rot > 0 ? "↻" : "↺", x + cell * 0.30, y - cell * 0.34);
+    }
+
+    /* alert badge */
+    if (alert) {
+      const bob = Math.sin(ts / 120) * cell * 0.04;
+      g.fillStyle = "#ff3b4a";
+      g.beginPath();
+      g.arc(x, y - cell * 0.58 + bob, cell * 0.17, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#fff";
+      g.font = "900 " + Math.round(cell * 0.24) + "px sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("!", x, y - cell * 0.57 + bob);
+    }
+  }
+
+  function drawPlayer(g, cell, ts) {
+
+    const x = (vis.p.x + 0.5) * cell;
+    const y = (vis.p.y + 0.5) * cell;
+
+    /* footstep range: dashed square, clipped to the board */
+    const r = noiseRadius(pieceType, size);
+    const pr = Math.floor(pp / size);
+    const pc = pp % size;
+
+    if (!locked) {
+
+      const c0 = Math.max(0, pc - r);
+      const c1 = Math.min(size - 1, pc + r);
+      const r0 = Math.max(0, pr - r);
+      const r1 = Math.min(size - 1, pr + r);
+
+      g.save();
+      g.setLineDash([cell * 0.1, cell * 0.12]);
+      g.strokeStyle = "rgba(120,200,255,0.30)";
+      g.lineWidth = Math.max(1.2, cell * 0.035);
+      g.strokeRect(c0 * cell + 2, r0 * cell + 2, (c1 - c0 + 1) * cell - 4, (r1 - r0 + 1) * cell - 4);
+      g.restore();
+    }
+
+    drawPiece(g, PLAYERS[pieceType].file, PLAYERS[pieceType].glyph, true, x, y, cell * 0.92);
+  }
+
+  function draw(ts) {
+
+    if (!lay || !floorLayer || !g2) return;
+
+    const W = canvas.width;
+    const n = size;
+    const cell = W / n;
+
+    g2.setTransform(1, 0, 0, 1, 0, 0);
+    g2.clearRect(0, 0, W, W);
+
+    if (shake > 0) {
+      g2.translate((Math.random() - 0.5) * shake * cell * 0.25, (Math.random() - 0.5) * shake * cell * 0.25);
+    }
+
+    g2.drawImage(floorLayer, 0, 0);
+
+    /* blood stains */
+    stains.forEach(function (s) {
+      g2.fillStyle = "rgba(150,20,35,0.55)";
+      g2.beginPath();
+      g2.ellipse((s.x + 0.5) * cell, (s.y + 0.5) * cell, cell * 0.30 * s.k, cell * 0.20 * s.k, s.rot, 0, Math.PI * 2);
+      g2.fill();
+    });
+
+    drawLight(g2, cell, ts);
+    g2.drawImage(obsLayer, 0, 0);
+
+    if (showRoutes) drawRoutes(g2, cell);
+    if (showPreview && !locked) drawPreview(g2, cell);
+    if (showHints && !locked) drawHints(g2, cell, ts);
+
+    for (let i = 0; i < gs.length; i++) {
+      if (gs[i].a && vis.g[i]) drawGuard(g2, gs[i], vis.g[i], cell, ts);
+    }
+
+    drawPlayer(g2, cell, ts);
+
+    /* spotted beam */
+    if (spot) {
+      const k = Math.min(1, (ts - spot.t0) / 250);
+      g2.strokeStyle = "rgba(255,60,70," + (0.9 * k).toFixed(2) + ")";
+      g2.lineWidth = Math.max(3, cell * 0.12);
+      g2.beginPath();
+      g2.moveTo((spot.from.x + 0.5) * cell, (spot.from.y + 0.5) * cell);
+      g2.lineTo((spot.to.x + 0.5) * cell, (spot.to.y + 0.5) * cell);
+      g2.stroke();
+    }
+
+    /* particles */
+    particles.forEach(function (p) {
+      g2.globalAlpha = Math.max(0, p.life / p.max);
+      g2.fillStyle = p.color;
+      g2.beginPath();
+      g2.arc(p.x * cell, p.y * cell, Math.max(1.5, cell * p.r), 0, Math.PI * 2);
+      g2.fill();
+    });
+    g2.globalAlpha = 1;
+
+    g2.setTransform(1, 0, 0, 1, 0, 0);
+
+    /* red flash when spotted */
+    if (flash > 0) {
+      const vg = g2.createRadialGradient(W / 2, W / 2, W * 0.2, W / 2, W / 2, W * 0.75);
+      vg.addColorStop(0, "rgba(255,0,30,0)");
+      vg.addColorStop(1, "rgba(255,0,30," + (0.55 * flash).toFixed(2) + ")");
+      g2.fillStyle = vg;
+      g2.fillRect(0, 0, W, W);
+    }
+  }
+
+
+  /* =========================================================
+     ANIMATION LOOP (frames only while something is moving)
+  ========================================================= */
+
+  function syncVisual() {
+
+    const n = size;
+
+    vis.p = { x: pp % n, y: Math.floor(pp / n) };
+    vis.g = gs.map(function (g) {
+      return { x: g.sq % n, y: Math.floor(g.sq / n), ang: g.f * 45 };
+    });
+  }
+
+  function updateVisual(dt) {
+
+    const n = size;
+    const k = 1 - Math.exp(-dt * 15);
+    let moving = false;
+
+    const tx = pp % n;
+    const ty = Math.floor(pp / n);
+
+    vis.p.x += (tx - vis.p.x) * k;
+    vis.p.y += (ty - vis.p.y) * k;
+
+    if (Math.abs(tx - vis.p.x) > 0.004 || Math.abs(ty - vis.p.y) > 0.004) moving = true;
+    else { vis.p.x = tx; vis.p.y = ty; }
+
+    for (let i = 0; i < gs.length; i++) {
+
+      const g = gs[i];
+      const v = vis.g[i];
+      if (!v) continue;
+
+      const gx = g.sq % n;
+      const gy = Math.floor(g.sq / n);
+
+      v.x += (gx - v.x) * k;
+      v.y += (gy - v.y) * k;
+
+      if (Math.abs(gx - v.x) > 0.004 || Math.abs(gy - v.y) > 0.004) moving = true;
+      else { v.x = gx; v.y = gy; }
+
+      const target = g.f * 45;
+      const diff = ((target - v.ang + 540) % 360) - 180;
+
+      v.ang += diff * k;
+
+      if (Math.abs(diff) > 0.4) moving = true;
+      else v.ang = target;
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    if (particles.length) moving = true;
+
+    if (flash > 0) { flash = Math.max(0, flash - dt * 1.4); moving = true; }
+    if (shake > 0) { shake = Math.max(0, shake - dt * 3); moving = true; }
+    if (spot) moving = true;
+
+    return moving;
+  }
+
+  function hasAlert() {
+    for (let i = 0; i < gs.length; i++) if (gs[i].a && gs[i].ttl > 0) return true;
+    return false;
+  }
+
+  function requestFrame() {
+    if (!raf && ready) raf = requestAnimationFrame(frame);
+  }
+
+  function frame(ts) {
+
+    raf = 0;
+
+    if (!ready || !isVisible()) return;
+
+    const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0.016);
+    lastTs = ts;
+
+    const moving = updateVisual(dt);
+    draw(ts);
+
+    if (moving || hasAlert() || (showHints && !locked && curMoves.some(function (m) { return m.kill >= 0; }))) {
+      requestFrame();
+    }
+  }
+
+  function burst(x, y, color, count, speed) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = speed * (0.4 + Math.random());
+      particles.push({
+        x: x + 0.5, y: y + 0.5,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.5 + Math.random() * 0.4, max: 0.9,
+        r: 0.03 + Math.random() * 0.035,
+        color: color
+      });
+    }
+  }
+
+
+  /* =========================================================
+     UI
+  ========================================================= */
+
+  function updateUI() {
+
+    const info = PLAYERS[pieceType];
+    const tier = tierOf(level);
+
+    let left = 0;
+    gs.forEach(function (g) { if (g.a) left++; });
+
+    el.caPieceStat.textContent = info.label;
+    el.caSizeStat.textContent = size + " × " + size;
+    el.caLevelStat.textContent = String(level);
+    el.caGuardStat.textContent = String(left);
+    el.caMovesStat.textContent = String(moves);
+    el.caParStat.textContent = lay ? String(lay.par) : "-";
+
+    el.caDiffBadge.textContent = tier.name.toUpperCase();
+    el.caDiffBadge.style.background = tier.color;
+
+    el.caWaitBtn.disabled = building || locked;
+    el.caWaitBtn.style.opacity = el.caWaitBtn.disabled ? "0.45" : "1";
+
+    if (!locked && !building) {
+
+      el.caMessage.textContent =
+        "Level " + level + " · " + size + "×" + size + " · " + info.label + " · " +
+        gs.length + (gs.length === 1 ? " guard" : " guards") + " · " + tier.name;
+      el.caMessage.style.color = "#aeb3cf";
+      el.caMessage.style.background = "rgba(255,255,255,0.05)";
+
+      el.caStatus.textContent = left === 1 ? "1 guard left" : left + " guards left";
+    }
+  }
+
+  function refreshPieceCard(dir) {
+
+    const info = PLAYERS[pieceType];
+
+    el.caPieceName.textContent = info.label;
+    el.caPieceNote.textContent = info.note;
+
+    el.caPieceIcon.innerHTML = "";
+
+    const img = document.createElement("img");
+    img.src = "assets/pieces/" + info.file;
+    img.alt = info.label;
+    img.draggable = false;
+    img.style.width = "46px";
+    img.style.height = "46px";
+    img.style.objectFit = "contain";
+
+    img.addEventListener("error", function () {
+      const gl = document.createElement("div");
+      gl.className = "ca-glyph";
+      gl.textContent = info.glyph;
+      if (img.parentNode) img.parentNode.replaceChild(gl, img);
+    });
+
+    el.caPieceIcon.appendChild(img);
+
+    el.caDots.innerHTML = "";
+    PIECE_ORDER.forEach(function (t) {
+      const d = document.createElement("div");
+      d.className = "ca-dot" + (t === pieceType ? " ca-on" : "");
+      el.caDots.appendChild(d);
+    });
+
+    if (dir) {
+      el.caPieceView.classList.remove("ca-slide-l", "ca-slide-r");
+      void el.caPieceView.offsetWidth;
+      el.caPieceView.classList.add(dir > 0 ? "ca-slide-l" : "ca-slide-r");
+    }
+  }
+
+  function refreshSizeButtons() {
+    el.caSizeGrid.querySelectorAll(".ca-size-btn").forEach(function (b) {
+      b.classList.toggle("ca-active", Number(b.dataset.size) === size);
+    });
+  }
+
+
+  /* =========================================================
+     TURN HELPERS
+  ========================================================= */
+
+  /* Recompute the hint markers and the next-turn preview. */
+  function refreshMoves() {
+
+    curMoves = playerMoves(lctx, pieceType, pp, gs).map(function (m) {
+      const res = step(lctx, pieceType, { p: pp, guards: gs }, m);
+      return { to: m.to, kill: m.kill, wait: m.wait, spotted: res.spotted, win: res.win };
+    });
+
+    nextGuards = showPreview ? guardPhase(lctx, gs, -1, -1, pp) : null;
+  }
+
+  function resizeCanvas() {
+
+    if (!canvas || !wrap) return;
+
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width < 10) return;
+
+        const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    const W = Math.max(240, Math.round(rect.width * dpr));
+
+    if (canvas.width !== W) {
+      canvas.width = W;
+      canvas.height = W;
+    }
+
+    buildStatic();
+    requestFrame();
+  }
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function hideResultModals() {
+    el.caWinModal.style.display = "none";
+    el.caFailModal.style.display = "none";
+  }
+
+  /* Replay the CURRENT level from the beginning. */
+  function restoreLevel() {
+
+    if (!lay) return;
+
+    clearTimers();
+    hideResultModals();
+
+    lctx = lay.ctx;
+    gs = cloneGuards(lay.guards);
+    pp = lay.start;
+    moves = 0;
+
+    locked = false;
+    spot = null;
+    flash = 0;
+    shake = 0;
+    particles = [];
+    stains = [];
+
+    el.caTip.textContent = TIPS[pieceType];
+
+    syncVisual();
+    refreshMoves();
+    buildStatic();
+    updateUI();
+    requestFrame();
+  }
+
+  /* Generate a brand-new, solver-verified level for the current level number. */
+  function startNewLevel() {
+
+    const token = ++buildToken;
+
+    clearTimers();
+    hideResultModals();
+
+    building = true;
+    locked = true;
+
+    el.caStatus.textContent = "Scouting the area…";
+    el.caMessage.textContent = "Building a beatable level…";
+    updateUI();
+
+    setTimeout(function () {
+
+      if (token !== buildToken) return;
+
+      lay = generateLevel(size, pieceType, level);
+      building = false;
+
+      restoreLevel();
+
+    }, 30);
+  }
+
+  function selectPiece(type, dir) {
+
+    if (!PLAYERS[type] || type === pieceType) return;
+
+    pieceType = type;
+    level = 1;
+
+    refreshPieceCard(dir || 0);
+    startNewLevel();
+  }
+
+  function shiftPiece(dir) {
+
+    const i = PIECE_ORDER.indexOf(pieceType);
+    const next = PIECE_ORDER[(i + dir + PIECE_ORDER.length) % PIECE_ORDER.length];
+
+    selectPiece(next, dir);
+  }
+
+  function selectSize(n) {
+
+    if (n === size) return;
+
+    size = n;
+    level = 1;
+    lay = null;
+
+    refreshSizeButtons();
+    startNewLevel();
+  }
+
+
+  /* =========================================================
+     MOVE HANDLING
+  ========================================================= */
+
+  function perform(m) {
+
+    if (locked || building) return;
+
+    const before = { p: pp, guards: gs };
+    const mv = { to: m.to, kill: m.kill, wait: m.wait };
+    const res = step(lctx, pieceType, before, mv);
+
+    const n = size;
+
+    /* visuals for the kill */
+    if (mv.kill >= 0) {
+      const dead = gs[mv.kill];
+      burst(dead.sq % n, Math.floor(dead.sq / n), "#c01830", 22, 3.4);
+      burst(dead.sq % n, Math.floor(dead.sq / n), "#ffd0a0", 8, 2.2);
+      stains.push({ x: dead.sq % n, y: Math.floor(dead.sq / n), k: 0.8 + Math.random() * 0.5, rot: Math.random() * 3 });
+      sfx("kill");
+    } else if (mv.wait) {
+      sfx("wait");
+    } else {
+      sfx(pieceType === "king" ? "step" : "slide");
+    }
+
+    pp = mv.to;
+    moves++;
+
+    if (res.win) {
+      gs = res.state.guards;
+      syncGuardsAfterWin();
+      winLevel();
+      return;
+    }
+
+    if (res.spotted) {
+      gs = res.state.guards;
+      syncGuardsAfterWin();
+      failLevel(res.spotter);
+      return;
+    }
+
+    const wasAlert = gs.filter(function (g) { return g.a && g.ttl > 0; }).length;
+
+    gs = res.state.guards;
+
+    const nowAlert = gs.filter(function (g) { return g.a && g.ttl > 0; }).length;
+
+    /* keep the visual list the same length as the guard list */
+    while (vis.g.length < gs.length) vis.g.push({ x: 0, y: 0, ang: 0 });
+
+    if (nowAlert > wasAlert) {
+      sfx("alert");
+      el.caTip.textContent = "A guard heard you and is rushing to the noise. Strike it or slip out of its light!";
+    } else if (!nowAlert) {
+      el.caTip.textContent = TIPS[pieceType];
+    }
+
+    refreshMoves();
+
+    /* trapped: every possible move gets you spotted */
+    const anySafe = curMoves.some(function (c) { return !c.spotted; });
+
+    updateUI();
+    requestFrame();
+
+    if (!anySafe) {
+      locked = true;
+      failTrapped();
+    }
+  }
+
+  function syncGuardsAfterWin() {
+    while (vis.g.length < gs.length) vis.g.push({ x: 0, y: 0, ang: 0 });
+    requestFrame();
+  }
+
+  function handleCanvasClick(ev) {
+
+    if (locked || building || !lay) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left) / rect.width;
+    const y = (ev.clientY - rect.top) / rect.height;
+
+    const c = Math.floor(x * size);
+    const r = Math.floor(y * size);
+
+    if (c < 0 || r < 0 || c >= size || r >= size) return;
+
+    const idx = r * size + c;
+
+    if (idx === pp) return;
+
+    const m = curMoves.find(function (mm) { return !mm.wait && mm.to === idx; });
+
+    if (!m) {
+
+      sfx("bad");
+
+      if (lctx.obs[idx]) {
+        el.caTip.textContent = "That square is cover. You cannot enter crates or walls.";
+      } else {
+        el.caTip.textContent = "The " + PLAYERS[pieceType].label + " cannot move there. " +
+          (pieceType === "king" ? "Kings move one square." : "Slides stop at crates, walls and guards.");
+      }
+
+      return;
+    }
+
+    perform(m);
+  }
+
+  function doWait() {
+
+    if (locked || building || !lay) return;
+
+    const m = curMoves.find(function (mm) { return mm.wait; });
+    if (m) perform(m);
+  }
+
+
+  /* =========================================================
+     FAIL / WIN
+  ========================================================= */
+
+  function failLevel(spotterIdx) {
+
+    locked = true;
+    sfx("spot");
+
+    flash = 1;
+    shake = 1;
+
+    const g = gs[spotterIdx];
+    const n = size;
+
+    let who = "elite guard";
+
+    if (g) {
+      who = "elite guard on " + squareName(g.sq);
+      spot = {
+        t0: performance.now(),
+        from: { x: g.sq % n, y: Math.floor(g.sq / n) },
+        to: { x: pp % n, y: Math.floor(pp / n) }
+      };
+    }
+
+    const msg =
+      "Spotted! The " + who + " caught your " + PLAYERS[pieceType].label +
+      " at " + squareName(pp) + " in the torchlight.";
+
+    finishFail(msg);
+  }
+
+  function failTrapped() {
+
+    sfx("spot");
+    flash = 1;
+
+    finishFail("Trapped! Every square your " + PLAYERS[pieceType].label +
+      " can reach is in the torchlight. Try again from the start.");
+  }
+
+  function finishFail(msg) {
+
+    refreshMoves();
+    updateUI();
+
+    el.caStatus.textContent = "Spotted!";
+    el.caTip.textContent = msg;
+    el.caMessage.textContent = "Spotted · press Try Again";
+    el.caMessage.style.color = "#ff6570";
+    el.caMessage.style.background = "rgba(255,77,90,0.10)";
+
+    el.caFailMessage.textContent = msg;
+
+    requestFrame();
+
+    clearTimers();
+
+    modalTimer = setTimeout(function () {
+      el.caFailModal.style.display = "flex";
+    }, 1100);
+  }
+
+  function starsFor(m, par) {
+    if (m <= par + 2) return 3;
+    if (m <= par * 2 + 4) return 2;
+    return 1;
+  }
+
+  function winLevel() {
+
+    locked = true;
+    sfx("win");
+
+    const n = size;
+    burst(pp % n, Math.floor(pp / n), "#ffd700", 28, 3.6);
+
+    refreshMoves();
+    updateUI();
+
+    const stars = starsFor(moves, lay.par);
+
+    el.caStatus.textContent = "Mission complete!";
+    el.caTip.textContent = "Brilliant! Not a single guard raised the alarm.";
+    el.caMessage.textContent = "Mission complete!";
+    el.caMessage.style.color = "#78b887";
+    el.caMessage.style.background = "rgba(120,184,135,0.09)";
+
+    el.caWinStars.textContent = "⭐".repeat(stars) + "☆".repeat(3 - stars);
+
+    el.caWinMessage.textContent =
+      "All " + gs.length + (gs.length === 1 ? " guard" : " guards") + " eliminated in " +
+      moves + (moves === 1 ? " move" : " moves") + " (par " + lay.par + ").";
+
+    const next = params(size, level + 1);
+
+    el.caWinNext.textContent =
+      "Next Level (Level " + (level + 1) + " · " + next.guards +
+      (next.guards === 1 ? " guard)" : " guards)");
+
+    requestFrame();
+
+    clearTimers();
+
+    modalTimer = setTimeout(function () {
+      el.caWinModal.style.display = "flex";
+    }, 900);
+  }
+
+
+  /* =========================================================
+     INIT (runs once, the first time the section is shown)
+  ========================================================= */
+
+  function buildButtons() {
+
+    el.caSizeGrid.innerHTML = "";
+
+    SIZES.forEach(function (n) {
+
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ca-size-btn";
+      b.dataset.size = String(n);
+      b.textContent = n + "×" + n;
+
+      b.addEventListener("click", function () { selectSize(n); });
+
+      el.caSizeGrid.appendChild(b);
+    });
+
+    refreshSizeButtons();
+    refreshPieceCard(0);
+  }
+
+  function wireEvents() {
+
+    function replay() {
+      if (building) return;
+      restoreLevel();
+    }
+
+    el.caResetBtn.addEventListener("click", replay);
+    el.caResetSideBtn.addEventListener("click", replay);
+    el.caFailRetry.addEventListener("click", replay);
+
+    el.caWaitBtn.addEventListener("click", doWait);
+
+    el.caPiecePrev.addEventListener("click", function () { shiftPiece(-1); });
+    el.caPieceNext.addEventListener("click", function () { shiftPiece(1); });
+
+    /* swipe the piece card */
+    let sx = null;
+
+    el.caCarousel.addEventListener("pointerdown", function (e) { sx = e.clientX; });
+
+    el.caCarousel.addEventListener("pointerup", function (e) {
+      if (sx === null) return;
+      const dx = e.clientX - sx;
+      sx = null;
+      if (Math.abs(dx) > 36) shiftPiece(dx < 0 ? 1 : -1);
+    });
+
+    el.caCarousel.addEventListener("pointercancel", function () { sx = null; });
+
+    canvas.addEventListener("click", handleCanvasClick);
+
+    el.caHintsToggle.addEventListener("change", function () {
+      showHints = this.checked;
+      requestFrame();
+    });
+
+    el.caRoutesToggle.addEventListener("change", function () {
+      showRoutes = this.checked;
+      requestFrame();
+    });
+
+    el.caPreviewToggle.addEventListener("change", function () {
+      showPreview = this.checked;
+      if (lay && !locked) refreshMoves();
+      requestFrame();
+    });
+
+    el.caSoundToggle.addEventListener("change", function () {
+      soundOn = this.checked;
+    });
+
+    el.caHowToBtn.addEventListener("click", function () { el.caHowToModal.style.display = "flex"; });
+    el.caHowToClose.addEventListener("click", function () { el.caHowToModal.style.display = "none"; });
+
+    el.caWinNext.addEventListener("click", function () {
+      el.caWinModal.style.display = "none";
+      level++;
+      startNewLevel();
+    });
+
+    el.caWinClose.addEventListener("click", function () { el.caWinModal.style.display = "none"; });
+    el.caFailClose.addEventListener("click", function () { el.caFailModal.style.display = "none"; });
+
+    [el.caHowToModal, el.caWinModal, el.caFailModal].forEach(function (m) {
+      m.addEventListener("click", function (e) {
+        if (e.target === m) m.style.display = "none";
+      });
+    });
+
+    document.addEventListener("keydown", function (e) {
+
+      if (!isVisible()) return;
+
+      if (e.key === "Escape") {
+        el.caHowToModal.style.display = "none";
+        el.caWinModal.style.display = "none";
+        el.caFailModal.style.display = "none";
+      }
+
+      if (e.code === "Space" && !e.target.matches("input,button,textarea")) {
+        e.preventDefault();
+        doWait();
+      }
+    });
+
+    if ("ResizeObserver" in window) {
+      new ResizeObserver(function () { resizeCanvas(); }).observe(wrap);
+    } else {
+      window.addEventListener("resize", resizeCanvas);
+    }
+  }
+
+  function init() {
+
+    grabDom();
+
+    canvas = el.caCanvas;
+    wrap = el.caBoardWrap;
+    g2 = canvas.getContext("2d");
+
+    initCone();
+    buildButtons();
+    wireEvents();
+    resizeCanvas();
+    startNewLevel();
+  }
+
+  function ensureInit() {
+    if (ready) return;
+    ready = true;
+    init();
+  }
+
+  /* Nothing is built at page load. The game starts the first time it is shown. */
+  if ("IntersectionObserver" in window) {
+
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          ensureInit();
+          resizeCanvas();
+          requestFrame();
+        }
+      });
+    }).observe(section);
+  }
+
+  if (navBtn) {
+    navBtn.addEventListener("click", function () {
+      setTimeout(function () {
+        ensureInit();
+        resizeCanvas();
+        requestFrame();
+      }, 0);
+    });
+  }
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.ChessAssassin = {
+
+    reset: function () {
+      if (ready && !building) restoreLevel();
+    },
+
+    setPiece: function (type) {
+      if (ready) selectPiece(type, 0);
+    },
+
+    setSize: function (n) {
+      if (ready && SIZES.indexOf(n) !== -1) selectSize(n);
+    },
+
+    getState: function () {
+      return { piece: pieceType, size: size, level: level, moves: moves, locked: locked };
+    }
+
+  };
+
+})();
+
+</script>
 
 
 
@@ -161863,7 +164417,7 @@ const lockedTabs = [
   "impossibleCheck"  ,  "captureChallenge" ,  "findDifferences", "chessMaze",
 
   // 🎮 Standalone games
-  "cardClash", "pathHunter",
+  "cardClash", "pathHunter", "chessAssassin",
   "hiddenDeck",
   "legalMove",
   "legalChecks",
@@ -234798,6 +237352,7 @@ training: [
        '[data-tab="chessMaze" ]',
       '[data-tab="findDifferences" ]',
       '[data-tab="emojiMemory"]',
+      '[data-tab="chessAssassin"]',
        '[data-tab="queenChallenge"]',
        '[data-tab="memoryMatch"]',
       '[data-tab="color"]',
