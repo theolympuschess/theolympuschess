@@ -42201,6 +42201,14 @@ right:0;
   <span style="font-size: 1.35em; color: #07aab3; font-weight: 900;">♚</span>
   Impossible Check Challenge
 </button>
+<button
+  class="nav-btn"
+  data-tab="findDifferences"
+  id="findDifferencesNavBtn"
+>
+  🔍
+  Find <span style="font-size: 1.35em; color: #07aab3; font-weight: 900;">5</span> Differences
+</button>
 <button 
   class="nav-btn" 
   data-tab="gameReview" 
@@ -69987,6 +69995,1102 @@ winClose?.addEventListener("click", function() {
   }
   .ocp-shake { animation: ocpShake 260ms ease; }
 </style>
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #fd-layout{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:16px;align-items:start;}
+  @media (max-width:1100px){#fd-layout{grid-template-columns:1fr;}}
+
+   .fd-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:12px;box-sizing:border-box;}
+  .fd-card-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:12px;}
+  .fd-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .fd-stat-row strong{color:#fff;}
+
+  /* boards */
+  .fd-boards{display:flex;gap:12px;justify-content:center;align-items:flex-start;width:100%;}
+  .fd-board-wrap{flex:1 1 0;min-width:0;max-width:min(820px, calc(100vh - 280px));}
+  .fd-board-label{color:#aeb3cf;font-size:12px;font-weight:900;letter-spacing:1px;text-align:center;margin-bottom:8px;}
+  .fd-board{width:100%;aspect-ratio:1 / 1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);container-type:inline-size;user-select:none;touch-action:manipulation;border-radius:8px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,0.35);}
+
+  /* timer */
+   .fd-timer{font-size:54px;line-height:1;font-weight:900;color:#ffd700;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-1px;}
+  .fd-timer small{font-size:22px;color:#777d99;margin-left:4px;letter-spacing:0;}
+  .fd-timer.fd-danger{color:#ff4d5a;animation:fdPulse .5s ease-in-out infinite alternate;}
+  .fd-bar{height:8px;border-radius:99px;background:rgba(255,255,255,0.08);margin-top:12px;overflow:hidden;}
+  .fd-bar-fill{height:100%;width:100%;border-radius:99px;background:#ffd700;}
+  .fd-bar-fill.fd-danger{background:#ff4d5a;}
+
+  .fd-dots{display:flex;justify-content:center;gap:8px;margin-top:2px;}
+  .fd-dot{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,0.18);box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#000;font-size:14px;font-weight:900;}
+  .fd-dot.fd-on{background:#78b887;border-color:#78b887;}
+
+  .fd-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .fd-btn-green{background:#78b887;color:#000;}
+  .fd-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  .fd-ready{display:none;position:absolute;inset:0;z-index:50;border-radius:18px;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;background:rgba(10,12,24,0.72);backdrop-filter:blur(14px);}
+
+  .fd-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.80);backdrop-filter:blur(7px);}
+  .fd-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes fdPulse{from{transform:scale(1)}to{transform:scale(1.06)}}
+  @keyframes fdFlash{0%{opacity:0.95}100%{opacity:0}}
+  .fd-flash{animation:fdFlash .45s ease-out forwards;}
+</style>
+
+<section
+  class="section hidden"
+  id="findDifferences-section"
+>
+
+  <div
+    id="fd-shell"
+    style="width:100%;max-width:1800px;margin:0 auto;padding:12px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">🔍</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Find Five Differences Challenge</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Two boards, five differences, ten seconds. Click a difference on either board.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="fdHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="fdResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="fd-layout">
+
+      <!-- BOARDS CARD -->
+            <div id="fdBoardsCard"
+        style="position:relative;background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:14px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="fdStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Find 5 differences</div>
+          </div>
+          <div style="color:#ffd700;font-size:22px;font-weight:900;white-space:nowrap;">
+            🔍 <span id="fdFound">0</span>
+            <span style="color:#777d99;font-size:14px;">/</span>
+            <span style="color:#fff;font-size:18px;">5</span>
+          </div>
+        </div>
+
+        <div id="fdMessage"
+          style="margin-bottom:16px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:13px;font-weight:800;text-align:center;">
+          Level 1
+        </div>
+
+        <div class="fd-boards">
+          <div class="fd-board-wrap">
+            <div class="fd-board-label">BOARD A</div>
+            <div id="fdBoardA" class="fd-board" aria-label="Board A"></div>
+          </div>
+          <div class="fd-board-wrap">
+            <div class="fd-board-label">BOARD B</div>
+            <div id="fdBoardB" class="fd-board" aria-label="Board B"></div>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:14px;">
+          Click a difference on either board. The same square is marked on both. Wrong clicks cost nothing, but the clock keeps running.
+        </div>
+
+        <!-- READY OVERLAY -->
+        <div id="fdReady" class="fd-ready">
+          <div style="font-size:46px;color:#ffd700;">🔍</div>
+          <div style="color:#fff;font-size:22px;font-weight:900;">Ready?</div>
+          <div style="color:#aeb3cf;font-size:14px;font-weight:600;max-width:320px;line-height:1.5;">
+            Find 5 differences between the two boards in 10 seconds. The clock starts when you press Start.
+          </div>
+          <button type="button" id="fdStartBtn" class="fd-btn fd-btn-green" style="width:auto;padding:13px 40px;">▶ Start</button>
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <div class="fd-card">
+          <div class="fd-card-title">⏰ Time Left</div>
+          <div id="fdTimer" class="fd-timer">10.0<small>s</small></div>
+          <div class="fd-bar"><div id="fdBarFill" class="fd-bar-fill"></div></div>
+        </div>
+
+        <div class="fd-card">
+          <div class="fd-card-title">🔍 Differences Found</div>
+          <div id="fdDots" class="fd-dots"></div>
+        </div>
+
+        <div class="fd-card">
+          <div class="fd-card-title" style="margin-bottom:12px;">📊 Challenge Stats</div>
+          <div style="display:grid;gap:10px;">
+            <div class="fd-stat-row"><span>Level</span><strong id="fdLevelStat">1</strong></div>
+            <div class="fd-stat-row"><span>Found</span><strong id="fdFoundStat">0 / 5</strong></div>
+            <div class="fd-stat-row"><span>Wrong clicks</span><strong id="fdWrongStat">0</strong></div>
+            <div class="fd-stat-row"><span>Pieces on board</span><strong id="fdPiecesStat">0</strong></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:16px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+          <div style="font-size:22px;line-height:1;">💡</div>
+          <div>
+            <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">Coach Tip</strong>
+            <div id="fdTip" style="color:#aeb3cf;font-size:12px;line-height:1.5;font-weight:600;">Scan one board in quadrants and compare with the other.</div>
+          </div>
+        </div>
+
+        <div>
+          <button type="button" id="fdResetSideBtn" class="fd-btn fd-btn-green">↻ Try Again</button>
+          <button type="button" id="fdRestartAllBtn" class="fd-btn fd-btn-ghost">⏮ Back to Level 1</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="fdHowToModal" class="fd-modal" style="z-index:99999;">
+    <div class="fd-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;">
+      <button type="button" id="fdHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="color:#ffd700;font-size:42px;text-align:center;margin-bottom:10px;">🔍</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        The two boards look almost the same. Exactly five squares are different.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ Press Start. You get 10 seconds.</div>
+        <div>2️⃣ Click a difference on either board.</div>
+        <div>3️⃣ The same square is marked on both boards.</div>
+        <div>4️⃣ A difference can be a missing piece, an extra piece, a different piece or a swapped colour.</div>
+        <div>5️⃣ Wrong clicks cost nothing, but if the clock hits zero the level restarts.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="fdWinModal" class="fd-modal">
+    <div class="fd-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;color:#ffd700;margin-bottom:8px;">🔍</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">LEVEL COMPLETE</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Sharp eyes! 🎉</h3>
+      <p id="fdWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You found all five differences.</p>
+      <button type="button" id="fdWinNext" class="fd-btn fd-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="fdWinClose" class="fd-btn fd-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- FAIL MODAL -->
+  <div id="fdFailModal" class="fd-modal">
+    <div class="fd-modal-box" style="border:1px solid rgba(255,77,90,0.40);">
+      <div style="font-size:48px;color:#ff4d5a;">⏱</div>
+      <div style="color:#ff6570;font-size:11px;font-weight:900;letter-spacing:1px;margin-top:8px;">TIME'S UP</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Not quite!</h3>
+      <p id="fdFailMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">The clock ran out.</p>
+      <button type="button" id="fdFailRetry" class="fd-btn fd-btn-green" style="margin-top:12px;">↻ Try This Level Again</button>
+      <button type="button" id="fdFailClose" class="fd-btn fd-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   🔍 OLYMPUS FIND FIVE DIFFERENCES CHALLENGE
+   ---------------------------------------------------------
+   Completely isolated game engine.
+
+   - Two 8x8 boards side by side (Board A / Board B)
+   - Exactly 5 differences every level, always 10 seconds
+   - Differences: a missing piece, an extra piece, a changed
+     piece type, or a swapped colour
+   - Positions can be illegal (many kings, queens, ...)
+   - Clicking a difference on either board marks the same
+     square on both boards
+   - Wrong clicks have no penalty, the clock is the judge
+   - Level N = more pieces + subtler differences (capped),
+     then infinite levels with fresh positions
+   - Time runs out = replay the SAME position from the start
+   - Next level = brand-new position
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* ENGINE START */
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const SIZE = 8;
+  const DIFFS = 5;
+    const TIME_LIMIT = 30000;       // 30 seconds, always
+
+  const ASSET_PATH = "assets/pieces/";
+
+  const TYPES = ["K", "Q", "R", "B", "N", "P"];
+
+  /* weighted pool for random pieces */
+  const TYPE_BAG = [
+    "P", "P", "P", "P", "P", "P",
+    "N", "N", "N",
+    "B", "B", "B",
+    "R", "R", "R",
+    "Q", "Q",
+    "K"
+  ];
+
+  /* pieces that look alike, used for subtle "changed piece" differences */
+  const SIMILAR = {
+    K: ["Q"],
+    Q: ["K", "R", "B"],
+    R: ["Q", "B", "N"],
+    B: ["N", "Q", "P", "R"],
+    N: ["B", "P", "R"],
+    P: ["N", "B"]
+  };
+
+  const GLYPHS = {
+    wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
+    bK: "♚", bQ: "♛", bR: "♜", bB: "♝", bN: "♞", bP: "♟"
+  };
+
+  const TIPS = [
+    "Scan one board in quadrants, then compare the same quadrant on the other board.",
+    "A difference can be a missing piece, an extra piece, a different piece or a swapped colour.",
+    "Compare the crowded areas last. Empty areas are quick to check.",
+    "Look at piece colours, not just shapes. A white knight can become a black knight.",
+    "Similar shapes hide the best differences. Check bishops, knights and pawns twice."
+  ];
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function toIdx(row, col) { return row * SIZE + col; }
+  function rowOf(idx) { return Math.floor(idx / SIZE); }
+  function colOf(idx) { return idx % SIZE; }
+
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function shuffle(list) {
+    const arr = list.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  /* pawns never sit on the first or last rank (keeps boards looking sane) */
+  function pawnOk(idx) {
+    const r = rowOf(idx);
+    return r > 0 && r < SIZE - 1;
+  }
+
+  function randomPiece(idx) {
+    let t = pick(TYPE_BAG);
+    if (t === "P" && !pawnOk(idx)) t = pick(["N", "B", "R", "Q"]);
+    return (Math.random() < 0.5 ? "w" : "b") + t;
+  }
+
+  /* difficulty: more pieces each level, capped */
+  function pieceCountFor(level) {
+    return Math.min(7 + level * 2, 40);
+  }
+
+  /* 0 (easy) .. 1 (hardest) */
+  function subtlety(level) {
+    return Math.min(1, (level - 1) / 12);
+  }
+
+  function pickKind(level) {
+
+    const s = subtlety(level);
+
+    const w = {
+      add: 1 - 0.7 * s,
+      remove: 1 - 0.7 * s,
+      type: level < 3 ? 0 : 0.25 + 0.9 * s,
+      color: level < 5 ? 0 : 0.25 + 0.9 * s
+    };
+
+    const total = w.add + w.remove + w.type + w.color;
+    let r = Math.random() * total;
+
+    const order = ["add", "remove", "type", "color"];
+    for (let i = 0; i < order.length; i++) {
+      r -= w[order[i]];
+      if (r <= 0) return order[i];
+    }
+    return "add";
+  }
+
+  function changedType(cell, idx, level) {
+
+    const color = cell[0];
+    const old = cell[1];
+
+    let pool = [];
+
+    /* later levels prefer look-alike pieces */
+    if (level >= 6 && Math.random() < 0.35 + subtlety(level) * 0.6) {
+      pool = SIMILAR[old].slice();
+    }
+
+    pool = pool.filter(function (t) {
+      return t !== old && (t !== "P" || pawnOk(idx));
+    });
+
+    if (!pool.length) {
+      pool = TYPES.filter(function (t) {
+        return t !== old && (t !== "P" || pawnOk(idx));
+      });
+    }
+
+    return color + pick(pool);
+  }
+
+  function countDiffs(a, b) {
+    let n = 0;
+    for (let i = 0; i < 64; i++) if (a[i] !== b[i]) n++;
+    return n;
+  }
+
+  /*
+    Returns { a, b, diffs, pieceCount }
+      a, b   = arrays of 64 cells (null or "wK", "bP", ...)
+      diffs  = the 5 differing square indexes
+    The two boards always differ on EXACTLY 5 squares.
+  */
+  function generateLevel(level) {
+
+    const n = pieceCountFor(level);
+    const all = Array.from({ length: 64 }, function (_, i) { return i; });
+
+    for (let attempt = 0; attempt < 500; attempt++) {
+
+      const a = new Array(64).fill(null);
+      const squares = shuffle(all);
+
+      for (let i = 0; i < n; i++) {
+        a[squares[i]] = randomPiece(squares[i]);
+      }
+
+      const b = a.slice();
+      const used = new Set();
+      const diffs = [];
+
+      let guard = 0;
+
+      while (diffs.length < DIFFS && guard++ < 300) {
+
+        const kind = pickKind(level);
+
+        const pool = all.filter(function (i) {
+          if (used.has(i)) return false;
+          return kind === "add" ? a[i] === null : a[i] !== null;
+        });
+
+        if (!pool.length) continue;
+
+        const idx = pick(pool);
+
+        if (kind === "add") {
+          b[idx] = randomPiece(idx);
+        } else if (kind === "remove") {
+          b[idx] = null;
+        } else if (kind === "type") {
+          b[idx] = changedType(a[idx], idx, level);
+        } else {
+          b[idx] = (a[idx][0] === "w" ? "b" : "w") + a[idx][1];
+        }
+
+        used.add(idx);
+        diffs.push(idx);
+      }
+
+      /* verify: exactly 5 differing squares, and they are the chosen ones */
+      if (diffs.length !== DIFFS) continue;
+      if (countDiffs(a, b) !== DIFFS) continue;
+      if (!diffs.every(function (i) { return a[i] !== b[i]; })) continue;
+
+      /* randomly swap which board is "original" */
+      const flip = Math.random() < 0.5;
+
+      return {
+        a: flip ? b : a,
+        b: flip ? a : b,
+        diffs: diffs.slice().sort(function (x, y) { return x - y; }),
+        pieceCount: n
+      };
+    }
+
+    /* Last resort (never expected): a trivial valid position. */
+    const fa = new Array(64).fill(null);
+    fa[0] = "wK"; fa[63] = "bK"; fa[27] = "wQ"; fa[36] = "bQ"; fa[18] = "wN";
+    const fb = fa.slice();
+    fb[0] = null; fb[63] = null; fb[27] = null; fb[36] = null; fb[18] = null;
+    return { a: fa, b: fb, diffs: [0, 18, 27, 36, 63], pieceCount: 5 };
+  }
+
+  /* ENGINE END */
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let level = 1;
+
+  let layout = null;          // { a, b, diffs, pieceCount }
+  let diffSet = new Set();
+  let found = new Set();
+  let wrongClicks = 0;
+
+  let phase = "ready";        // ready | playing | won | lost
+
+  let startTs = 0;
+  let timerId = null;
+  let leftAtFinish = 0;
+
+  let modalTimer = null;
+
+  const squares = { a: [], b: [] };
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section = document.getElementById("findDifferences-section");
+  const boardEls = {
+    a: document.getElementById("fdBoardA"),
+    b: document.getElementById("fdBoardB")
+  };
+
+  const readyEl = document.getElementById("fdReady");
+  const startBtn = document.getElementById("fdStartBtn");
+
+  const resetBtn = document.getElementById("fdResetBtn");
+  const resetSideBtn = document.getElementById("fdResetSideBtn");
+  const restartAllBtn = document.getElementById("fdRestartAllBtn");
+
+  const howToBtn = document.getElementById("fdHowToBtn");
+  const howToModal = document.getElementById("fdHowToModal");
+  const howToClose = document.getElementById("fdHowToClose");
+
+  const winModal = document.getElementById("fdWinModal");
+  const winNext = document.getElementById("fdWinNext");
+  const winClose = document.getElementById("fdWinClose");
+  const winMessage = document.getElementById("fdWinMessage");
+
+  const failModal = document.getElementById("fdFailModal");
+  const failRetry = document.getElementById("fdFailRetry");
+  const failClose = document.getElementById("fdFailClose");
+  const failMessage = document.getElementById("fdFailMessage");
+
+  const statusEl = document.getElementById("fdStatus");
+  const messageEl = document.getElementById("fdMessage");
+  const foundEl = document.getElementById("fdFound");
+
+  const timerEl = document.getElementById("fdTimer");
+  const barFillEl = document.getElementById("fdBarFill");
+  const dotsEl = document.getElementById("fdDots");
+
+  const levelStatEl = document.getElementById("fdLevelStat");
+  const foundStatEl = document.getElementById("fdFoundStat");
+  const wrongStatEl = document.getElementById("fdWrongStat");
+  const piecesStatEl = document.getElementById("fdPiecesStat");
+
+  const tipEl = document.getElementById("fdTip");
+
+  if (!section || !boardEls.a || !boardEls.b) {
+    return;
+  }
+
+
+  /* =========================================================
+     SOUND HELPERS (use your existing global sounds if present)
+  ========================================================= */
+
+  function playGoodSound() {
+    try {
+      if (typeof window.emojiMemoryPlayRevealSound === "function") {
+        window.emojiMemoryPlayRevealSound();
+      }
+    } catch (e) {}
+  }
+
+  function playBadSound() {
+    try {
+      if (typeof window.emojiMemoryPlayWrongSound === "function") {
+        window.emojiMemoryPlayWrongSound();
+      }
+    } catch (e) {}
+  }
+
+
+  /* =========================================================
+     CREATE BOARDS (squares only, pieces are drawn in render)
+  ========================================================= */
+
+  function createBoard(side) {
+
+    const el = boardEls[side];
+    el.innerHTML = "";
+    squares[side] = [];
+
+    for (let row = 0; row < SIZE; row++) {
+      for (let col = 0; col < SIZE; col++) {
+
+        const idx = toIdx(row, col);
+        const square = document.createElement("div");
+        const isLight = (row + col) % 2 === 0;
+
+        square.className = "fd-square";
+        square.dataset.idx = String(idx);
+
+        Object.assign(square.style, {
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          minWidth: "0",
+          minHeight: "0",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          background: isLight ? "#d9c8a4" : "#806b50",
+          transition: "filter 120ms ease",
+          zIndex: "1"
+        });
+
+        square.addEventListener("mouseenter", function () { square.style.filter = "brightness(1.10)"; });
+        square.addEventListener("mouseleave", function () { square.style.filter = "none"; });
+
+        square.addEventListener("click", function () { handleSquare(side, idx); });
+
+        el.appendChild(square);
+        squares[side].push(square);
+      }
+    }
+  }
+
+
+  /* =========================================================
+     IMAGE ELEMENTS (with a text fallback if an asset is missing)
+  ========================================================= */
+
+  function createPieceImage(cell) {
+
+    const PIECE_SCALE = "104%";
+
+    const img = document.createElement("img");
+
+    img.src = ASSET_PATH + cell + ".png";
+    img.alt = cell;
+    img.draggable = false;
+
+    Object.assign(img.style, {
+      position: "relative",
+      zIndex: "30",
+      width: PIECE_SCALE,
+      height: PIECE_SCALE,
+      objectFit: "contain",
+      display: "block",
+      pointerEvents: "none",
+      userSelect: "none",
+      
+    });
+
+    img.addEventListener("error", function () {
+
+      const span = document.createElement("span");
+      const white = cell[0] === "w";
+
+      span.textContent = GLYPHS[cell] || "?";
+
+      Object.assign(span.style, {
+        position: "relative",
+        zIndex: "30",
+        fontSize: "11.5cqw",
+        lineHeight: "1",
+        color: white ? "#ffffff" : "#111111",
+        textShadow: white ? "0 1px 3px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.4)",
+        pointerEvents: "none",
+        userSelect: "none"
+      });
+
+      if (img.parentNode) {
+        img.parentNode.replaceChild(span, img);
+      }
+    });
+
+    return img;
+  }
+
+  function addOverlay(square, css, className) {
+    const el = document.createElement("div");
+    Object.assign(el.style, { position: "absolute", pointerEvents: "none" }, css);
+    if (className) el.className = className;
+    square.appendChild(el);
+    return el;
+  }
+
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
+  function renderBoards() {
+
+    ["a", "b"].forEach(function (side) {
+
+      const cells = layout[side];
+
+      for (let idx = 0; idx < 64; idx++) {
+
+        const square = squares[side][idx];
+
+        while (square.firstChild) {
+          square.removeChild(square.firstChild);
+        }
+
+        if (cells[idx]) {
+          square.appendChild(createPieceImage(cells[idx]));
+        }
+
+        if (found.has(idx)) {
+
+          /* found: same square marked on BOTH boards */
+          const ring = addOverlay(square, {
+            inset: "3%",
+            borderRadius: "50%",
+            border: "4px solid rgba(120,184,135,0.98)",
+            background: "rgba(120,184,135,0.22)",
+            boxSizing: "border-box",
+            zIndex: "40",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          });
+
+          ring.style.boxShadow = "0 0 12px rgba(120,184,135,0.65)";
+
+        } else if (phase === "lost" && diffSet.has(idx)) {
+
+          /* time ran out: reveal the missed differences */
+          addOverlay(square, {
+            inset: "3%",
+            borderRadius: "50%",
+            border: "4px dashed rgba(255,140,60,0.98)",
+            background: "rgba(255,140,60,0.16)",
+            boxSizing: "border-box",
+            zIndex: "40"
+          });
+        }
+      }
+    });
+
+    updateUI();
+  }
+
+  function flashWrong(side, idx) {
+    const square = squares[side][idx];
+    if (!square) return;
+
+    const el = addOverlay(square, {
+      inset: "0",
+      background: "rgba(255,77,90,0.65)",
+      zIndex: "45"
+    }, "fd-flash");
+
+    el.addEventListener("animationend", function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+  }
+
+
+  /* =========================================================
+     TIMER
+  ========================================================= */
+
+  function updateTimer(leftMs) {
+
+    const secs = Math.max(0, leftMs) / 1000;
+    const danger = leftMs <= 3000 && phase === "playing";
+
+    timerEl.innerHTML = secs.toFixed(1) + "<small>s</small>";
+    timerEl.classList.toggle("fd-danger", danger);
+
+    barFillEl.style.width = (Math.max(0, leftMs) / TIME_LIMIT * 100) + "%";
+    barFillEl.classList.toggle("fd-danger", danger);
+  }
+
+  function stopTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function startTimer() {
+
+    stopTimer();
+
+    startTs = performance.now();
+    updateTimer(TIME_LIMIT);
+
+    timerId = setInterval(tick, 50);
+  }
+
+  function tick() {
+
+    /* section hidden (user left the tab): pause and wait on the Ready screen */
+    if (section.getClientRects().length === 0) {
+      stopTimer();
+      restoreLevel(false);
+      return;
+    }
+
+    const left = TIME_LIMIT - (performance.now() - startTs);
+
+    if (left <= 0) {
+      timeUp();
+      return;
+    }
+
+    updateTimer(left);
+  }
+
+
+  /* =========================================================
+     UPDATE UI
+  ========================================================= */
+
+  function buildDots() {
+
+    dotsEl.innerHTML = "";
+
+    for (let i = 0; i < DIFFS; i++) {
+      const dot = document.createElement("div");
+      dot.className = "fd-dot";
+      dotsEl.appendChild(dot);
+    }
+  }
+
+  function updateUI() {
+
+    foundEl.textContent = String(found.size);
+    foundStatEl.textContent = found.size + " / " + DIFFS;
+    levelStatEl.textContent = String(level);
+    wrongStatEl.textContent = String(wrongClicks);
+    piecesStatEl.textContent = String(layout ? layout.pieceCount : 0);
+
+    Array.prototype.forEach.call(dotsEl.children, function (dot, i) {
+      const on = i < found.size;
+      dot.classList.toggle("fd-on", on);
+      dot.textContent = on ? "✓" : "";
+    });
+
+    if (phase === "playing" || phase === "ready") {
+      messageEl.textContent =
+        "Level " + level + " · " + (layout ? layout.pieceCount : 0) +
+        " pieces · 5 differences · 10 seconds";
+      messageEl.style.color = "#aeb3cf";
+      messageEl.style.background = "rgba(255,255,255,0.05)";
+    }
+
+    if (phase === "won") {
+      statusEl.textContent = "All 5 found!";
+    } else if (phase === "lost") {
+      statusEl.textContent = "Time's up";
+    } else if (found.size === 0) {
+      statusEl.textContent = "Find 5 differences";
+    } else {
+      statusEl.textContent = (DIFFS - found.size) + (DIFFS - found.size === 1 ? " difference left" : " differences left");
+    }
+  }
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function clearModalTimer() {
+    if (modalTimer) {
+      clearTimeout(modalTimer);
+      modalTimer = null;
+    }
+  }
+
+  function hideResultModals() {
+    winModal.style.display = "none";
+    failModal.style.display = "none";
+  }
+
+  /*
+    Replay the CURRENT position from the beginning.
+    autostart = true  -> clock starts immediately
+    autostart = false -> Ready screen, clock waits for Start
+  */
+  function restoreLevel(autostart) {
+
+    clearModalTimer();
+    hideResultModals();
+    stopTimer();
+
+    diffSet = new Set(layout.diffs);
+    found = new Set();
+    wrongClicks = 0;
+
+    phase = autostart ? "playing" : "ready";
+    readyEl.style.display = autostart ? "none" : "flex";
+
+    tipEl.textContent = pick(TIPS);
+
+    renderBoards();
+    updateTimer(TIME_LIMIT);
+
+    if (autostart) startTimer();
+  }
+
+  /* Generate a brand-new position for the current level number. */
+  function startNewLevel(autostart) {
+
+    layout = generateLevel(level);
+
+    restoreLevel(autostart);
+  }
+
+
+  /* =========================================================
+     CLICK HANDLING
+  ========================================================= */
+
+  function handleSquare(side, idx) {
+
+    if (phase !== "playing") return;
+    if (found.has(idx)) return;
+
+    if (diffSet.has(idx)) {
+
+      found.add(idx);
+      playGoodSound();
+      renderBoards();
+
+      if (found.size === DIFFS) {
+        winLevel();
+      }
+
+      return;
+    }
+
+    /* wrong click: no penalty, just a red flash on the clicked square */
+    wrongClicks++;
+    playBadSound();
+    flashWrong(side, idx);
+    updateUI();
+  }
+
+
+  /* =========================================================
+     WIN / TIME UP
+  ========================================================= */
+
+  function winLevel() {
+
+    stopTimer();
+
+    leftAtFinish = Math.max(0, TIME_LIMIT - (performance.now() - startTs));
+    phase = "won";
+
+    updateTimer(leftAtFinish);
+    updateUI();
+
+    tipEl.textContent = "Sharp eyes! All five differences found in time.";
+
+    messageEl.textContent = "Level complete!";
+    messageEl.style.color = "#78b887";
+    messageEl.style.background = "rgba(120,184,135,0.09)";
+
+    const used = (TIME_LIMIT - leftAtFinish) / 1000;
+
+    winMessage.textContent =
+      "You found all 5 differences in " + used.toFixed(1) +
+      " seconds (" + (leftAtFinish / 1000).toFixed(1) + " s to spare).";
+
+    winNext.textContent =
+      "Next Level (Level " + (level + 1) + " · " + pieceCountFor(level + 1) + " pieces)";
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      winModal.style.display = "flex";
+    }, 800);
+  }
+
+  function timeUp() {
+
+    stopTimer();
+
+    phase = "lost";
+
+    playBadSound();
+
+    updateTimer(0);
+    renderBoards();
+
+    const msg =
+      "The clock ran out. You found " + found.size + " of " + DIFFS +
+      " differences. The missed ones are marked with orange dashed circles.";
+
+    tipEl.textContent = msg;
+
+    messageEl.textContent = "Time's up · press Try Again";
+    messageEl.style.color = "#ff6570";
+    messageEl.style.background = "rgba(255,77,90,0.10)";
+
+    if (failMessage) failMessage.textContent = msg;
+
+    clearModalTimer();
+
+    modalTimer = setTimeout(function () {
+      failModal.style.display = "flex";
+    }, 5000);
+  }
+
+
+  /* =========================================================
+     MODALS
+  ========================================================= */
+
+  function openHowTo() { howToModal.style.display = "flex"; }
+  function closeHowTo() { howToModal.style.display = "none"; }
+  function closeWinModal() { winModal.style.display = "none"; }
+  function closeFailModal() { failModal.style.display = "none"; }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  /* Reset / Try Again = replay only THIS position (same layout). */
+  function replayCurrent() { restoreLevel(true); }
+
+  resetBtn?.addEventListener("click", replayCurrent);
+  resetSideBtn?.addEventListener("click", replayCurrent);
+  failRetry?.addEventListener("click", replayCurrent);
+
+  startBtn?.addEventListener("click", replayCurrent);
+
+  restartAllBtn?.addEventListener("click", function () {
+    level = 1;
+    startNewLevel(true);
+  });
+
+  howToBtn?.addEventListener("click", openHowTo);
+  howToClose?.addEventListener("click", closeHowTo);
+
+  winNext?.addEventListener("click", function () {
+    closeWinModal();
+    level++;
+    startNewLevel(true);
+  });
+
+  winClose?.addEventListener("click", closeWinModal);
+  failClose?.addEventListener("click", closeFailModal);
+
+  howToModal?.addEventListener("click", function (event) {
+    if (event.target === howToModal) closeHowTo();
+  });
+
+  winModal?.addEventListener("click", function (event) {
+    if (event.target === winModal) closeWinModal();
+  });
+
+  failModal?.addEventListener("click", function (event) {
+    if (event.target === failModal) closeFailModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Escape") return;
+
+    if (howToModal.style.display === "flex") closeHowTo();
+    if (winModal.style.display === "flex") closeWinModal();
+    if (failModal.style.display === "flex") closeFailModal();
+  });
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  buildDots();
+  createBoard("a");
+  createBoard("b");
+
+  /* First load: show the Ready screen so the clock never runs while the tab is hidden. */
+  startNewLevel(false);
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.FindFiveDifferences = {
+
+    reset: function () {
+      restoreLevel(true);
+    },
+
+    getState: function () {
+      return {
+        level: level,
+        found: found.size,
+        wrongClicks: wrongClicks,
+        phase: phase
+      };
+    }
+
+  };
+
+})();
+
+</script>
+
 <!-- =========================================================
      2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
 ========================================================= -->
@@ -157825,7 +158929,7 @@ const lockedTabs = [
   "lichessAnalysis", "dice-multiplayer", "chessConcepts", "three-check", 
   "chessBaseTournament", "chessPlayerQuiz", "king-of-the-hill", "chess960",
   "chessLegends", "todayChessNews", "captureChallenge", "gameReview", 
-  "impossibleCheck"  ,  "captureChallenge" ,
+  "impossibleCheck"  ,  "captureChallenge" ,  "findDifferences",
 
   // 🎮 Standalone games
   "cardClash",
@@ -230759,6 +231863,7 @@ training: [
 ],
 
     games: [
+      '[data-tab="findDifferences" ]',
       '[data-tab="emojiMemory"]',
        '[data-tab="queenChallenge"]',
        '[data-tab="memoryMatch"]',
