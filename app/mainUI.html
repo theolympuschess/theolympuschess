@@ -42224,7 +42224,7 @@ right:0;
   id="chessMazeNavBtn"
 >
   🧱
-  Chess Maze Challenge
+   Maze Hunter Challenge
 </button>
 <button
   class="nav-btn"
@@ -70013,7 +70013,7 @@ winClose?.addEventListener("click", function() {
       <div style="display:flex;align-items:center;gap:14px;">
         <div style="font-size:42px;line-height:1;">🧱</div>
         <div>
-          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess Maze</h2>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess Maze Hunter</h2>
           <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
             Escape the maze, reach the cup 🏆 and dodge the hunters. They move one step every time you move.
           </p>
@@ -70240,20 +70240,106 @@ winClose?.addEventListener("click", function() {
   }
 
   /* Difficulty curve: more hunters, fewer shortcuts, more queens. */
-  function params(n, level) {
+function params(n, level) {
+  return {
+    enemies: Math.min(enemyCap(n), 1 + Math.floor((level - 1) / 2)),
+    queenChance: Math.min(0.5, 0.1 + level * 0.04),
+    braid: Math.max(0.12, 0.35 - level * 0.015),
+    pillar: Math.max(0.08, 0.30 - level * 0.015)
+  };
+}
 
-    const capG = Math.min(8, 2 + Math.floor(n / 3));
+  /* Gold confetti burst from the cup (same look as Assassination's win burst).
+     Draws on its own temporary canvas and removes it when finished. */
+  function confettiBurst() {
 
-    return {
-      guards: Math.min(1 + Math.floor((level - 1) / 2), capG),
-      R: Math.min(MAXR, 3 + Math.floor((level - 1) / 4)),
-      patrolShare: 1,
-      crates: Math.min(0.20, 0.09 + level * 0.006),
-      wallSegs: Math.min(Math.floor(level / 4) + 1, Math.floor(n / 3))
-    };
+    try {
+
+      const sq = squares[ctx.trophy];
+      if (!sq) return;
+
+      const rect = sq.getBoundingClientRect();
+      if (!rect.width) return;
+
+      const cell = rect.width;
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const cv = document.createElement("canvas");
+
+      cv.width = Math.round(window.innerWidth * dpr);
+      cv.height = Math.round(window.innerHeight * dpr);
+
+      Object.assign(cv.style, {
+        position: "fixed",
+        left: "0",
+        top: "0",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: "99999"
+      });
+
+      document.body.appendChild(cv);
+
+      const g = cv.getContext("2d");
+      g.scale(dpr, dpr);
+
+      const parts = [];
+
+      for (let i = 0; i < 28; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = 3.6 * (0.4 + Math.random());
+        parts.push({
+          x: 0, y: 0,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life: 0.5 + Math.random() * 0.4,
+          max: 0.9,
+          r: 0.03 + Math.random() * 0.035
+        });
+      }
+
+      let last = performance.now();
+
+      function tick(now) {
+
+        const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+        last = now;
+
+        g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+        for (let i = parts.length - 1; i >= 0; i--) {
+
+          const p = parts[i];
+
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= dt;
+
+          if (p.life <= 0) { parts.splice(i, 1); continue; }
+
+          g.globalAlpha = Math.max(0, p.life / p.max);
+          g.fillStyle = "#ffd700";
+          g.beginPath();
+          g.arc(cx + p.x * cell, cy + p.y * cell, Math.max(1.5, cell * p.r), 0, Math.PI * 2);
+          g.fill();
+        }
+
+        g.globalAlpha = 1;
+
+        if (parts.length) {
+          requestAnimationFrame(tick);
+        } else if (cv.parentNode) {
+          cv.parentNode.removeChild(cv);
+        }
+      }
+
+      requestAnimationFrame(tick);
+
+    } catch (e) {}
   }
-
-
   /* =========================================================
      MAZE GENERATOR
      ---------------------------------------------------------
@@ -71266,6 +71352,7 @@ winClose?.addEventListener("click", function() {
 
     locked = true;
     busy = false;
+     confettiBurst();   // <-- add this line
 
     statusEl.textContent = "Cup reached!";
     tipEl.textContent = "Brilliant! You escaped the maze.";
@@ -74215,7 +74302,7 @@ winClose?.addEventListener("click", function() {
           <div style="font-size:46px;color:#ffd700;">🔍</div>
           <div style="color:#fff;font-size:22px;font-weight:900;">Ready?</div>
           <div style="color:#aeb3cf;font-size:14px;font-weight:600;max-width:320px;line-height:1.5;">
-            Find 5 differences between the two boards in 10 seconds. The clock starts when you press Start.
+            Find 5 differences between the two boards in 30 seconds. The clock starts when you press Start.
           </div>
           <button type="button" id="fdStartBtn" class="fd-btn fd-btn-green" style="width:auto;padding:13px 40px;">▶ Start</button>
         </div>
@@ -74276,7 +74363,7 @@ winClose?.addEventListener("click", function() {
         The two boards look almost the same. Exactly five squares are different.
       </p>
       <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
-        <div>1️⃣ Press Start. You get 10 seconds.</div>
+        <div>1️⃣ Press Start. You get 30 seconds.</div>
         <div>2️⃣ Click a difference on either board.</div>
         <div>3️⃣ The same square is marked on both boards.</div>
         <div>4️⃣ A difference can be a missing piece, an extra piece, a different piece or a swapped colour.</div>
@@ -74922,7 +75009,7 @@ winClose?.addEventListener("click", function() {
     if (phase === "playing" || phase === "ready") {
       messageEl.textContent =
         "Level " + level + " · " + (layout ? layout.pieceCount : 0) +
-        " pieces · 5 differences · 10 seconds";
+        " pieces · 5 differences · 30 seconds";
       messageEl.style.color = "#aeb3cf";
       messageEl.style.background = "rgba(255,255,255,0.05)";
     }
