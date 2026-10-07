@@ -74402,11 +74402,11 @@ function params(n, level) {
   /* spd: 0 slow (moves every 2nd tick), 1 normal, 2 fast (2 blocks per tick) */
   const PIECES = {
     p: { label: "Pawn",   file: "wP.png", glyph: "♟", spd: 0, vip: false, len: 0.62 },
-    n: { label: "Knight", file: "wN.png", glyph: "♞", spd: 1, vip: false, len: 0.74 },
-    b: { label: "Bishop", file: "wB.png", glyph: "♝", spd: 1, vip: false, len: 0.76 },
-    r: { label: "Rook",   file: "wR.png", glyph: "♜", spd: 2, vip: false, len: 0.80 },
-    q: { label: "Queen",  file: "wQ.png", glyph: "♛", spd: 2, vip: true,  len: 0.86 },
-    k: { label: "King",   file: "wK.png", glyph: "♚", spd: 1, vip: true,  len: 0.84 }
+    n: { label: "Knight", file: "wN.png", glyph: "♞", spd: 0, vip: false, len: 0.74 },
+    b: { label: "Bishop", file: "wB.png", glyph: "♝", spd: 0, vip: false, len: 0.76 },
+    r: { label: "Rook",   file: "wR.png", glyph: "♜", spd: 0, vip: false, len: 0.80 },
+    q: { label: "Queen",  file: "wQ.png", glyph: "♛", spd: 0, vip: true,  len: 0.86 },
+    k: { label: "King",   file: "wK.png", glyph: "♚", spd: 0, vip: true,  len: 0.84 }
   };
 
   const COLORS = ["#ff5d6c", "#4cc9f0", "#ffd23f", "#7bd88f", "#c77dff", "#ff9a3c", "#2ec4b6", "#f78fb3"];
@@ -74761,12 +74761,12 @@ function params(n, level) {
             st.evExit++;
           }
 
-        } else if (sub === 0) {
+           } else if (sub === 0) {
 
           c.wait++;
 
           const lim = limitOf(st.pat, c);
-                    if (c.wait >= Math.ceil(lim * 0.4)) {
+          if (c.wait >= Math.ceil(lim * 0.4)) {
             const hl = Math.max(1, Math.min(10, Math.round(((c.wait / lim) - 0.4) / 0.6 * 9) + 1));
             if (hl > st.evHonk) st.evHonk = hl;
           }
@@ -75031,11 +75031,11 @@ function params(n, level) {
     const path = [];
     for (let c = 0; c < n; c++) path.push(2 * n + c);
 
-    return {
+     return {
       n: n, ctx: ctx, level: level, par: n + 2, pol: POLICIES[0], taps: 0, pat: 13,
       rows: [{ r: 2, d: 1 }], cols: [{ c: 3, d: 1 }],
       sig0: new Uint8Array(1),
-      cars: [{ path: path, t0: 0, q: 0, ent: path[0], type: "n", spd: 1, vip: false, col: 0, exitCell: path[n - 1] }]
+      cars: [{ path: path, t0: 0, q: 0, ent: path[0], type: "n", spd: 0, vip: false, col: 0, exitCell: path[n - 1] }]
     };
   }
 
@@ -75995,7 +75995,7 @@ function params(n, level) {
       /* mood face: 😊 from arrival, 😠 getting angry, 😡 almost quitting (+ VIP badge) */
     if (showMeters && !car.done) {
       const fr = Math.min(1, car.wait / limitOf(st.pat, car));
-      const face = fr >= 0.8 ? "😡" : (fr >= 0.55 ? "😠" : "😊");
+      const face = fr >= 0.7 ? "😡" : (fr >= 0.4 ? "😠" : "😊");
       g.font = Math.round(cell * 0.38) + "px sans-serif";
       g.textAlign = "center";
       g.textBaseline = "middle";
@@ -76454,7 +76454,7 @@ function params(n, level) {
   }
 
 
-  /* =========================================================
+    /* =========================================================
      PLAY
   ========================================================= */
 
@@ -76465,8 +76465,6 @@ function params(n, level) {
     const was = st.cars.map(function (c) { return c.done; });
 
     hintSet = null;
-    hintSet = null;
-       
 
     if (autoOn) {
       const tg = policyToggles(lctx, st, lay.pol);
@@ -76477,9 +76475,13 @@ function params(n, level) {
       if (tg.length) lastTgl = performance.now();
     }
 
+    /* simTick resets the sound events each call, so keep the first call's events */
     simTick(lctx, st);
+    const honk1 = st.evHonk;
+    const exit1 = st.evExit;
     simTick(lctx, st);
-    
+    st.evHonk = Math.max(honk1, st.evHonk);
+    st.evExit = exit1 + st.evExit;
 
     /* start a constant-speed glide from where each car is drawn now to its new square */
     for (let i = 0; i < st.cars.length; i++) {
