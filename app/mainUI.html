@@ -78132,8 +78132,8 @@ function params(n, level) {
   .cdk-x-auto{opacity:0.5;}
 
   /* wrong guess: red X, same style as the Path Hunter blocked square */
-  .cdk-x-wrong{position:absolute;inset:0;pointer-events:none;z-index:12;background:rgba(74,31,38,0.55);}
-  .cdk-x-wrong::before,.cdk-x-wrong::after{content:"";position:absolute;left:14%;top:44%;width:72%;height:12%;background:#f33e4f;border:2px solid #7c1220;border-radius:3px;box-sizing:border-box;transform:rotate(45deg);pointer-events:none;}
+  .cdk-x-wrong{position:absolute;inset:0;pointer-events:none;z-index:12;background:transparent;}
+  .cdk-x-wrong::before,.cdk-x-wrong::after{content:"";position:absolute;left:25%;top:45%;width:50%;height:10%;background:#f33e4f;border:2px solid #7c1220;border-radius:3px;box-sizing:border-box;transform:rotate(45deg);pointer-events:none;}
   .cdk-x-wrong::after{transform:rotate(-45deg);}
 
   .cdk-start-ring{animation:cdkPulse .8s ease-in-out infinite alternate;}
@@ -79003,6 +79003,7 @@ function params(n, level) {
   let hintsUsed = 0;
   let hintCells = new Set();
   let hintKind = "good";
+    let clearedLines = new Set();   
 
   let solved = false;
   let building = false;
@@ -79199,6 +79200,7 @@ function params(n, level) {
     lose:   function () {
       [392, 330, 262, 196].forEach(function (f, i) { tone(f, i * 0.16, 0.3, "sawtooth", 0.1, f * 0.9); });
     },
+        clear:  function () { tone(659, 0.12, 0.1, "triangle", 0.14); tone(880, 0.2, 0.1, "triangle", 0.14); tone(1175, 0.28, 0.18, "triangle", 0.14); },
     start:  function () { tone(330, 0, 0.08, "triangle", 0.09); tone(494, 0.07, 0.1, "triangle", 0.09); },
     win:    function () {
       [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, i * 0.11, 0.26, "triangle", 0.17); });
@@ -79583,6 +79585,7 @@ function params(n, level) {
     cells = new Uint8Array(size * size);
     starterSet = new Set(layout.starters);
 
+    clearedLines = new Set();
     undoStack = [];
     lives = MAX_LIVES;
     mistakes = 0;
@@ -79740,10 +79743,11 @@ function params(n, level) {
       return;
     }
 
-    setCell(idx, 1);
-    SFX.mark();
-    renderBoard();
-  }
+      setCell(idx, 1);
+      SFX.mark();
+      renderBoard();
+      checkLines();
+    }
 
   function handleMarkToggle(idx) {
 
@@ -79753,9 +79757,10 @@ function params(n, level) {
     if (st === 2 || st === 3) return;
     if (st === 0 && autoOn && autoMap && autoMap[idx]) return;
 
-    setCell(idx, st === 1 ? 0 : 1);
-    SFX[st === 1 ? "remove" : "mark"]();
-    renderBoard();
+         setCell(idx, st === 1 ? 0 : 1);
+      SFX[st === 1 ? "remove" : "mark"]();
+      renderBoard();
+      checkLines();
   }
 
   /* Is the new piece part of a valid full solution together with the pieces already placed? */
@@ -79770,6 +79775,313 @@ function params(n, level) {
     if (res.aborted) return true;
 
     return res.sols.length > 0;
+  }
+  function neighborSquares(idx) {
+  const n = size;
+  const r = Math.floor(idx / n);
+  const c = idx % n;
+  const out = [];
+
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+
+      const rr = r + dr;
+      const cc = c + dc;
+
+      if (rr < 0 || cc < 0 || rr >= n || cc >= n) continue;
+
+      out.push(rr * n + cc);
+    }
+  }
+
+  return out;
+}
+    /* =========================================================
+     LINE CLEAR (rank = row, file = column)
+     A line is cleared when it holds its piece and every other
+     square in it is crossed out. The line then bounces like a
+     wave and a "CLEAR!" badge fades in and out over it.
+  ========================================================= */
+
+  function completedLines() {
+
+    const n = size;
+    const out = new Set();
+
+    const auto = autoOn ? computeAuto(n, layout.reg, placedList()) : null;
+
+    function crossed(i) {
+      return cells[i] === 1 || cells[i] === 3 || (auto && auto[i] === 1);
+    }
+
+    for (let line = 0; line < n; line++) {
+
+      let rowPiece = 0, rowOk = true;
+      let colPiece = 0, colOk = true;
+
+      for (let k = 0; k < n; k++) {
+
+        const ri = line * n + k;
+        const ci = k * n + line;
+
+        if (cells[ri] === 2) rowPiece++;
+        else if (!crossed(ri)) rowOk = false;
+
+        if (cells[ci] === 2) colPiece++;
+        else if (!crossed(ci)) colOk = false;
+      }
+
+      if (rowPiece === 1 && rowOk) out.add("r" + line);
+      if (colPiece === 1 && colOk) out.add("c" + line);
+    }
+    for (let idx = 0; idx < n * n; idx++) {
+  if (cells[idx] !== 2) continue;
+
+  const neighbors = neighborSquares(idx);
+
+  if (
+    neighbors.length &&
+    neighbors.every(function (i) {
+      return cells[i] === 1 || cells[i] === 3;
+    })
+  ) {
+    out.add("n" + idx);
+  }
+}
+
+    return out;
+  }
+
+  function lineBadge(key, delay) {
+
+    const n = size;
+    const isRow = key.charAt(0) === "r";
+    const line = Number(key.slice(1));
+    var cx = 0;
+    var cy = 0;
+    var badgeBaseSize = 0;
+    if (key.charAt(0) === "n") {
+  const square = squares[Number(key.slice(1))];
+  if (!square) return;
+
+  const a = square.getBoundingClientRect();
+  if (!a.width) return;
+
+  var cx = a.left + a.width / 2;
+  var cy = a.top + a.height / 2;
+  badgeBaseSize = a.width;
+} else {
+
+    const first = squares[isRow ? line * n : line];
+    const last = squares[isRow ? line * n + n - 1 : (n - 1) * n + line];
+    if (!first || !last) return;
+
+    const a = first.getBoundingClientRect();
+    const b = last.getBoundingClientRect();
+    if (!a.width) return;
+
+    cx = (a.left + b.right) / 2;
+    cy = (a.top + b.bottom) / 2;
+    badgeBaseSize = a.width;
+    }
+
+    const badge = document.createElement("div");
+
+    if (!badge.animate) return;
+
+   badge.textContent =
+  key.charAt(0) === "n"
+    ? "✔️ CLEAR!"
+    : (isRow ? "✔️ CLEAR!" : "✔️ CLEAR!");
+
+    Object.assign(badge.style, {
+      position: "fixed",
+      left: cx + "px",
+      top: cy + "px",
+      transform: "translate(-50%,-50%)",
+      padding: "6px 16px",
+      borderRadius: "99px",
+      background: "rgba(20,24,42,0.94)",
+      border: "2px solid #ffd700",
+      color: "#ffd700",
+      fontWeight: "900",
+      fontSize: Math.max(13, Math.min(24, badgeBaseSize * 0.42)) + "px",
+      letterSpacing: "1px",
+      whiteSpace: "nowrap",
+      boxShadow: "0 8px 26px rgba(0,0,0,0.45), 0 0 18px rgba(255,215,0,0.45)",
+      pointerEvents: "none",
+      opacity: "0",
+      zIndex: "100002"
+    });
+
+    document.body.appendChild(badge);
+
+    const anim = badge.animate([
+      { opacity: 0, transform: "translate(-50%,-30%) scale(0.5)" },
+      { opacity: 1, transform: "translate(-50%,-50%) scale(1.12)", offset: 0.16 },
+      { opacity: 1, transform: "translate(-50%,-50%) scale(1)", offset: 0.28 },
+      { opacity: 1, transform: "translate(-50%,-50%) scale(1)", offset: 0.68 },
+      { opacity: 0, transform: "translate(-50%,-110%) scale(1)" }
+    ], {
+      duration: 1700,
+      delay: delay,
+      easing: "ease-out",
+      fill: "both"
+    });
+
+    anim.onfinish = function () { badge.remove(); };
+  }
+  function neighborWave(key, delay) {
+  const center = Number(key.slice(1));
+  const neighbors = neighborSquares(center);
+
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  neighbors.forEach(function (idx, k) {
+    const square = squares[idx];
+    if (!square || !square.animate) return;
+
+    square.style.zIndex = "60";
+
+    const anim = square.animate([
+      { transform: "translateY(0) scale(1)" },
+      { transform: "translateY(-24%) scale(1.2)", offset: 0.45 },
+      { transform: "translateY(0) scale(1)" }
+    ], {
+      duration: 560,
+      delay: delay + k * 60,
+      easing: "ease-in-out"
+    });
+
+    anim.onfinish = function () {
+      square.style.zIndex = "1";
+    };
+  });
+}
+
+  function lineWave(key, delay) {
+
+    const n = size;
+    const isRow = key.charAt(0) === "r";
+    const line = Number(key.slice(1));
+
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    for (let k = 0; k < n; k++) {
+
+      const square = squares[isRow ? line * n + k : k * n + line];
+      if (!square || !square.animate) return;
+
+      square.style.zIndex = "60";
+
+      const anim = square.animate([
+        { transform: "translateY(0) scale(1)" },
+        { transform: "translateY(-24%) scale(1.2)", offset: 0.45 },
+        { transform: "translateY(0) scale(1)" }
+      ], {
+        duration: 560,
+        delay: delay + k * 60,
+        easing: "ease-in-out"
+      });
+
+      anim.onfinish = function () { square.style.zIndex = "1"; };
+    }
+  }
+
+  /* silent = just remember which lines are clear, no animation */
+  function checkLines(silent) {
+
+    if (!layout) return;
+
+    const now = completedLines();
+    const fresh = [];
+
+    now.forEach(function (key) {
+      if (!clearedLines.has(key)) fresh.push(key);
+    });
+
+    clearedLines = now;
+
+    if (silent || !fresh.length) return;
+
+fresh.forEach(function (key, i) {
+  if (key.charAt(0) === "n") {
+    neighborWave(key, i * 320);
+    lineBadge(key, i * 320);
+  } else {
+    lineWave(key, i * 320);
+    lineBadge(key, i * 320);
+  }
+});
+
+    SFX.clear();
+  }
+    /* little confetti burst on a square (particles live on the page, so board redraws never cut them) */
+  const CONFETTI_COLORS = ["#ffd700", "#ff4d5a", "#29d3ff", "#78b887", "#c77dff", "#ff9a3c", "#ffffff"];
+
+   function burstAt(idx) {
+
+    const square = squares[idx];
+    if (!square) return;
+
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const rect = square.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 24; i++) {
+
+      const bit = document.createElement("div");
+
+      if (!bit.animate) return;
+
+      const w = 5 + Math.random() * 5;
+      const h = 4 + Math.random() * 6;
+
+      Object.assign(bit.style, {
+        position: "fixed",
+        left: cx + "px",
+        top: cy + "px",
+        width: w + "px",
+        height: h + "px",
+        background: CONFETTI_COLORS[rand(CONFETTI_COLORS.length)],
+        borderRadius: Math.random() < 0.4 ? "50%" : "2px",
+        pointerEvents: "none",
+        zIndex: "100001"
+      });
+
+      document.body.appendChild(bit);
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = rect.width * (1.3 + Math.random() * 1.5);
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - rect.width * 0.45;
+      const spin = (Math.random() - 0.5) * 720;
+
+      const anim = bit.animate([
+        { transform: "translate(-50%,-50%) translate(0px,0px) rotate(0deg) scale(1)", opacity: 1 },
+        { transform: "translate(-50%,-50%) translate(" + dx + "px," + (dy + rect.width * 0.9) + "px) rotate(" + spin + "deg) scale(0.4)", opacity: 0 }
+      ], {
+        duration: 1800 + Math.random() * 900,
+        easing: "cubic-bezier(0.15, 0.7, 0.35, 1)",
+        fill: "forwards"
+      });
+
+      anim.onfinish = function () { bit.remove(); };
+    }
+  }
+
+  /* bigger celebration when the whole board is solved */
+  function celebrateAll(exceptIdx) {
+
+    placedList().forEach(function (p, i) {
+      if (p === exceptIdx) return;
+      setTimeout(function () { burstAt(p); }, 120 + i * 90);
+    });
   }
 
   function tryPiece(idx) {
@@ -79787,12 +80099,17 @@ function params(n, level) {
         solved = true;
         stopTimer();
         renderBoard();
+        burstAt(idx);
+         checkLines();
+        celebrateAll(idx);
         winLevel();
         return;
       }
 
       tipEl.textContent = "Correct! Use the ✕ squares to find the next colour.";
       renderBoard();
+      burstAt(idx);
+      checkLines();
       return;
     }
 
@@ -79821,6 +80138,7 @@ function params(n, level) {
       lives + (lives === 1 ? " life" : " lives") + " left.";
 
     renderBoard();
+      checkLines();
   }
 
   function undoMove() {
@@ -79836,9 +80154,10 @@ function params(n, level) {
 
       cells[last.idx] = last.prev;
 
-      clearHint();
+            clearHint();
       SFX.undo();
       renderBoard();
+      checkLines(true);
       return;
     }
   }
@@ -80090,6 +80409,7 @@ function params(n, level) {
   autoToggle?.addEventListener("change", function () {
     autoOn = this.checked;
     renderBoard();
+     checkLines(true);
   });
 
   oneTapToggle?.addEventListener("change", function () {
