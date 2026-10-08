@@ -42266,6 +42266,14 @@ right:0;
   <span style="font-size:1.25em;color:#f0b429;">🎯</span>
   Guess The Elo Challenge
 </button>
+<button
+  class="nav-btn"
+  data-tab="chessduko"
+  id="chessdukoNavBtn"
+>
+  🐱
+  Chessduko Challenge
+</button>
 
 
 <button
@@ -78080,6 +78088,2153 @@ function params(n, level) {
 })();
 
 </script>
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #cdk-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start;}
+  @media (max-width:1000px){#cdk-layout{grid-template-columns:1fr;}}
+
+  .cdk-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:10px;box-sizing:border-box;}
+  .cdk-card-title{color:#ffd700;font-size:13px;font-weight:900;margin-bottom:8px;}
+  .cdk-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:12px;font-weight:700;}
+  .cdk-stat-row strong{color:#fff;}
+
+  .cdk-piece-btn{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:5px;padding:5px 3px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:11px;font-weight:800;cursor:pointer;}
+  .cdk-piece-btn img{width:24px;height:24px;object-fit:contain;pointer-events:none;}
+  .cdk-piece-btn .cdk-glyph{font-size:20px;line-height:24px;height:24px;color:#fff;}
+  .cdk-piece-btn.cdk-active{border-color:#ffd700;background:rgba(255,215,0,0.13);}
+
+  .cdk-size-btn{padding:8px 2px;border-radius:9px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:12px;font-weight:900;cursor:pointer;}
+  .cdk-size-btn.cdk-active{border-color:#ffd700;background:rgba(255,215,0,0.13);color:#ffd700;}
+
+  .cdk-lvl-btn{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:#fff;font-size:16px;font-weight:900;cursor:pointer;}
+  .cdk-lvl-btn:disabled{opacity:0.3;cursor:not-allowed;}
+
+  .cdk-check{display:flex;align-items:center;gap:8px;margin-top:8px;color:#aeb3cf;font-size:11px;font-weight:700;cursor:pointer;}
+
+  .cdk-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .cdk-btn:disabled{cursor:not-allowed;}
+  .cdk-btn-green{background:#78b887;color:#000;}
+  .cdk-btn-gold{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.30);color:#ffd700;}
+  .cdk-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  .cdk-rule{padding:9px 6px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:#e8e9f4;font-size:11.5px;font-weight:800;text-align:center;line-height:1.3;}
+
+  /* board */
+  #cdkBoard{border:4px solid #3a2a22;border-radius:8px;box-sizing:border-box;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,0.4);}
+
+  /* ✕ marks: same bar style as the Path Hunter red X, but white */
+  .cdk-x{position:absolute;inset:0;pointer-events:none;z-index:10;}
+  .cdk-x::before,.cdk-x::after{content:"";position:absolute;left:25%;top:45%;width:50%;height:10%;background:#ffffff;box-shadow:0 0 0 1px rgba(20,24,42,0.55);border-radius:3px;box-sizing:border-box;transform:rotate(45deg);pointer-events:none;}
+  .cdk-x::after{transform:rotate(-45deg);}
+  .cdk-x-auto{opacity:0.5;}
+
+  /* wrong guess: red X, same style as the Path Hunter blocked square */
+  .cdk-x-wrong{position:absolute;inset:0;pointer-events:none;z-index:12;background:rgba(74,31,38,0.55);}
+  .cdk-x-wrong::before,.cdk-x-wrong::after{content:"";position:absolute;left:14%;top:44%;width:72%;height:12%;background:#f33e4f;border:2px solid #7c1220;border-radius:3px;box-sizing:border-box;transform:rotate(45deg);pointer-events:none;}
+  .cdk-x-wrong::after{transform:rotate(-45deg);}
+
+  .cdk-start-ring{animation:cdkPulse .8s ease-in-out infinite alternate;}
+  .cdk-heart-pop{animation:cdkShake .4s;}
+
+  .cdk-hint-ring{animation:cdkPulse .7s ease-in-out infinite alternate;}
+  .cdk-conflict-ring{animation:cdkPulse .55s ease-in-out infinite alternate;}
+  .cdk-win-piece{animation:cdkBounce .7s ease-in-out 2;}
+
+  .cdk-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.80);backdrop-filter:blur(7px);}
+  .cdk-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes cdkPulse{from{transform:scale(0.9);opacity:0.7}to{transform:scale(1.05);opacity:1}}
+  @keyframes cdkBounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-14%) scale(1.14)}}
+  @keyframes cdkShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+  .cdk-shake{animation:cdkShake .35s;}
+</style>
+
+<section
+  class="section hidden"
+  id="chessduko-section"
+>
+
+  <div
+    id="cdk-shell"
+    style="width:100%;max-width:1400px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <!-- title -->
+      <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto;">
+        <div style="font-size:42px;line-height:1;">🐱</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chessduko</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            One piece per colour, row and column. No two pieces may touch.
+          </p>
+        </div>
+      </div>
+
+      <!-- coach tip -->
+      <div style="display:flex;align-items:center;gap:12px;flex:1 1 280px;min-width:0;max-width:520px;box-sizing:border-box;padding:10px 14px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+        <div style="font-size:22px;line-height:1;flex:0 0 auto;">💡</div>
+        <div style="min-width:0;">
+          <strong style="display:block;color:#fff;font-size:13px;margin-bottom:3px;">Coach Tip</strong>
+          <div id="cdkTip" style="color:#aeb3cf;font-size:12px;line-height:1.45;font-weight:600;">Start with the smallest colour regions.</div>
+        </div>
+      </div>
+
+      <!-- buttons -->
+      <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+        <button type="button" id="cdkHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;white-space:nowrap;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="cdkResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;white-space:nowrap;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+       <!-- MAIN LAYOUT -->
+    <div id="cdk-layout">
+
+      <!-- BOARD CARD -->
+      <div style="background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:20px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="cdkStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Fill every colour</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="cdkHintBtn" class="cdk-btn cdk-btn-gold" style="width:auto;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">💡 Hint</button>
+            <button type="button" id="cdkUndoBtn" class="cdk-btn cdk-btn-ghost" style="width:auto;margin-top:0;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">↶ Undo</button>
+            <button type="button" id="cdkResetSideBtn" class="cdk-btn cdk-btn-green" style="width:auto;margin-top:0;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">↻ Try Again</button>
+            <div id="cdkLives"
+              style="padding:7px 12px;border-radius:99px;font-size:13px;font-weight:900;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);white-space:nowrap;letter-spacing:1px;">
+              ❤️❤️❤️
+            </div>
+            <div id="cdkProgress"
+              style="padding:7px 12px;border-radius:99px;font-size:13px;font-weight:900;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);white-space:nowrap;">
+              ♛ 0/8
+            </div>
+            <div id="cdkDiffBadge"
+              style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:900;letter-spacing:1px;color:#000;background:#78b887;white-space:nowrap;">
+              EASY
+            </div>
+          </div>
+        </div>
+
+        <div id="cdkMessage"
+          style="margin-bottom:12px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:13px;font-weight:800;text-align:center;">
+          Level 1
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+          <div class="cdk-rule">1 piece<br>per colour</div>
+          <div class="cdk-rule">1 piece per<br>column and row</div>
+          <div class="cdk-rule">Pieces cannot<br>touch</div>
+        </div>
+
+        <div id="cdkBoardArea" style="width:100%;display:flex;justify-content:center;overflow:visible;padding:6px 0 18px;box-sizing:border-box;">
+                   <div id="cdkBoard" aria-label="Chessduko board"
+            style="position:relative;width:max(320px,min(100%,980px,calc(100vh - 220px)));aspect-ratio:1 / 1;display:grid;container-type:inline-size;user-select:none;touch-action:manipulation;background:#14182a;"></div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:2px;">
+          Tap a square: first tap ✕ (mark), second tap places a piece. A wrong piece costs a life ❤️ and leaves a red ✕. 3 wrong = game over.
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+
+        <div class="cdk-card">
+          <div class="cdk-card-title">🎚 Level Select</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <button type="button" id="cdkLevelPrev" class="cdk-lvl-btn">◀</button>
+            <div style="text-align:center;">
+              <div id="cdkLevelBig" style="color:#fff;font-size:24px;font-weight:900;line-height:1;">Level 1</div>
+              <div id="cdkLevelTier" style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;margin-top:4px;">EASY</div>
+            </div>
+            <button type="button" id="cdkLevelNext" class="cdk-lvl-btn">▶</button>
+          </div>
+          <div id="cdkUnlocked" style="color:#858ba8;font-size:11px;font-weight:700;text-align:center;margin-top:8px;">Unlocked up to level 1</div>
+        </div>
+
+        <div class="cdk-card">
+          <div class="cdk-card-title">🔲 Board Size</div>
+          <div id="cdkSizeGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;"></div>
+        </div>
+
+        <div class="cdk-card">
+          <div class="cdk-card-title">♞ Choose Your Piece</div>
+          <div id="cdkPieceGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;"></div>
+          <label class="cdk-check"><input type="checkbox" id="cdkAutoToggle"> Auto ✕ squares ruled out (helper)</label>
+          <label class="cdk-check"><input type="checkbox" id="cdkOneTapToggle"> One tap places a piece (skip ✕)</label>
+          <label class="cdk-check"><input type="checkbox" id="cdkSoundToggle" checked> Sound effects</label>
+        </div>
+
+        <div class="cdk-card">
+          <div class="cdk-card-title">📊 Level Stats</div>
+          <div style="display:grid;gap:5px;">
+            <div class="cdk-stat-row"><span>Piece</span><strong id="cdkPieceStat">Queen</strong></div>
+            <div class="cdk-stat-row"><span>Board</span><strong id="cdkSizeStat">8 × 8</strong></div>
+            <div class="cdk-stat-row"><span>Placed</span><strong id="cdkPlacedStat">0 / 8</strong></div>
+            <div class="cdk-stat-row"><span>Lives left</span><strong id="cdkLivesStat">3 / 3</strong></div>
+            <div class="cdk-stat-row"><span>Wrong guesses</span><strong id="cdkMistakeStat">0</strong></div>
+            <div class="cdk-stat-row"><span>Hints used</span><strong id="cdkHintStat">0</strong></div>
+            <div class="cdk-stat-row"><span>Time</span><strong id="cdkTimeStat">00:00</strong></div>
+          </div>
+        </div>
+
+        <div class="cdk-card">
+          <div class="cdk-card-title">🏅 Scoreboard</div>
+          <div style="display:grid;gap:5px;">
+            <div class="cdk-stat-row"><span>Score</span><strong id="cdkScoreStat">0</strong></div>
+            <div class="cdk-stat-row"><span>Levels cleared</span><strong id="cdkClearedStat">0</strong></div>
+            <div class="cdk-stat-row"><span>Stars</span><strong id="cdkStarsStat">0 ⭐</strong></div>
+            <div class="cdk-stat-row"><span>Best time (this size)</span><strong id="cdkBestTimeStat">-</strong></div>
+            <div class="cdk-stat-row"><span>Best level (this size)</span><strong id="cdkBestStat">0</strong></div>
+          </div>
+        </div>
+
+    
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="cdkHowToModal" class="cdk-modal" style="z-index:99999;">
+    <div class="cdk-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;max-height:90vh;overflow:auto;">
+      <button type="button" id="cdkHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="color:#ffd700;font-size:42px;text-align:center;margin-bottom:10px;">♛</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        The board is split into coloured regions. Place exactly one piece in every region so that all the rules below are true at the same time.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ Exactly <b>one piece in every colour</b>.</div>
+        <div>2️⃣ Exactly <b>one piece in every row and every column</b>.</div>
+        <div>3️⃣ <b>No two pieces may touch</b>, not even diagonally.</div>
+        <div>4️⃣ The board starts <b>empty</b>. Start with the smallest colour regions and work out where the first piece goes.</div>
+        <div>5️⃣ Tap a square once for ✕ (a square you know is empty), tap again to place a piece. Squares ruled out by your pieces are crossed for you.</div>
+        <div>6️⃣ You have <b>3 lives ❤️</b>. A wrong piece costs a life and leaves a red ✕. Lose all 3 and the level is over. Every board is solved by logic, never by guessing.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="cdkLoseModal" class="cdk-modal">
+    <div class="cdk-modal-box" style="border:1px solid rgba(255,77,90,0.35);">
+      <div style="font-size:48px;margin-bottom:8px;">💔</div>
+      <div style="color:#ff4d5a;font-size:11px;font-weight:900;letter-spacing:1px;">OUT OF LIVES</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Game over</h3>
+      <p id="cdkLoseMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">Three wrong guesses. Think it through with the row, column and colour rules.</p>
+      <button type="button" id="cdkLoseRetry" class="cdk-btn cdk-btn-green" style="margin-top:12px;">↻ Try This Board Again</button>
+      <button type="button" id="cdkLoseNew" class="cdk-btn cdk-btn-ghost">🎲 New Board (same level)</button>
+      <button type="button" id="cdkLoseClose" class="cdk-btn cdk-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="cdkWinModal" class="cdk-modal">
+    <div class="cdk-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;color:#ffd700;margin-bottom:8px;">♛</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">LEVEL COMPLETE</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Board solved! 🎉</h3>
+      <div id="cdkWinStars" style="font-size:34px;letter-spacing:6px;margin:4px 0 8px;">⭐⭐⭐</div>
+      <p id="cdkWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You solved the board.</p>
+      <button type="button" id="cdkWinNext" class="cdk-btn cdk-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="cdkWinRetry" class="cdk-btn cdk-btn-ghost">↻ Play This Level Again</button>
+      <button type="button" id="cdkWinClose" class="cdk-btn cdk-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   🎨 OLYMPUS CHESSDUKO
+   ---------------------------------------------------------
+   Completely isolated game engine (everything is cdk-prefixed).
+
+   Mudoku-style colour logic with chess pieces:
+
+   - Boards 8x8 ... 16x16, always N colour regions on an NxN board
+   - Place ONE piece in every colour region
+   - ONE piece in every row and ONE piece in every column
+   - No two pieces may touch (including diagonally)
+   - The board starts EMPTY. Early levels glow 1-2 starter squares
+     (the player taps them to place the first pieces), later levels
+     give no starter at all
+   - Levels are built from a hidden valid solution, then the
+     regions are grown around it and checked by a solver until
+     the board has exactly ONE solution (pure logic, no guessing)
+   - 3 lives: a wrong piece is judged by the solver, costs a life
+     and leaves a red X. Correct pieces stay on the board
+   - Tap cycle: empty -> ✕ -> piece
+   - Sounds use the Web Audio API (no audio files needed)
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* ENGINE START */
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const SIZES = [8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+  const PIECES = {
+    queen:  { label: "Queen",  file: "wQ.png", glyph: "♕" },
+    king:   { label: "King",   file: "wK.png", glyph: "♔" },
+    rook:   { label: "Rook",   file: "wR.png", glyph: "♖" },
+    bishop: { label: "Bishop", file: "wB.png", glyph: "♗" },
+    knight: { label: "Knight", file: "wN.png", glyph: "♘" }
+  };
+
+  const PIECE_ORDER = ["queen", "king", "rook", "bishop", "knight"];
+
+  const PALETTE = [
+    "#a8d981", "#3fb865", "#f7a8dc", "#ee8a3c",
+    "#b87a4f", "#8cc4ea", "#6b62d6", "#42bdb4",
+    "#f8c8a4", "#f3d95f", "#c7a2f2", "#e5586d",
+    "#9aa5b4", "#bfe8d0", "#8d5fbf", "#f4a3a3"
+  ];
+
+  const TIERS = [
+    { min: 1,  name: "Easy",   color: "#78b887" },
+    { min: 4,  name: "Medium", color: "#ffd700" },
+    { min: 8,  name: "Hard",   color: "#ff9a3c" },
+    { min: 13, name: "Expert", color: "#ff4d5a" },
+    { min: 20, name: "Master", color: "#c77dff" },
+    { min: 30, name: "Legend", color: "#29d3ff" }
+  ];
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function rand(n) {
+    return Math.floor(Math.random() * n);
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = rand(i + 1);
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function tierOf(level) {
+    let t = TIERS[0];
+    TIERS.forEach(function (x) { if (level >= x.min) t = x; });
+    return t;
+  }
+
+  /* glowing starter squares: 2 on the first levels, 1 for a while, then none */
+  function starterCountFor(level) {
+    return 0;
+  }
+
+  /* how twisty / uneven the colour regions are (0 = chunky, 1 = snakes) */
+  function chaosFor(level) {
+    return Math.min(0.10 + level * 0.03, 0.78);
+  }
+
+
+  /* =========================================================
+     RULES ENGINE (shared by the game, the hint AND the solver)
+     ---------------------------------------------------------
+     reg    = Int16Array(n*n), region id (0..n-1) of every square
+     pieces = array of square indexes
+  ========================================================= */
+
+  function touching(n, a, b) {
+    const ar = Math.floor(a / n), ac = a % n;
+    const br = Math.floor(b / n), bc = b % n;
+    return Math.abs(ar - br) <= 1 && Math.abs(ac - bc) <= 1;
+  }
+
+  /* Every piece that breaks a rule against another piece. */
+  function findConflicts(n, reg, pieces) {
+
+    const bad = new Set();
+
+    for (let i = 0; i < pieces.length; i++) {
+      for (let j = i + 1; j < pieces.length; j++) {
+
+        const a = pieces[i];
+        const b = pieces[j];
+
+        if (
+          Math.floor(a / n) === Math.floor(b / n) ||
+          a % n === b % n ||
+          reg[a] === reg[b] ||
+          touching(n, a, b)
+        ) {
+          bad.add(a);
+          bad.add(b);
+        }
+      }
+    }
+
+    return bad;
+  }
+
+  /* Squares that can no longer hold a piece because of the placed ones. */
+  function computeAuto(n, reg, pieces) {
+
+    const out = new Uint8Array(n * n);
+    if (!pieces.length) return out;
+
+    const rows = new Uint8Array(n);
+    const cols = new Uint8Array(n);
+    const regs = new Uint8Array(n);
+
+    pieces.forEach(function (p) {
+      rows[Math.floor(p / n)] = 1;
+      cols[p % n] = 1;
+      regs[reg[p]] = 1;
+    });
+
+    for (let i = 0; i < n * n; i++) {
+      if (rows[Math.floor(i / n)] || cols[i % n] || regs[reg[i]]) out[i] = 1;
+    }
+
+    pieces.forEach(function (p) {
+      const r = Math.floor(p / n);
+      const c = p % n;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr;
+          const cc = c + dc;
+          if (rr < 0 || cc < 0 || rr >= n || cc >= n) continue;
+          out[rr * n + cc] = 1;
+        }
+      }
+    });
+
+    /* the pieces themselves are not "ruled out" */
+    pieces.forEach(function (p) { out[p] = 0; });
+
+    return out;
+  }
+
+
+  /* =========================================================
+     SOLVER
+     ---------------------------------------------------------
+     Finds up to "limit" full solutions. Always branches on the
+     row / column / colour that has the FEWEST free squares left.
+     fixed = squares that must already contain a piece.
+     Returns { sols: [cols per row...], aborted, invalid }
+  ========================================================= */
+
+  function solveAll(n, reg, fixed, limit, nodeCap) {
+
+    const N = n * n;
+
+    const regCells = [];
+    for (let k = 0; k < n; k++) regCells.push([]);
+    for (let i = 0; i < N; i++) regCells[reg[i]].push(i);
+
+    /* squares each placed piece wipes out (itself included) */
+    const kills = new Array(N);
+    const stamp = new Int32Array(N);
+
+    for (let i = 0; i < N; i++) {
+
+      const r = Math.floor(i / n);
+      const c = i % n;
+      const tag = i + 1;
+      const list = [];
+
+      function add(j) {
+        if (stamp[j] === tag) return;
+        stamp[j] = tag;
+        list.push(j);
+      }
+
+      for (let x = 0; x < n; x++) { add(r * n + x); add(x * n + c); }
+
+      const rc = regCells[reg[i]];
+      for (let x = 0; x < rc.length; x++) add(rc[x]);
+
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr;
+          const cc = c + dc;
+          if (rr < 0 || cc < 0 || rr >= n || cc >= n) continue;
+          add(rr * n + cc);
+        }
+      }
+
+      kills[i] = list;
+    }
+
+    const elim = new Int16Array(N);
+    const rowDone = new Uint8Array(n);
+    const colDone = new Uint8Array(n);
+    const regDone = new Uint8Array(n);
+    const stack = [];
+    const sols = [];
+
+    let nodes = 0;
+    let aborted = false;
+
+    function place(cell) {
+      const k = kills[cell];
+      for (let x = 0; x < k.length; x++) elim[k[x]]++;
+      rowDone[Math.floor(cell / n)] = 1;
+      colDone[cell % n] = 1;
+      regDone[reg[cell]] = 1;
+      stack.push(cell);
+    }
+
+    function unplace() {
+      const cell = stack.pop();
+      const k = kills[cell];
+      for (let x = 0; x < k.length; x++) elim[k[x]]--;
+      rowDone[Math.floor(cell / n)] = 0;
+      colDone[cell % n] = 0;
+      regDone[reg[cell]] = 0;
+    }
+
+    function rec() {
+
+      if (aborted || sols.length >= limit) return;
+
+      if (stack.length === n) {
+        const cols = new Array(n);
+        for (let x = 0; x < stack.length; x++) {
+          cols[Math.floor(stack[x] / n)] = stack[x] % n;
+        }
+        sols.push(cols);
+        return;
+      }
+
+      if (++nodes > nodeCap) { aborted = true; return; }
+
+      let bestCnt = 1e9;
+      let bestType = -1;
+      let bestIdx = -1;
+
+      for (let r = 0; r < n; r++) {
+        if (rowDone[r]) continue;
+        let cnt = 0;
+        for (let c = 0; c < n; c++) if (!elim[r * n + c]) cnt++;
+        if (cnt === 0) return;
+        if (cnt < bestCnt) { bestCnt = cnt; bestType = 0; bestIdx = r; }
+      }
+
+      for (let c = 0; c < n; c++) {
+        if (colDone[c]) continue;
+        let cnt = 0;
+        for (let r = 0; r < n; r++) if (!elim[r * n + c]) cnt++;
+        if (cnt === 0) return;
+        if (cnt < bestCnt) { bestCnt = cnt; bestType = 1; bestIdx = c; }
+      }
+
+      for (let k = 0; k < n; k++) {
+        if (regDone[k]) continue;
+        const rc = regCells[k];
+        let cnt = 0;
+        for (let x = 0; x < rc.length; x++) if (!elim[rc[x]]) cnt++;
+        if (cnt === 0) return;
+        if (cnt < bestCnt) { bestCnt = cnt; bestType = 2; bestIdx = k; }
+      }
+
+      const options = [];
+
+      if (bestType === 0) {
+        for (let c = 0; c < n; c++) if (!elim[bestIdx * n + c]) options.push(bestIdx * n + c);
+      } else if (bestType === 1) {
+        for (let r = 0; r < n; r++) if (!elim[r * n + bestIdx]) options.push(r * n + bestIdx);
+      } else {
+        const rc = regCells[bestIdx];
+        for (let x = 0; x < rc.length; x++) if (!elim[rc[x]]) options.push(rc[x]);
+      }
+
+      for (let x = 0; x < options.length; x++) {
+        place(options[x]);
+        rec();
+        unplace();
+        if (aborted || sols.length >= limit) return;
+      }
+    }
+
+    for (let x = 0; x < fixed.length; x++) {
+      if (elim[fixed[x]]) return { sols: [], aborted: false, invalid: true };
+      place(fixed[x]);
+    }
+
+    rec();
+
+    return { sols: sols, aborted: aborted, invalid: false };
+  }
+
+
+  /* =========================================================
+     LEVEL GENERATOR
+     ---------------------------------------------------------
+     1. Plant a hidden valid solution (one per row and column,
+        no two touching)
+     2. Grow N colour regions outward from those squares
+     3. Solve it. If a second solution exists, recolour one
+        square of that second solution and try again, until the
+        board has exactly one solution
+     4. Pick locked clue pieces for the early levels
+     A planted solution always exists, so every level is solvable.
+  ========================================================= */
+
+  function plantSolution(n) {
+
+    const cols = new Array(n).fill(-1);
+    const used = new Uint8Array(n);
+
+    function dfs(r) {
+
+      if (r === n) return true;
+
+      const opts = [];
+      for (let c = 0; c < n; c++) {
+        if (used[c]) continue;
+        if (r > 0 && Math.abs(cols[r - 1] - c) <= 1) continue;
+        opts.push(c);
+      }
+
+      shuffle(opts);
+
+      for (let x = 0; x < opts.length; x++) {
+        cols[r] = opts[x];
+        used[opts[x]] = 1;
+        if (dfs(r + 1)) return true;
+        used[opts[x]] = 0;
+        cols[r] = -1;
+      }
+
+      return false;
+    }
+
+    dfs(0);
+    return cols;
+  }
+
+  function neighbors4(n, i) {
+
+    const r = Math.floor(i / n);
+    const c = i % n;
+    const out = [];
+
+    if (r > 0) out.push(i - n);
+    if (r < n - 1) out.push(i + n);
+    if (c > 0) out.push(i - 1);
+    if (c < n - 1) out.push(i + 1);
+
+    return out;
+  }
+
+  function growRegions(n, sol, level) {
+
+    const N = n * n;
+    const reg = new Int16Array(N).fill(-1);
+    const sizes = new Int16Array(n);
+    const chaos = Math.max(chaosFor(level), n >= 13 ? 0.40 : 0);
+
+    /* chunky regions early, uneven ones later */
+    const duel = level < 8 && n <= 10;
+
+    let assigned = 0;
+    let last = -1;
+
+    for (let r = 0; r < n; r++) {
+      const cell = r * n + sol[r];
+      reg[cell] = r;
+      sizes[r] = 1;
+      assigned++;
+      last = cell;
+    }
+
+    while (assigned < N) {
+
+      let cands = [];
+
+      /* sometimes keep extending the region we just grew (snake-like shapes) */
+      if (last >= 0 && Math.random() < chaos) {
+        const nb = neighbors4(n, last);
+        for (let x = 0; x < nb.length; x++) {
+          if (reg[nb[x]] === -1) cands.push(nb[x] * 16 + reg[last]);
+        }
+      }
+
+      if (!cands.length) {
+        for (let i = 0; i < N; i++) {
+          if (reg[i] !== -1) continue;
+          const nb = neighbors4(n, i);
+          for (let x = 0; x < nb.length; x++) {
+            if (reg[nb[x]] !== -1) cands.push(i * 16 + reg[nb[x]]);
+          }
+        }
+      }
+
+      let pickV = cands[rand(cands.length)];
+
+      if (duel) {
+        const other = cands[rand(cands.length)];
+        if (sizes[other & 15] < sizes[pickV & 15]) pickV = other;
+      }
+
+      const cell = pickV >> 4;
+      const region = pickV & 15;
+
+      reg[cell] = region;
+      sizes[region]++;
+      assigned++;
+      last = cell;
+    }
+
+    return reg;
+  }
+
+  function regionStaysConnected(n, reg, cell, id) {
+
+    const N = n * n;
+    const cells = [];
+
+    for (let i = 0; i < N; i++) if (reg[i] === id && i !== cell) cells.push(i);
+    if (!cells.length) return false;
+
+    const seen = new Uint8Array(N);
+    const q = [cells[0]];
+    seen[cells[0]] = 1;
+    let count = 1;
+
+    for (let h = 0; h < q.length; h++) {
+      const nb = neighbors4(n, q[h]);
+      for (let x = 0; x < nb.length; x++) {
+        const t = nb[x];
+        if (seen[t] || t === cell || reg[t] !== id) continue;
+        seen[t] = 1;
+        count++;
+        q.push(t);
+      }
+    }
+
+    return count === cells.length;
+  }
+
+  /* Recolour one square of a wrong second solution so it stops working. */
+  function repairStep(n, reg, sol, alt) {
+
+    const keep = new Set();
+    for (let r = 0; r < n; r++) keep.add(r * n + sol[r]);
+
+    const options = [];
+
+    for (let r = 0; r < n; r++) {
+
+      const cell = r * n + alt[r];
+      if (keep.has(cell)) continue;
+
+      const nb = neighbors4(n, cell);
+      for (let x = 0; x < nb.length; x++) {
+        if (reg[nb[x]] !== reg[cell]) options.push([cell, reg[nb[x]]]);
+      }
+    }
+
+    shuffle(options);
+
+    for (let x = 0; x < options.length; x++) {
+      const cell = options[x][0];
+      if (regionStaysConnected(n, reg, cell, reg[cell])) {
+        reg[cell] = options[x][1];
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /* Nudge a random colour border by one square (used when no direct fix exists). */
+  function perturb(n, reg, sol) {
+
+    const keep = new Set();
+    for (let r = 0; r < n; r++) keep.add(r * n + sol[r]);
+
+    const options = [];
+
+    for (let i = 0; i < n * n; i++) {
+      if (keep.has(i)) continue;
+      const nb = neighbors4(n, i);
+      for (let x = 0; x < nb.length; x++) {
+        if (reg[nb[x]] !== reg[i]) options.push([i, reg[nb[x]]]);
+      }
+    }
+
+    shuffle(options);
+
+    for (let x = 0; x < options.length && x < 40; x++) {
+      if (regionStaysConnected(n, reg, options[x][0], reg[options[x][0]])) {
+        reg[options[x][0]] = options[x][1];
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function sameSolution(a, b) {
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  function finishLayout(n, level, sol, reg, unique) {
+
+    const solution = [];
+    for (let r = 0; r < n; r++) solution.push(r * n + sol[r]);
+
+    /* starters: the answer squares of the smallest colour regions */
+    const sizes = new Array(n).fill(0);
+    for (let i = 0; i < n * n; i++) sizes[reg[i]]++;
+
+    const order = shuffle(Array.from({ length: n }, function (_, i) { return i; }));
+    order.sort(function (a, b) { return sizes[a] - sizes[b]; });
+
+    const starters = [];
+    const want = Math.min(starterCountFor(level), n - 1);
+
+    for (let x = 0; x < want; x++) {
+      for (let q = 0; q < solution.length; q++) {
+        if (reg[solution[q]] === order[x]) { starters.push(solution[q]); break; }
+      }
+    }
+
+    return {
+      n: n,
+      reg: reg,
+      colors: shuffle(PALETTE.slice(0, n)),
+      solution: solution,
+      starters: starters,
+      unique: unique
+    };
+  }
+
+  function generateLevel(n, level) {
+
+    const deadline = performance.now() + 1100 + n * 90;
+
+    let fallback = null;
+
+    while (true) {
+
+      const sol = plantSolution(n);
+      const reg = growRegions(n, sol, level);
+
+      let unique = false;
+
+      for (let it = 0; it < 600; it++) {
+
+        const res = solveAll(n, reg, [], 2, 40000);
+
+        if (res.aborted) break;
+
+        if (res.sols.length <= 1) { unique = true; break; }
+
+        const alt = sameSolution(res.sols[0], sol) ? res.sols[1] : res.sols[0];
+
+        if (!repairStep(n, reg, sol, alt)) {
+          if (!perturb(n, reg, sol)) break;
+        }
+        if (performance.now() > deadline) break;
+      }
+
+      if (unique) return finishLayout(n, level, sol, reg, true);
+
+      if (!fallback) fallback = { sol: sol, reg: reg };
+
+      if (performance.now() > deadline) break;
+    }
+
+    /* still a valid, solvable board (just maybe more than one answer) */
+    return finishLayout(n, level, fallback.sol, fallback.reg, false);
+  }
+
+  /* ENGINE END */
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let size = 8;
+  let pieceType = "queen";
+  let level = 1;
+
+  let layout = null;        // { n, reg, colors, solution, starters, unique }
+  let cells = new Uint8Array(0);   // 0 empty, 1 mark, 2 piece, 3 wrong guess (red X)
+  let starterSet = new Set();
+  let undoStack = [];
+
+  let autoMap = null;
+  let conflicts = new Set();
+
+  const MAX_LIVES = 3;
+    const MAX_HINTS = 3;
+  let lives = MAX_LIVES;
+  let mistakes = 0;
+  let gameOver = false;
+  let hintsUsed = 0;
+  let hintCells = new Set();
+  let hintKind = "good";
+
+  let solved = false;
+  let building = false;
+  let buildToken = 0;
+
+  let autoOn = false;
+  let oneTapOn = false;
+  let soundOn = true;
+
+  /* session scoreboard */
+  let score = 0;
+  let cleared = 0;
+  let starsTotal = 0;
+
+  let bestCleared = 0;
+  let bestTime = 0;
+  const memBest = {};
+
+  /* timer */
+  let elapsed = 0;
+  let lastTick = 0;
+  let timerId = null;
+
+  let modalTimer = null;
+  let hintTimer = null;
+
+  const squares = [];
+
+  const TIPS = [
+    "Start with the smallest colour regions. A region with one square must hold a piece.",
+    "When a colour sits inside one row or column, no other colour can use that row or column.",
+    "A piece wipes out its whole row, column, colour and the 8 squares around it.",
+    "If two colours share the same two columns, those columns are used up. Cross them out everywhere else.",
+    "Mark squares with ✕ when you are sure. It keeps the board clear while you think.",
+    "Look for a colour whose squares all touch the same square. That square cannot hold a piece."
+  ];
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section = document.getElementById("chessduko-section");
+  const board = document.getElementById("cdkBoard");
+
+  const sizeGrid = document.getElementById("cdkSizeGrid");
+  const pieceGrid = document.getElementById("cdkPieceGrid");
+  const autoToggle = document.getElementById("cdkAutoToggle");
+  const oneTapToggle = document.getElementById("cdkOneTapToggle");
+  const soundToggle = document.getElementById("cdkSoundToggle");
+
+  const resetBtn = document.getElementById("cdkResetBtn");
+  const resetSideBtn = document.getElementById("cdkResetSideBtn");
+  const hintBtn = document.getElementById("cdkHintBtn");
+  const undoBtn = document.getElementById("cdkUndoBtn");
+
+  const levelPrev = document.getElementById("cdkLevelPrev");
+  const levelNext = document.getElementById("cdkLevelNext");
+  const levelBig = document.getElementById("cdkLevelBig");
+  const levelTier = document.getElementById("cdkLevelTier");
+  const unlockedEl = document.getElementById("cdkUnlocked");
+  const diffBadge = document.getElementById("cdkDiffBadge");
+  const progressEl = document.getElementById("cdkProgress");
+
+  const howToBtn = document.getElementById("cdkHowToBtn");
+  const howToModal = document.getElementById("cdkHowToModal");
+  const howToClose = document.getElementById("cdkHowToClose");
+
+  const winModal = document.getElementById("cdkWinModal");
+  const winNext = document.getElementById("cdkWinNext");
+  const winRetry = document.getElementById("cdkWinRetry");
+  const winClose = document.getElementById("cdkWinClose");
+  const winMessage = document.getElementById("cdkWinMessage");
+  const winStars = document.getElementById("cdkWinStars");
+
+  const statusEl = document.getElementById("cdkStatus");
+  const messageEl = document.getElementById("cdkMessage");
+
+  const pieceStatEl = document.getElementById("cdkPieceStat");
+  const sizeStatEl = document.getElementById("cdkSizeStat");
+  const placedStatEl = document.getElementById("cdkPlacedStat");
+  const livesStatEl = document.getElementById("cdkLivesStat");
+  const livesEl = document.getElementById("cdkLives");
+
+  const loseModal = document.getElementById("cdkLoseModal");
+  const loseRetry = document.getElementById("cdkLoseRetry");
+  const loseNew = document.getElementById("cdkLoseNew");
+  const loseClose = document.getElementById("cdkLoseClose");
+  const mistakeStatEl = document.getElementById("cdkMistakeStat");
+  const hintStatEl = document.getElementById("cdkHintStat");
+  const timeStatEl = document.getElementById("cdkTimeStat");
+
+  const scoreStatEl = document.getElementById("cdkScoreStat");
+  const clearedStatEl = document.getElementById("cdkClearedStat");
+  const starsStatEl = document.getElementById("cdkStarsStat");
+  const bestTimeStatEl = document.getElementById("cdkBestTimeStat");
+  const bestStatEl = document.getElementById("cdkBestStat");
+
+  const tipEl = document.getElementById("cdkTip");
+
+  if (!section || !board) {
+    return;
+  }
+
+
+  /* =========================================================
+     SAVED PROGRESS (best level + best time per board size)
+  ========================================================= */
+
+  function levelKey() { return "cdkBest_" + size; }
+  function timeKey() { return "cdkBestTime_" + size; }
+
+  function readNum(key) {
+    try {
+      return Number(localStorage.getItem(key)) || 0;
+    } catch (e) {
+      return memBest[key] || 0;
+    }
+  }
+
+  function writeNum(key, value) {
+    memBest[key] = value;
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (e) {}
+  }
+
+  function unlockedLevel() {
+    return Math.max(bestCleared + 1, level);
+  }
+
+
+  /* =========================================================
+     SOUND (Web Audio API, no files needed)
+  ========================================================= */
+
+  let audioCtx = null;
+
+  function getCtx() {
+
+    if (!audioCtx) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      } catch (e) {
+        audioCtx = null;
+      }
+    }
+
+    if (audioCtx && audioCtx.state === "suspended") {
+      try { audioCtx.resume(); } catch (e) {}
+    }
+
+    return audioCtx;
+  }
+
+  function tone(freq, delay, dur, type, vol, slideTo) {
+
+    if (!soundOn) return;
+
+    const ctx = getCtx();
+    if (!ctx) return;
+
+    try {
+
+      const t0 = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = type || "sine";
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.03);
+
+    } catch (e) {}
+  }
+
+  const SFX = {
+    mark:   function () { tone(520, 0, 0.06, "triangle", 0.12); },
+    place:  function () { tone(440, 0, 0.09, "sine", 0.18, 660); tone(880, 0.07, 0.12, "sine", 0.14); },
+    remove: function () { tone(500, 0, 0.09, "sine", 0.12, 300); },
+    bad:    function () { tone(190, 0, 0.18, "sawtooth", 0.11, 130); tone(150, 0.1, 0.18, "square", 0.07, 110); },
+    undo:   function () { tone(420, 0, 0.08, "triangle", 0.12, 320); },
+    hint:   function () { tone(784, 0, 0.12, "sine", 0.13); tone(988, 0.09, 0.12, "sine", 0.13); tone(1319, 0.18, 0.18, "sine", 0.13); },
+    lose:   function () {
+      [392, 330, 262, 196].forEach(function (f, i) { tone(f, i * 0.16, 0.3, "sawtooth", 0.1, f * 0.9); });
+    },
+    start:  function () { tone(330, 0, 0.08, "triangle", 0.09); tone(494, 0.07, 0.1, "triangle", 0.09); },
+    win:    function () {
+      [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, i * 0.11, 0.26, "triangle", 0.17); });
+      tone(1568, 0.6, 0.45, "sine", 0.13);
+    }
+  };
+
+
+  /* =========================================================
+     TIMER (only counts while this section is visible)
+  ========================================================= */
+
+  function formatTime(ms) {
+    let s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    s = s % 60;
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function stopTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function startTimer() {
+
+    stopTimer();
+
+    lastTick = performance.now();
+    timerId = setInterval(tick, 250);
+  }
+
+  function tick() {
+
+    const now = performance.now();
+    const dt = now - lastTick;
+    lastTick = now;
+
+    if (solved || building) return;
+    if (section.getClientRects().length === 0) return;
+
+    elapsed += dt;
+    timeStatEl.textContent = formatTime(elapsed);
+  }
+
+
+  /* =========================================================
+     CREATE BOARD (squares only, contents are drawn in render)
+  ========================================================= */
+
+  function createBoard() {
+
+    board.innerHTML = "";
+    squares.length = 0;
+
+    board.style.gridTemplateColumns = "repeat(" + size + ", 1fr)";
+    board.style.gridTemplateRows = "repeat(" + size + ", 1fr)";
+
+    for (let idx = 0; idx < size * size; idx++) {
+
+      const square = document.createElement("div");
+
+      square.className = "cdk-square";
+      square.dataset.idx = String(idx);
+
+      Object.assign(square.style, {
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        minWidth: "0",
+        minHeight: "0",
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        zIndex: "1"
+      });
+
+      square.addEventListener("click", function () { handleSquare(idx); });
+
+      square.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+        handleMarkToggle(idx);
+      });
+
+      board.appendChild(square);
+      squares.push(square);
+    }
+  }
+
+
+  /* =========================================================
+     IMAGE ELEMENTS (with a text fallback if an asset is missing)
+  ========================================================= */
+
+  function createPieceImage(file, alt, glyph) {
+
+    const PIECE_SCALE = "92%";
+
+    const img = document.createElement("img");
+
+    img.src = "assets/pieces/" + file;
+    img.alt = alt;
+    img.draggable = false;
+
+    Object.assign(img.style, {
+      position: "relative",
+      zIndex: "30",
+      width: PIECE_SCALE,
+      height: PIECE_SCALE,
+      maxWidth: "none",
+      maxHeight: "none",
+      flexShrink: "0",
+      objectFit: "contain",
+      display: "block",
+      pointerEvents: "none",
+      userSelect: "none"
+    });
+
+    img.addEventListener("error", function () {
+
+      const span = document.createElement("span");
+      span.textContent = glyph;
+      span.className = img.className;
+      span.style.animationDelay = img.style.animationDelay;
+
+      Object.assign(span.style, {
+        position: "relative",
+        zIndex: "30",
+        fontSize: (82 / size) + "cqw",
+        lineHeight: "1",
+        color: "#ffffff",
+        webkitTextStroke: "1px #000000",
+        pointerEvents: "none",
+        userSelect: "none"
+      });
+
+      if (img.parentNode) {
+        img.parentNode.replaceChild(span, img);
+      }
+    });
+
+    return img;
+  }
+
+  function addOverlay(square, css, className) {
+    const el = document.createElement("div");
+    Object.assign(el.style, { position: "absolute", pointerEvents: "none" }, css);
+    if (className) el.className = className;
+    square.appendChild(el);
+    return el;
+  }
+
+
+  /* =========================================================
+     BOARD STATE HELPERS
+  ========================================================= */
+
+  function placedList() {
+
+    const out = [];
+    for (let i = 0; i < cells.length; i++) if (cells[i] === 2) out.push(i);
+
+    return out;
+  }
+
+  function refreshDerived() {
+
+    if (!layout) return;
+
+    const placed = placedList();
+
+    conflicts = new Set();
+    autoMap = autoOn ? computeAuto(size, layout.reg, placed) : null;
+  }
+
+  /* thick dark line where two colours meet, thin light line inside a colour */
+  function sideBorder(r, c, dr, dc) {
+
+    const n = size;
+    const rr = r + dr;
+    const cc = c + dc;
+
+    const THICK = "2px solid rgba(20,24,42,0.92)";
+    const THIN = "1px solid rgba(255,255,255,0.22)";
+
+    if (rr < 0 || cc < 0 || rr >= n || cc >= n) return THICK;
+
+    return layout.reg[rr * n + cc] !== layout.reg[r * n + c] ? THICK : THIN;
+  }
+
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
+  function renderBoard() {
+
+    if (!layout) return;
+
+    const n = size;
+    const reg = layout.reg;
+
+    refreshDerived();
+
+    const showAuto = autoOn && !solved && autoMap;
+
+    for (let idx = 0; idx < n * n; idx++) {
+
+      const square = squares[idx];
+      if (!square) continue;
+
+      while (square.firstChild) {
+        square.removeChild(square.firstChild);
+      }
+
+      const r = Math.floor(idx / n);
+      const c = idx % n;
+      const st = cells[idx];
+
+      square.className = "cdk-square";
+      square.style.background = layout.colors[reg[idx]];
+      square.style.borderTop = sideBorder(r, c, -1, 0);
+      square.style.borderBottom = sideBorder(r, c, 1, 0);
+      square.style.borderLeft = sideBorder(r, c, 0, -1);
+      square.style.borderRight = sideBorder(r, c, 0, 1);
+      square.style.cursor = (st === 2 || st === 3 || solved || gameOver) ? "default" : "pointer";
+
+      if (st === 2) {
+
+        const isBad = false;
+
+        addOverlay(square, {
+          inset: "7%",
+          borderRadius: "50%",
+          boxSizing: "border-box",
+          zIndex: "20",
+          background: isBad ? "rgba(225,45,65,0.82)" : (solved ? "rgba(34,140,78,0.80)" : "rgba(20,24,42,0.62)"),
+          border: "2px solid rgba(255,255,255,0.35)"
+        }, "");
+
+        const img = createPieceImage(PIECES[pieceType].file, "White " + PIECES[pieceType].label, PIECES[pieceType].glyph);
+
+        if (solved) {
+          img.className = "cdk-win-piece";
+          img.style.animationDelay = ((Math.floor(idx / n)) * 0.05) + "s";
+        }
+
+        square.appendChild(img);
+
+      } else if (st === 3) {
+
+        addOverlay(square, {}, "cdk-x-wrong");
+
+      } else if (st === 1) {
+
+        addOverlay(square, {}, "cdk-x");
+
+      } else if (showAuto && autoMap[idx]) {
+
+        addOverlay(square, {}, "cdk-x cdk-x-auto");
+      }
+
+      /* starter squares: tap these to begin */
+      if (starterSet.has(idx) && st === 0 && !solved && !gameOver) {
+
+        addOverlay(square, {
+          inset: "6%",
+          borderRadius: "50%",
+          border: "4px solid rgba(255,215,0,0.98)",
+          background: "rgba(255,215,0,0.28)",
+          boxShadow: "0 0 14px rgba(255,215,0,0.7)",
+          boxSizing: "border-box",
+          zIndex: "44"
+        }, "cdk-start-ring");
+      }
+
+      /* hint marker */
+      if (hintCells.has(idx)) {
+
+        const good = hintKind === "good";
+
+        addOverlay(square, {
+          inset: "6%",
+          borderRadius: "50%",
+          border: good ? "4px solid rgba(255,255,255,0.98)" : "4px solid rgba(255,70,90,0.98)",
+          background: good ? "rgba(255,255,255,0.35)" : "rgba(255,70,90,0.20)",
+          boxSizing: "border-box",
+          zIndex: "45"
+        }, "cdk-hint-ring");
+      }
+    }
+
+    updateUI();
+  }
+
+
+  /* =========================================================
+     UPDATE UI
+  ========================================================= */
+
+  function updateUI() {
+
+    const info = PIECES[pieceType];
+    const tier = tierOf(level);
+    const unlocked = unlockedLevel();
+    const placedCount = placedList().length;
+
+    pieceStatEl.textContent = info.label;
+    sizeStatEl.textContent = size + " × " + size;
+    placedStatEl.textContent = placedCount + " / " + size;
+    livesStatEl.textContent = lives + " / " + MAX_LIVES;
+    mistakeStatEl.textContent = String(mistakes);
+
+    livesEl.textContent = "❤️".repeat(lives) + "🖤".repeat(MAX_LIVES - lives);
+        hintStatEl.textContent = hintsUsed + " / " + MAX_HINTS;
+
+    progressEl.textContent = info.glyph + " " + placedCount + "/" + size;
+    progressEl.style.color = solved ? "#78b887" : "#fff";
+
+    scoreStatEl.textContent = String(score);
+    clearedStatEl.textContent = String(cleared);
+    starsStatEl.textContent = starsTotal + " ⭐";
+    bestTimeStatEl.textContent = bestTime ? formatTime(bestTime) : "-";
+    bestStatEl.textContent = String(bestCleared);
+
+    levelBig.textContent = "Level " + level;
+    levelTier.textContent = tier.name.toUpperCase();
+    levelTier.style.color = tier.color;
+    unlockedEl.textContent = "Unlocked up to level " + unlocked;
+
+    diffBadge.textContent = tier.name.toUpperCase();
+    diffBadge.style.background = tier.color;
+
+    levelPrev.disabled = building || level <= 1;
+    levelNext.disabled = building || level >= unlocked;
+
+        hintBtn.disabled = building || solved || gameOver || hintsUsed >= MAX_HINTS;
+    hintBtn.textContent = "💡 Hint (" + Math.max(0, MAX_HINTS - hintsUsed) + ")";
+    hintBtn.style.opacity = hintBtn.disabled ? "0.45" : "1";
+
+    undoBtn.disabled = building || solved || gameOver || undoStack.length === 0;
+    undoBtn.style.opacity = undoBtn.disabled ? "0.45" : "1";
+
+    if (!solved && !building && !gameOver) {
+
+      messageEl.textContent =
+        "Level " + level + " · " + size + "×" + size + " · " + info.label + " · " + tier.name;
+      messageEl.style.color = "#aeb3cf";
+      messageEl.style.background = "rgba(255,255,255,0.05)";
+
+      if (placedCount === 0 && starterSet.size) {
+        statusEl.textContent = "Tap the glowing squares to start";
+      } else {
+        statusEl.textContent = placedCount === 0 ? "Fill every colour" : "Keep going";
+      }
+    }
+  }
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function clearTimers() {
+    if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+  }
+
+  function hideResultModals() {
+    winModal.style.display = "none";
+    loseModal.style.display = "none";
+  }
+
+  function clearHint() {
+    hintCells = new Set();
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+  }
+
+  /* Replay the CURRENT board from the beginning. */
+  function restoreLevel() {
+
+    if (!layout) return;
+
+    clearTimers();
+    hideResultModals();
+
+    cells = new Uint8Array(size * size);
+    starterSet = new Set(layout.starters);
+
+    undoStack = [];
+    lives = MAX_LIVES;
+    mistakes = 0;
+    gameOver = false;
+    hintsUsed = 0;
+    clearHint();
+    solved = false;
+
+    elapsed = 0;
+    timeStatEl.textContent = "00:00";
+    startTimer();
+
+    tipEl.textContent = starterSet.size
+      ? "The glowing squares are your starting points. Tap one to place a piece, then keep going from there."
+      : TIPS[(level - 1) % TIPS.length];
+
+    renderBoard();
+  }
+
+  /* Generate a brand-new, solver-verified board for the current level. */
+  function startNewLevel() {
+
+    const token = ++buildToken;
+
+    clearTimers();
+    hideResultModals();
+
+    building = true;
+    solved = false;
+    stopTimer();
+
+    bestCleared = readNum(levelKey());
+    bestTime = readNum(timeKey());
+
+    statusEl.textContent = "Building a level…";
+    messageEl.textContent = "Painting a solvable board…";
+    updateUI();
+
+    setTimeout(function () {
+
+      if (token !== buildToken) return;
+
+      layout = generateLevel(size, level);
+      building = false;
+
+      SFX.start();
+      restoreLevel();
+
+    }, 30);
+  }
+
+  function selectPiece(type) {
+
+    if (!PIECES[type]) return;
+    if (type === pieceType) return;
+
+    /* the piece is only the look of your pieces, the board stays */
+    pieceType = type;
+
+    refreshButtons();
+    renderBoard();
+  }
+
+  function selectSize(n) {
+
+    if (n === size) return;
+
+    size = n;
+    level = 1;
+    layout = null;
+    cells = new Uint8Array(0);
+    starterSet = new Set();
+    undoStack = [];
+
+    createBoard();
+    refreshButtons();
+    startNewLevel();
+  }
+
+  function changeLevel(delta) {
+
+    if (building) return;
+
+    const target = level + delta;
+    if (target < 1 || target > unlockedLevel()) return;
+
+    level = target;
+    startNewLevel();
+  }
+
+
+  /* =========================================================
+     MOVE HANDLING
+  ========================================================= */
+
+  function shakeSquare(idx) {
+    const square = squares[idx];
+    if (!square) return;
+    square.classList.remove("cdk-shake");
+    void square.offsetWidth;
+    square.classList.add("cdk-shake");
+  }
+
+  function setCell(idx, next) {
+
+    const prev = cells[idx];
+    if (prev === next) return;
+
+    /* only ✕ marks can be undone, pieces and wrong guesses are final */
+    if ((prev === 0 && next === 1) || (prev === 1 && next === 0)) {
+      undoStack.push({ idx: idx, prev: prev, next: next });
+    }
+
+    cells[idx] = next;
+    clearHint();
+  }
+
+  function handleSquare(idx) {
+
+    if (solved || gameOver || building || !layout) return;
+
+    const st = cells[idx];
+
+    if (st === 2) {
+      tipEl.textContent = "That piece is correct and locked in.";
+      return;
+    }
+
+    if (st === 3) {
+      tipEl.textContent = "That square was a wrong guess, so it cannot hold a piece.";
+      shakeSquare(idx);
+      return;
+    }
+
+    /* squares already ruled out by a placed piece */
+    if (autoOn && autoMap && autoMap[idx]) {
+      tipEl.textContent = "That square is ruled out by a piece you already placed (same row, column, colour or touching). No life lost.";
+      shakeSquare(idx);
+      return;
+    }
+
+    /* starter squares place the piece with a single tap */
+    if (starterSet.has(idx)) {
+      tryPiece(idx);
+      return;
+    }
+
+    let next;
+
+    if (st === 0) next = oneTapOn ? 2 : 1;
+    else next = 2;
+
+    if (next === 2) {
+      tryPiece(idx);
+      return;
+    }
+
+    setCell(idx, 1);
+    SFX.mark();
+    renderBoard();
+  }
+
+  function handleMarkToggle(idx) {
+
+    if (solved || gameOver || building || !layout) return;
+
+    const st = cells[idx];
+    if (st === 2 || st === 3) return;
+    if (st === 0 && autoOn && autoMap && autoMap[idx]) return;
+
+    setCell(idx, st === 1 ? 0 : 1);
+    SFX[st === 1 ? "remove" : "mark"]();
+    renderBoard();
+  }
+
+  /* Is the new piece part of a valid full solution together with the pieces already placed? */
+  function placementIsCorrect(idx) {
+
+    const fixed = placedList();
+    fixed.push(idx);
+
+    const res = solveAll(size, layout.reg, fixed, 1, 300000);
+
+    if (res.invalid) return false;
+    if (res.aborted) return true;
+
+    return res.sols.length > 0;
+  }
+
+  function tryPiece(idx) {
+
+    clearHint();
+
+    if (placementIsCorrect(idx)) {
+
+      cells[idx] = 2;
+      starterSet.delete(idx);
+
+      SFX.place();
+
+      if (placedList().length === size) {
+        solved = true;
+        stopTimer();
+        renderBoard();
+        winLevel();
+        return;
+      }
+
+      tipEl.textContent = "Correct! Use the ✕ squares to find the next colour.";
+      renderBoard();
+      return;
+    }
+
+    /* wrong guess: costs a life and leaves a red X */
+    cells[idx] = 3;
+    starterSet.delete(idx);
+    lives--;
+    mistakes++;
+
+    SFX.bad();
+
+    livesEl.classList.remove("cdk-heart-pop");
+    void livesEl.offsetWidth;
+    livesEl.classList.add("cdk-heart-pop");
+
+    if (lives <= 0) {
+      gameOver = true;
+      stopTimer();
+      renderBoard();
+      loseLevel();
+      return;
+    }
+
+    tipEl.textContent =
+      "Wrong square. That cost a life ❤️ and the red ✕ shows it cannot hold a piece. " +
+      lives + (lives === 1 ? " life" : " lives") + " left.";
+
+    renderBoard();
+  }
+
+  function undoMove() {
+
+    if (solved || gameOver || building) return;
+
+    while (undoStack.length) {
+
+      const last = undoStack.pop();
+
+      /* skip marks that already became a piece or a wrong guess */
+      if (cells[last.idx] !== last.next) continue;
+
+      cells[last.idx] = last.prev;
+
+      clearHint();
+      SFX.undo();
+      renderBoard();
+      return;
+    }
+  }
+
+
+  /* =========================================================
+     HINT
+  ========================================================= */
+
+    function showHint() {
+
+    if (solved || gameOver || building || !layout) return;
+
+    if (hintsUsed >= MAX_HINTS) {
+      tipEl.textContent = "No hints left on this level. You used all " + MAX_HINTS + ".";
+      return;
+    }
+
+    const placed = placedList();
+    const auto = computeAuto(size, layout.reg, placed);
+
+    const res = solveAll(size, layout.reg, placed, 1, 300000);
+    if (!res.sols.length) return;
+
+    const sol = res.sols[0];
+
+    /* pick the answer square whose colour has the fewest open squares left */
+    let bestCell = -1;
+    let bestCount = 1e9;
+
+    for (let r = 0; r < size; r++) {
+
+      const cell = r * size + sol[r];
+      if (cells[cell] === 2) continue;
+
+      let cnt = 0;
+      for (let i = 0; i < size * size; i++) {
+        if (layout.reg[i] === layout.reg[cell] && !auto[i] && cells[i] !== 3 && cells[i] !== 2) cnt++;
+      }
+
+      cnt += Math.random() * 0.5;
+
+      if (cnt < bestCount) { bestCount = cnt; bestCell = cell; }
+    }
+
+    if (bestCell < 0) return;
+
+    hintsUsed++;
+    hintKind = "good";
+    hintCells = new Set([bestCell]);
+
+    tipEl.textContent =
+      "A piece belongs in row " + (Math.floor(bestCell / size) + 1) +
+      ", column " + (bestCell % size + 1) + ". Try the white ring. (" + (MAX_HINTS - hintsUsed) +
+      (MAX_HINTS - hintsUsed === 1 ? " hint" : " hints") + " left, hints cost a star.)";
+
+    SFX.hint();
+    renderBoard();
+
+    if (hintTimer) clearTimeout(hintTimer);
+
+    hintTimer = setTimeout(function () {
+      hintCells = new Set();
+      hintTimer = null;
+      renderBoard();
+    }, 3500);
+  }
+
+
+  /* =========================================================
+     WIN
+  ========================================================= */
+
+  function starsFor() {
+    return Math.max(1, 3 - Math.min(2, hintsUsed + mistakes));
+  }
+
+  function winLevel() {
+
+    const stars = starsFor();
+    const gained = stars * 100 + level * 10 + size * 5;
+
+    score += gained;
+    cleared++;
+    starsTotal += stars;
+
+    if (level > bestCleared) {
+      bestCleared = level;
+      writeNum(levelKey(), bestCleared);
+    }
+
+    const rounded = Math.round(elapsed);
+
+    if (!bestTime || rounded < bestTime) {
+      bestTime = rounded;
+      writeNum(timeKey(), bestTime);
+    }
+
+    statusEl.textContent = "Board solved!";
+    tipEl.textContent = "Brilliant! +" + gained + " points.";
+
+    messageEl.textContent = "Level complete!";
+    messageEl.style.color = "#78b887";
+    messageEl.style.background = "rgba(120,184,135,0.09)";
+
+    winStars.textContent = "⭐".repeat(stars) + "☆".repeat(3 - stars);
+
+    winMessage.textContent =
+      "Solved in " + formatTime(elapsed) +
+      " · " + lives + (lives === 1 ? " life" : " lives") + " left" +
+      " · " + hintsUsed + (hintsUsed === 1 ? " hint" : " hints") +
+      " · +" + gained + " points.";
+
+    winNext.textContent =
+      "Next Level (Level " + (level + 1) + " · " + tierOf(level + 1).name + ")";
+
+    updateUI();
+
+    clearTimers();
+    SFX.win();
+
+    modalTimer = setTimeout(function () {
+      winModal.style.display = "flex";
+    }, 1000);
+  }
+
+
+  function loseLevel() {
+
+    statusEl.textContent = "Out of lives";
+    tipEl.textContent = "Three wrong guesses. Try the board again and use the row, column and colour rules.";
+
+    messageEl.textContent = "Game over";
+    messageEl.style.color = "#ff4d5a";
+    messageEl.style.background = "rgba(255,77,90,0.09)";
+
+    updateUI();
+
+    clearTimers();
+    SFX.lose();
+
+    modalTimer = setTimeout(function () {
+      loseModal.style.display = "flex";
+    }, 700);
+  }
+
+
+  /* =========================================================
+     BUTTONS
+  ========================================================= */
+
+  function buildButtons() {
+
+    sizeGrid.innerHTML = "";
+
+    SIZES.forEach(function (n) {
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cdk-size-btn";
+      btn.dataset.size = String(n);
+      btn.textContent = n + "×" + n;
+
+      btn.addEventListener("click", function () { selectSize(n); });
+
+      sizeGrid.appendChild(btn);
+    });
+
+    pieceGrid.innerHTML = "";
+
+    PIECE_ORDER.forEach(function (type) {
+
+      const info = PIECES[type];
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cdk-piece-btn";
+      btn.dataset.piece = type;
+
+      const img = document.createElement("img");
+      img.src = "assets/pieces/" + info.file;
+      img.alt = info.label;
+      img.draggable = false;
+
+      img.addEventListener("error", function () {
+        const g = document.createElement("div");
+        g.className = "cdk-glyph";
+        g.textContent = info.glyph;
+        if (img.parentNode) {
+          img.parentNode.replaceChild(g, img);
+        }
+      });
+
+      const label = document.createElement("span");
+      label.textContent = info.label;
+
+      btn.appendChild(img);
+      btn.appendChild(label);
+
+      btn.addEventListener("click", function () { selectPiece(type); });
+
+      pieceGrid.appendChild(btn);
+    });
+
+    refreshButtons();
+  }
+
+  function refreshButtons() {
+
+    sizeGrid.querySelectorAll(".cdk-size-btn").forEach(function (btn) {
+      btn.classList.toggle("cdk-active", Number(btn.dataset.size) === size);
+    });
+
+    pieceGrid.querySelectorAll(".cdk-piece-btn").forEach(function (btn) {
+      btn.classList.toggle("cdk-active", btn.dataset.piece === pieceType);
+    });
+  }
+
+
+  /* =========================================================
+     MODALS
+  ========================================================= */
+
+  function openHowTo() { howToModal.style.display = "flex"; }
+  function closeHowTo() { howToModal.style.display = "none"; }
+  function closeWinModal() { winModal.style.display = "none"; }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  /* Reset / Try Again = replay only THIS board (same layout). */
+  function replayCurrent() {
+    if (building) return;
+    restoreLevel();
+  }
+
+  resetBtn?.addEventListener("click", replayCurrent);
+  resetSideBtn?.addEventListener("click", replayCurrent);
+  winRetry?.addEventListener("click", replayCurrent);
+
+  hintBtn?.addEventListener("click", showHint);
+  undoBtn?.addEventListener("click", undoMove);
+
+  levelPrev?.addEventListener("click", function () { changeLevel(-1); });
+  levelNext?.addEventListener("click", function () { changeLevel(1); });
+
+  autoToggle?.addEventListener("change", function () {
+    autoOn = this.checked;
+    renderBoard();
+  });
+
+  oneTapToggle?.addEventListener("change", function () {
+    oneTapOn = this.checked;
+  });
+
+  soundToggle?.addEventListener("change", function () {
+    soundOn = this.checked;
+    if (soundOn) SFX.mark();
+  });
+
+  howToBtn?.addEventListener("click", openHowTo);
+  howToClose?.addEventListener("click", closeHowTo);
+
+  winNext?.addEventListener("click", function () {
+    closeWinModal();
+    level++;
+    startNewLevel();
+  });
+
+  winClose?.addEventListener("click", closeWinModal);
+
+  loseRetry?.addEventListener("click", replayCurrent);
+  loseNew?.addEventListener("click", function () { startNewLevel(); });
+  loseClose?.addEventListener("click", function () { loseModal.style.display = "none"; });
+
+  loseModal?.addEventListener("click", function (event) {
+    if (event.target === loseModal) loseModal.style.display = "none";
+  });
+
+  howToModal?.addEventListener("click", function (event) {
+    if (event.target === howToModal) closeHowTo();
+  });
+
+  winModal?.addEventListener("click", function (event) {
+    if (event.target === winModal) closeWinModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Escape") return;
+
+    if (howToModal.style.display === "flex") closeHowTo();
+    if (winModal.style.display === "flex") closeWinModal();
+    if (loseModal.style.display === "flex") loseModal.style.display = "none";
+  });
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  /* Lazy start: nothing is built and no level is generated until the
+     Chessduko tab is opened for the first time. */
+  let started = false;
+
+  function startGame() {
+
+    if (started) return;
+    started = true;
+
+    if (lazyObserver) lazyObserver.disconnect();
+
+    buildButtons();
+    createBoard();
+    startNewLevel();
+  }
+
+  function isVisible() {
+    return section.getClientRects().length > 0;
+  }
+
+  let lazyObserver = null;
+
+  if ("IntersectionObserver" in window) {
+    lazyObserver = new IntersectionObserver(function (entries) {
+      if (entries.some(function (e) { return e.isIntersecting; })) startGame();
+    });
+    lazyObserver.observe(section);
+  }
+
+  document.getElementById("chessdukoNavBtn")?.addEventListener("click", function () {
+    setTimeout(function () { if (isVisible()) startGame(); }, 60);
+  });
+
+  /* fallback for browsers without IntersectionObserver */
+  if (!lazyObserver) {
+    const poll = setInterval(function () {
+      if (started) { clearInterval(poll); return; }
+      if (isVisible()) { clearInterval(poll); startGame(); }
+    }, 400);
+  }
+
+  if (isVisible()) startGame();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.Chessduko = {
+
+    reset: function () {
+      startGame();
+      replayCurrent();
+    },
+
+    setPiece: function (type) {
+      startGame();
+      selectPiece(type);
+    },
+
+    setSize: function (n) {
+      if (SIZES.indexOf(n) === -1) return;
+      startGame();
+      selectSize(n);
+    },
+
+    getState: function () {
+      return {
+        piece: pieceType,
+        size: size,
+        level: level,
+        placed: placedList().length,
+        solved: solved
+      };
+    }
+
+  };
+
+})();
+
+</script>
+
 <!-- =========================================================
      2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
 ========================================================= -->
@@ -167313,7 +169468,7 @@ const lockedTabs = [
   "impossibleCheck"  ,  "captureChallenge" ,  "findDifferences", "chessMaze",
 
   // 🎮 Standalone games
-  "cardClash", "pathHunter", "chessAssassin", "chessTraffic",
+  "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
   "hiddenDeck",
   "legalMove",
   "legalChecks",
@@ -240228,6 +242383,7 @@ style="
 
 training: [
    '[data-tab="guessElo"]',
+   '[data-tab="chessduko"]',
    '[data-tab="pathHunter" ]',
    '[data-tab="captureChallenge"]',
    '[data-tab="impossibleCheck" ]',
