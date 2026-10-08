@@ -79861,15 +79861,17 @@ function params(n, level) {
     var cx = 0;
     var cy = 0;
     var badgeBaseSize = 0;
-    if (key.charAt(0) === "n") {
+   if (key.charAt(0) === "n") {
   const square = squares[Number(key.slice(1))];
   if (!square) return;
 
   const a = square.getBoundingClientRect();
   if (!a.width) return;
 
-  var cx = a.left + a.width / 2;
+  // ✅ Put CLEAR badge NEXT TO the piece, not over it
+  var cx = a.right + 11;
   var cy = a.top + a.height / 2;
+
   badgeBaseSize = a.width;
 } else {
 
@@ -79899,7 +79901,9 @@ function params(n, level) {
       position: "fixed",
       left: cx + "px",
       top: cy + "px",
-      transform: "translate(-50%,-50%)",
+     transform: key.charAt(0) === "n"
+  ? "translate(0,-50%)"
+  : "translate(-50%,-50%)",
       padding: "6px 16px",
       borderRadius: "99px",
       background: "rgba(20,24,42,0.94)",
@@ -79917,13 +79921,43 @@ function params(n, level) {
 
     document.body.appendChild(badge);
 
-    const anim = badge.animate([
-      { opacity: 0, transform: "translate(-50%,-30%) scale(0.5)" },
-      { opacity: 1, transform: "translate(-50%,-50%) scale(1.12)", offset: 0.16 },
-      { opacity: 1, transform: "translate(-50%,-50%) scale(1)", offset: 0.28 },
-      { opacity: 1, transform: "translate(-50%,-50%) scale(1)", offset: 0.68 },
-      { opacity: 0, transform: "translate(-50%,-110%) scale(1)" }
-    ], {
+   const isNeighborBadge = key.charAt(0) === "n";
+
+const anim = badge.animate([
+  {
+    opacity: 0,
+    transform: isNeighborBadge
+      ? "translate(0,-50%) scale(0.5)"
+      : "translate(-50%,-30%) scale(0.5)"
+  },
+  {
+    opacity: 1,
+    transform: isNeighborBadge
+      ? "translate(0,-50%) scale(1.12)"
+      : "translate(-50%,-50%) scale(1.12)",
+    offset: 0.16
+  },
+  {
+    opacity: 1,
+    transform: isNeighborBadge
+      ? "translate(0,-50%) scale(1)"
+      : "translate(-50%,-50%) scale(1)",
+    offset: 0.28
+  },
+  {
+    opacity: 1,
+    transform: isNeighborBadge
+      ? "translate(0,-50%) scale(1)"
+      : "translate(-50%,-50%) scale(1)",
+    offset: 0.68
+  },
+  {
+    opacity: 0,
+    transform: isNeighborBadge
+      ? "translate(0,-50%) scale(1)"
+      : "translate(-50%,-110%) scale(1)"
+  }
+], {
       duration: 1700,
       delay: delay,
       easing: "ease-out",
