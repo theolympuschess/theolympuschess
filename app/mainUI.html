@@ -42274,6 +42274,14 @@ right:0;
   🐱
   Chessduko Challenge
 </button>
+<button
+  class="nav-btn"
+  data-tab="chesscrush"
+  id="chessCrushNavBtn"
+>
+  ♦️🔷
+  Chess Crush Saga
+</button>
 
 
 <button
@@ -80577,6 +80585,2848 @@ fresh.forEach(function (key, i) {
 })();
 
 </script>
+
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #ccr-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start;}
+  @media (max-width:1000px){#ccr-layout{grid-template-columns:1fr;}}
+
+  #chesscrush-section{--ccrs:1;}
+
+  .ccr-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:10px;box-sizing:border-box;}
+  .ccr-card-title{color:#ffd700;font-size:13px;font-weight:900;margin-bottom:8px;}
+  .ccr-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:12px;font-weight:700;}
+  .ccr-stat-row strong{color:#fff;}
+
+  .ccr-size-btn{padding:8px 2px;border-radius:9px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:12px;font-weight:900;cursor:pointer;}
+  .ccr-size-btn.ccr-active{border-color:#ffd700;background:rgba(255,215,0,0.13);color:#ffd700;}
+
+  .ccr-lvl-btn{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:#fff;font-size:16px;font-weight:900;cursor:pointer;}
+  .ccr-lvl-btn:disabled{opacity:0.3;cursor:not-allowed;}
+
+  .ccr-check{display:flex;align-items:center;gap:8px;margin-top:8px;color:#aeb3cf;font-size:11px;font-weight:700;cursor:pointer;}
+
+  .ccr-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .ccr-btn:disabled{cursor:not-allowed;}
+  .ccr-btn-green{background:#78b887;color:#000;}
+  .ccr-btn-gold{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.30);color:#ffd700;}
+  .ccr-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  .ccr-goal{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:#e8e9f4;font-size:12px;font-weight:800;line-height:1.25;min-width:0;}
+  .ccr-goal .ccr-goal-ico{flex:0 0 auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .ccr-goal .ccr-goal-ico img{width:28px;height:28px;object-fit:contain;}
+  .ccr-goal .ccr-goal-txt{min-width:0;flex:1 1 auto;}
+  .ccr-goal .ccr-bar{height:5px;border-radius:9px;background:rgba(255,255,255,0.12);margin-top:5px;overflow:hidden;}
+  .ccr-goal .ccr-bar i{display:block;height:100%;width:0;border-radius:9px;background:#78b887;transition:width .35s;}
+  .ccr-goal.ccr-done{border-color:rgba(120,184,135,0.55);background:rgba(120,184,135,0.14);}
+
+  /* ---------- board ---------- */
+  #ccrBoard{
+    --n:8;
+    position:relative;border:4px solid rgba(255,255,255,0.95);border-radius:10px;box-sizing:border-box;overflow:hidden;
+    box-shadow:0 14px 40px rgba(0,0,0,0.4);
+    background:repeating-conic-gradient(#323b73 0% 25%, #262d5c 0% 50%);
+    background-size:calc(200% / var(--n)) calc(200% / var(--n));
+    container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:none;
+  }
+  .ccr-layer{position:absolute;inset:0;pointer-events:none;}
+  .ccr-tile{position:absolute;left:0;top:0;transition:transform .2s cubic-bezier(.3,.7,.4,1);will-change:transform;z-index:2;}
+  .ccr-tile.ccr-noanim{transition:none;}
+  .ccr-gem{position:absolute;inset:6%;border-radius:22%;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -4px 0 rgba(0,0,0,0.18),inset 0 3px 0 rgba(255,255,255,0.45),0 2px 5px rgba(0,0,0,0.35);box-sizing:border-box;}
+  .ccr-gem img{width:84%;height:84%;object-fit:contain;display:block;pointer-events:none;-webkit-user-drag:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.35));}
+  .ccr-glyph{font-size:calc(62cqw / var(--n));line-height:1;pointer-events:none;}
+  .ccr-gem.ccr-sel{outline:3px solid #fff;box-shadow:0 0 0 3px #ffd700,0 0 18px rgba(255,215,0,0.9);animation:ccrPulse .45s ease-in-out infinite alternate;}
+  .ccr-gem.ccr-hint{animation:ccrPulse .5s ease-in-out infinite alternate;box-shadow:0 0 0 3px #fff,0 0 20px rgba(255,255,255,0.95);}
+  .ccr-gem.ccr-popping{animation:ccrPop calc(.3s * var(--ccrs)) ease-in forwards;}
+  .ccr-gem.ccr-born{animation:ccrBorn calc(.5s * var(--ccrs)) cubic-bezier(.2,1.6,.4,1);}
+  .ccr-gem.ccr-shake{animation:ccrShake .3s;}
+  .ccr-gem.ccr-wave{animation:ccrWave .55s ease-in-out;}
+
+  /* power tiles */
+  .ccr-gem.ccr-sp1::before,.ccr-gem.ccr-sp2::before{content:"";position:absolute;inset:0;border-radius:22%;pointer-events:none;
+    background:repeating-linear-gradient(90deg,rgba(255,255,255,0.55) 0 8%,rgba(255,255,255,0) 8% 20%);}
+  .ccr-gem.ccr-sp2::before{background:repeating-linear-gradient(0deg,rgba(255,255,255,0.55) 0 8%,rgba(255,255,255,0) 8% 20%);}
+  .ccr-gem.ccr-sp1,.ccr-gem.ccr-sp2{box-shadow:0 0 0 2px #fff,0 0 12px rgba(255,255,255,0.8),inset 0 -4px 0 rgba(0,0,0,0.18);}
+  .ccr-mark{position:absolute;right:-4%;bottom:-4%;min-width:34%;height:34%;border-radius:50%;background:#14182a;color:#ffd700;font-size:calc(34cqw / var(--n));font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center;border:2px solid #ffd700;pointer-events:none;z-index:3;}
+  .ccr-gem.ccr-sp3{box-shadow:0 0 0 3px #ff9a3c,0 0 16px rgba(255,154,60,0.95),inset 0 -4px 0 rgba(0,0,0,0.18);animation:ccrGlow .7s ease-in-out infinite alternate;}
+  .ccr-gem.ccr-sp4{background:conic-gradient(#ff4d5a,#ffd700,#78e08a,#29d3ff,#c77dff,#ff4d5a)!important;box-shadow:0 0 0 3px #fff,0 0 20px rgba(255,255,255,0.95);animation:ccrSpin 3s linear infinite;}
+  .ccr-queenmark{font-size:calc(70cqw / var(--n));line-height:1;color:#fff;text-shadow:0 0 6px rgba(0,0,0,0.7),0 1px 0 #000;pointer-events:none;}
+
+  /* ice */
+  .ccr-ice{position:absolute;box-sizing:border-box;border-radius:14%;background:linear-gradient(135deg,rgba(190,235,255,0.55),rgba(130,200,255,0.35));border:2px solid rgba(220,245,255,0.9);box-shadow:inset 0 0 8px rgba(255,255,255,0.7);z-index:1;}
+  .ccr-ice.ccr-ice2{background:linear-gradient(135deg,rgba(120,200,255,0.8),rgba(70,140,230,0.6));border-width:3px;}
+  .ccr-ice.ccr-ice-break{animation:ccrIce calc(.35s * var(--ccrs)) ease-out forwards;}
+
+  /* effects */
+  .ccr-fx{position:absolute;pointer-events:none;z-index:5;}
+  .ccr-streak{background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.95),rgba(255,255,255,0));box-shadow:0 0 14px #fff;opacity:0;}
+  .ccr-ring{border-radius:50%;border:4px solid #ffd700;box-shadow:0 0 18px #ffb300;opacity:0;}
+  .ccr-popup{color:#fff;font-weight:900;text-shadow:0 2px 0 rgba(0,0,0,0.7),0 0 8px rgba(255,215,0,0.9);transform:translate(-50%,-50%);white-space:nowrap;z-index:6;}
+  .ccr-banner{left:50%;top:42%;transform:translate(-50%,-50%);padding:8px 26px;border-radius:99px;background:rgba(20,24,42,0.92);border:3px solid #ffd700;color:#ffd700;font-weight:900;letter-spacing:1px;box-shadow:0 10px 30px rgba(0,0,0,0.5),0 0 22px rgba(255,215,0,0.6);white-space:nowrap;z-index:8;}
+
+  .ccr-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.80);backdrop-filter:blur(7px);}
+  .ccr-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes ccrPulse{from{transform:scale(0.96)}to{transform:scale(1.07)}}
+  @keyframes ccrGlow{from{transform:scale(0.97)}to{transform:scale(1.05)}}
+  @keyframes ccrSpin{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
+  @keyframes ccrPop{0%{transform:scale(1);opacity:1}35%{transform:scale(1.28);opacity:1}100%{transform:scale(0);opacity:0}}
+  @keyframes ccrBorn{0%{transform:scale(0.3)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+  @keyframes ccrShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6%)}40%{transform:translateX(6%)}60%{transform:translateX(-4%)}80%{transform:translateX(4%)}}
+  @keyframes ccrWave{0%,100%{transform:translateY(0) scale(1)}45%{transform:translateY(-24%) scale(1.2)}}
+  @keyframes ccrIce{0%{transform:scale(1);opacity:1}100%{transform:scale(1.5);opacity:0}}
+  @keyframes ccrBoardShake{0%,100%{transform:translate(0,0)}25%{transform:translate(-4px,2px)}50%{transform:translate(4px,-2px)}75%{transform:translate(-3px,-2px)}}
+  .ccr-board-shake{animation:ccrBoardShake .35s;}
+</style>
+
+<section
+  class="section hidden"
+  id="chesscrush-section"
+>
+
+  <div
+    id="ccr-shell"
+    style="width:100%;max-width:1400px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <!-- title -->
+      <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto;">
+        <div style="font-size:42px;line-height:1;">♞</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess Crush Saga</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Swap pieces, match 3 or more, hit the goal before your moves run out.
+          </p>
+        </div>
+      </div>
+
+      <!-- coach tip -->
+      <div style="display:flex;align-items:center;gap:12px;flex:1 1 280px;min-width:0;max-width:520px;box-sizing:border-box;padding:10px 14px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+        <div style="font-size:22px;line-height:1;flex:0 0 auto;">💡</div>
+        <div style="min-width:0;">
+          <strong style="display:block;color:#fff;font-size:13px;margin-bottom:3px;">Coach Tip</strong>
+          <div id="ccrTip" style="color:#aeb3cf;font-size:12px;line-height:1.45;font-weight:600;">Swap two neighbouring pieces to line up 3 of the same kind.</div>
+        </div>
+      </div>
+
+      <!-- buttons -->
+      <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+        <button type="button" id="ccrHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;white-space:nowrap;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="ccrResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;white-space:nowrap;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="ccr-layout">
+
+      <!-- BOARD CARD -->
+      <div style="background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:20px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="ccrStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Reach the goal</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="ccrHintBtn" class="ccr-btn ccr-btn-gold" style="width:auto;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">💡 Hint (3)</button>
+            <button type="button" id="ccrShuffleBtn" class="ccr-btn ccr-btn-ghost" style="width:auto;margin-top:0;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">🔀 Shuffle (2)</button>
+            <button type="button" id="ccrRetryBtn" class="ccr-btn ccr-btn-green" style="width:auto;margin-top:0;padding:8px 12px;font-size:12px;border-radius:99px;white-space:nowrap;">↻ Try Again</button>
+            <div id="ccrMovesPill"
+              style="padding:7px 12px;border-radius:99px;font-size:13px;font-weight:900;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);white-space:nowrap;">
+              👣 <span id="ccrMoves">0</span> moves
+            </div>
+            <div id="ccrScorePill"
+              style="padding:7px 12px;border-radius:99px;font-size:13px;font-weight:900;color:#fff;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);white-space:nowrap;">
+              ⭐ <span id="ccrScore">0</span>
+            </div>
+            <div id="ccrLivesPill" title="Lives regenerate over time"
+              style="padding:7px 12px;border-radius:99px;font-size:13px;font-weight:900;color:#fff;background:rgba(255,77,90,0.14);border:1px solid rgba(255,77,90,0.35);white-space:nowrap;">
+              ❤️ <span id="ccrLives">5</span>/5 <span id="ccrLifeTimer" style="color:#aeb3cf;font-size:11px;"></span>
+            </div>
+            <div id="ccrDiffBadge"
+              style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:900;letter-spacing:1px;color:#000;background:#78b887;white-space:nowrap;">
+              EASY
+            </div>
+          </div>
+        </div>
+
+        <div id="ccrMessage" style="display:none;margin-bottom:12px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:13px;font-weight:800;text-align:center;">Level 1</div>
+
+        <div id="ccrGoals" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:14px;"></div>
+
+        <div id="ccrBoardArea" style="width:100%;display:flex;justify-content:center;overflow:visible;padding:6px 0 18px;box-sizing:border-box;">
+          <div id="ccrBoard" aria-label="Chess Crush board"
+            style="width:max(320px,min(100%,780px,calc(100vh - 300px)));aspect-ratio:1 / 1;"></div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:2px;">
+          Drag a piece (or tap two neighbours) to swap. Match 4 for a Rook, an L or T for a Knight, 5 for a Queen.
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+
+        <div class="ccr-card">
+          <div class="ccr-card-title">🎚 Level Select</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <button type="button" id="ccrLevelPrev" class="ccr-lvl-btn">◀</button>
+            <div style="text-align:center;">
+              <div id="ccrLevelBig" style="color:#fff;font-size:24px;font-weight:900;line-height:1;">Level 1</div>
+              <div id="ccrLevelTier" style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;margin-top:4px;">EASY</div>
+            </div>
+            <button type="button" id="ccrLevelNext" class="ccr-lvl-btn">▶</button>
+          </div>
+          <div id="ccrUnlocked" style="color:#858ba8;font-size:11px;font-weight:700;text-align:center;margin-top:8px;">Unlocked up to level 1</div>
+        </div>
+
+        <div class="ccr-card">
+          <div class="ccr-card-title">🔲 Board Size</div>
+          <div id="ccrSizeGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;"></div>
+          <label class="ccr-check"><input type="checkbox" id="ccrAutoHintToggle" checked> Glow a hint when I pause</label>
+          <label class="ccr-check"><input type="checkbox" id="ccrFastToggle"> Fast animations</label>
+          <label class="ccr-check"><input type="checkbox" id="ccrSoundToggle" checked> Sound effects</label>
+        </div>
+
+        <div class="ccr-card">
+          <div class="ccr-card-title">📊 Level Stats</div>
+          <div style="display:grid;gap:5px;">
+            <div class="ccr-stat-row"><span>Board</span><strong id="ccrSizeStat">8 × 8</strong></div>
+            <div class="ccr-stat-row"><span>Piece kinds</span><strong id="ccrKindsStat">5</strong></div>
+            <div class="ccr-stat-row"><span>Moves left</span><strong id="ccrMovesStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Best chain</span><strong id="ccrChainStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Power pieces made</span><strong id="ccrPowerStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Hints used</span><strong id="ccrHintStat">0 / 3</strong></div>
+            <div class="ccr-stat-row"><span>Shuffles used</span><strong id="ccrShuffleStat">0 / 2</strong></div>
+            <div class="ccr-stat-row"><span>Time</span><strong id="ccrTimeStat">00:00</strong></div>
+          </div>
+        </div>
+
+        <div class="ccr-card">
+          <div class="ccr-card-title">🏅 Scoreboard</div>
+          <div style="display:grid;gap:5px;">
+            <div class="ccr-stat-row"><span>Total score</span><strong id="ccrTotalStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Levels cleared</span><strong id="ccrClearedStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Stars</span><strong id="ccrStarsStat">0 ⭐</strong></div>
+            <div class="ccr-stat-row"><span>Best score (this size)</span><strong id="ccrBestScoreStat">0</strong></div>
+            <div class="ccr-stat-row"><span>Best level (this size)</span><strong id="ccrBestStat">0</strong></div>
+          </div>
+        </div>
+
+        <div class="ccr-card">
+          <div class="ccr-card-title">✨ Power Pieces</div>
+          <div style="display:grid;gap:6px;color:#aeb3cf;font-size:11.5px;font-weight:700;line-height:1.35;">
+            <div><b style="color:#fff;">Rook</b> · match 4 in a line. Clears a whole row or column.</div>
+            <div><b style="color:#fff;">Knight</b> · match an L, T or + shape. Clears a 3×3 block plus the 8 knight jumps.</div>
+            <div><b style="color:#fff;">Queen</b> · match 5 in a line. Swap it with any piece to clear every piece of that kind.</div>
+            <div><b style="color:#fff;">Combos</b> · swap two power pieces together for a bigger blast. Two Queens clear the board.</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="ccrHowToModal" class="ccr-modal" style="z-index:99999;">
+    <div class="ccr-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;max-height:90vh;overflow:auto;">
+      <button type="button" id="ccrHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="color:#ffd700;font-size:42px;text-align:center;margin-bottom:10px;">♞</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        Swap two neighbouring pieces. A swap only counts if it lines up 3 or more of the same piece in a row or column. A swap that makes no match slides back and costs no move.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ <b>Drag</b> a piece onto its neighbour, or tap one piece then the next.</div>
+        <div>2️⃣ Matched pieces pop, the rest fall, new pieces drop in. Chains give bonus points.</div>
+        <div>3️⃣ Match <b>4</b> in a line to make a <b>Rook</b>, an <b>L / T</b> shape for a <b>Knight</b>, <b>5</b> in a line for a <b>Queen</b>.</div>
+        <div>4️⃣ Swap a power piece with a neighbour to fire it. Swap two power pieces together for a combo.</div>
+        <div>5️⃣ Each level has a goal: reach a <b>score</b>, <b>capture</b> a number of one piece, and/or <b>break the ice</b> by clearing pieces on top of it.</div>
+        <div>6️⃣ You get a limited number of <b>moves</b>. Reach the goal before they run out. Spare moves turn into bonus points.</div>
+        <div>7️⃣ No moves left on the board? It shuffles for you. Stuck? Use Hint or Shuffle.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="ccrLoseModal" class="ccr-modal">
+    <div class="ccr-modal-box" style="border:1px solid rgba(255,77,90,0.35);">
+      <div style="font-size:48px;margin-bottom:8px;">⏳</div>
+      <div style="color:#ff4d5a;font-size:11px;font-weight:900;letter-spacing:1px;">OUT OF MOVES</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">So close!</h3>
+      <p id="ccrLoseMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You ran out of moves before reaching the goal.</p>
+      <button type="button" id="ccrLoseRetry" class="ccr-btn ccr-btn-green" style="margin-top:12px;">↻ Try This Board Again</button>
+      <button type="button" id="ccrLoseNew" class="ccr-btn ccr-btn-ghost">🎲 New Board (same level)</button>
+      <button type="button" id="ccrLoseClose" class="ccr-btn ccr-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="ccrWinModal" class="ccr-modal">
+    <div class="ccr-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;color:#ffd700;margin-bottom:8px;">♛</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">LEVEL COMPLETE</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Brilliant! 🎉</h3>
+      <div id="ccrWinStars" style="font-size:34px;letter-spacing:6px;margin:4px 0 8px;">⭐⭐⭐</div>
+      <p id="ccrWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You reached the goal.</p>
+      <button type="button" id="ccrWinNext" class="ccr-btn ccr-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="ccrWinRetry" class="ccr-btn ccr-btn-ghost">↻ Play This Level Again</button>
+      <button type="button" id="ccrWinClose" class="ccr-btn ccr-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   ♞ OLYMPUS CHESS CRUSH
+   ---------------------------------------------------------
+   Completely isolated game (everything is ccr-prefixed).
+
+   Match-3 logic (Candy Crush style) with chess pieces:
+
+   - Swap two neighbouring pieces. A swap only counts if it makes
+     a line of 3+ of the same piece, otherwise it slides back
+   - Matched pieces pop, the rest fall, new ones drop in, and the
+     chain repeats until the board is calm (chains = bonus points)
+   - 4 in a line = Rook (clears a row/column)
+     L / T / + shape = Knight (3x3 + the 8 knight jumps)
+     5 in a line = Queen (swap it: clears every piece of one kind)
+   - Two power pieces swapped together make a bigger combo
+   - Goals: target score, capture N of one piece, break the ice
+   - Limited moves, infinite levels from easy to legend
+   - No moves left on the board: it shuffles itself
+   - Sounds use the Web Audio API (no audio files needed)
+   - Lazy start: nothing is built until the tab is first opened
+   - No Supabase / chess.js / Stockfish
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+/* ENGINE START */
+
+  /* =========================================================
+     CONSTANTS
+  ========================================================= */
+
+  const SP = { NONE: 0, ROOK_V: 1, ROOK_H: 2, KNIGHT: 3, QUEEN: 4 };
+
+  const SIZES = [8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+  /* 12 chess pieces: white + black, every piece type including pawns */
+  const PIECES = [
+    { key: "wP", file: "wP.png", glyph: "♙", name: "White Pawn",   bg: "#ffb3c7" },
+    { key: "bP", file: "bP.png", glyph: "♟", name: "Black Pawn",   bg: "#9fe3c0" },
+    { key: "wN", file: "wN.png", glyph: "♘", name: "White Knight", bg: "#ffd47a" },
+    { key: "bN", file: "bN.png", glyph: "♞", name: "Black Knight", bg: "#9ec9ff" },
+    { key: "wB", file: "wB.png", glyph: "♗", name: "White Bishop", bg: "#d8b4ff" },
+    { key: "bB", file: "bB.png", glyph: "♝", name: "Black Bishop", bg: "#ffa987" },
+    { key: "wR", file: "wR.png", glyph: "♖", name: "White Rook",   bg: "#8fe0e8" },
+    { key: "bR", file: "bR.png", glyph: "♜", name: "Black Rook",   bg: "#f3ee8a" },
+    { key: "wQ", file: "wQ.png", glyph: "♕", name: "White Queen",  bg: "#ff9aa8" },
+    { key: "bQ", file: "bQ.png", glyph: "♛", name: "Black Queen",  bg: "#b6e86e" },
+    { key: "wK", file: "wK.png", glyph: "♔", name: "White King",   bg: "#a9b8ff" },
+    { key: "bK", file: "bK.png", glyph: "♚", name: "Black King",   bg: "#ffc68f" }
+  ];
+
+  const TIERS = [
+    { min: 1,  name: "Easy",   color: "#78b887" },
+    { min: 4,  name: "Medium", color: "#ffd700" },
+    { min: 9,  name: "Hard",   color: "#ff9a3c" },
+    { min: 15, name: "Expert", color: "#ff4d5a" },
+    { min: 24, name: "Master", color: "#c77dff" },
+    { min: 36, name: "Legend", color: "#29d3ff" }
+  ];
+
+  function tierOf(level) {
+    let t = TIERS[0];
+    TIERS.forEach(function (x) { if (level >= x.min) t = x; });
+    return t;
+  }
+
+
+  /* =========================================================
+     RANDOM + TILES
+  ========================================================= */
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffleWith(a, rng) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  let TILE_ID = 0;
+
+  /* t = piece type (0..11), -1 for the Queen power tile. s = special kind. */
+  function mkTile(t, s, r, c) {
+    return { id: ++TILE_ID, t: t, s: s || 0, r: r, c: c, dr: r, dc: c, el: null };
+  }
+
+  function newGrid(n) {
+    const g = [];
+    for (let r = 0; r < n; r++) g.push(new Array(n).fill(null));
+    return g;
+  }
+
+  function randType(types, rng) {
+    return types[Math.floor(rng() * types.length)];
+  }
+
+  /* start board: no ready-made matches anywhere */
+  function fillInitial(n, types, rng) {
+
+    const g = newGrid(n);
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+
+        let t;
+        let tries = 0;
+
+        do {
+          t = randType(types, rng);
+          tries++;
+        } while (
+          tries < 30 && (
+            (c >= 2 && g[r][c - 1].t === t && g[r][c - 2].t === t) ||
+            (r >= 2 && g[r - 1][c].t === t && g[r - 2][c].t === t)
+          )
+        );
+
+        g[r][c] = mkTile(t, 0, r, c);
+      }
+    }
+
+    return g;
+  }
+
+
+  /* =========================================================
+     MATCH DETECTION
+  ========================================================= */
+
+  function runLen(g, n, r, c, dr, dc, t) {
+
+    let k = 0;
+    let rr = r + dr;
+    let cc = c + dc;
+
+    while (rr >= 0 && cc >= 0 && rr < n && cc < n && g[rr][cc] && g[rr][cc].t === t) {
+      k++;
+      rr += dr;
+      cc += dc;
+    }
+
+    return k;
+  }
+
+  /* is the tile at r,c inside a run of 3 or more? */
+  function matchAt(g, n, r, c) {
+
+    const tl = g[r][c];
+    if (!tl || tl.t < 0) return false;
+
+    const t = tl.t;
+
+    if (1 + runLen(g, n, r, c, 0, -1, t) + runLen(g, n, r, c, 0, 1, t) >= 3) return true;
+    if (1 + runLen(g, n, r, c, -1, 0, t) + runLen(g, n, r, c, 1, 0, t) >= 3) return true;
+
+    return false;
+  }
+
+  /* How good is this swap? (used by hint + bot). 0 = not a legal move. */
+  function swapValue(g, n, r1, c1, r2, c2) {
+
+    const a = g[r1][c1];
+    const b = g[r2][c2];
+
+    if (!a || !b) return 0;
+
+    if (a.s === SP.QUEEN && b.s === SP.QUEEN) return 60;
+    if (a.s === SP.QUEEN || b.s === SP.QUEEN) return 40;
+    if (a.s && b.s) return 30;
+
+    g[r1][c1] = b;
+    g[r2][c2] = a;
+
+    let v = 0;
+
+    [[r1, c1], [r2, c2]].forEach(function (p) {
+
+      const tl = g[p[0]][p[1]];
+      if (!tl || tl.t < 0) return;
+
+      const h = 1 + runLen(g, n, p[0], p[1], 0, -1, tl.t) + runLen(g, n, p[0], p[1], 0, 1, tl.t);
+      const w = 1 + runLen(g, n, p[0], p[1], -1, 0, tl.t) + runLen(g, n, p[0], p[1], 1, 0, tl.t);
+
+      if (h >= 3) v += h + (h >= 5 ? 10 : (h === 4 ? 5 : 0));
+      if (w >= 3) v += w + (w >= 5 ? 10 : (w === 4 ? 5 : 0));
+      if (h >= 3 && w >= 3) v += 8;
+    });
+
+    g[r1][c1] = a;
+    g[r2][c2] = b;
+
+    return v;
+  }
+
+  function swapIsValid(g, n, r1, c1, r2, c2) {
+    return swapValue(g, n, r1, c1, r2, c2) > 0;
+  }
+
+  function listMoves(g, n) {
+
+    const out = [];
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+
+        if (c + 1 < n) {
+          const v = swapValue(g, n, r, c, r, c + 1);
+          if (v > 0) out.push({ r1: r, c1: c, r2: r, c2: c + 1, v: v });
+        }
+
+        if (r + 1 < n) {
+          const v = swapValue(g, n, r, c, r + 1, c);
+          if (v > 0) out.push({ r1: r, c1: c, r2: r + 1, c2: c, v: v });
+        }
+      }
+    }
+
+    return out;
+  }
+
+  function hasMove(g, n) {
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (c + 1 < n && swapIsValid(g, n, r, c, r, c + 1)) return true;
+        if (r + 1 < n && swapIsValid(g, n, r, c, r + 1, c)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  function anyMatch(g, n) {
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (matchAt(g, n, r, c)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  /* All runs of 3+, the matched squares, and which power tiles to create. */
+  function findMatches(g, n, pref) {
+
+    const runs = [];
+
+    for (let r = 0; r < n; r++) {
+      let c = 0;
+      while (c < n) {
+        const tl = g[r][c];
+        if (!tl || tl.t < 0) { c++; continue; }
+        let e = c + 1;
+        while (e < n && g[r][e] && g[r][e].t === tl.t) e++;
+        if (e - c >= 3) {
+          const cells = [];
+          for (let k = c; k < e; k++) cells.push(r * n + k);
+          runs.push({ cells: cells, h: true, t: tl.t });
+        }
+        c = e;
+      }
+    }
+
+    for (let c = 0; c < n; c++) {
+      let r = 0;
+      while (r < n) {
+        const tl = g[r][c];
+        if (!tl || tl.t < 0) { r++; continue; }
+        let e = r + 1;
+        while (e < n && g[e][c] && g[e][c].t === tl.t) e++;
+        if (e - r >= 3) {
+          const cells = [];
+          for (let k = r; k < e; k++) cells.push(k * n + c);
+          runs.push({ cells: cells, h: false, t: tl.t });
+        }
+        r = e;
+      }
+    }
+
+    const matched = new Set();
+    runs.forEach(function (run) { run.cells.forEach(function (i) { matched.add(i); }); });
+
+    const used = new Set();
+    const creations = [];
+
+    function tileAt(i) { return g[Math.floor(i / n)][i % n]; }
+
+    function pickCell(run) {
+
+      const free = run.cells.filter(function (i) { return !used.has(i) && tileAt(i).s === 0; });
+      if (!free.length) return -1;
+
+      if (pref) {
+        for (let k = 0; k < free.length; k++) if (pref.has(free[k])) return free[k];
+      }
+
+      return free[Math.floor(free.length / 2)];
+    }
+
+    /* 5 or more in a line: Queen */
+    runs.forEach(function (run) {
+      if (run.cells.length >= 5) {
+        const i = pickCell(run);
+        if (i >= 0) {
+          used.add(i);
+          run.big = true;
+          creations.push({ idx: i, kind: SP.QUEEN, t: -1 });
+        }
+      }
+    });
+
+    /* L / T / + shape (a horizontal and a vertical run crossing): Knight */
+    runs.forEach(function (hr) {
+      if (!hr.h || hr.big) return;
+      runs.forEach(function (vr) {
+        if (vr.h || vr.big || hr.cross || vr.cross) return;
+        for (let k = 0; k < hr.cells.length; k++) {
+          const i = hr.cells[k];
+          if (vr.cells.indexOf(i) >= 0 && !used.has(i) && tileAt(i).s === 0) {
+            used.add(i);
+            hr.cross = true;
+            vr.cross = true;
+            creations.push({ idx: i, kind: SP.KNIGHT, t: hr.t });
+            return;
+          }
+        }
+      });
+    });
+
+    /* exactly 4 in a line: Rook (clears the line across the match) */
+    runs.forEach(function (run) {
+      if (run.cells.length === 4 && !run.big && !run.cross) {
+        const i = pickCell(run);
+        if (i >= 0) {
+          used.add(i);
+          creations.push({ idx: i, kind: run.h ? SP.ROOK_V : SP.ROOK_H, t: run.t });
+        }
+      }
+    });
+
+    return { matched: matched, creations: creations, runs: runs };
+  }
+
+
+  /* =========================================================
+     POWER TILE EFFECTS
+     Rook   = clears its column (made by a horizontal 4) or its row (vertical 4)
+     Knight = clears the 3x3 block around it AND the 8 knight-jump squares
+     Queen  = swap it with any piece to clear every piece of that kind
+              (if it is caught in a blast it fires like a real queen: row, column, diagonals)
+  ========================================================= */
+
+  function effectCells(n, kind, r, c) {
+
+    const out = [];
+
+    function add(rr, cc) {
+      if (rr >= 0 && cc >= 0 && rr < n && cc < n) out.push(rr * n + cc);
+    }
+
+    if (kind === SP.ROOK_V) {
+      for (let rr = 0; rr < n; rr++) add(rr, c);
+    } else if (kind === SP.ROOK_H) {
+      for (let cc = 0; cc < n; cc++) add(r, cc);
+    } else if (kind === SP.KNIGHT) {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) add(r + dr, c + dc);
+      [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]].forEach(function (m) {
+        add(r + m[0], c + m[1]);
+      });
+    } else if (kind === SP.QUEEN) {
+      for (let k = 0; k < n; k++) {
+        add(r, k);
+        add(k, c);
+        add(r + k, c + k);
+        add(r - k, c - k);
+        add(r + k, c - k);
+        add(r - k, c + k);
+      }
+    }
+
+    return out;
+  }
+
+  /* Spread a clear set through every power tile it touches. */
+  function expandClear(g, n, set, keep, fired, acts) {
+
+    const queue = Array.from(set);
+
+    while (queue.length) {
+
+      const i = queue.pop();
+      const r = Math.floor(i / n);
+      const c = i % n;
+      const tl = g[r][c];
+
+      if (!tl || !tl.s || fired.has(i)) continue;
+
+      fired.add(i);
+      acts.push({ idx: i, kind: tl.s });
+
+      effectCells(n, tl.s, r, c).forEach(function (j) {
+
+        if (set.has(j) || (keep && keep.has(j))) return;
+        if (!g[Math.floor(j / n)][j % n]) return;
+
+        set.add(j);
+        queue.push(j);
+      });
+    }
+  }
+
+
+  /* =========================================================
+     STATE + STEPS
+  ========================================================= */
+
+  function createState(cfg, rng) {
+
+    const n = cfg.n;
+    let g = fillInitial(n, cfg.types, rng);
+
+    let guard = 0;
+    while (!hasMove(g, n) && guard++ < 50) g = fillInitial(n, cfg.types, rng);
+
+    const iceTotal = cfg.ice.reduce(function (a, b) { return a + b; }, 0);
+
+    return {
+      n: n,
+      g: g,
+      types: cfg.types,
+      rng: rng,
+      moves: cfg.moves,
+      score: 0,
+      cascade: 0,
+      ice: cfg.ice.slice(),
+      iceTotal: iceTotal,
+      goals: cfg.goals,
+      collected: 0,
+      iceBroken: 0
+    };
+  }
+
+  function swapInGrid(S, r1, c1, r2, c2) {
+
+    const g = S.g;
+    const a = g[r1][c1];
+    const b = g[r2][c2];
+
+    g[r1][c1] = b;
+    g[r2][c2] = a;
+
+    a.r = r2; a.c = c2;
+    b.r = r1; b.c = c1;
+  }
+
+  /* Remove a set of squares from the board, update score, ice and goals. */
+  function applyClear(S, set, keep, creations, acts, bonusMul) {
+
+    const n = S.n;
+    const g = S.g;
+    const cleared = [];
+    const iceHit = [];
+
+    set.forEach(function (i) {
+
+      const r = Math.floor(i / n);
+      const c = i % n;
+      const tl = g[r][c];
+
+      if (!tl) return;
+      if (keep && keep.has(i)) return;
+
+      cleared.push({ tile: tl, r: r, c: c, idx: i });
+      g[r][c] = null;
+
+      if (S.goals.collectType >= 0 && tl.t === S.goals.collectType) S.collected++;
+
+      if (S.ice[i] > 0) {
+        S.ice[i]--;
+        S.iceBroken++;
+        iceHit.push(i);
+      }
+    });
+
+    const mult = Math.min(4, 1 + 0.5 * (Math.max(1, S.cascade) - 1));
+
+    let gain = cleared.length * 50 * mult;
+
+    creations.forEach(function (cr) {
+      gain += cr.kind === SP.QUEEN ? 250 : (cr.kind === SP.KNIGHT ? 150 : 100);
+    });
+
+    gain += acts.length * 100 * mult;
+    gain = Math.round(gain * (bonusMul || 1));
+
+    S.score += gain;
+
+    return { cleared: cleared, creations: creations, acts: acts, iceHit: iceHit, gain: gain, cascade: S.cascade };
+  }
+
+  /* One round of normal matching. Returns null when nothing matches. */
+  function matchStep(S, pref) {
+
+    const n = S.n;
+    const g = S.g;
+    const m = findMatches(g, n, pref);
+
+    if (!m.matched.size) return null;
+
+    const keep = new Set();
+    m.creations.forEach(function (cr) { keep.add(cr.idx); });
+
+    const set = new Set();
+    m.matched.forEach(function (i) { if (!keep.has(i)) set.add(i); });
+
+    const acts = [];
+    expandClear(g, n, set, keep, new Set(), acts);
+
+    const result = applyClear(S, set, keep, m.creations, acts, 1);
+
+    /* upgrade the kept tiles into power tiles */
+    result.creations = m.creations.map(function (cr) {
+      const tl = g[Math.floor(cr.idx / n)][cr.idx % n];
+      tl.s = cr.kind;
+      if (cr.kind === SP.QUEEN) tl.t = -1;
+      return { tile: tl, idx: cr.idx, kind: cr.kind };
+    });
+
+    return result;
+  }
+
+  /* Two power tiles swapped together (or a Queen with anything). */
+  function comboStep(S, r1, c1, r2, c2) {
+
+    const n = S.n;
+    const g = S.g;
+    const a = g[r1][c1];
+    const b = g[r2][c2];
+    const ia = r1 * n + c1;
+    const ib = r2 * n + c2;
+
+    const set = new Set([ia, ib]);
+    const fired = new Set([ia, ib]);
+    const acts = [];
+
+    function addAll(arr) { arr.forEach(function (i) { if (g[Math.floor(i / n)][i % n]) set.add(i); }); }
+
+    let name = "combo";
+
+    if (a.s === SP.QUEEN && b.s === SP.QUEEN) {
+
+      name = "queens";
+      for (let i = 0; i < n * n; i++) set.add(i);
+
+    } else if (a.s === SP.QUEEN || b.s === SP.QUEEN) {
+
+      const o = a.s === SP.QUEEN ? b : a;
+      name = "queen";
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+
+          const tl = g[r][c];
+          if (!tl || tl.t !== o.t || o.t < 0) continue;
+
+          set.add(r * n + c);
+
+          /* partner is a Rook/Knight: every piece of its kind fires that power */
+          if (o.s) addAll(effectCells(n, o.s, r, c));
+        }
+      }
+
+    } else {
+
+      name = "double";
+
+      const sp = [a.s, b.s].sort();
+      const rows = [];
+      const cols = [];
+      const rookA = a.s === SP.ROOK_V || a.s === SP.ROOK_H;
+      const rookB = b.s === SP.ROOK_V || b.s === SP.ROOK_H;
+
+      if (rookA && rookB) {
+
+        for (let k = 0; k < n; k++) { rows.push(r2 * n + k); cols.push(k * n + c2); }
+        addAll(rows); addAll(cols);
+
+      } else if (a.s === SP.KNIGHT && b.s === SP.KNIGHT) {
+
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            const rr = r2 + dr, cc = c2 + dc;
+            if (rr >= 0 && cc >= 0 && rr < n && cc < n) set.add(rr * n + cc);
+          }
+        }
+
+      } else {
+
+        for (let d = -1; d <= 1; d++) {
+          for (let k = 0; k < n; k++) {
+            if (r2 + d >= 0 && r2 + d < n) set.add((r2 + d) * n + k);
+            if (c2 + d >= 0 && c2 + d < n) set.add(k * n + (c2 + d));
+          }
+        }
+      }
+
+      void sp;
+    }
+
+    expandClear(g, n, set, null, fired, acts);
+
+    /* count the two swapped power tiles themselves as fired for the effects */
+    acts.unshift({ idx: ib, kind: b.s });
+    if (a.s !== SP.QUEEN || b.s === SP.QUEEN) acts.unshift({ idx: ia, kind: a.s });
+
+    S.cascade = 1;
+    const res = applyClear(S, set, null, [], acts, 1.5);
+    res.name = name;
+
+    return res;
+  }
+
+  /* Drop everything down, then fill the holes with new random pieces. */
+  function gravity(S) {
+
+    const n = S.n;
+    const g = S.g;
+    const spawned = [];
+
+    for (let c = 0; c < n; c++) {
+
+      let write = n - 1;
+
+      for (let r = n - 1; r >= 0; r--) {
+        const tl = g[r][c];
+        if (!tl) continue;
+        if (r !== write) {
+          g[write][c] = tl;
+          g[r][c] = null;
+          tl.r = write;
+        }
+        write--;
+      }
+
+      const count = write + 1;
+
+      for (let r = write; r >= 0; r--) {
+        const tl = mkTile(randType(S.types, S.rng), 0, r, c);
+        tl.dr = r - count;
+        tl.dc = c;
+        g[r][c] = tl;
+        spawned.push(tl);
+      }
+    }
+
+    return spawned;
+  }
+
+  /* Re-order the pieces until the board has no ready matches and has a move. */
+  function shuffleBoard(S) {
+
+    const n = S.n;
+    const g = S.g;
+    const tiles = [];
+
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) tiles.push(g[r][c]);
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+
+      shuffleWith(tiles, S.rng);
+
+      for (let k = 0; k < tiles.length; k++) {
+        const r = Math.floor(k / n);
+        const c = k % n;
+        g[r][c] = tiles[k];
+        tiles[k].r = r;
+        tiles[k].c = c;
+      }
+
+      if (!anyMatch(g, n) && hasMove(g, n)) return true;
+    }
+
+    /* last resort: re-roll the normal pieces */
+    for (let guard = 0; guard < 40; guard++) {
+
+      const fresh = fillInitial(n, S.types, S.rng);
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (g[r][c].s === 0) g[r][c].t = fresh[r][c].t;
+        }
+      }
+
+      if (!anyMatch(g, n) && hasMove(g, n)) return true;
+    }
+
+    return false;
+  }
+
+  function goalsMet(S) {
+
+    const G = S.goals;
+
+    if (G.score > 0 && S.score < G.score) return false;
+    if (G.collectType >= 0 && S.collected < G.collectNeed) return false;
+    if (S.iceTotal > 0 && S.iceBroken < S.iceTotal) return false;
+
+    return true;
+  }
+
+  /* Whole move without animation (used by the bot and the tests). */
+  function playMove(S, r1, c1, r2, c2) {
+
+    if (!swapIsValid(S.g, S.n, r1, c1, r2, c2)) return false;
+
+    const a = S.g[r1][c1];
+    const b = S.g[r2][c2];
+
+    swapInGrid(S, r1, c1, r2, c2);
+    S.moves--;
+    S.cascade = 0;
+
+    let pref = new Set([r1 * S.n + c1, r2 * S.n + c2]);
+
+    if (a.s === SP.QUEEN || b.s === SP.QUEEN || (a.s && b.s)) {
+      comboStep(S, r1, c1, r2, c2);
+      gravity(S);
+      pref = null;
+    }
+
+    for (let guard = 0; guard < 80; guard++) {
+      S.cascade++;
+      const step = matchStep(S, pref);
+      pref = null;
+      if (!step) { S.cascade--; break; }
+      gravity(S);
+    }
+
+    if (!hasMove(S.g, S.n)) shuffleBoard(S);
+
+    return true;
+  }
+
+
+  /* =========================================================
+     LEVELS (infinite, easy to hard)
+     CAL holds the measured "how much does a decent player earn
+     per move" numbers so the targets fit every board size.
+  ========================================================= */
+
+  /* measured with a greedy test player: points and pieces-of-one-kind per move, by board size (8..16) and piece kinds (5..10) */
+  const CAL_P = {"8":[1355,611,338,267,246,210],"9":[1942,680,430,301,254,212],"10":[2463,825,487,309,253,255],"11":[3051,1140,582,391,299,227],"12":[4967,1516,598,350,266,233],"13":[6125,1911,792,438,280,260],"14":[9033,2735,1114,445,416,251],"15":[12645,2419,1149,713,373,324],"16":[17813,3798,1565,540,394,292]};
+  const CAL_C = {"8":[2.81,1.27,0.74,0.56,0.42,0.4],"9":[4.14,1.45,0.9,0.55,0.42,0.41],"10":[4.94,1.61,0.96,0.6,0.46,0.43],"11":[6.17,2.01,1.16,0.69,0.52,0.35],"12":[9.5,2.66,1.14,0.65,0.49,0.38],"13":[11.11,3.62,1.51,0.75,0.52,0.42],"14":[16.09,4.6,1.88,0.83,0.63,0.45],"15":[21.03,4.94,1.83,1.13,0.54,0.51],"16":[30.2,6.43,2.79,0.97,0.6,0.45]};
+
+  const CAL = {
+    ppm: function (n, kinds) { return CAL_P[n][Math.max(0, Math.min(5, kinds - 5))]; },
+    cpm: function (n, kinds) { return CAL_C[n][Math.max(0, Math.min(5, kinds - 5))] * kinds; }
+  };
+
+  function levelConfig(n, level) {
+
+    const rng = mulberry32(level * 7919 + n * 104729 + 17);
+
+    const kinds = Math.min(9, 5 + Math.floor((level - 1) / 9));
+    const types = shuffleWith(Array.from({ length: 12 }, function (_, i) { return i; }), rng).slice(0, kinds);
+
+    /* goal type rotation: score, score, collect, ice, score, collect, ice, collect + ice ... */
+    const rotation = ["score", "score", "collect", "ice", "score", "collect", "ice", "collectice"];
+    const mode = rotation[(level - 1) % rotation.length];
+
+    const hard = Math.min(1, (level - 1) / 48);
+    const ratio = 0.40 + hard * 0.42;
+
+    const moves = Math.max(20, 28 - Math.floor(level / 5));
+
+    const goals = { score: 0, collectType: -1, collectNeed: 0 };
+    const ice = new Array(n * n).fill(0);
+
+    const ppm = CAL.ppm(n, kinds);
+    const cpm = CAL.cpm(n, kinds);
+
+    if (mode === "score") {
+      goals.score = Math.round(ppm * moves * ratio / 500) * 500;
+    }
+
+    if (mode === "collect" || mode === "collectice") {
+      goals.collectType = types[Math.floor(rng() * types.length)];
+      goals.collectNeed = Math.max(8, Math.round(cpm / kinds * moves * (mode === "collect" ? 0.40 + hard * 0.40 : 0.28 + hard * 0.25)));
+    }
+
+    if (mode === "ice" || mode === "collectice") {
+
+      const cover = (mode === "ice" ? 0.14 : 0.08) + hard * 0.05;
+      const want = Math.round(n * n * cover);
+      let have = 0;
+      let guard = 0;
+
+      while (have < want && guard++ < 4000) {
+
+        /* grow ice in blobs */
+        let r = Math.floor(rng() * n);
+        let c = Math.floor(rng() * n);
+        const blob = 3 + Math.floor(rng() * 6);
+
+        for (let k = 0; k < blob && have < want; k++) {
+          const i = r * n + c;
+          if (!ice[i]) { ice[i] = 1; have++; }
+          const d = Math.floor(rng() * 4);
+          r = Math.max(0, Math.min(n - 1, r + (d === 0 ? 1 : d === 1 ? -1 : 0)));
+          c = Math.max(0, Math.min(n - 1, c + (d === 2 ? 1 : d === 3 ? -1 : 0)));
+        }
+      }
+
+      const doubleChance = Math.max(0, Math.min(0.10, (level - 20) * 0.008));
+      for (let i = 0; i < ice.length; i++) if (ice[i] && rng() < doubleChance) ice[i] = 2;
+    }
+
+    return {
+      n: n,
+      level: level,
+      kinds: kinds,
+      types: types,
+      moves: moves + (mode === "ice" || mode === "collectice" ? Math.round(n * n * 0.13) : 0),
+      goals: goals,
+      ice: ice,
+      mode: mode,
+      seed: level * 1315423911 + n * 2654435761
+    };
+  }
+
+  /* ENGINE END */
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  let size = 8;
+  let level = 1;
+
+  let cfg = null;
+  let S = null;
+
+  let busy = false;
+  let building = false;
+  let ended = false;
+  let buildToken = 0;
+
+  let selected = null;
+  let down = null;
+
+  let hintsUsed = 0;
+  let shufflesUsed = 0;
+  let bestChain = 0;
+  let powerMade = 0;
+  let hintPair = null;
+
+  const MAX_HINTS = 3;
+  const MAX_SHUFFLES = 2;
+
+  let losses = 0;          // consecutive losses of this level (adds mercy moves)
+  let lastSeed = 0;
+
+  let soundOn = true;
+  let autoHintOn = true;
+  let speed = 1;
+
+  /* session scoreboard */
+  let totalScore = 0;
+  let cleared = 0;
+  let starsTotal = 0;
+  let bestCleared = 0;
+  let bestScore = 0;
+  const memBest = {};
+
+  /* timer */
+  let elapsed = 0;
+  let lastTick = 0;
+  let timerId = null;
+
+  let idleTimer = null;
+  let modalTimer = null;
+  let hintTimer = null;
+
+  let tileLayer = null;
+  let iceLayer = null;
+  let fxLayer = null;
+  const iceEls = {};
+
+  const TIPS = [
+    "Swap two neighbouring pieces to line up 3 of the same kind.",
+    "Match 4 in a line to make a Rook that clears a whole row or column.",
+    "Match an L or T shape to make a Knight, a big 3x3 blast.",
+    "Match 5 in a line to make a Queen. Swap it with a piece to clear that kind from the board.",
+    "Matches near the top cause chains, because new pieces drop in and may match by themselves.",
+    "Ice breaks when a piece on top of it is cleared. Aim your matches at the ice.",
+    "Swap two power pieces together for a huge combo.",
+    "Spare moves at the end turn into bonus points, so finish with moves in hand."
+  ];
+
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+
+  const section = document.getElementById("chesscrush-section");
+  const board = document.getElementById("ccrBoard");
+
+  const sizeGrid = document.getElementById("ccrSizeGrid");
+  const soundToggle = document.getElementById("ccrSoundToggle");
+  const fastToggle = document.getElementById("ccrFastToggle");
+  const autoHintToggle = document.getElementById("ccrAutoHintToggle");
+
+  const resetBtn = document.getElementById("ccrResetBtn");
+  const retryBtn = document.getElementById("ccrRetryBtn");
+  const hintBtn = document.getElementById("ccrHintBtn");
+  const shuffleBtn = document.getElementById("ccrShuffleBtn");
+
+  const levelPrev = document.getElementById("ccrLevelPrev");
+  const levelNext = document.getElementById("ccrLevelNext");
+  const levelBig = document.getElementById("ccrLevelBig");
+  const levelTier = document.getElementById("ccrLevelTier");
+  const unlockedEl = document.getElementById("ccrUnlocked");
+  const diffBadge = document.getElementById("ccrDiffBadge");
+
+  const howToBtn = document.getElementById("ccrHowToBtn");
+  const howToModal = document.getElementById("ccrHowToModal");
+  const howToClose = document.getElementById("ccrHowToClose");
+
+  const winModal = document.getElementById("ccrWinModal");
+  const winNext = document.getElementById("ccrWinNext");
+  const winRetry = document.getElementById("ccrWinRetry");
+  const winClose = document.getElementById("ccrWinClose");
+  const winMessage = document.getElementById("ccrWinMessage");
+  const winStars = document.getElementById("ccrWinStars");
+
+  const loseModal = document.getElementById("ccrLoseModal");
+  const loseRetry = document.getElementById("ccrLoseRetry");
+  const loseNew = document.getElementById("ccrLoseNew");
+  const loseClose = document.getElementById("ccrLoseClose");
+  const loseMessage = document.getElementById("ccrLoseMessage");
+
+  const statusEl = document.getElementById("ccrStatus");
+  const movesEl = document.getElementById("ccrMoves");
+  const scoreEl = document.getElementById("ccrScore");
+  const goalsEl = document.getElementById("ccrGoals");
+  const tipEl = document.getElementById("ccrTip");
+
+  const sizeStatEl = document.getElementById("ccrSizeStat");
+  const kindsStatEl = document.getElementById("ccrKindsStat");
+  const movesStatEl = document.getElementById("ccrMovesStat");
+  const chainStatEl = document.getElementById("ccrChainStat");
+  const powerStatEl = document.getElementById("ccrPowerStat");
+  const hintStatEl = document.getElementById("ccrHintStat");
+  const shuffleStatEl = document.getElementById("ccrShuffleStat");
+  const timeStatEl = document.getElementById("ccrTimeStat");
+
+  const totalStatEl = document.getElementById("ccrTotalStat");
+  const clearedStatEl = document.getElementById("ccrClearedStat");
+  const starsStatEl = document.getElementById("ccrStarsStat");
+  const bestScoreStatEl = document.getElementById("ccrBestScoreStat");
+  const bestStatEl = document.getElementById("ccrBestStat");
+
+  if (!section || !board) {
+    return;
+  }
+
+
+  /* =========================================================
+     SAVED PROGRESS (best level + best score per board size)
+  ========================================================= */
+
+  function levelKey() { return "ccrBest_" + size; }
+  function scoreKey() { return "ccrBestScore_" + size; }
+
+  function readNum(key) {
+    try {
+      return Number(localStorage.getItem(key)) || 0;
+    } catch (e) {
+      return memBest[key] || 0;
+    }
+  }
+
+  function writeNum(key, value) {
+    memBest[key] = value;
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (e) {}
+  }
+
+  function unlockedLevel() {
+    return Math.max(bestCleared + 1, level);
+  }
+
+
+  /* =========================================================
+     SOUND (Web Audio API, no files needed)
+  ========================================================= */
+
+  let audioCtx = null;
+
+  function getCtx() {
+
+    if (!audioCtx) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      } catch (e) {
+        audioCtx = null;
+      }
+    }
+
+    if (audioCtx && audioCtx.state === "suspended") {
+      try { audioCtx.resume(); } catch (e) {}
+    }
+
+    return audioCtx;
+  }
+
+  function tone(freq, delay, dur, type, vol, slideTo) {
+
+    if (!soundOn) return;
+
+    const ctx = getCtx();
+    if (!ctx) return;
+
+    try {
+
+      const t0 = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = type || "sine";
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.03);
+
+    } catch (e) {}
+  }
+
+  const SCALE = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760];
+
+  const SFX = {
+    select: function () { tone(620, 0, 0.05, "triangle", 0.1); },
+    swap:   function () { tone(380, 0, 0.07, "triangle", 0.1, 520); },
+    bad:    function () { tone(200, 0, 0.16, "sawtooth", 0.1, 130); tone(150, 0.08, 0.16, "square", 0.06, 110); },
+    match:  function (chain) {
+      const k = Math.min(SCALE.length - 3, Math.max(0, chain - 1));
+      tone(SCALE[k], 0, 0.11, "sine", 0.17, SCALE[k] * 1.02);
+      tone(SCALE[k + 1], 0.06, 0.11, "sine", 0.13);
+      tone(SCALE[k + 2], 0.12, 0.16, "triangle", 0.11);
+    },
+    make:   function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, i * 0.06, 0.14, "triangle", 0.13); }); },
+    rook:   function () { tone(900, 0, 0.3, "sawtooth", 0.1, 200); tone(300, 0, 0.3, "square", 0.05, 120); },
+    knight: function () { tone(160, 0, 0.35, "sine", 0.22, 60); tone(500, 0.02, 0.2, "triangle", 0.1, 150); },
+    queen:  function () { [262, 330, 392, 523, 659, 784, 1047].forEach(function (f, i) { tone(f, i * 0.05, 0.22, "triangle", 0.13); }); tone(110, 0, 0.6, "sine", 0.2, 50); },
+    shuffle: function () { for (let i = 0; i < 6; i++) tone(300 + i * 60, i * 0.045, 0.05, "square", 0.06); },
+    hint:   function () { tone(784, 0, 0.1, "sine", 0.12); tone(1047, 0.08, 0.14, "sine", 0.12); },
+    cheer:  function (lvl) { [523, 659, 784, 1047, 1319].slice(0, 2 + lvl).forEach(function (f, i) { tone(f, i * 0.07, 0.2, "triangle", 0.14); }); },
+    bonus:  function (i) { tone(700 + i * 55, 0, 0.09, "sine", 0.13); tone(1400 + i * 80, 0.04, 0.09, "triangle", 0.08); },
+    ice:    function () { tone(1800, 0, 0.06, "triangle", 0.09, 900); tone(2400, 0.03, 0.05, "sine", 0.06, 1200); },
+    start:  function () { tone(330, 0, 0.08, "triangle", 0.09); tone(494, 0.07, 0.1, "triangle", 0.09); tone(659, 0.14, 0.12, "triangle", 0.09); },
+    lose:   function () { [392, 330, 262, 196].forEach(function (f, i) { tone(f, i * 0.16, 0.3, "sawtooth", 0.1, f * 0.9); }); },
+    win:    function () {
+      [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, i * 0.11, 0.26, "triangle", 0.17); });
+      tone(1568, 0.6, 0.45, "sine", 0.13);
+    }
+  };
+
+
+  /* =========================================================
+     TIMER (only counts while this section is visible)
+  ========================================================= */
+
+  function formatTime(ms) {
+    let s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    s = s % 60;
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function stopTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function startTimer() {
+
+    stopTimer();
+
+    lastTick = performance.now();
+    timerId = setInterval(tick, 250);
+  }
+
+  function tick() {
+
+    const now = performance.now();
+    const dt = now - lastTick;
+    lastTick = now;
+
+    if (ended || building) return;
+    if (section.getClientRects().length === 0) return;
+
+    elapsed += dt;
+    timeStatEl.textContent = formatTime(elapsed);
+  }
+
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, Math.max(0, ms * speed)); });
+  }
+
+
+  /* =========================================================
+     TILE ELEMENTS
+  ========================================================= */
+
+  function glyphSpan(p) {
+
+    const span = document.createElement("span");
+    span.className = "ccr-glyph";
+    span.textContent = p.glyph;
+    span.style.color = p.key.charAt(0) === "w" ? "#ffffff" : "#15182a";
+    span.style.webkitTextStroke = p.key.charAt(0) === "w" ? "1px #15182a" : "1px #ffffff";
+
+    return span;
+  }
+
+  function pieceImage(p) {
+
+    const img = document.createElement("img");
+
+    img.src = "assets/pieces/" + p.file;
+    img.alt = p.name;
+    img.draggable = false;
+
+    img.addEventListener("error", function () {
+      if (img.parentNode) img.parentNode.replaceChild(glyphSpan(p), img);
+    });
+
+    return img;
+  }
+
+  /* (re)draw the inside of a tile: piece picture, power markers */
+  function fillTileEl(tile) {
+
+    const gem = tile.el.firstChild;
+
+    while (gem.firstChild) gem.removeChild(gem.firstChild);
+
+    gem.className = "ccr-gem" + (tile.s ? " ccr-sp" + tile.s : "");
+
+    if (tile.s === SP.QUEEN) {
+
+      gem.style.background = "";
+      const q = document.createElement("span");
+      q.className = "ccr-queenmark";
+      q.textContent = "♛";
+      gem.appendChild(q);
+      return;
+    }
+
+    const p = PIECES[tile.t];
+
+    gem.style.background = p.bg;
+    gem.appendChild(pieceImage(p));
+
+    if (tile.s) {
+      const mark = document.createElement("div");
+      mark.className = "ccr-mark";
+      mark.textContent = tile.s === SP.ROOK_V ? "↕" : (tile.s === SP.ROOK_H ? "↔" : "✦");
+      gem.appendChild(mark);
+    }
+  }
+
+  function makeTileEl(tile) {
+
+    const el = document.createElement("div");
+
+    el.className = "ccr-tile ccr-noanim";
+    el.style.width = (100 / size) + "%";
+    el.style.height = (100 / size) + "%";
+    el.style.transform = "translate(" + (tile.dc * 100) + "%," + (tile.dr * 100) + "%)";
+
+    const gem = document.createElement("div");
+    gem.className = "ccr-gem";
+    el.appendChild(gem);
+
+    tile.el = el;
+    fillTileEl(tile);
+
+    tileLayer.appendChild(el);
+
+    return el;
+  }
+
+  /* move every tile to where the grid says it is; CSS transitions do the animation */
+  function syncTiles() {
+
+    let longest = 0;
+
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+
+        const tile = S.g[r][c];
+        if (!tile || !tile.el) continue;
+
+        const dist = Math.max(Math.abs(tile.r - tile.dr), Math.abs(tile.c - tile.dc));
+
+        if (dist > 0) {
+
+          const dur = Math.min(560, 140 + dist * 65) * speed;
+          if (dur > longest) longest = dur;
+
+          tile.el.style.transitionDuration = dur + "ms";
+          tile.el.style.transform = "translate(" + (tile.c * 100) + "%," + (tile.r * 100) + "%)";
+
+          tile.dr = tile.r;
+          tile.dc = tile.c;
+        }
+      }
+    }
+
+    return longest;
+  }
+
+
+  /* =========================================================
+     BOARD BUILD
+  ========================================================= */
+
+  function makeLayer() {
+    const d = document.createElement("div");
+    d.className = "ccr-layer";
+    return d;
+  }
+
+  function buildBoard() {
+
+    board.innerHTML = "";
+    board.style.setProperty("--n", String(size));
+
+    iceLayer = makeLayer();
+    tileLayer = makeLayer();
+    fxLayer = makeLayer();
+
+    fxLayer.style.zIndex = "6";
+
+    board.appendChild(iceLayer);
+    board.appendChild(tileLayer);
+    board.appendChild(fxLayer);
+
+    Object.keys(iceEls).forEach(function (k) { delete iceEls[k]; });
+
+    for (let i = 0; i < size * size; i++) {
+
+      if (S.ice[i] <= 0) continue;
+
+      const el = document.createElement("div");
+
+      el.className = "ccr-ice" + (S.ice[i] > 1 ? " ccr-ice2" : "");
+      el.style.width = (100 / size) + "%";
+      el.style.height = (100 / size) + "%";
+      el.style.left = ((i % size) * 100 / size) + "%";
+      el.style.top = (Math.floor(i / size) * 100 / size) + "%";
+
+      iceLayer.appendChild(el);
+      iceEls[i] = el;
+    }
+
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) makeTileEl(S.g[r][c]);
+    }
+
+    void tileLayer.offsetWidth;
+
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) S.g[r][c].el.classList.remove("ccr-noanim");
+    }
+  }
+
+  function refreshIce(idx) {
+
+    const el = iceEls[idx];
+    if (!el) return;
+
+    if (S.ice[idx] <= 0) {
+
+      el.classList.add("ccr-ice-break");
+      delete iceEls[idx];
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400 * speed);
+
+    } else {
+
+      el.classList.toggle("ccr-ice2", S.ice[idx] > 1);
+    }
+  }
+
+
+  /* =========================================================
+     GOALS + HUD
+  ========================================================= */
+
+  function goalChip(icon, text, done, pct) {
+
+    const d = document.createElement("div");
+    d.className = "ccr-goal" + (done ? " ccr-done" : "");
+
+    const ico = document.createElement("div");
+    ico.className = "ccr-goal-ico";
+
+    if (typeof icon === "string") {
+      ico.textContent = icon;
+    } else {
+      ico.appendChild(icon);
+    }
+
+    const txt = document.createElement("div");
+    txt.className = "ccr-goal-txt";
+    txt.textContent = text;
+
+    const bar = document.createElement("div");
+    bar.className = "ccr-bar";
+    const fill = document.createElement("i");
+    fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+    bar.appendChild(fill);
+    txt.appendChild(bar);
+
+    d.appendChild(ico);
+    d.appendChild(txt);
+
+    return d;
+  }
+
+  function renderGoals() {
+
+    goalsEl.innerHTML = "";
+
+    if (!S) return;
+
+    const G = S.goals;
+
+    if (G.score > 0) {
+      goalsEl.appendChild(goalChip("⭐", "Score " + Math.min(S.score, G.score) + " / " + G.score, S.score >= G.score, S.score / G.score * 100));
+    }
+
+    if (G.collectType >= 0) {
+
+      const p = PIECES[G.collectType];
+      const img = pieceImage(p);
+      const left = Math.min(S.collected, G.collectNeed);
+
+      goalsEl.appendChild(goalChip(img, "Capture " + left + " / " + G.collectNeed + " " + p.name + "s", S.collected >= G.collectNeed, S.collected / G.collectNeed * 100));
+    }
+
+    if (S.iceTotal > 0) {
+      goalsEl.appendChild(goalChip("🧊", "Break ice " + S.iceBroken + " / " + S.iceTotal, S.iceBroken >= S.iceTotal, S.iceBroken / S.iceTotal * 100));
+    }
+  }
+
+  function updateHud() {
+
+    if (!S) return;
+
+    const tier = tierOf(level);
+    const unlocked = unlockedLevel();
+
+    movesEl.textContent = String(Math.max(0, S.moves));
+    scoreEl.textContent = String(S.score);
+
+    sizeStatEl.textContent = size + " × " + size;
+    kindsStatEl.textContent = String(cfg.kinds);
+    movesStatEl.textContent = String(Math.max(0, S.moves));
+    chainStatEl.textContent = String(bestChain);
+    powerStatEl.textContent = String(powerMade);
+    hintStatEl.textContent = hintsUsed + " / " + MAX_HINTS;
+    shuffleStatEl.textContent = shufflesUsed + " / " + MAX_SHUFFLES;
+
+    totalStatEl.textContent = String(totalScore);
+    clearedStatEl.textContent = String(cleared);
+    starsStatEl.textContent = starsTotal + " ⭐";
+    bestScoreStatEl.textContent = String(bestScore);
+    bestStatEl.textContent = String(bestCleared);
+
+    levelBig.textContent = "Level " + level;
+    levelTier.textContent = tier.name.toUpperCase();
+    levelTier.style.color = tier.color;
+    unlockedEl.textContent = "Unlocked up to level " + unlocked;
+
+    diffBadge.textContent = tier.name.toUpperCase();
+    diffBadge.style.background = tier.color;
+
+    levelPrev.disabled = building || busy || level <= 1;
+    levelNext.disabled = building || busy || level >= unlocked;
+
+    hintBtn.textContent = "💡 Hint (" + Math.max(0, MAX_HINTS - hintsUsed) + ")";
+    hintBtn.disabled = building || busy || ended || hintsUsed >= MAX_HINTS;
+    hintBtn.style.opacity = hintBtn.disabled ? "0.45" : "1";
+
+    shuffleBtn.textContent = "🔀 Shuffle (" + Math.max(0, MAX_SHUFFLES - shufflesUsed) + ")";
+    shuffleBtn.disabled = building || busy || ended || shufflesUsed >= MAX_SHUFFLES;
+    shuffleBtn.style.opacity = shuffleBtn.disabled ? "0.45" : "1";
+
+    renderGoals();
+  }
+
+
+  /* =========================================================
+     EFFECTS
+  ========================================================= */
+
+  const CONFETTI = ["#ffd700", "#ff4d5a", "#29d3ff", "#78b887", "#c77dff", "#ff9a3c", "#ffffff"];
+
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function cellCenter(r, c, rect) {
+    const cell = rect.width / size;
+    return { x: rect.left + (c + 0.5) * cell, y: rect.top + (r + 0.5) * cell, cell: cell };
+  }
+
+  function burstAtCell(r, c, count, rect) {
+
+    if (reducedMotion()) return;
+
+    const p = cellCenter(r, c, rect);
+
+    for (let i = 0; i < count; i++) {
+
+      const bit = document.createElement("div");
+      if (!bit.animate) return;
+
+      const w = 4 + Math.random() * 5;
+
+      Object.assign(bit.style, {
+        position: "fixed",
+        left: p.x + "px",
+        top: p.y + "px",
+        width: w + "px",
+        height: (w * (0.6 + Math.random() * 0.8)) + "px",
+        background: CONFETTI[Math.floor(Math.random() * CONFETTI.length)],
+        borderRadius: Math.random() < 0.4 ? "50%" : "2px",
+        pointerEvents: "none",
+        zIndex: "100001"
+      });
+
+      document.body.appendChild(bit);
+
+      const ang = Math.random() * Math.PI * 2;
+      const dist = p.cell * (0.7 + Math.random() * 1.1);
+      const dx = Math.cos(ang) * dist;
+      const dy = Math.sin(ang) * dist - p.cell * 0.3;
+
+      const anim = bit.animate([
+        { transform: "translate(-50%,-50%) translate(0,0) rotate(0deg) scale(1)", opacity: 1 },
+        { transform: "translate(-50%,-50%) translate(" + dx + "px," + (dy + p.cell * 0.7) + "px) rotate(" + ((Math.random() - 0.5) * 720) + "deg) scale(0.3)", opacity: 0 }
+      ], {
+        duration: (650 + Math.random() * 450) * speed,
+        easing: "cubic-bezier(0.15, 0.7, 0.35, 1)",
+        fill: "forwards"
+      });
+
+      anim.onfinish = function () { bit.remove(); };
+    }
+  }
+
+  function fxEl(css, className, life) {
+
+    const el = document.createElement("div");
+
+    el.className = "ccr-fx " + (className || "");
+    Object.assign(el.style, css);
+
+    fxLayer.appendChild(el);
+
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, life * speed);
+
+    return el;
+  }
+
+  function popupAt(r, c, text, big) {
+
+    const cell = 100 / size;
+
+    const el = fxEl({
+      left: ((c + 0.5) * cell) + "%",
+      top: ((r + 0.5) * cell) + "%",
+      fontSize: "calc(" + (big ? 46 : 34) + "cqw / " + size + ")"
+    }, "ccr-popup", 1000);
+
+    el.textContent = text;
+
+    if (el.animate) {
+      el.animate([
+        { transform: "translate(-50%,-50%) scale(0.5)", opacity: 0 },
+        { transform: "translate(-50%,-90%) scale(1.15)", opacity: 1, offset: 0.2 },
+        { transform: "translate(-50%,-200%) scale(1)", opacity: 0 }
+      ], { duration: 900 * speed, easing: "ease-out", fill: "forwards" });
+    }
+  }
+
+  function banner(text) {
+
+    const el = fxEl({ fontSize: "clamp(18px, 5.4cqw, 44px)" }, "ccr-banner", 1300);
+
+    el.textContent = text;
+
+    if (el.animate) {
+      el.animate([
+        { transform: "translate(-50%,-50%) scale(0.4)", opacity: 0 },
+        { transform: "translate(-50%,-50%) scale(1.15)", opacity: 1, offset: 0.2 },
+        { transform: "translate(-50%,-50%) scale(1)", opacity: 1, offset: 0.7 },
+        { transform: "translate(-50%,-90%) scale(1)", opacity: 0 }
+      ], { duration: 1200 * speed, easing: "ease-out", fill: "forwards" });
+    }
+  }
+
+  function boardShake() {
+    board.classList.remove("ccr-board-shake");
+    void board.offsetWidth;
+    board.classList.add("ccr-board-shake");
+  }
+
+  /* what a power tile looks like when it fires */
+  function fireFx(act) {
+
+    const n = size;
+    const r = Math.floor(act.idx / n);
+    const c = act.idx % n;
+    const cell = 100 / n;
+
+    function streak(horizontal) {
+
+      const el = fxEl(horizontal
+        ? { left: "0", top: (r * cell) + "%", width: "100%", height: cell + "%" }
+        : { left: (c * cell) + "%", top: "0", width: cell + "%", height: "100%" },
+        "ccr-streak", 700);
+
+      if (!horizontal) el.style.background = "linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,0.95),rgba(255,255,255,0))";
+
+      if (el.animate) {
+        el.animate([{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 0 }], { duration: 520 * speed, fill: "forwards" });
+      }
+    }
+
+    function ring(scale) {
+
+      const el = fxEl({
+        left: ((c + 0.5 - scale) * cell) + "%",
+        top: ((r + 0.5 - scale) * cell) + "%",
+        width: (scale * 2 * cell) + "%",
+        height: (scale * 2 * cell) + "%"
+      }, "ccr-ring", 700);
+
+      if (el.animate) {
+        el.animate([
+          { opacity: 0.95, transform: "scale(0.2)" },
+          { opacity: 0, transform: "scale(1.15)" }
+        ], { duration: 520 * speed, easing: "ease-out", fill: "forwards" });
+      }
+    }
+
+    if (act.kind === SP.ROOK_V) { streak(false); SFX.rook(); }
+    else if (act.kind === SP.ROOK_H) { streak(true); SFX.rook(); }
+    else if (act.kind === SP.KNIGHT) { ring(2.2); SFX.knight(); }
+    else if (act.kind === SP.QUEEN) { streak(true); streak(false); ring(Math.max(3, n / 2)); SFX.queen(); }
+  }
+
+  function cheerFor(step) {
+
+    const big = step.cleared.length;
+
+    if (step.cascade >= 5 || big >= 40) return { t: "Genius!!!", l: 3 };
+    if (step.cascade >= 4 || big >= 24) return { t: "Brilliant!!", l: 2 };
+    if (step.cascade >= 3 || big >= 14) return { t: "Great!", l: 1 };
+    if (step.cascade >= 2) return { t: "Good!", l: 0 };
+
+    return null;
+  }
+
+
+  /* =========================================================
+     ANIMATED STEPS
+  ========================================================= */
+
+  /* show one clear: pop, particles, score text, power tiles firing, ice cracking */
+  async function animateStep(step, isCombo) {
+
+    const rect = board.getBoundingClientRect();
+    const count = step.cleared.length;
+
+    step.acts.forEach(function (a) { fireFx(a); });
+
+    if (step.acts.length) boardShake();
+
+    const perTile = count <= 12 ? 5 : (count <= 40 ? 3 : 1);
+
+    let sr = 0;
+    let sc = 0;
+
+    step.cleared.forEach(function (cl) {
+
+      sr += cl.r;
+      sc += cl.c;
+
+      if (cl.tile.el) cl.tile.el.firstChild.classList.add("ccr-popping");
+
+      burstAtCell(cl.r, cl.c, perTile, rect);
+    });
+
+    step.iceHit.forEach(function (i) { refreshIce(i); });
+    if (step.iceHit.length) SFX.ice();
+
+    if (count) popupAt(Math.round(sr / count), Math.round(sc / count), "+" + step.gain, step.acts.length > 0);
+
+    if (!step.acts.length) SFX.match(step.cascade);
+
+    const cheer = cheerFor(step);
+
+    if (cheer) {
+      banner(cheer.t);
+      SFX.cheer(cheer.l);
+    }
+
+    if (isCombo) banner("Combo!");
+
+    if (step.cascade > bestChain) bestChain = step.cascade;
+
+    updateHud();
+
+    await sleep(step.acts.length ? 420 : 300);
+
+    step.cleared.forEach(function (cl) {
+      if (cl.tile.el && cl.tile.el.parentNode) cl.tile.el.parentNode.removeChild(cl.tile.el);
+      cl.tile.el = null;
+    });
+
+    /* power tiles born from this match */
+    if (step.creations && step.creations.length) {
+
+      step.creations.forEach(function (cr) {
+
+        powerMade++;
+
+        fillTileEl(cr.tile);
+
+        const gem = cr.tile.el.firstChild;
+        gem.classList.add("ccr-born");
+        setTimeout(function () { gem.classList.remove("ccr-born"); }, 520 * speed);
+
+        burstAtCell(cr.tile.r, cr.tile.c, 8, rect);
+      });
+
+      SFX.make();
+      updateHud();
+    }
+  }
+
+  async function animateFall(spawned) {
+
+    spawned.forEach(function (tile) { makeTileEl(tile); });
+
+    void tileLayer.offsetWidth;
+
+    spawned.forEach(function (tile) { tile.el.classList.remove("ccr-noanim"); });
+
+    const longest = syncTiles();
+
+    await sleep((longest / speed) + 50);
+  }
+
+
+  /* =========================================================
+     MOVES
+  ========================================================= */
+
+  function clearSelection() {
+
+    if (selected && S && S.g[selected.r] && S.g[selected.r][selected.c]) {
+      const t = S.g[selected.r][selected.c];
+      if (t && t.el) t.el.firstChild.classList.remove("ccr-sel");
+    }
+
+    selected = null;
+  }
+
+  function clearHint() {
+
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+
+    if (hintPair && S) {
+      hintPair.forEach(function (p) {
+        const t = S.g[p.r] && S.g[p.r][p.c];
+        if (t && t.el) t.el.firstChild.classList.remove("ccr-hint");
+      });
+    }
+
+    hintPair = null;
+  }
+
+  function bestMoveNow() {
+
+    const moves = E_listMoves();
+    if (!moves.length) return null;
+
+    let best = moves[0];
+
+    moves.forEach(function (m) { if (m.v > best.v) best = m; });
+
+    return best;
+  }
+
+  function E_listMoves() {
+    return listMoves(S.g, S.n);
+  }
+
+  function showHintMove(auto) {
+
+    if (!S || busy || ended || building) return;
+
+    const m = bestMoveNow();
+    if (!m) return;
+
+    clearHint();
+
+    hintPair = [{ r: m.r1, c: m.c1 }, { r: m.r2, c: m.c2 }];
+
+    hintPair.forEach(function (p) {
+      const t = S.g[p.r][p.c];
+      if (t && t.el) t.el.firstChild.classList.add("ccr-hint");
+    });
+
+    if (!auto) SFX.hint();
+
+    hintTimer = setTimeout(clearHint, 4000);
+  }
+
+  function armIdle() {
+
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+
+    if (!autoHintOn || ended || building) return;
+
+    idleTimer = setTimeout(function () {
+      if (!busy && !ended && section.getClientRects().length) showHintMove(true);
+    }, 9000);
+  }
+
+  async function trySwap(r1, c1, r2, c2) {
+
+    if (busy || ended || building || !S) return;
+    if (S.moves === cfg.moves && noLivesBlock()) return;
+
+    const n = size;
+
+    busy = true;
+    clearSelection();
+    clearHint();
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+
+    const a = S.g[r1][c1];
+    const b = S.g[r2][c2];
+
+    const valid = swapIsValid(S.g, n, r1, c1, r2, c2);
+    const combo = valid && (a.s === SP.QUEEN || b.s === SP.QUEEN || (a.s && b.s));
+
+    swapInGrid(S, r1, c1, r2, c2);
+    SFX.swap();
+    syncTiles();
+    await sleep(190);
+
+    if (!valid) {
+
+      SFX.bad();
+
+      a.el.firstChild.classList.add("ccr-shake");
+      b.el.firstChild.classList.add("ccr-shake");
+
+      swapInGrid(S, r1, c1, r2, c2);
+      syncTiles();
+      await sleep(210);
+
+      a.el.firstChild.classList.remove("ccr-shake");
+      b.el.firstChild.classList.remove("ccr-shake");
+
+      tipEl.textContent = "That swap makes no match, so it slides back. No move used.";
+
+      busy = false;
+      updateHud();
+      armIdle();
+      return;
+    }
+
+    /* a real move */
+    S.moves--;
+    S.cascade = 0;
+    updateHud();
+
+    let pref = new Set([r1 * n + c1, r2 * n + c2]);
+
+    if (combo) {
+
+      const step = comboStep(S, r1, c1, r2, c2);
+
+      await animateStep(step, true);
+      await animateFall(gravity(S));
+
+      pref = null;
+    }
+
+    for (let guard = 0; guard < 120; guard++) {
+
+      S.cascade++;
+
+      const step = matchStep(S, pref);
+      pref = null;
+
+      if (!step) { S.cascade--; break; }
+
+      await animateStep(step, false);
+      await animateFall(gravity(S));
+    }
+
+    await settle();
+  }
+
+  /* after the board is calm: win, lose, or shuffle if stuck */
+  async function settle() {
+
+    updateHud();
+
+    if (goalsMet(S)) {
+      await winSequence();
+      return;
+    }
+
+    if (S.moves <= 0) {
+      loseLevel();
+      return;
+    }
+
+    if (!hasMove(S.g, S.n)) {
+
+      banner("No moves! Shuffling…");
+      SFX.shuffle();
+      await sleep(700);
+
+      shuffleBoard(S);
+      syncTiles();
+      await sleep(650);
+    }
+
+    busy = false;
+    updateHud();
+    armIdle();
+  }
+
+  async function doShuffle() {
+
+    if (busy || ended || building || !S || shufflesUsed >= MAX_SHUFFLES) return;
+
+    busy = true;
+    shufflesUsed++;
+
+    clearSelection();
+    clearHint();
+
+    banner("Shuffle!");
+    SFX.shuffle();
+
+    shuffleBoard(S);
+    syncTiles();
+
+    await sleep(700);
+
+    busy = false;
+    updateHud();
+    armIdle();
+  }
+
+
+  /* =========================================================
+     INPUT (drag to swap, or tap one then a neighbour)
+  ========================================================= */
+
+  function cellFromEvent(e) {
+
+    const rect = board.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null;
+
+    const cell = rect.width / size;
+
+    return { r: Math.floor(y / cell), c: Math.floor(x / cell), cell: cell };
+  }
+
+  function selectTile(r, c) {
+
+    clearSelection();
+    clearHint();
+
+    selected = { r: r, c: c };
+
+    const t = S.g[r][c];
+    if (t && t.el) t.el.firstChild.classList.add("ccr-sel");
+
+    SFX.select();
+  }
+
+  board.addEventListener("pointerdown", function (e) {
+
+    if (busy || ended || building || !S) return;
+
+    const p = cellFromEvent(e);
+    if (!p) return;
+
+    down = { r: p.r, c: p.c, x: e.clientX, y: e.clientY, cell: p.cell, moved: false };
+
+    try { board.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  board.addEventListener("pointermove", function (e) {
+
+    if (!down || busy || ended) return;
+
+    const dx = e.clientX - down.x;
+    const dy = e.clientY - down.y;
+
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < down.cell * 0.4) return;
+
+    let r2 = down.r;
+    let c2 = down.c;
+
+    if (Math.abs(dx) > Math.abs(dy)) c2 += dx > 0 ? 1 : -1;
+    else r2 += dy > 0 ? 1 : -1;
+
+    const r1 = down.r;
+    const c1 = down.c;
+
+    down = null;
+
+    if (r2 < 0 || c2 < 0 || r2 >= size || c2 >= size) return;
+
+    trySwap(r1, c1, r2, c2);
+  });
+
+  board.addEventListener("pointerup", function () {
+
+    if (!down) return;
+
+    const d = down;
+    down = null;
+
+    if (busy || ended || !S) return;
+
+    if (!selected) {
+      selectTile(d.r, d.c);
+      return;
+    }
+
+    if (selected.r === d.r && selected.c === d.c) {
+      clearSelection();
+      return;
+    }
+
+    if (Math.abs(selected.r - d.r) + Math.abs(selected.c - d.c) === 1) {
+      const s = selected;
+      trySwap(s.r, s.c, d.r, d.c);
+      return;
+    }
+
+    selectTile(d.r, d.c);
+  });
+
+  board.addEventListener("pointercancel", function () { down = null; });
+
+
+  /* =========================================================
+     LEVEL SETUP
+  ========================================================= */
+
+  function clearTimers() {
+    if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+  }
+
+  function hideResultModals() {
+    winModal.style.display = "none";
+    loseModal.style.display = "none";
+  }
+
+  /* seed = null replays the same opening board, a number makes a fresh one */
+  function setupLevel(seed) {
+
+    const base = levelConfig(size, level);
+
+    cfg = Object.assign({}, base, { moves: base.moves + Math.min(8, losses * 2) });
+
+    lastSeed = seed === null ? lastSeed || base.seed : seed;
+    if (seed === null && !lastSeed) lastSeed = base.seed;
+
+    S = createState(cfg, mulberry32(lastSeed >>> 0));
+
+    /* the opening board is fixed by the seed, refills are random */
+    S.rng = mulberry32((Math.random() * 4294967296) >>> 0);
+
+    hintsUsed = 0;
+    shufflesUsed = 0;
+    bestChain = 0;
+    powerMade = 0;
+    ended = false;
+    busy = false;
+    selected = null;
+    down = null;
+    hintPair = null;
+
+    elapsed = 0;
+    timeStatEl.textContent = "00:00";
+
+    buildBoard();
+
+    statusEl.textContent = describeGoal();
+    tipEl.textContent = losses > 0
+      ? "Extra moves added to help you (+" + Math.min(8, losses * 2) + "). " + TIPS[(level - 1) % TIPS.length]
+      : TIPS[(level - 1) % TIPS.length];
+
+    updateHud();
+    startTimer();
+    armIdle();
+  }
+
+  function describeGoal() {
+
+    const G = cfg.goals;
+    const parts = [];
+
+    if (G.score > 0) parts.push("Score " + G.score);
+    if (G.collectType >= 0) parts.push("Capture " + G.collectNeed + " " + PIECES[G.collectType].name + "s");
+    if (S.iceTotal > 0) parts.push("Break all the ice");
+
+    return parts.join(" + ") + " in " + cfg.moves + " moves";
+  }
+
+  /* ---------- LIVES: 5 max, +1 every 10 minutes ---------- */
+  const MAX_LIVES = 5, REGEN_MS = 10 * 60 * 1000;
+  const livesEl = document.getElementById("ccrLives");
+  const lifeTimerEl = document.getElementById("ccrLifeTimer");
+  let lives = MAX_LIVES, lifeStamp = 0, lifeTick = null;
+
+  function loadLives() {
+    try {
+      const l = localStorage.getItem("ccrLives"), t = localStorage.getItem("ccrLifeStamp");
+      if (l !== null) { lives = Math.max(0, Math.min(MAX_LIVES, Number(l))); lifeStamp = Number(t) || Date.now(); }
+    } catch (e) {}
+    regenLives();
+  }
+  function saveLives() {
+    try { localStorage.setItem("ccrLives", String(lives)); localStorage.setItem("ccrLifeStamp", String(lifeStamp)); } catch (e) {}
+  }
+  function regenLives() {
+    if (lives >= MAX_LIVES) { lifeStamp = Date.now(); return; }
+    const gained = Math.floor((Date.now() - lifeStamp) / REGEN_MS);
+    if (gained > 0) {
+      lives = Math.min(MAX_LIVES, lives + gained);
+      lifeStamp = lives >= MAX_LIVES ? Date.now() : lifeStamp + gained * REGEN_MS;
+      saveLives();
+    }
+  }
+  function renderLives() {
+    regenLives();
+    livesEl.textContent = lives;
+    if (lives >= MAX_LIVES) { lifeTimerEl.textContent = ""; return; }
+    const left = Math.max(0, REGEN_MS - (Date.now() - lifeStamp));
+    const m = Math.floor(left / 60000), sec = Math.floor(left / 1000) % 60;
+    lifeTimerEl.textContent = "+1 in " + m + ":" + (sec < 10 ? "0" : "") + sec;
+  }
+  function startLifeTick() {
+    if (lifeTick) return;
+    lifeTick = setInterval(function () {
+      renderLives();
+      if (lives > 0 && ended === false && statusEl.dataset.nolife === "1") {
+        statusEl.dataset.nolife = "0"; statusEl.textContent = "A life is back. Make a move!";
+      }
+    }, 1000);
+  }
+  function loseLife() {
+    regenLives();
+    if (lives >= MAX_LIVES) lifeStamp = Date.now();
+    lives = Math.max(0, lives - 1);
+    saveLives();
+    renderLives();
+  }
+  function noLivesBlock() {
+    regenLives();
+    if (lives > 0) return false;
+    statusEl.dataset.nolife = "1";
+    statusEl.textContent = "No lives left. Next life in " + lifeTimerEl.textContent.replace("+1 in ", "") + ".";
+    SFX.lose && SFX.lose();
+    return true;
+  }
+
+  function startNewLevel(newBoard) {
+
+    const token = ++buildToken;
+
+    clearTimers();
+    hideResultModals();
+
+    building = true;
+    busy = true;
+    ended = false;
+    stopTimer();
+
+    bestCleared = readNum(levelKey());
+    bestScore = readNum(scoreKey());
+
+    statusEl.textContent = "Setting up the board…";
+    if (S) updateHud();
+
+    setTimeout(function () {
+
+      if (token !== buildToken) return;
+
+      const seed = newBoard ? ((Math.random() * 4294967296) >>> 0) : levelConfig(size, level).seed >>> 0;
+
+      lastSeed = seed;
+
+      building = false;
+      setupLevel(seed);
+
+      SFX.start();
+      busy = false;
+      updateHud();
+
+    }, 30);
+  }
+
+  function selectSize(n) {
+
+    if (n === size || building || busy) return;
+
+    size = n;
+    level = 1;
+    losses = 0;
+
+    refreshButtons();
+    startNewLevel(false);
+  }
+
+  function changeLevel(delta) {
+
+    if (building || busy) return;
+
+    const target = level + delta;
+    if (target < 1 || target > unlockedLevel()) return;
+
+    level = target;
+    losses = 0;
+    startNewLevel(false);
+  }
+
+  /* replay the SAME opening board of this level */
+  function replayCurrent() {
+
+    if (building) return;
+
+    clearTimers();
+    hideResultModals();
+
+    buildToken++;
+    busy = false;
+
+    setupLevel(lastSeed);
+  }
+
+
+  /* =========================================================
+     WIN / LOSE
+  ========================================================= */
+
+  function starsFor() {
+
+    const left = S.moves / cfg.moves;
+
+    return left >= 0.35 ? 3 : (left >= 0.15 ? 2 : 1);
+  }
+
+  async function winSequence() {
+
+    ended = true;
+    busy = true;
+
+    clearHint();
+    clearTimers();
+    stopTimer();
+
+    statusEl.textContent = "Goal reached!";
+    banner("Level clear!");
+    SFX.cheer(3);
+
+    await sleep(600);
+
+    /* every spare move turns into bonus points */
+    const rect = board.getBoundingClientRect();
+    let k = 0;
+
+    while (S.moves > 0 && k < 40) {
+
+      S.moves--;
+      S.score += 150;
+
+      const r = Math.floor(Math.random() * size);
+      const c = Math.floor(Math.random() * size);
+
+      burstAtCell(r, c, 8, rect);
+      popupAt(r, c, "+150", false);
+      SFX.bonus(Math.min(k, 14));
+
+      updateHud();
+      k++;
+
+      await sleep(150);
+    }
+
+    S.moves = Math.max(0, S.moves);
+
+    const stars = starsFor();
+    const spareLeft = cfg.moves - (cfg.moves - S.moves);
+
+    void spareLeft;
+
+    totalScore += S.score;
+    cleared++;
+    starsTotal += stars;
+    losses = 0;
+
+    if (level > bestCleared) {
+      bestCleared = level;
+      writeNum(levelKey(), bestCleared);
+    }
+
+    if (S.score > bestScore) {
+      bestScore = S.score;
+      writeNum(scoreKey(), bestScore);
+    }
+
+    winStars.textContent = "⭐".repeat(stars) + "☆".repeat(3 - stars);
+
+    winMessage.textContent =
+      "Score " + S.score +
+      " · best chain x" + bestChain +
+      " · " + powerMade + (powerMade === 1 ? " power piece" : " power pieces") +
+      " · " + formatTime(elapsed) + ".";
+
+    winNext.textContent = "Next Level (Level " + (level + 1) + " · " + tierOf(level + 1).name + ")";
+
+    tipEl.textContent = "Brilliant! Level " + level + " cleared with " + stars + (stars === 1 ? " star." : " stars.");
+
+    updateHud();
+
+    SFX.win();
+
+    modalTimer = setTimeout(function () {
+      winModal.style.display = "flex";
+    }, 700);
+  }
+
+  function loseLevel() {
+
+    ended = true;
+    busy = true;
+
+    clearHint();
+    clearTimers();
+    stopTimer();
+
+    losses++;
+    loseLife();
+
+    statusEl.textContent = "Out of moves";
+
+    const G = cfg.goals;
+    const missing = [];
+
+    if (G.score > 0 && S.score < G.score) missing.push((G.score - S.score) + " more points");
+    if (G.collectType >= 0 && S.collected < G.collectNeed) missing.push((G.collectNeed - S.collected) + " more " + PIECES[G.collectType].name + "s");
+    if (S.iceTotal > 0 && S.iceBroken < S.iceTotal) missing.push((S.iceTotal - S.iceBroken) + " more ice");
+
+    loseMessage.textContent =
+      "You needed " + missing.join(" and ") + ". The next try gets " + Math.min(8, losses * 2) + " extra moves to help." + (lives > 0 ? " You have " + lives + " " + (lives === 1 ? "life" : "lives") + " left." : " You are out of lives; the next one returns in " + lifeTimerEl.textContent.replace("+1 in ", "") + ".");
+
+    tipEl.textContent = "Out of moves. Try again, aim for power pieces and use the hint.";
+
+    updateHud();
+
+    SFX.lose();
+
+    modalTimer = setTimeout(function () {
+      loseModal.style.display = "flex";
+    }, 600);
+  }
+
+
+  /* =========================================================
+     BUTTONS
+  ========================================================= */
+
+  function buildButtons() {
+
+    sizeGrid.innerHTML = "";
+
+    SIZES.forEach(function (n) {
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ccr-size-btn";
+      btn.dataset.size = String(n);
+      btn.textContent = n + "×" + n;
+
+      btn.addEventListener("click", function () { selectSize(n); });
+
+      sizeGrid.appendChild(btn);
+    });
+
+    refreshButtons();
+  }
+
+  function refreshButtons() {
+
+    sizeGrid.querySelectorAll(".ccr-size-btn").forEach(function (btn) {
+      btn.classList.toggle("ccr-active", Number(btn.dataset.size) === size);
+    });
+  }
+
+
+  /* =========================================================
+     MODALS
+  ========================================================= */
+
+  function openHowTo() { howToModal.style.display = "flex"; }
+  function closeHowTo() { howToModal.style.display = "none"; }
+  function closeWinModal() { winModal.style.display = "none"; }
+  function closeLoseModal() { loseModal.style.display = "none"; }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  resetBtn?.addEventListener("click", replayCurrent);
+  retryBtn?.addEventListener("click", replayCurrent);
+  winRetry?.addEventListener("click", function () { closeWinModal(); replayCurrent(); });
+
+  hintBtn?.addEventListener("click", function () {
+
+    if (busy || ended || building || hintsUsed >= MAX_HINTS) return;
+
+    hintsUsed++;
+    showHintMove(false);
+    updateHud();
+  });
+
+  shuffleBtn?.addEventListener("click", doShuffle);
+
+  levelPrev?.addEventListener("click", function () { changeLevel(-1); });
+  levelNext?.addEventListener("click", function () { changeLevel(1); });
+
+  soundToggle?.addEventListener("change", function () {
+    soundOn = this.checked;
+    if (soundOn) SFX.select();
+  });
+
+  fastToggle?.addEventListener("change", function () {
+    speed = this.checked ? 0.5 : 1;
+    section.style.setProperty("--ccrs", String(speed));
+  });
+
+  autoHintToggle?.addEventListener("change", function () {
+    autoHintOn = this.checked;
+    if (autoHintOn) armIdle();
+    else if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+  });
+
+  howToBtn?.addEventListener("click", openHowTo);
+  howToClose?.addEventListener("click", closeHowTo);
+
+  winNext?.addEventListener("click", function () {
+    closeWinModal();
+    level++;
+    losses = 0;
+    startNewLevel(false);
+  });
+
+  winClose?.addEventListener("click", closeWinModal);
+
+  loseRetry?.addEventListener("click", function () { closeLoseModal(); replayCurrent(); });
+  loseNew?.addEventListener("click", function () { closeLoseModal(); startNewLevel(true); });
+  loseClose?.addEventListener("click", closeLoseModal);
+
+  loseModal?.addEventListener("click", function (event) {
+    if (event.target === loseModal) closeLoseModal();
+  });
+
+  howToModal?.addEventListener("click", function (event) {
+    if (event.target === howToModal) closeHowTo();
+  });
+
+  winModal?.addEventListener("click", function (event) {
+    if (event.target === winModal) closeWinModal();
+  });
+
+  document.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Escape") return;
+
+    if (howToModal.style.display === "flex") closeHowTo();
+    if (winModal.style.display === "flex") closeWinModal();
+    if (loseModal.style.display === "flex") closeLoseModal();
+  });
+
+
+  /* =========================================================
+     INITIALIZE (lazy)
+  ========================================================= */
+
+  /* Nothing is built and no level is generated until the
+     Chess Crush tab is opened for the first time. */
+  let started = false;
+  let lazyObserver = null;
+
+  function startGame() {
+
+    if (started) return;
+    started = true;
+
+    if (lazyObserver) lazyObserver.disconnect();
+
+    loadLives();
+    renderLives();
+    startLifeTick();
+    buildButtons();
+    startNewLevel(false);
+  }
+
+  function isVisible() {
+    return section.getClientRects().length > 0;
+  }
+
+  if ("IntersectionObserver" in window) {
+    lazyObserver = new IntersectionObserver(function (entries) {
+      if (entries.some(function (e) { return e.isIntersecting; })) startGame();
+    });
+    lazyObserver.observe(section);
+  }
+
+  document.getElementById("chessCrushNavBtn")?.addEventListener("click", function () {
+    setTimeout(function () { if (isVisible()) startGame(); }, 60);
+  });
+
+  /* fallback for browsers without IntersectionObserver */
+  if (!lazyObserver) {
+    const poll = setInterval(function () {
+      if (started) { clearInterval(poll); return; }
+      if (isVisible()) { clearInterval(poll); startGame(); }
+    }, 400);
+  }
+
+  if (isVisible()) startGame();
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.ChessCrush = {
+
+    reset: function () {
+      startGame();
+      replayCurrent();
+    },
+
+    setSize: function (n) {
+      if (SIZES.indexOf(n) === -1) return;
+      startGame();
+      selectSize(n);
+    },
+
+    getState: function () {
+      return {
+        size: size,
+        level: level,
+        score: S ? S.score : 0,
+        moves: S ? S.moves : 0,
+        ended: ended
+      };
+    }
+
+  };
+
+})();
+
+</script>
+
 
 <!-- =========================================================
      2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
@@ -169812,7 +172662,7 @@ const lockedTabs = [
 
   // 🎮 Standalone games
   "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
-  "hiddenDeck",
+  "hiddenDeck","chesscrush",
   "legalMove",
   "legalChecks",
   "puzzlerush",
@@ -242727,6 +245577,7 @@ style="
 training: [
    '[data-tab="guessElo"]',
    '[data-tab="chessduko"]',
+   '[data-tab="chesscrush"]',
    '[data-tab="pathHunter" ]',
    '[data-tab="captureChallenge"]',
    '[data-tab="impossibleCheck" ]',
