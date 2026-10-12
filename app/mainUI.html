@@ -42282,6 +42282,7 @@ right:0;
   ♦️🔷
   Chess Crush Saga
 </button>
+<button class="nav-btn" data-tab="chess3d" id="chess3dNavBtn"> 🧊 <span style="font-size: 1.35em; color: #07aab3; font-weight: 900;">3D</span> Olympus Chess AI</button>
 <button
   class="nav-btn"
   data-tab="chessCraftGo"
@@ -84251,6 +84252,829 @@ fresh.forEach(function (key, i) {
 })();
 </script>
 
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+<style>
+#c3d-layout{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
+@media (max-width:1000px){#c3d-layout{grid-template-columns:1fr}}
+.c3d-card{background:rgba(20,24,42,.96);border:1px solid rgba(255,215,0,.14);border-radius:16px;padding:10px;box-sizing:border-box;margin-bottom:10px}
+.c3d-t{color:#ffd700;font-size:13px;font-weight:900;margin-bottom:8px}
+.c3d-bar{display:flex;align-items:center;gap:10px;color:#fff;font-weight:900;font-size:14px;transition:.25s}
+.c3d-bar.on{border-color:#ffd700;box-shadow:0 0 16px rgba(255,215,0,.25)}
+.c3d-bar small{display:block;color:#aeb3cf;font-size:11px;font-weight:700}
+.c3d-av{font-size:28px;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:rgba(255,215,0,.1);flex:0 0 auto}
+.c3d-clock{margin-left:auto;font:900 22px monospace;background:#0b0e1c;padding:6px 12px;border-radius:10px}
+.c3d-clock.low{color:#ff5470}
+#c3dWrap{position:relative;width: min(100%, 98vh);aspect-ratio:1/1;margin:0 auto 10px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,215,0,.18);background:#080b16}
+#c3dCanvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#c3dBubble{position:absolute;top:10px;left:10px;max-width:62%;background:rgba(255,255,255,.94);color:#14172a;font-size:13px;font-weight:800;padding:8px 12px;border-radius:14px 14px 14px 2px;opacity:0;transform:translateY(-6px);transition:.3s;pointer-events:none}
+#c3dBubble.on{opacity:1;transform:none}
+.c3d-modal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,11,22,.72);z-index:5}
+.c3d-modal.show{display:flex}
+.c3d-box{background:#161a30;border:1px solid #ffd700;border-radius:16px;padding:18px;text-align:center;color:#fff;max-width:85%}
+.c3d-box h3{margin:0 0 6px;color:#ffd700}.c3d-box p{margin:0 0 12px;color:#aeb3cf;font-size:13px}
+.c3d-pbtn{width:62px;height:62px;margin:4px;border-radius:12px;border:1px solid rgba(255,215,0,.4);background:rgba(255,255,255,.07);font-size:40px;cursor:pointer;color:#fff}
+.c3d-pbtn:hover{background:rgba(255,215,0,.2)}
+.c3d-chips{display:flex;flex-wrap:wrap;gap:6px}
+.c3d-chip{padding:8px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;font-size:12px;font-weight:900;cursor:pointer}
+.c3d-chip.on{border-color:#ffd700;background:rgba(255,215,0,.13);color:#ffd700}
+.c3d-btn{padding:12px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;background:linear-gradient(135deg,#ffd700,#ff9d00);color:#111;width:100%}
+.c3d-btn.alt{background:rgba(255,255,255,.08);color:#fff}
+.c3d-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.c3d-car{display:flex;align-items:center;gap:8px}
+.c3d-arrow{width:34px;height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#fff;font-weight:900;cursor:pointer}
+.c3d-pv{flex:1;display:flex;align-items:center;gap:10px;padding:6px;border-radius:12px;border:1px solid rgba(255,215,0,.28);background:rgba(255,215,0,.08);color:#fff;font-weight:900;font-size:14px}
+.c3d-pv span{font-size:32px}.c3d-pv small{display:block;color:#aeb3cf;font-size:10px}
+.c3d-check{display:flex;align-items:center;gap:8px;margin-top:7px;color:#aeb3cf;font-size:12px;font-weight:700;cursor:pointer}
+#c3dMoves{max-height:150px;overflow:auto;color:#aeb3cf;font-size:12px;font-weight:700;line-height:1.7}
+#c3dMoves b{color:#ffd700;margin-left:6px}#c3dStatus{color:#fff;font-weight:900;font-size:14px}
+</style>
+
+<section class="section hidden" id="chess3d-section">
+<div id="c3d-shell" style="width:100%;max-width:1400px;margin:0 auto;padding:20px;box-sizing:border-box;">
+ <div id="c3d-layout">
+  <div>
+   <div class="c3d-card c3d-bar" id="c3dBarOpp"><div class="c3d-av" id="c3dOppAv">🤖</div><div><span id="c3dOppName">AI</span><small id="c3dOppSub"></small></div><div class="c3d-clock" id="c3dClkOpp">--</div></div>
+   <div id="c3dWrap">
+    <canvas id="c3dCanvas"></canvas><div id="c3dBubble"></div>
+    <div class="c3d-modal" id="c3dPromo"><div class="c3d-box"><h3>Promote pawn</h3><p>Choose a piece</p><div id="c3dPromoBtns"></div></div></div>
+    <div class="c3d-modal" id="c3dEnd"><div class="c3d-box"><h3 id="c3dEndT"></h3><p id="c3dEndS"></p><div class="c3d-grid2"><button class="c3d-btn" id="c3dEndAgain">Play again</button><button class="c3d-btn alt" id="c3dEndClose">Close</button></div></div></div>
+   </div>
+   <div class="c3d-card c3d-bar" id="c3dBarMe"><div class="c3d-av">🙂</div><div><span>You</span><small id="c3dMeSub"></small></div><div class="c3d-clock" id="c3dClkMe">--</div></div>
+  </div>
+  <div>
+     <div class="c3d-card"><button class="c3d-btn" id="c3dStart">▶ Start / New Game</button>
+    <div class="c3d-grid2"><button class="c3d-btn alt" id="c3dUndo">↶ Undo</button><button class="c3d-btn alt" id="c3dHint">💡 Hint</button><button class="c3d-btn alt" id="c3dFlip">⟲ Rotate</button><button class="c3d-btn alt" id="c3dRes">🏳 Resign</button></div></div>
+  <div class="c3d-card" style="display:none;">
+  <div class="c3d-t">Status</div>
+  <div id="c3dStatus">Press Start</div>
+  <div id="c3dEng" style="color:#aeb3cf;font-size:11px;margin-top:4px">Engine: loading…</div>
+</div>
+
+   <div class="c3d-card"><div class="c3d-t">Difficulty</div><div class="c3d-chips" id="c3dMode"></div><div class="c3d-t" style="margin-top:10px">Play as</div><div class="c3d-chips" id="c3dSide"></div></div>
+   <div class="c3d-card"><div class="c3d-t">Time (minutes)</div><div class="c3d-chips" id="c3dTime"></div><div class="c3d-t" style="margin-top:10px">Increment (seconds)</div><div class="c3d-chips" id="c3dInc"></div></div>
+   <div class="c3d-card"><div class="c3d-t">AI Avatar</div><div class="c3d-car"><button class="c3d-arrow" id="c3dAvPrev">◀</button><div class="c3d-pv" id="c3dAvView"></div><button class="c3d-arrow" id="c3dAvNext">▶</button></div>
+    <div class="c3d-t" style="margin-top:10px">Board</div><div class="c3d-chips" id="c3dTheme"></div><div class="c3d-t" style="margin-top:10px">Pieces</div><div class="c3d-chips" id="c3dPset"></div><div class="c3d-t" style="margin-top:10px">Brightness</div><input type="range" id="c3dExp" min="40" max="140" style="width:100%">
+    <label class="c3d-check"><input type="checkbox" id="c3dSnd" checked> Sound effects</label><label class="c3d-check"><input type="checkbox" id="c3dVoice" checked> Avatar voice</label></div>
+  
+   <div class="c3d-card"><div class="c3d-t">Moves</div><div id="c3dMoves"></div></div>
+  </div>
+ </div>
+</div>
+</section>
+
+<script>
+/* =========================================================
+   ♟️ OLYMPUS 3D CHESS AI  (prefix c3d)
+   Isolated + lazy: nothing loads until the section is first
+   shown. Three.js is injected on demand, Stockfish worker is
+   created once, render loop only runs while animating/visible.
+========================================================= */
+(function () {
+"use strict";
+var $ = function (i) { return document.getElementById(i); };
+var sec = $("chess3d-section"), nav = $("chess3dNavBtn"), inited = false, THREE;
+var STOCKFISH_PATH = "./stockfish/stockfish-19-lite-single.js";
+var THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+
+/* ---------- settings ---------- */
+var S = { lvl: 1, side: "w", time: 5, inc: 3, av: 0, theme: 0, pset: 0, exp: 80, snd: true, voice: true };
+try { Object.assign(S, JSON.parse(localStorage.getItem("c3d_s") || "{}")); } catch (e) {}
+function save() { try { localStorage.setItem("c3d_s", JSON.stringify(S)); } catch (e) {} }
+/* strength = AV[i].E[level] (UCI Elo; >=3190 = full Stockfish) */
+var LV = [{ n: "Easy", mt: 150, d: 1 }, { n: "Medium", mt: 500, d: 2 }, { n: "Hard", mt: 1500, d: 3 }];
+var THEMES = [{ n: "Classic Wood", l: 0xe3c48f, d: 0x8b5a2b, f: 0x5a3418, k: "wood" }, { n: "Walnut", l: 0xb98b5c, d: 0x4e2f1a, f: 0x2e1a0d, k: "wood" }, { n: "Marble", l: 0xe8e6e0, d: 0x4a4d55, f: 0x2a2c33, k: "marble" },
+ { n: "Midnight", l: 0x7f93b8, d: 0x232f4d, f: 0x131a2e, k: "" }, { n: "Emerald", l: 0xcfdcc0, d: 0x2b6e50, f: 0x0f2d20, k: "" }, { n: "Neon", l: 0x4b3a8a, d: 0x1b1440, f: 0x0a0b1c, k: "" }];
+var PSETS = [{ n: "Ivory & Ebony", w: { c: 0xe6dcc3, r: .4, m: .05 }, b: { c: 0x2a2b36, r: .35, m: .2 } },
+ { n: "Wood", w: { c: 0xd9b383, r: .55, m: 0, cc: .25, t: "wood" }, b: { c: 0x4b2a15, r: .55, m: 0, cc: .25, t: "wood" } },
+ { n: "Marble", w: { c: 0xf0eeea, r: .25, m: 0, t: "marble" }, b: { c: 0x1d1f27, r: .25, m: 0, t: "marble" } },
+ { n: "Silver & Gold", w: { c: 0xdfe3ea, r: .22, m: 1, ei: 1 }, b: { c: 0xd4a017, r: .25, m: 1, ei: 1 } },
+ { n: "Neon", w: { c: 0x16c8e8, r: .3, m: .2, e: 0x0a7a99 }, b: { c: 0xe026c0, r: .3, m: .2, e: 0x8a0a70 } },
+ { n: "Crystal", w: { c: 0xd6f0ff, r: .05, m: .1, o: .78, cc: 1, ei: 1 }, b: { c: 0x6a3dff, r: .05, m: .1, o: .82, cc: 1, ei: 1 } }];
+var AV = [
+ { e: "🧒", E: [1320, 1600, 2200], n: "Pip", d: "Cheerful rookie", p: 1.5, r: 1.1, L: { s: ["Let's play, friend!"], c: ["Yoink! Got your piece."], k: ["Check! Watch your king!"], w: ["I won! High five!"], l: ["Wow, you're so good!"] } },
+ { e: "🛡️", E: [1400, 1800, 2500], n: "Sir Aldric", d: "Noble knight", p: .6, r: .9, L: { s: ["Honour the board, challenger."], c: ["A worthy piece falls."], k: ["Your king is threatened!"], w: ["Victory is mine."], l: ["Well fought. I yield."] } },
+ { e: "👑", E: [1500, 2000, 2800], n: "Queen Mira", d: "Sharp and elegant", p: 1.2, r: 1, L: { s: ["Shall we begin, darling?"], c: ["Thank you for that."], k: ["Check. Do be careful."], w: ["Checkmate. Elegant, no?"], l: ["Impressive. Truly."] } },
+ { e: "🤖", E: [1600, 2300, 3190], n: "Olympus AI", d: "Cold calculator", p: .4, r: .95, L: { s: ["Initializing match."], c: ["Material acquired."], k: ["Check detected."], w: ["Outcome: you lose."], l: ["Error. You win."] } }];
+
+/* ---------- chess core ---------- */
+var N8 = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]], K8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+var isW = function (p) { return p < "a"; }, sqn = function (n) { return "abcdefgh"[n & 7] + ((n >> 3) + 1); };
+function init0() { var b = "RNBQKBNRPPPPPPPP????????????????????????????????pppppppprnbqkbnr".split("").map(function (c) { return c === "?" ? "" : c; }); return { b: b, t: "w", c: "KQkq", ep: -1, hm: 0, fm: 1 }; }
+function att(b, sq, by) {
+  var r = sq >> 3, f = sq & 7, w = by === "w", pr = r + (w ? -1 : 1), i, x, y, d;
+  if (pr >= 0 && pr < 8) for (d of [-1, 1]) { x = f + d; if (x >= 0 && x < 8 && b[pr * 8 + x] === (w ? "P" : "p")) return 1; }
+  for (d of N8) { x = f + d[0]; y = r + d[1]; if (x >= 0 && x < 8 && y >= 0 && y < 8 && b[y * 8 + x] === (w ? "N" : "n")) return 1; }
+  for (d of K8) { x = f + d[0]; y = r + d[1]; if (x >= 0 && x < 8 && y >= 0 && y < 8 && b[y * 8 + x] === (w ? "K" : "k")) return 1; }
+  for (i = 0; i < 8; i++) { d = K8[i]; x = f + d[0]; y = r + d[1];
+    while (x >= 0 && x < 8 && y >= 0 && y < 8) { var p = b[y * 8 + x];
+      if (p) { var u = p.toUpperCase(); if (isW(p) === w && (u === "Q" || u === (i < 4 ? "R" : "B"))) return 1; break; }
+      x += d[0]; y += d[1]; } }
+  return 0;
+}
+function pseudo(st) {
+  var b = st.b, w = st.t === "w", o = [];
+  for (var s = 0; s < 64; s++) { var p = b[s]; if (!p || isW(p) !== w) continue;
+    var u = p.toUpperCase(), r = s >> 3, f = s & 7, d, x, y, t;
+    if (u === "P") {
+      var dr = w ? 1 : -1, pr = w ? 7 : 0, t1 = s + 8 * dr;
+      var add = function (t, xx) { if ((t >> 3) === pr) "QRBN".split("").forEach(function (q) { o.push({ f: s, t: t, p: q, x: xx }); }); else o.push({ f: s, t: t, x: xx }); };
+      if (!b[t1]) { add(t1); if (r === (w ? 1 : 6) && !b[t1 + 8 * dr]) o.push({ f: s, t: t1 + 8 * dr, x: "d" }); }
+      for (d of [-1, 1]) { x = f + d; if (x < 0 || x > 7) continue; t = t1 + d;
+        if (b[t] && isW(b[t]) !== w) add(t); else if (t === st.ep) add(t, "e"); }
+    } else if (u === "N" || u === "K") {
+      for (d of (u === "N" ? N8 : K8)) { x = f + d[0]; y = r + d[1]; if (x < 0 || x > 7 || y < 0 || y > 7) continue; t = y * 8 + x; if (!b[t] || isW(b[t]) !== w) o.push({ f: s, t: t }); }
+      if (u === "K" && s === (w ? 4 : 60)) { var en = w ? "b" : "w", bs = w ? 0 : 56, R = w ? "R" : "r";
+        if (!att(b, s, en)) {
+          if (st.c.indexOf(w ? "K" : "k") >= 0 && !b[bs + 5] && !b[bs + 6] && b[bs + 7] === R && !att(b, bs + 5, en) && !att(b, bs + 6, en)) o.push({ f: s, t: bs + 6, x: "c" });
+          if (st.c.indexOf(w ? "Q" : "q") >= 0 && !b[bs + 1] && !b[bs + 2] && !b[bs + 3] && b[bs] === R && !att(b, bs + 3, en) && !att(b, bs + 2, en)) o.push({ f: s, t: bs + 2, x: "c" }); } }
+    } else {
+      for (var i = (u === "B" ? 4 : 0); i < (u === "R" ? 4 : 8); i++) { d = K8[i]; x = f + d[0]; y = r + d[1];
+        while (x >= 0 && x < 8 && y >= 0 && y < 8) { t = y * 8 + x; if (!b[t]) o.push({ f: s, t: t }); else { if (isW(b[t]) !== w) o.push({ f: s, t: t }); break; } x += d[0]; y += d[1]; } }
+    }
+  }
+  return o;
+}
+function mk(st, m) {
+  var b = st.b.slice(), w = st.t === "w", p = b[m.f], c = st.c, cap = b[m.t];
+  b[m.f] = "";
+  if (m.x === "e") { var cs = m.t - (w ? 8 : -8); cap = b[cs]; b[cs] = ""; }
+  b[m.t] = m.p ? (w ? m.p : m.p.toLowerCase()) : p;
+  if (m.x === "c") { var bs = w ? 0 : 56; if (m.t > m.f) { b[bs + 5] = b[bs + 7]; b[bs + 7] = ""; } else { b[bs + 3] = b[bs]; b[bs] = ""; } }
+  [m.f, m.t].forEach(function (s) {
+    if (s === 0) c = c.replace("Q", ""); if (s === 7) c = c.replace("K", ""); if (s === 56) c = c.replace("q", ""); if (s === 63) c = c.replace("k", "");
+    if (s === 4) c = c.replace("K", "").replace("Q", ""); if (s === 60) c = c.replace("k", "").replace("q", ""); });
+  return { b: b, t: w ? "b" : "w", c: c, ep: m.x === "d" ? (m.f + m.t) >> 1 : -1, hm: (p.toUpperCase() === "P" || cap) ? 0 : st.hm + 1, fm: st.fm + (w ? 0 : 1), cap: cap };
+}
+function inChk(st) { return att(st.b, st.b.indexOf(st.t === "w" ? "K" : "k"), st.t === "w" ? "b" : "w"); }
+function legal(st) { var me = st.t === "w" ? "K" : "k", en = st.t === "w" ? "b" : "w";
+  return pseudo(st).filter(function (m) { var s = mk(st, m); return !att(s.b, s.b.indexOf(me), en); }); }
+function fen(st) { var s = "", r, f, e, p;
+  for (r = 7; r >= 0; r--) { e = 0; for (f = 0; f < 8; f++) { p = st.b[r * 8 + f]; if (!p) e++; else { if (e) { s += e; e = 0; } s += p; } } if (e) s += e; if (r) s += "/"; }
+  return s + " " + st.t + " " + (st.c || "-") + " " + (st.ep < 0 ? "-" : sqn(st.ep)) + " " + st.hm + " " + st.fm; }
+var key = function (st) { return st.b.map(function (p) { return p || "."; }).join("") + st.t + st.c + st.ep; };
+function insuf(b) { var l = b.filter(function (p) { return p && p.toUpperCase() !== "K"; }); return !l.length || (l.length === 1 && /[nb]/i.test(l[0])); }
+function status(st, H) {
+  var ms = legal(st), chk = inChk(st);
+  if (!ms.length) return chk ? { o: "mate", w: st.t === "w" ? "b" : "w" } : { o: "draw", why: "Stalemate" };
+  if (insuf(st.b)) return { o: "draw", why: "Insufficient material" };
+  if (st.hm >= 100) return { o: "draw", why: "50-move rule" };
+  var k = key(st); if (H.filter(function (h) { return key(h.st) === k; }).length >= 3) return { o: "draw", why: "Threefold repetition" };
+  return { o: "", chk: chk };
+}
+function san(st, m) {
+  if (m.x === "c") return (m.t & 7) === 6 ? "O-O" : "O-O-O";
+  var p = st.b[m.f].toUpperCase(), cap = st.b[m.t] || m.x === "e", s;
+  if (p === "P") return (cap ? "abcdefgh"[m.f & 7] + "x" : "") + sqn(m.t) + (m.p ? "=" + m.p : "");
+  var ot = legal(st).filter(function (o) { return o !== m && st.b[o.f] === st.b[m.f] && o.t === m.t; }), dis = "";
+  if (ot.length) { var sf = ot.some(function (o) { return (o.f & 7) === (m.f & 7); }), sr = ot.some(function (o) { return (o.f >> 3) === (m.f >> 3); });
+    dis = !sf ? "abcdefgh"[m.f & 7] : !sr ? "" + ((m.f >> 3) + 1) : sqn(m.f); }
+  return p + dis + (cap ? "x" : "") + sqn(m.t);
+}
+var uciOf = function (m) { return sqn(m.f) + sqn(m.t) + (m.p ? m.p.toLowerCase() : ""); };
+var V = { P: 1, N: 3, B: 3, R: 5, Q: 9, K: 0 };
+function evl(s) { var v = 0; for (var i = 0; i < 64; i++) { var p = s.b[i]; if (!p) continue; var u = p.toUpperCase(), c = 3.5 - Math.abs((i & 7) - 3.5) / 2 - Math.abs((i >> 3) - 3.5) / 2; v += (isW(p) ? 1 : -1) * (V[u] * 100 + (u === "K" ? 0 : c * (u === "P" ? 4 : 6))); } return v; }
+function ab(s, d, a, b) { var ms = legal(s); if (!ms.length) return inChk(s) ? -99999 - d : 0; if (!d) return (s.t === "w" ? 1 : -1) * evl(s);
+  ms.sort(function (x, y) { return (s.b[y.t] ? V[s.b[y.t].toUpperCase()] : 0) - (s.b[x.t] ? V[s.b[x.t].toUpperCase()] : 0); });
+  for (var i = 0; i < ms.length; i++) { var v = -ab(mk(s, ms[i]), d - 1, -b, -a); if (v > a) a = v; if (a >= b) break; } return a; }
+function fb(st, ms, d) { var a = -1e9, pk = ms[0]; d = d || 2; ms.forEach(function (m) { var v = -ab(mk(st, m), d - 1, -1e9, -a) + Math.random() * (d > 1 ? 8 : 60); if (v > a) { a = v; pk = m; } }); return pk; }
+
+/* ---------- state ---------- */
+var G = { tok: 0 }, SF = { w: null, ok: 0, q: [] };
+function blank(me) { var s = init0(); return { me: me, st: s, h: [{ st: s, m: null, san: "" }], clk: { w: S.time * 60000, b: S.time * 60000 }, tm: S.time, inc: S.inc * 1000, last: performance.now(), active: 0, over: 0, thinking: 0, sel: null, mv: [], hint: null, chk: 0, tok: G.tok, ls: 0 }; }
+
+/* ---------- sounds (your SFX pattern + Web Audio fallback) ---------- */
+var sounds = {}, AC;
+function tone(f, d, t, v, s, at) { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); var o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime + (at || 0);
+  o.type = t || "sine"; o.frequency.setValueAtTime(f, t0); if (s) o.frequency.exponentialRampToValueAtTime(s, t0 + d);
+  g.gain.setValueAtTime(v || .15, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + d); o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0 + d); } catch (e) {} }
+var SYN = { move: function () { tone(220, .09, "triangle", .2, 120); }, capture: function () { tone(150, .15, "sawtooth", .2, 60); tone(900, .05, "square", .06); },
+  castle: function () { tone(260, .08, "triangle", .2, 140); tone(300, .08, "triangle", .2, 170, .1); }, check: function () { tone(740, .12, "square", .08); tone(990, .18, "square", .08, 0, .12); },
+  wrong: function () { tone(110, .2, "sawtooth", .06); }, next: function () { tone(500, .1, "sine", .15, 800); },
+  complete: function () { [523, 659, 784, 1046].forEach(function (f, i) { tone(f, .25, "triangle", .15, 0, i * .12); }); },
+  tick: function () { tone(1200, .03, "square", .04); }, select: function () { tone(660, .05, "sine", .08); }, pop: function () { tone(400, .12, "sine", .15, 900); } };
+function loadSounds() {
+  ["move", "capture", "castle", "check", "wrong", "next", "complete"].forEach(function (n) { var a = new Audio("sounds/" + n + ".mp3"); a.preload = "auto"; a.volume = 1.0; a.addEventListener("error", function () { a._bad = 1; }); sounds[n] = a; });
+  sounds.wrong.volume = 0.2;
+}
+function snd(n) { if (!S.snd) return; var s = sounds[n];
+  if (s && !s._bad) { s.currentTime = 0; s.play().catch(function () { SYN[n] && SYN[n](); }); } else SYN[n] && SYN[n](); }
+
+
+/* ---------- avatar voice / bubble ---------- */
+var bt;
+
+function say(ev) {
+  var a = AV[S.av];
+  var l = a.L[ev];
+
+  if (!l) return;
+
+  var t = l[Math.random() * l.length | 0];
+  var b = $("c3dBubble");
+
+  /* Keep the existing avatar speech bubble. */
+  b.textContent = a.e + " " + t;
+  b.classList.add("on");
+
+  clearTimeout(bt);
+  bt = setTimeout(function () {
+    b.classList.remove("on");
+  }, 2800);
+
+  /* Use the voice system already defined in mainUI.html. */
+  if (S.voice && typeof window.coachSay === "function") {
+    window.coachSay(t);
+  }
+}
+
+
+/* ---------- Stockfish ---------- */
+function engStat(t) { var e = $("c3dEng"); if (e) e.textContent = "Engine: " + t; }
+function sfInit() { try { SF.w = new Worker(STOCKFISH_PATH);
+  SF.w.onmessage = function (e) { String(e.data).split("\n").forEach(function (l) { l = l.trim();
+    if (l.indexOf("uciok") === 0) { SF.ok = 1; engStat("Stockfish ready ✓"); } else if (l.indexOf("bestmove") === 0) { var f = SF.q.shift(); f && f(l.split(" ")[1]); } }); };
+  SF.w.onerror = function () { SF.ok = 0; engStat("Stockfish NOT found - weak fallback in use (check path + .wasm)"); SF.q.splice(0).forEach(function (f) { f(null); }); };
+  SF.w.postMessage("uci"); setTimeout(function () { if (!SF.ok) engStat("Stockfish not responding - fallback in use"); }, 5000);
+  } catch (e) { SF.ok = 0; engStat("Stockfish failed to start - fallback in use"); } }
+function ask(st, el, mt, cb) { /* el = UCI Elo, >=3190 = full strength */
+  if (!SF.ok) { cb(null); return; }
+  var done = 0, w = SF.w, tm = setTimeout(function () { f(null); }, mt + 5000), f = function (u) { if (!done) { done = 1; clearTimeout(tm); cb(u); } };
+  SF.q.push(f); if (SF.q.length > 1) w.postMessage("stop");
+  w.postMessage("setoption name Skill Level value 20");
+  if (el >= 3190) w.postMessage("setoption name UCI_LimitStrength value false"); else { w.postMessage("setoption name UCI_LimitStrength value true"); w.postMessage("setoption name UCI_Elo value " + el); }
+  w.postMessage("position fen " + fen(st)); w.postMessage("go movetime " + mt);
+}
+
+/* ---------- 3D ---------- */
+var R, scene, camera, cv, wrap, P = new Array(64), pieceG, HL, A = [], running = 0, shake = 0, o = { th: .9, ph: .35, r: 26 }, ot = { th: 0, ph: 1, r: 12.5 };
+var MW, MB, SQM = [], FM, T = {}, chkRing, PLG, MC = {}, ray, mouse, hoverSq = -1;
+var ease = function (k) { return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }, back = function (k) { return 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2); };
+var sqPos = function (s) { return new THREE.Vector3((s & 7) - 3.5, 0, 3.5 - (s >> 3)); };
+var PN = 600, pp, pcl, pv, pf, pm, pts, pH = 0, pAlive = 0;
+
+function addA(d, fn, end, dl) { A.push({ t: -(dl || 0), d: d, fn: fn, end: end }); kick(); }
+function alive() { return sec.offsetParent !== null; }
+function kick() { if (!running && R && alive()) { running = 1; G.lt = performance.now(); requestAnimationFrame(loop); } }
+function loop(now) {
+  if (!alive()) { running = 0; return; }
+  var dt = Math.min(.05, (now - G.lt) / 1000); G.lt = now;
+  for (var i = A.length - 1; i >= 0; i--) { var a = A[i]; a.t += dt; if (a.t < 0) continue; var k = Math.min(1, a.t / a.d); a.fn(k); if (k >= 1) { A.splice(i, 1); a.end && a.end(); } }
+  if (G.sel != null && P[G.sel]) P[G.sel].position.y = .14 + .05 * Math.sin(now * .007);
+  if (chkRing) chkRing.material.opacity = .45 + .3 * Math.sin(now * .008);
+  var d = .1; o.th += (ot.th - o.th) * d; o.ph += (ot.ph - o.ph) * d; o.r += (ot.r - o.r) * d;
+  camera.position.set(o.r * Math.sin(o.ph) * Math.sin(o.th), o.r * Math.cos(o.ph), o.r * Math.sin(o.ph) * Math.cos(o.th));
+  if (shake > .002) { camera.position.x += (Math.random() - .5) * shake; camera.position.y += (Math.random() - .5) * shake; shake *= .88; }
+  camera.lookAt(0, 0, 0);
+  var was = pAlive; pAlive = 0;
+  for (var j = 0; j < PN; j++) if (pf[j] > 0) { pAlive++; pf[j] -= dt * 1.1; pv[j * 3 + 1] -= 7 * dt; var f = Math.max(0, pf[j]);
+    for (var c = 0; c < 3; c++) { pp[j * 3 + c] += pv[j * 3 + c] * dt; pcl[j * 3 + c] = pm[j * 3 + c] * f; } }
+  if (pAlive || was) { pts.geometry.attributes.position.needsUpdate = true; pts.geometry.attributes.color.needsUpdate = true; }
+  R.render(scene, camera);
+  var cam = Math.abs(ot.th - o.th) + Math.abs(ot.ph - o.ph) + Math.abs(ot.r - o.r) > .004;
+  if (A.length || pAlive || G.sel != null || cam || shake > .002 || chkRing) requestAnimationFrame(loop); else running = 0;
+}
+function burst(v, col, n, sp, up) { var c = new THREE.Color(col);
+  for (var j = 0; j < n; j++) { var i = pH++ % PN, a = Math.random() * 6.283, e = Math.random() * 1.4 - .2, s = sp * (.3 + Math.random());
+    pp.set([v.x, v.y + .3, v.z], i * 3); pv.set([Math.cos(a) * s, e * s + up, Math.sin(a) * s], i * 3); pm.set([c.r, c.g, c.b], i * 3); pf[i] = 1; } kick(); }
+
+var PRF = {
+  P: [[0, 0], [.36, 0], [.37, .05], [.3, .1], [.19, .17], [.13, .3], [.12, .4], [.2, .45], [.2, .5], [.11, .54], [0, .54]],
+  R: [[0, 0], [.4, 0], [.4, .08], [.32, .14], [.24, .3], [.22, .7], [.3, .76], [.34, .9], [.34, .98], [0, .98]],
+  B: [[0, 0], [.38, 0], [.38, .08], [.3, .14], [.18, .28], [.14, .55], [.22, .6], [.22, .66], [.14, .7], [.25, .84], [.2, 1], [.08, 1.12], [0, 1.14]],
+  Q: [[0, 0], [.42, 0], [.42, .08], [.33, .14], [.2, .3], [.16, .7], [.28, .82], [.24, .9], [.34, 1.2], [.24, 1.22], [0, 1.22]],
+  K: [[0, 0], [.44, 0], [.44, .08], [.35, .14], [.22, .3], [.17, .8], [.3, .92], [.26, 1], [.34, 1.26], [0, 1.28]],
+  N: [[0, 0], [.38, 0], [.38, .07], [.3, .12], [.24, .18], [0, .18]] };
+function build(u, w) {
+  var g = new THREE.Group(), m = w ? MW : MB;
+  var add = function (geo, x, y, z) { var me = new THREE.Mesh(geo, m); me.position.set(x || 0, y || 0, z || 0); me.castShadow = me.receiveShadow = true; g.add(me); return me; };
+  var lath = function (pr) { return new THREE.LatheGeometry(pr.map(function (a) { return new THREE.Vector2(a[0], a[1]); }), 28); };
+  var sph = function (r) { return new THREE.SphereGeometry(r, 20, 14); }, box = function (x, y, z) { return new THREE.BoxGeometry(x, y, z); };
+  add(lath(PRF[u]));
+  if (u === "P") add(sph(.17), 0, .66, 0);
+  if (u === "R") for (var i = 0; i < 6; i++) { var a = i * Math.PI / 3; var mm = add(box(.14, .14, .14), Math.sin(a) * .27, 1.04, Math.cos(a) * .27); mm.rotation.y = a; }
+  if (u === "B") add(sph(.06), 0, 1.2, 0);
+  if (u === "Q") { add(sph(.1), 0, 1.32, 0); for (var j = 0; j < 8; j++) { var b = j * Math.PI / 4; add(sph(.05), Math.sin(b) * .3, 1.24, Math.cos(b) * .3); } }
+  if (u === "K") { add(box(.1, .36, .1), 0, 1.46, 0); add(box(.28, .1, .1), 0, 1.5, 0); }
+  if (u === "N") {
+    var sh = new THREE.Shape(); sh.moveTo(-.22, .08); sh.lineTo(.22, .08); sh.quadraticCurveTo(.2, .3, .16, .4); sh.quadraticCurveTo(.3, .48, .4, .52); sh.lineTo(.38, .62);
+    sh.quadraticCurveTo(.3, .7, .2, .72); sh.lineTo(.2, .92); sh.lineTo(.08, .82); sh.quadraticCurveTo(-.1, .86, -.2, .62); sh.quadraticCurveTo(-.3, .35, -.22, .08);
+    var eg = new THREE.ExtrudeGeometry(sh, { depth: .26, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 2, curveSegments: 10 }); eg.translate(0, 0, -.13);
+    add(eg).rotation.y = w ? Math.PI / 2 : -Math.PI / 2; }
+  return g;
+}
+function mkPiece(c, w) { var k = c + (w ? "w" : "b"); if (!T[k]) T[k] = build(c, w); return T[k].clone(true); }
+function mat(col, op) { var k = col + "_" + op; return MC[k] || (MC[k] = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false })); }
+
+function setupScene() {
+  cv = $("c3dCanvas"); wrap = $("c3dWrap");
+  try { R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: "high-performance" }); } catch (e) { wrap.insertAdjacentHTML("beforeend", '<div style="color:#fff;padding:20px;position:absolute;inset:0">WebGL is not available in this browser.</div>'); return false; }
+  R.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+  R.outputEncoding = THREE.sRGBEncoding; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = S.exp / 100;
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x080b16); scene.fog = new THREE.Fog(0x080b16, 20, 48);
+  camera = new THREE.PerspectiveCamera(40, 1, .1, 100);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x261c10, .3));
+  var sun = new THREE.DirectionalLight(0xfff1d6, .9); sun.position.set(6, 13, 7); sun.castShadow = true; var ms = innerWidth < 700 ? 1024 : 2048; sun.shadow.mapSize.set(ms, ms);
+  Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 30 }); sun.shadow.bias = -.0005; scene.add(sun);
+  var rim = new THREE.PointLight(0xffb347, .5, 30); rim.position.set(-8, 5, -7); scene.add(rim);
+  var rim2 = new THREE.PointLight(0x5aa0ff, .4, 30); rim2.position.set(8, 4, -8); scene.add(rim2);
+  var ec = document.createElement("canvas"); ec.width = 256; ec.height = 128; var eg = ec.getContext("2d"), g0 = eg.createLinearGradient(0, 0, 0, 128); g0.addColorStop(0, "#9fb4d8"); g0.addColorStop(.5, "#6b5a45"); g0.addColorStop(1, "#14161f");
+  eg.fillStyle = g0; eg.fillRect(0, 0, 256, 128); eg.fillStyle = "#fff"; [[40, 30], [150, 25], [220, 45]].forEach(function (p) { eg.beginPath(); eg.arc(p[0], p[1], 10, 0, 7); eg.fill(); });
+  var et = new THREE.CanvasTexture(ec); et.mapping = THREE.EquirectangularReflectionMapping; et.encoding = THREE.sRGBEncoding; var pmg = new THREE.PMREMGenerator(R); scene.environment = pmg.fromEquirectangular(et).texture; pmg.dispose();
+  MW = new THREE.MeshPhysicalMaterial({ color: 0xf4ecd8, roughness: .35, metalness: .05, clearcoat: .6, clearcoatRoughness: .25 });
+  MB = new THREE.MeshPhysicalMaterial({ color: 0x23242e, roughness: .3, metalness: .3, clearcoat: .7, clearcoatRoughness: .2 });
+  SQM = []; for (var qi = 0; qi < 8; qi++) SQM.push(new THREE.MeshStandardMaterial({ roughness: .55, envMapIntensity: .3 })); FM = new THREE.MeshStandardMaterial({ roughness: .6, envMapIntensity: .3 });
+  var bg = new THREE.BoxGeometry(1, .2, 1);
+  for (var s = 0; s < 64; s++) { var q = new THREE.Mesh(bg, SQM[((((s & 7) + (s >> 3)) % 2) ? 4 : 0) + ((s * 7) % 4)]); q.position.copy(sqPos(s)); q.position.y = -.1; q.receiveShadow = true; scene.add(q); }
+  [[0, -4.35, 9.4, .7, 0], [0, 4.35, 9.4, .7, 0], [-4.35, 0, .7, 8, 0], [4.35, 0, .7, 8, 0]].forEach(function (a) { var m = new THREE.Mesh(new THREE.BoxGeometry(a[2], .3, a[3]), FM); m.position.set(a[0], -.05, a[1] === 0 ? 0 : a[1]); if (a[2] < 1) m.position.set(a[0], -.05, 0); else m.position.set(0, -.05, a[1]); m.receiveShadow = m.castShadow = true; scene.add(m); });
+  var bs = new THREE.Mesh(new THREE.BoxGeometry(9.4, .3, 9.4), FM); bs.position.y = -.3; scene.add(bs);
+  var label = function (t, x, z) { var c = document.createElement("canvas"); c.width = c.height = 64; var g = c.getContext("2d"); g.font = "bold 44px sans-serif"; g.fillStyle = "#f0e2b6"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(t, 32, 34);
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false })); sp.scale.set(.42, .42, 1); sp.position.set(x, .2, z); scene.add(sp); };
+  "abcdefgh".split("").forEach(function (c, i) { [4.35, -4.35].forEach(function (z) { label(c, i - 3.5, z); }); });
+  for (var rk = 1; rk <= 8; rk++) [4.35, -4.35].forEach(function (x) { label("" + rk, x, 3.5 - (rk - 1)); });
+  var gr = new THREE.Mesh(new THREE.CircleGeometry(30, 48), new THREE.MeshStandardMaterial({ color: 0x0a0e1c, roughness: .9 })); gr.rotation.x = -Math.PI / 2; gr.position.y = -.46; gr.receiveShadow = true; scene.add(gr);
+  pieceG = new THREE.Group(); scene.add(pieceG); HL = new THREE.Group(); scene.add(HL); PLG = new THREE.PlaneGeometry(1, 1);
+  pp = new Float32Array(PN * 3); pcl = new Float32Array(PN * 3); pv = new Float32Array(PN * 3); pf = new Float32Array(PN); pm = new Float32Array(PN * 3);
+  var pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pp, 3)); pg.setAttribute("color", new THREE.BufferAttribute(pcl, 3));
+  pts = new THREE.Points(pg, new THREE.PointsMaterial({ size: .16, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); pts.frustumCulled = false; scene.add(pts);
+  ray = new THREE.Raycaster(); mouse = new THREE.Vector2(); applyTheme(); applyPieces();
+  cv.addEventListener("webglcontextlost", function (e) { e.preventDefault(); running = 0; });
+  cv.addEventListener("webglcontextrestored", function () { syncPieces(); kick(); });
+  return true;
+}
+function css(h) { return "#" + ("000000" + h.toString(16)).slice(-6); }
+function mkTex(hex, kind) { var c = document.createElement("canvas"); c.width = c.height = 256; var x = c.getContext("2d"), i; x.fillStyle = css(hex); x.fillRect(0, 0, 256, 256);
+  if (kind === "wood") for (i = 0; i < 110; i++) { var y = Math.random() * 256; x.strokeStyle = Math.random() < .7 ? "rgba(0,0,0," + Math.random() * .14 + ")" : "rgba(255,240,200," + Math.random() * .08 + ")"; x.lineWidth = Math.random() * 3 + .5; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(80, y + Math.random() * 14 - 7, 170, y + Math.random() * 14 - 7, 256, y + Math.random() * 10 - 5); x.stroke(); }
+  if (kind === "marble") for (i = 0; i < 16; i++) { x.strokeStyle = i % 3 ? "rgba(70,70,85,.2)" : "rgba(255,255,255,.28)"; x.lineWidth = Math.random() * 2 + .5; x.beginPath(); x.moveTo(Math.random() * 256, 0); x.bezierCurveTo(Math.random() * 256, 80, Math.random() * 256, 170, Math.random() * 256, 256); x.stroke(); }
+  var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
+function applyTheme() { if (!R) return; var t = THEMES[S.theme];
+  SQM.forEach(function (m, i) { var h = i < 4 ? t.d : t.l; if (m.map) m.map.dispose(); m.map = t.k ? mkTex(h, t.k) : null; m.color.set(t.k ? 0xffffff : h); m.needsUpdate = true; });
+  if (FM.map) FM.map.dispose(); FM.map = t.k === "wood" ? mkTex(t.f, "wood") : null; FM.color.set(t.k === "wood" ? 0xffffff : t.f); FM.needsUpdate = true; kick(); }
+function applyPieces() { if (!R) return; var ps = PSETS[S.pset];
+  [[MW, ps.w], [MB, ps.b]].forEach(function (a) { var m = a[0], c = a[1]; m.color.set(c.t ? 0xffffff : c.c); m.roughness = c.r; m.metalness = c.m; m.emissive.set(c.e || 0); m.emissiveIntensity = c.e ? .7 : 0;
+    m.transparent = !!c.o; m.opacity = c.o || 1; m.clearcoat = c.cc == null ? .6 : c.cc; m.envMapIntensity = c.ei || .5; if (m.map) m.map.dispose(); m.map = c.t ? mkTex(c.c, c.t) : null; m.needsUpdate = true; }); kick(); }
+function resize() { if (!R || !alive()) return; var w = wrap.clientWidth, h = wrap.clientHeight; if (!w || !h) return; R.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); kick(); }
+function syncPieces() { A.length = 0; while (pieceG.children.length) pieceG.remove(pieceG.children[0]);
+  for (var s = 0; s < 64; s++) { P[s] = null; var p = G.st.b[s]; if (!p) continue; var g = mkPiece(p.toUpperCase(), isW(p)); g.position.copy(sqPos(s)); g.userData.sq = s; pieceG.add(g); P[s] = g; }
+  drawHL(); kick(); }
+function drawHL() {
+  while (HL.children.length) HL.remove(HL.children[0]); chkRing = null;
+  var pl = function (s, col, op) { var m = new THREE.Mesh(PLG, mat(col, op)); m.rotation.x = -Math.PI / 2; m.position.copy(sqPos(s)); m.position.y = .012; HL.add(m); };
+  var lm = G.h[G.h.length - 1].m; if (lm) { pl(lm.f, 0xffd700, .28); pl(lm.t, 0xffd700, .38); }
+  if (G.chk) { var k = G.st.b.indexOf(G.st.t === "w" ? "K" : "k"); chkRing = new THREE.Mesh(new THREE.RingGeometry(.3, .5, 32), new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: .6, depthWrite: false })); chkRing.rotation.x = -Math.PI / 2; chkRing.position.copy(sqPos(k)); chkRing.position.y = .02; HL.add(chkRing); }
+  if (G.hint) { pl(G.hint.f, 0x00e5ff, .45); pl(G.hint.t, 0x00e5ff, .55); }
+  if (G.sel != null) { pl(G.sel, 0x44ff88, .4);
+    G.mv.forEach(function (m) { if (m.p && m.p !== "Q") return; var cap = G.st.b[m.t] || m.x === "e", d = new THREE.Mesh(cap ? new THREE.RingGeometry(.36, .47, 28) : new THREE.CircleGeometry(.15, 20), mat(cap ? 0xff5470 : 0xffffff, cap ? .85 : .55));
+      d.rotation.x = -Math.PI / 2; d.position.copy(sqPos(m.t)); d.position.y = .02; HL.add(d); }); }
+  kick();
+}
+function animateMove(prev, m) {
+  var w = prev.t === "w", g = P[m.f], tp = sqPos(m.t), fp = sqPos(m.f), kn = prev.b[m.f].toUpperCase() === "N";
+  var cs = m.x === "e" ? m.t - (w ? 8 : -8) : m.t, cg = prev.b[cs] ? P[cs] : null; P[m.f] = null; g.position.y = 0;
+  if (cg) { P[cs] = null; var cp = cg.position.clone(); addA(.45, function (k) { cg.scale.setScalar(Math.max(.001, 1 - k)); cg.position.y = k * .8; cg.rotation.y = k * 6; },
+    function () { pieceG.remove(cg); }, .26); setTimeout(function () { burst(cp, w ? 0x222233 : 0xfff2cc, 40, 3, 2.5); shake = .12; }, 280); }
+  var arc = kn ? 1.1 : .35 + .05 * Math.hypot(tp.x - fp.x, tp.z - fp.z);
+  addA(kn ? .65 : .5, function (k) { var e = ease(k); g.position.set(fp.x + (tp.x - fp.x) * e, Math.sin(Math.PI * k) * arc, fp.z + (tp.z - fp.z) * e); },
+    function () { g.position.copy(tp); burst(tp, 0xffd700, 8, 1.2, 1); if (m.p) { var gen = G.tok, ng = mkPiece(m.p, w); pieceG.remove(g); ng.position.copy(tp); ng.userData.sq = m.t; ng.scale.setScalar(.01); pieceG.add(ng); P[m.t] = ng; snd("pop");
+      addA(.5, function (k) { ng.scale.setScalar(Math.max(.01, back(k))); ng.rotation.y = (1 - k) * 6; }); burst(tp, 0xffd700, 50, 3.5, 3); } });
+  if (P[m.t] && P[m.t] !== cg) pieceG.remove(P[m.t]);
+  P[m.t] = g; g.userData.sq = m.t;
+  if (m.x === "c") { var rf = m.t > m.f ? m.f + 3 : m.f - 4, rt = m.t > m.f ? m.f + 1 : m.f - 1, rg = P[rf], a = sqPos(rf), b = sqPos(rt); P[rf] = null; P[rt] = rg; rg.userData.sq = rt;
+    addA(.5, function (k) { var e = ease(k); rg.position.set(a.x + (b.x - a.x) * e, Math.sin(Math.PI * k) * .5, a.z + (b.z - a.z) * e); }, function () { rg.position.copy(b); }); }
+}
+
+
+/* ---------- camera + input + drag-and-drop ---------- */
+function pick(ev) {
+  var rc = cv.getBoundingClientRect();
+  mouse.set(
+    ((ev.clientX - rc.left) / rc.width) * 2 - 1,
+    -((ev.clientY - rc.top) / rc.height) * 2 + 1
+  );
+  ray.setFromCamera(mouse, camera);
+
+  var h = ray.intersectObjects(pieceG.children, true);
+  if (h.length) {
+    var ob = h[0].object;
+    while (ob && ob.userData.sq === undefined) ob = ob.parent;
+    if (ob) return ob.userData.sq;
+  }
+
+  var d = ray.ray.direction, og = ray.ray.origin;
+  var t = -og.y / d.y;
+  if (t <= 0) return -1;
+
+  var f = Math.floor(og.x + d.x * t + 4);
+  var r = Math.floor(4 - (og.z + d.z * t));
+
+  return f >= 0 && f < 8 && r >= 0 && r < 8
+    ? r * 8 + f
+    : -1;
+}
+
+function pickBoardPoint(ev) {
+  var rc = cv.getBoundingClientRect();
+
+  mouse.set(
+    ((ev.clientX - rc.left) / rc.width) * 2 - 1,
+    -((ev.clientY - rc.top) / rc.height) * 2 + 1
+  );
+
+  ray.setFromCamera(mouse, camera);
+
+  var d = ray.ray.direction;
+  var og = ray.ray.origin;
+
+  if (Math.abs(d.y) < 0.0001) return null;
+
+  var t = -og.y / d.y;
+  if (t <= 0) return null;
+
+  var x = og.x + d.x * t;
+  var z = og.z + d.z * t;
+
+  if (x < -4 || x >= 4 || z <= -4 || z > 4) {
+    return null;
+  }
+
+  return {
+    x: x,
+    z: z,
+    square: Math.floor(4 - z) * 8 + Math.floor(x + 4)
+  };
+}
+
+
+function bindInput() {
+  var ptr = {};
+  var drag = null;
+  var moved = 0;
+
+  cv.addEventListener("pointerdown", function (e) {
+    if (e.button !== undefined && e.button !== 0) return;
+
+    var sq = pick(e);
+    var piece = sq >= 0 ? P[sq] : null;
+
+    ptr[e.pointerId] = {
+      x: e.clientX,
+      y: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY
+    };
+
+    moved = 0;
+
+    var canDrag = !!(
+      piece &&
+      G.active &&
+      !G.over &&
+      !G.thinking &&
+      G.st.t === G.me &&
+      isW(G.st.b[sq]) === (G.me === "w") &&
+      A.length === 0 &&
+      !$("c3dPromo").classList.contains("show")
+    );
+
+    drag = canDrag ? {
+      pointerId: e.pointerId,
+      from: sq,
+      piece: piece,
+      startY: piece.position.y,
+      dragging: false
+    } : null;
+
+    try {
+      cv.setPointerCapture(e.pointerId);
+    } catch (err) {}
+
+    cv.style.cursor = canDrag ? "grab" : "grabbing";
+  });
+
+  cv.addEventListener("pointermove", function (e) {
+    var p = ptr[e.pointerId];
+    if (!p) return;
+
+    var dx = e.clientX - p.lastX;
+    var dy = e.clientY - p.lastY;
+    var distance = Math.hypot(
+      e.clientX - p.x,
+      e.clientY - p.y
+    );
+
+    moved += Math.abs(dx) + Math.abs(dy);
+
+    var ids = Object.keys(ptr);
+
+    /* Two-finger pinch zoom: preserve existing behavior. */
+    if (ids.length === 2) {
+      var otherId = ids[0] === String(e.pointerId)
+        ? ids[1]
+        : ids[0];
+      var q = ptr[otherId];
+
+      if (q) {
+        var oldDistance = Math.hypot(
+          p.lastX - q.lastX,
+          p.lastY - q.lastY
+        );
+        var newDistance = Math.hypot(
+          e.clientX - q.lastX,
+          e.clientY - q.lastY
+        );
+
+        if (oldDistance > 0 && newDistance > 0) {
+          ot.r = Math.max(
+            7,
+            Math.min(22, ot.r * oldDistance / newDistance)
+          );
+        }
+      }
+
+      drag = null;
+      moved = 9;
+    } else if (drag && drag.pointerId === e.pointerId) {
+      if (!drag.dragging && distance > 6) {
+        drag.dragging = true;
+        cv.style.cursor = "grabbing";
+      }
+
+   
+if (drag.dragging) {
+  var point = pickBoardPoint(e);
+
+  if (point) {
+    /* Keep the piece directly under the cursor. */
+    drag.piece.position.x = Math.max(
+      -3.5,
+      Math.min(3.5, point.x)
+    );
+
+    drag.piece.position.z = Math.max(
+      -3.5,
+      Math.min(3.5, point.z)
+    );
+
+    /* Lift it slightly above the board while dragging. */
+    drag.piece.position.y = drag.startY + 0.45;
+
+    hoverSq = point.square;
+  }
+}
+else if (distance > 6) {
+        /* Before drag starts, retain camera rotation. */
+        ot.th -= dx * 0.008;
+        ot.ph = Math.max(
+          0.2,
+          Math.min(1.45, ot.ph - dy * 0.006)
+        );
+      }
+    } else if (distance > 6) {
+      ot.th -= dx * 0.008;
+      ot.ph = Math.max(
+        0.2,
+        Math.min(1.45, ot.ph - dy * 0.006)
+      );
+    }
+
+    p.lastX = e.clientX;
+    p.lastY = e.clientY;
+
+    kick();
+  });
+
+  function finishPointer(e, cancelled) {
+    var p = ptr[e.pointerId];
+    if (!p) return;
+
+    var currentDrag =
+      drag && drag.pointerId === e.pointerId
+        ? drag
+        : null;
+
+    delete ptr[e.pointerId];
+    drag = null;
+    cv.style.cursor = "grab";
+
+    if (cancelled) {
+      if (currentDrag && currentDrag.dragging) {
+        currentDrag.piece.position.y = 0;
+      }
+      kick();
+      return;
+    }
+
+   
+
+if (currentDrag && currentDrag.dragging) {
+  var from = currentDrag.from;
+  var point = pickBoardPoint(e);
+  var target = point ? point.square : -1;
+
+  /* Restore selection using the existing move logic. */
+  if (G.sel !== from) onSquare(from);
+
+  if (target >= 0 && target !== from) {
+    var candidates = G.mv.filter(function (m) {
+      return m.t === target;
+    });
+
+    if (candidates.length) {
+      var move = candidates[0];
+
+      if (move.p) {
+        /* Promotion still uses the existing promotion modal. */
+        currentDrag.piece.position.copy(sqPos(from));
+        promo(G.mv.filter(function (m) {
+          return m.t === target;
+        }));
+      } else {
+        /* Commit the move without replaying its travel animation. */
+        var previousAnimateMove = animateMove;
+
+        animateMove = function () {
+          syncPieces();
+        };
+
+        try {
+          play(move);
+        } finally {
+          animateMove = previousAnimateMove;
+        }
+      }
+    } else {
+      currentDrag.piece.position.copy(sqPos(from));
+    }
+  } else {
+    currentDrag.piece.position.copy(sqPos(from));
+  }
+
+  kick();
+  return;
+}
+
+
+
+    /* Existing tap-to-select / tap-to-move behavior. */
+    if (moved <= 6 && Object.keys(ptr).length === 0) {
+      onSquare(pick(e));
+    }
+
+    kick();
+  }
+
+  cv.addEventListener("pointerup", function (e) {
+    finishPointer(e, false);
+  });
+
+  cv.addEventListener("pointercancel", function (e) {
+    finishPointer(e, true);
+  });
+
+  cv.addEventListener("wheel", function (e) {
+    e.preventDefault();
+
+    ot.r = Math.max(
+      7,
+      Math.min(22, ot.r + e.deltaY * 0.01)
+    );
+
+    kick();
+  }, { passive: false });
+}
+
+
+/* ---------- game flow ---------- */
+function onSquare(sq) {
+  if (sq < 0) return;
+  if (!G.active) { $("c3dStatus").textContent = "Press ▶ Start first"; return; }
+  if (G.over || G.thinking || G.st.t !== G.me || A.length || !$("c3dPromo").classList.contains("show") === false) return;
+  var p = G.st.b[sq], own = p && isW(p) === (G.me === "w");
+  if (G.sel != null) { var c = G.mv.filter(function (m) { return m.t === sq; });
+    if (c.length) { if (c[0].p) { promo(c); return; } play(c[0]); return; } }
+  if (own) { if (G.sel != null && P[G.sel]) P[G.sel].position.y = 0; G.sel = sq; G.mv = legal(G.st).filter(function (m) { return m.f === sq; }); G.hint = null; snd("select"); drawHL(); }
+  else { if (G.sel != null && P[G.sel]) P[G.sel].position.y = 0; if (G.sel != null || p) snd("wrong"); G.sel = null; G.mv = []; drawHL(); }
+}
+function promo(c) {
+  var box = $("c3dPromoBtns"), w = G.me === "w"; box.innerHTML = "";
+  c.forEach(function (m) { var b = document.createElement("button"); b.className = "c3d-pbtn"; b.textContent = { Q: "♛", R: "♜", B: "♝", N: "♞" }[m.p]; b.style.color = w ? "#f4ecd8" : "#8a93b8"; b.title = m.p;
+    b.onclick = function (e) { e.stopPropagation(); $("c3dPromo").classList.remove("show"); play(m); }; box.appendChild(b); });
+  $("c3dPromo").classList.add("show");
+}
+function play(m) {
+  tick(); var prev = G.st, s2 = mk(prev, m), sn = san(prev, m), H2 = G.h.concat([{ st: s2 }]), stt = status(s2, H2);
+  if (G.tm && G.h.length >= 2) G.clk[prev.t] += G.inc;
+  sn += stt.o === "mate" ? "#" : stt.chk ? "+" : "";
+  if (G.sel != null && P[G.sel]) P[G.sel].position.y = 0;
+  G.h.push({ st: s2, m: m, san: sn }); G.st = s2; G.sel = null; G.mv = []; G.hint = null; G.chk = stt.chk ? 1 : 0; G.thinking = 0;
+  animateMove(prev, m); drawHL();
+  var mine = prev.t === G.me;
+  snd(stt.chk || stt.o === "mate" ? "check" : m.x === "c" ? "castle" : s2.cap ? "capture" : "move"); if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
+  if (!stt.o) { if (stt.chk && mine) say("k"); else if (s2.cap && !mine) say("c"); }
+  updateUI();
+  if (stt.o) endGame(stt); else if (s2.t !== G.me) aiTurn();
+}
+function whenIdle(fn) { if (A.length) setTimeout(function () { whenIdle(fn); }, 80); else fn(); }
+function aiTurn() {
+  if (G.over || G.st.t === G.me) return; G.thinking = 1; updateUI();
+  var tok = G.tok, st = G.st, L = LV[S.lvl], el = AV[S.av].E[S.lvl], rnd = S.lvl === 0 ? [.2, .12, .06, 0][S.av] : 0;
+  setTimeout(function () {
+    if (tok !== G.tok) return; var ms = legal(st); if (!ms.length) return;
+    var fin = function (m) { if (tok !== G.tok) return; whenIdle(function () { if (tok === G.tok && !G.over) play(m); }); };
+    if (rnd && Math.random() < rnd) return fin(ms[Math.random() * ms.length | 0]);
+    var mt = G.tm ? Math.max(40, Math.min(L.mt, G.clk[st.t] / 25)) : L.mt;
+    ask(st, el, mt, function (u) { fin(ms.find(function (x) { return uciOf(x) === u; }) || fb(st, ms, L.d)); });
+  }, 600);
+}
+function newGame() {
+  G.tok++; if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) {}
+  var me = S.side === "r" ? (Math.random() < .5 ? "w" : "b") : S.side, tok = G.tok; G = blank(me); G.tok = tok; G.active = 1; G.lt = performance.now();
+  $("c3dEnd").classList.remove("show"); $("c3dPromo").classList.remove("show");
+  var base = me === "w" ? 0 : Math.PI; ot.th = base + Math.round((o.th - base) / (2 * Math.PI)) * 2 * Math.PI; ot.ph = 1; ot.r = 12.5;
+  syncPieces(); snd("next"); say("s"); updateUI(); if (me === "b") aiTurn();
+}
+function endGame(r) {
+  if (G.over) return; G.over = 1; G.thinking = 0; var win = r.o !== "draw" && r.w === G.me, t, s;
+  if (r.o === "draw") { t = "Draw 🤝"; s = r.why; } else { t = win ? "You win! 🎉" : AV[S.av].n + " wins"; s = r.o === "mate" ? "Checkmate" : r.o === "time" ? "Win on time" : "Resignation"; }
+  updateUI();
+  setTimeout(function () { snd("complete"); $("c3dEndT").textContent = t; $("c3dEndS").textContent = s; $("c3dEnd").classList.add("show"); if (r.o !== "draw") say(win ? "l" : "w");
+    if (win) for (var i = 0; i < 8; i++) (function (i) { setTimeout(function () { burst(new THREE.Vector3(Math.random() * 6 - 3, 4, Math.random() * 6 - 3), [0xffd700, 0xff5470, 0x5aa0ff, 0x44ff88][i % 4], 40, 2.5, 4); }, i * 200); })(i); }, 900);
+}
+function tick() {
+  var n = performance.now(), d = n - (G.last || n); G.last = n;
+  if (!G.active || G.over || !G.tm || G.h.length < 2) return;
+  var t = G.st.t; G.clk[t] -= d;
+  if (G.clk[t] <= 0) { G.clk[t] = 0; endGame({ o: "time", w: t === "w" ? "b" : "w" }); }
+  else if (G.clk[t] < 10000 && t === G.me) { var sc = Math.ceil(G.clk[t] / 1000); if (sc !== G.ls) { G.ls = sc; snd("tick"); } }
+  clocks();
+}
+function fmt(ms) { if (ms < 10000) return (Math.max(0, ms) / 1000).toFixed(1); var s = Math.ceil(ms / 1000); return Math.floor(s / 60) + ":" + ("0" + s % 60).slice(-2); }
+function clocks() {
+  var op = G.me === "w" ? "b" : "w", a = $("c3dClkOpp"), b = $("c3dClkMe");
+  a.textContent = G.tm ? fmt(G.clk[op]) : "∞"; b.textContent = G.tm ? fmt(G.clk[G.me]) : "∞";
+  a.classList.toggle("low", G.tm && G.clk[op] < 10000); b.classList.toggle("low", G.tm && G.clk[G.me] < 10000);
+  var run = G.active && !G.over; $("c3dBarMe").classList.toggle("on", run && G.st.t === G.me); $("c3dBarOpp").classList.toggle("on", run && G.st.t !== G.me);
+}
+function updateUI() {
+  var a = AV[S.av]; $("c3dOppAv").textContent = a.e; $("c3dOppName").textContent = a.n; $("c3dOppSub").textContent = LV[S.lvl].n + " · " + (a.E[S.lvl] >= 3190 ? "Max" : a.E[S.lvl]) + " · " + (G.me === "w" ? "Black" : "White");
+  $("c3dMeSub").textContent = G.me === "w" ? "White" : "Black";
+  var st = $("c3dStatus"); st.textContent = !G.active ? "Press ▶ Start" : G.over ? "Game over" : G.thinking ? a.n + " is thinking…" : G.st.t === G.me ? (G.chk ? "Check! Your move" : "Your move") : "Opponent's move";
+  var h = "", i; for (i = 1; i < G.h.length; i++) h += (i % 2 ? (i + 1) / 2 + ". " : "") + G.h[i].san + (i % 2 ? " " : "<br>");
+  var mv = $("c3dMoves"); mv.innerHTML = h || "—"; mv.scrollTop = 1e6; clocks();
+}
+function undo() {
+  if (!G.active || G.thinking || G.h.length < 2) return; G.tok++; G.over = 0; $("c3dEnd").classList.remove("show");
+  G.h.pop(); if (G.h[G.h.length - 1].st.t !== G.me && G.h.length > 1) G.h.pop();
+  G.st = G.h[G.h.length - 1].st; G.sel = null; G.mv = []; G.hint = null; G.chk = inChk(G.st) ? 1 : 0; syncPieces(); snd("move"); updateUI(); if (G.st.t !== G.me) aiTurn();
+}
+function hint() {
+  if (!G.active || G.over || G.thinking || G.st.t !== G.me) return; var st = G.st, tok = G.tok, ms = legal(st); G.thinking = 1; updateUI();
+  ask(st, 3190, 700, function (u) { if (tok !== G.tok) return; G.thinking = 0; var m = ms.find(function (x) { return uciOf(x) === u; }) || fb(st, ms, 3); G.hint = m; G.sel = null; drawHL(); updateUI(); });
+}
+
+/* ---------- UI wiring ---------- */
+function chips(id, list, key, after) {
+  var el = $(id); el.innerHTML = "";
+  list.forEach(function (it) { var b = document.createElement("button"); b.className = "c3d-chip" + (S[key] === it[1] ? " on" : ""); b.textContent = it[0];
+    b.onclick = function () { S[key] = it[1]; save(); chips(id, list, key, after); snd("select"); after && after(); }; el.appendChild(b); });
+}
+function avView() { var a = AV[S.av], e = a.E[S.lvl]; $("c3dAvView").innerHTML = "<span>" + a.e + "</span><div>" + a.n + "<small>" + a.d + " · " + (e >= 3190 ? "Full Stockfish" : "≈" + e + " Elo") + "</small></div>"; }
+function bindUI() {
+  chips("c3dMode", [["Easy", 0], ["Medium", 1], ["Hard", 2]], "lvl", function () { avView(); updateUI(); });
+  chips("c3dSide", [["♔ White", "w"], ["♚ Black", "b"], ["🎲 Random", "r"]], "side");
+  chips("c3dTime", [["∞", 0], ["1", 1], ["3", 3], ["5", 5], ["10", 10], ["15", 15], ["30", 30]], "time");
+  chips("c3dInc", [["+0", 0], ["+1", 1], ["+2", 2], ["+3", 3], ["+5", 5], ["+10", 10]], "inc");
+  chips("c3dTheme", THEMES.map(function (t, i) { return [t.n, i]; }), "theme", applyTheme);
+  chips("c3dPset", PSETS.map(function (t, i) { return [t.n, i]; }), "pset", applyPieces);
+  $("c3dExp").value = S.exp; $("c3dExp").oninput = function () { S.exp = +this.value; save(); if (R) { R.toneMappingExposure = S.exp / 100; kick(); } };
+  avView(); $("c3dSnd").checked = S.snd; $("c3dVoice").checked = S.voice;
+  $("c3dAvPrev").onclick = function () { S.av = (S.av + AV.length - 1) % AV.length; save(); avView(); updateUI(); say("s"); };
+  $("c3dAvNext").onclick = function () { S.av = (S.av + 1) % AV.length; save(); avView(); updateUI(); say("s"); };
+  $("c3dSnd").onchange = function (e) { S.snd = e.target.checked; save(); }; $("c3dVoice").onchange = function (e) { S.voice = e.target.checked; save(); if (!S.voice && window.speechSynthesis) speechSynthesis.cancel(); };
+  $("c3dStart").onclick = newGame; $("c3dEndAgain").onclick = newGame; $("c3dEndClose").onclick = function () { $("c3dEnd").classList.remove("show"); };
+  $("c3dUndo").onclick = undo; $("c3dHint").onclick = hint; $("c3dFlip").onclick = function () { ot.th += Math.PI; kick(); };
+  $("c3dRes").onclick = function () { if (G.active && !G.over && G.h.length > 1) endGame({ o: "res", w: G.me === "w" ? "b" : "w" }); };
+  $("c3dPromo").onclick = function (e) { if (e.target === this) this.classList.remove("show"); };
+  setInterval(tick, 100);
+}
+
+/* ---------- lazy boot ---------- */
+function boot() {
+  if (inited) return; inited = true; G = blank("w"); loadSounds(); bindUI();
+  var go = function () { THREE = window.THREE; if (!setupScene()) return; bindInput(); sfInit(); syncPieces(); updateUI();
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(wrap); else addEventListener("resize", resize); resize(); kick(); };
+  if (window.THREE) go(); else { var sc = document.createElement("script"); sc.src = THREE_URL; sc.onload = go; sc.onerror = function () { $("c3dStatus").textContent = "Could not load Three.js"; }; document.head.appendChild(sc); }
+}
+function show() { if (!alive()) return; if (!inited) boot(); else { resize(); kick(); } }
+nav && nav.addEventListener("click", function () { setTimeout(show, 30); });
+new MutationObserver(show).observe(sec, { attributes: true, attributeFilter: ["class", "style"] });
+document.addEventListener("visibilitychange", function () { if (!document.hidden) show(); });
+if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.remove("hidden"); show(); } /* standalone preview */
+})();
+</script>
 
 
 <!-- =========================================================
@@ -176330,7 +177154,7 @@ const lockedTabs = [
 
   // 🎮 Standalone games
   "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
-  "hiddenDeck","chesscrush","chessCraftGo",
+  "hiddenDeck","chesscrush","chessCraftGo",   "chess3d",
   "legalMove",
   "legalChecks",
   "puzzlerush",
@@ -249226,6 +250050,7 @@ style="
 
     chess: [
      '[data-tab="chessBasePlay"]', 
+     '[data-tab=   "chess3d"]',
       '[data-tab="computer"]',
       '[data-tab="fritzChess"]',
       '[data-tab="livematch"]',
