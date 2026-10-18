@@ -93039,6 +93039,38 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
             spellcheck="false"
             placeholder='[Event "Casual game"]&#10;[White "Player 1"]&#10;[Black "Player 2"]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ...'
           ></textarea>
+                    <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+
+            <label
+              for="ogrTimeSelect"
+              style="color:#aeb3cf; font-size:12px; font-weight:800; white-space:nowrap;"
+            >
+              ⏱ Review time
+            </label>
+
+            <select
+              id="ogrTimeSelect"
+              style="
+                flex:1;
+                padding:9px 10px;
+                border-radius:10px;
+                border:1px solid rgba(255,255,255,0.12);
+                background:#171b2d;
+                color:#fff;
+                font-size:13px;
+                font-weight:800;
+                outline:none;
+                cursor:pointer;
+              "
+            >
+              <option value="1" selected>1 minute</option>
+              <option value="2">2 minutes</option>
+              <option value="3">3 minutes</option>
+              <option value="4">4 minutes</option>
+              <option value="5">5 minutes</option>
+            </select>
+
+          </div>
 
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
 
@@ -93120,7 +93152,7 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
      
 
               <div class="ogr-muted" style="padding:0 4px;">
-          Olympus AI runs inside your browser. The whole review is capped at 1 minute,
+          Olympus AI runs inside your browser. The review is capped at the time you choose,
           so the search depth depends on game length and your device. Keep this tab open while it runs.
         </div>
 
@@ -93151,19 +93183,30 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
   ========================================================= */
 
   /* Path to your Stockfish web worker, relative to the page. */
-    const STOCKFISH_PATH = "stockfish/stockfish-19-lite-single.js";
+  const STOCKFISH_PATH = "stockfish/stockfish-19-lite-single.js";
 
   /* Piece images: assets/pieces/wK.png, bQ.png, ... */
   const ASSET_PATH = "assets/pieces/";
 
-  const TOTAL_LIMIT_MS = 60000;   // the review never goes beyond this (1 min)
-  const SOFT_LIMIT_MS = 56000;     // normal search time is planned to end here
-  const HARD_LIMIT_MS = 59000;     // anything unfinished is stopped here
-  const MAX_MOVETIME_MS = 5000;   // max thinking time per position
+  /* These four change when the user picks 1 to 5 minutes. */
+  let TOTAL_LIMIT_MS = 60000;     // the review never goes beyond this
+  let SOFT_LIMIT_MS = 56000;      // normal search time is planned to end here
+  let HARD_LIMIT_MS = 59000;      // anything unfinished is stopped here
+  let MAX_MOVETIME_MS = 5000;     // max thinking time per position
+
   const MIN_MOVETIME_MS = 40;
-  const MAX_DEPTH = 26;
+  const MAX_DEPTH = 40;           // raised so longer reviews can search deeper
   const MAX_PLIES = 300;          // longer games are cut
   const MAX_WORKERS = 4;          // parallel Stockfish workers
+
+  function applyReviewMinutes(minutes) {
+    const m = Math.max(1, Math.min(5, Number(minutes) || 1));
+
+    TOTAL_LIMIT_MS = m * 60000;
+    SOFT_LIMIT_MS = TOTAL_LIMIT_MS - 4000;
+    HARD_LIMIT_MS = TOTAL_LIMIT_MS - 1000;
+    MAX_MOVETIME_MS = m * 5000;
+  }
 
   const JUDGE = {
     brilliant: { symbol: "!!", label: "Brilliant move", color: "#1baca6" },
@@ -94545,6 +94588,7 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
   const fileBtn = $("ogrFileBtn");
   const fileInput = $("ogrFileInput");
   const clearBtn = $("ogrClearBtn");
+    const timeSelect = $("ogrTimeSelect");
   const messageEl = $("ogrMessage");
 
   const progressCard = $("ogrProgressCard");
@@ -95400,6 +95444,7 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
     fileBtn.disabled = on;
     clearBtn.disabled = on;
     pgnInput.disabled = on;
+    if (timeSelect) timeSelect.disabled = on;
   }
 
   function updateProgress(done, total, status) {
@@ -95475,6 +95520,8 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
     if (!loadGameFromText()) return;
 
     renderAll();
+
+    applyReviewMinutes(timeSelect ? timeSelect.value : 1);
 
     const run = {
       start: performance.now(),
