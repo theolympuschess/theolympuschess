@@ -42276,6 +42276,14 @@ right:0;
 </button>
 <button
   class="nav-btn"
+  data-tab="dotConnect"
+  id="dotConnectNavBtn"
+>
+  ✅
+  Chess Dot Connect
+</button>
+<button
+  class="nav-btn"
   data-tab="chesscrush"
   id="chessCrushNavBtn"
 >
@@ -95860,6 +95868,1560 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
 })();
 
 </script>
+<!-- =========================================================
+     1) NAV BUTTON  (paste inside your nav / sidebar)
+========================================================= -->
+
+
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+========================================================= -->
+
+<style>
+  #dc-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start;}
+  @media (max-width:1100px){#dc-layout{grid-template-columns:1fr;}}
+
+  .dc-card{background:linear-gradient(160deg,rgba(26,30,54,0.97),rgba(18,21,40,0.97));border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:16px;box-sizing:border-box;box-shadow:0 10px 30px rgba(0,0,0,0.25);}
+  .dc-card-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:12px;}
+  .dc-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .dc-stat-row strong{color:#fff;}
+
+  /* board */
+  .dc-board-wrap{width:min(100%,max(320px,calc(100vh - 320px)));margin:0 auto;}
+  .dc-board{
+    --n:8;
+    position:relative;width:100%;aspect-ratio:1 / 1;display:grid;
+    grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+    container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:none;
+    border-radius:14px;overflow:hidden;cursor:pointer;
+    background-color:#10132a;
+    background-image:
+      radial-gradient(circle at 20% 15%,rgba(120,90,255,0.20),transparent 55%),
+      radial-gradient(circle at 85% 90%,rgba(0,220,200,0.14),transparent 55%),
+      repeating-conic-gradient(rgba(255,255,255,0.055) 0% 25%,rgba(255,255,255,0) 0% 50%);
+    background-size:100% 100%,100% 100%,calc(200% / var(--n)) calc(200% / var(--n));
+    box-shadow:0 0 0 2px rgba(255,215,0,0.22),0 0 38px rgba(130,90,255,0.30),0 14px 40px rgba(0,0,0,0.45);
+  }
+  .dc-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+
+  .dc-cell{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;}
+
+  /* dots */
+  .dc-dot{
+    position:relative;width:62%;height:62%;border-radius:50%;box-sizing:border-box;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.26),rgba(255,255,255,0.07));
+    border:2px solid rgba(255,255,255,0.16);
+    transition:background .15s,box-shadow .15s,border-color .15s,transform .15s;
+  }
+  .dc-pm .dc-dot{width:86%;height:86%;background:rgba(255,255,255,0.045);border-color:rgba(255,255,255,0.08);}
+  .dc-dot img,.dc-dot .dc-glyph{width:92%;height:92%;object-fit:contain;opacity:.42;pointer-events:none;user-select:none;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.55));transition:opacity .15s,filter .15s;}
+  .dc-dot .dc-glyph{display:flex;align-items:center;justify-content:center;font-size:calc(66cqw / var(--n));line-height:1;color:#fff;}
+
+  .dc-on .dc-dot{
+    background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.45),var(--ca));
+    border-color:var(--c);
+    box-shadow:0 0 10px var(--c),0 0 24px var(--c);
+    transform:scale(1.04);
+  }
+  .dc-on .dc-dot img,.dc-on .dc-dot .dc-glyph{opacity:1;filter:drop-shadow(0 0 4px var(--c)) drop-shadow(0 1px 2px rgba(0,0,0,0.6));}
+
+  .dc-start .dc-dot::after{content:"";position:absolute;inset:-16%;border-radius:50%;border:2px solid #ffd700;
+    box-shadow:0 0 12px rgba(255,215,0,0.8);animation:dcRing 1.1s ease-in-out infinite alternate;pointer-events:none;}
+  .dc-head .dc-dot{animation:dcHead .8s ease-in-out infinite alternate;}
+
+  /* obstacles */
+  .dc-block span{
+    width:74%;height:74%;border-radius:10%;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(145deg,#2b3050,#12152a);border:1px solid rgba(255,255,255,0.09);
+    box-shadow:inset 0 2px 6px rgba(255,255,255,0.05),0 4px 10px rgba(0,0,0,0.45);
+    color:rgba(255,255,255,0.17);font-size:calc(50cqw / var(--n));line-height:1;pointer-events:none;
+  }
+
+  .dc-shake{animation:dcShake .25s ease-in-out;}
+  .dc-won .dc-open .dc-dot{animation:dcWin .7s ease-in-out 2;}
+
+  /* timer / progress */
+  .dc-timer{font-size:56px;line-height:1;font-weight:900;color:#ffd700;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-1px;text-shadow:0 0 18px rgba(255,215,0,0.35);}
+  .dc-bar{height:10px;border-radius:99px;background:rgba(255,255,255,0.08);margin-top:12px;overflow:hidden;}
+  .dc-bar-fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#ff5f9e,#ffd700,#4be3a0,#4db8ff,#a97cff);transition:width .12s;box-shadow:0 0 12px rgba(255,215,0,0.5);}
+
+  .dc-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;}
+  .dc-btn-green{background:linear-gradient(135deg,#78b887,#4be3a0);color:#000;box-shadow:0 0 18px rgba(75,227,160,0.28);}
+  .dc-btn-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+
+  .dc-piece-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .dc-pbtn{width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);color:#fff;font-size:21px;cursor:pointer;line-height:1;padding:0;}
+  .dc-pbtn.dc-active{border-color:#ffd700;background:rgba(255,215,0,0.16);box-shadow:0 0 14px rgba(255,215,0,0.45);}
+
+  .dc-lvl-row{display:flex;align-items:center;gap:8px;}
+  .dc-lvl-btn{width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:#fff;font-size:16px;font-weight:900;cursor:pointer;}
+  .dc-lvl-btn:disabled,.dc-btn:disabled{opacity:.32;cursor:not-allowed;}
+  .dc-lvl-label{flex:1;text-align:center;color:#fff;font-weight:900;font-size:17px;}
+
+  .dc-ready{display:none;position:absolute;inset:0;z-index:50;border-radius:18px;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center;background:rgba(10,12,24,0.74);backdrop-filter:blur(14px);}
+
+  .dc-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.80);backdrop-filter:blur(7px);}
+  .dc-modal-box{width:min(430px,92%);padding:28px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,0.5);color:#fff;position:relative;text-align:center;}
+
+  @keyframes dcRing{from{transform:scale(0.92);opacity:.65}to{transform:scale(1.08);opacity:1}}
+  @keyframes dcHead{from{transform:scale(1.04)}to{transform:scale(1.22)}}
+  @keyframes dcShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  @keyframes dcWin{0%,100%{transform:scale(1.04);filter:brightness(1)}50%{transform:scale(1.28);filter:brightness(1.6)}}
+</style>
+
+<section
+  class="section hidden"
+  id="dotConnect-section"
+>
+
+  <div
+    id="dc-shell"
+    style="width:100%;max-width:1480px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;text-shadow:0 0 18px rgba(255,215,0,0.5);">🔗</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess Dot Connect</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Draw one unbroken line through every dot. No jumping, no overlap.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="dcSoundBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;">
+          🔊 Sound
+        </button>
+        <button type="button" id="dcHowToBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:#fff;font-weight:800;cursor:pointer;">
+          ❓ How to Play
+        </button>
+        <button type="button" id="dcResetBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ↻ Reset
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="dc-layout">
+
+      <!-- BOARD CARD -->
+      <div id="dcBoardCard"
+        style="position:relative;background:linear-gradient(160deg,rgba(26,30,54,0.97),rgba(18,21,40,0.97));border:1px solid rgba(255,215,0,0.18);border-radius:18px;padding:20px;box-sizing:border-box;box-shadow:0 20px 55px rgba(0,0,0,0.25);">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+          <div>
+            <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">OBJECTIVE</div>
+            <div id="dcStatus" style="color:#fff;font-size:17px;font-weight:900;margin-top:3px;">Connect all dots</div>
+          </div>
+          <div style="color:#ffd700;font-size:22px;font-weight:900;white-space:nowrap;">
+            🔗 <span id="dcFound">0</span>
+            <span style="color:#777d99;font-size:14px;">/</span>
+            <span id="dcTotal" style="color:#fff;font-size:18px;">0</span>
+          </div>
+        </div>
+
+        <div id="dcMessage"
+          style="margin-bottom:16px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.05);color:#aeb3cf;font-size:13px;font-weight:800;text-align:center;">
+          Level 1
+        </div>
+
+        <div class="dc-board-wrap">
+          <div id="dcBoard" class="dc-board" aria-label="Dot Connect board"></div>
+        </div>
+
+        <div style="text-align:center;color:#858ba8;font-size:12px;font-weight:600;margin-top:14px;">
+          Drag from the glowing dot through neighbouring dots. Drag backward to erase. Click outside the line to cancel the drawing.
+        </div>
+
+        <!-- READY OVERLAY -->
+        <div id="dcReady" class="dc-ready">
+          <div style="font-size:46px;color:#ffd700;text-shadow:0 0 20px rgba(255,215,0,0.5);">🔗</div>
+          <div id="dcReadyTitle" style="color:#fff;font-size:22px;font-weight:900;">Ready?</div>
+          <div id="dcReadyText" style="color:#aeb3cf;font-size:14px;font-weight:600;max-width:340px;line-height:1.5;">
+            Connect every dot in one continuous line. The clock starts when you press Start.
+          </div>
+          <button type="button" id="dcStartBtn" class="dc-btn dc-btn-green" style="width:auto;padding:13px 40px;">▶ Start</button>
+        </div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <div class="dc-card">
+          <div class="dc-card-title">⏱ Time</div>
+          <div id="dcTimer" class="dc-timer">00:00</div>
+          <div class="dc-bar"><div id="dcBarFill" class="dc-bar-fill"></div></div>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-title">🏆 Level</div>
+          <div class="dc-lvl-row">
+            <button type="button" id="dcPrevBtn" class="dc-lvl-btn" title="Previous level">◀</button>
+            <div id="dcLevelLabel" class="dc-lvl-label">Level 1</div>
+            <button type="button" id="dcNextBtn" class="dc-lvl-btn" title="Next level">▶</button>
+          </div>
+          <button type="button" id="dcCurrentBtn" class="dc-btn dc-btn-ghost" style="display:none;margin-top:10px;">⏭ Back to current level</button>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-title">♞ Dot Style</div>
+          <div id="dcPieceRow" class="dc-piece-row">
+            <button type="button" class="dc-pbtn" data-piece="dot" title="Dot">●</button>
+            <button type="button" class="dc-pbtn" data-piece="N" title="Knight">♞</button>
+            <button type="button" class="dc-pbtn" data-piece="Q" title="Queen">♛</button>
+            <button type="button" class="dc-pbtn" data-piece="B" title="Bishop">♝</button>
+            <button type="button" class="dc-pbtn" data-piece="R" title="Rook">♜</button>
+            <button type="button" class="dc-pbtn" data-piece="K" title="King">♚</button>
+            <button type="button" class="dc-pbtn" data-piece="P" title="Pawn">♟</button>
+          </div>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-title" style="margin-bottom:12px;">📊 Stats</div>
+          <div style="display:grid;gap:10px;">
+            <div class="dc-stat-row"><span>Difficulty</span><strong id="dcTierStat">Beginner</strong></div>
+            <div class="dc-stat-row"><span>Board</span><strong id="dcSizeStat">8 × 8</strong></div>
+            <div class="dc-stat-row"><span>Connected</span><strong id="dcProgStat">0 / 0</strong></div>
+            <div class="dc-stat-row"><span>Moves</span><strong id="dcMovesStat">0</strong></div>
+            <div class="dc-stat-row"><span>Backtracks</span><strong id="dcBackStat">0</strong></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:16px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+          <div style="font-size:22px;line-height:1;">💡</div>
+          <div>
+            <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">Coach Tip</strong>
+            <div id="dcTip" style="color:#aeb3cf;font-size:12px;line-height:1.5;font-weight:600;">Start along the edges and work inward.</div>
+          </div>
+        </div>
+
+        <div>
+          <button type="button" id="dcResetSideBtn" class="dc-btn dc-btn-green">↻ Reset Level</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="dcHowToModal" class="dc-modal" style="z-index:99999;">
+    <div class="dc-modal-box" style="border:1px solid rgba(255,215,0,0.20);text-align:left;">
+      <button type="button" id="dcHowToClose"
+        style="position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <div style="color:#ffd700;font-size:42px;text-align:center;margin-bottom:10px;">🔗</div>
+      <h3 style="text-align:center;margin:0 0 10px;font-size:22px;font-weight:900;">How to Play</h3>
+      <p style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+        Like connect-the-dots, but without numbers. Start at the dot with the gold ring and connect every dot on the board.
+      </p>
+      <div style="display:grid;gap:10px;margin-top:15px;font-size:14px;">
+        <div>1️⃣ Press Start, then drag from the glowing dot.</div>
+        <div>2️⃣ Move up, down, left or right only. You cannot jump over a dot or cross your own line.</div>
+        <div>3️⃣ Drag backward along your line to erase it step by step.</div>
+        <div>4️⃣ Click an earlier dot on your line to continue from there.</div>
+        <div>5️⃣ Click outside the line, on an empty tile or outside the board to cancel the whole drawing.</div>
+        <div>6️⃣ Dark tiles are blocked. Connect every other dot to win.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIN MODAL -->
+  <div id="dcWinModal" class="dc-modal">
+    <div class="dc-modal-box" style="border:1px solid rgba(120,184,135,0.35);">
+      <div style="font-size:48px;color:#ffd700;margin-bottom:8px;text-shadow:0 0 20px rgba(255,215,0,0.5);">🔗</div>
+      <div style="color:#78b887;font-size:11px;font-weight:900;letter-spacing:1px;">LEVEL COMPLETE</div>
+      <h3 style="margin:8px 0;font-size:25px;font-weight:900;">Perfect line! 🎉</h3>
+      <p id="dcWinMessage" style="color:#aeb3cf;font-size:13px;line-height:1.6;">You connected every dot.</p>
+      <button type="button" id="dcWinNext" class="dc-btn dc-btn-green" style="margin-top:12px;">Next Level</button>
+      <button type="button" id="dcWinClose" class="dc-btn dc-btn-ghost">✕ Close</button>
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   🔗 OLYMPUS CHESS DOT CONNECT
+   ---------------------------------------------------------
+   Completely isolated game engine (dc- / dotConnect- ids).
+
+   - Boards 8x8 up to 16x16, infinite levels (seeded, so a
+     level is always the same layout)
+   - Every level is generated from a real path, so it is
+     always solvable
+   - Drag forward = connect, drag backward = erase
+   - Orthogonal moves only, no jumping, no overlap
+   - Click outside the line / on an empty tile / outside the
+     board = cancel the whole drawing
+   - Dots can be drawn as transparent chess pieces
+   - Highest reached level is saved and loaded on start
+   - Lazy: nothing is built until the tab is first opened
+   - Web Audio sounds, no external libraries
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  const section = document.getElementById("dotConnect-section");
+  const boardEl = document.getElementById("dcBoard");
+
+  if (!section || !boardEl) {
+    return;
+  }
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const MIN_SIZE = 8;
+  const MAX_SIZE = 16;
+
+  const ASSET_PATH = "assets/pieces/";
+  const NS = "http://www.w3.org/2000/svg";
+
+  const KEYS = {
+    level: "olympusDotConnectLevel",
+    piece: "olympusDotConnectPiece",
+    mute: "olympusDotConnectMute"
+  };
+
+  const GLYPHS = { N: "♘", Q: "♕", B: "♗", R: "♖", K: "♔", P: "♙" };
+  const BLOCKERS = ["♟", "♜", "♝", "♞"];
+
+  const TIERS = [
+    { max: 0.15, name: "Beginner", color: "#2ba974" },
+    { max: 0.35, name: "Easy", color: "#ffd166" },
+    { max: 0.55, name: "Medium", color: "#f49d65" },
+    { max: 0.75, name: "Hard", color: "#e5565b" },
+    { max: 0.92, name: "Expert", color: "#19b8c4" },
+    { max: 9, name: "Ludicrous", color: "#c77dff" }
+  ];
+
+  const TIPS = [
+    "Dots with only one free neighbour are usually the end of your line, so plan for them early.",
+    "Start along the edges and work inward. Corners are easy to strand.",
+    "Hit a dead end? Drag back to the last fork and try the other way.",
+    "Click an earlier dot on your line to continue from there without redrawing.",
+    "Click outside the line to cancel the whole drawing and start fresh.",
+    "Look ahead: never leave a dot cut off behind your own line.",
+    "Dark tiles are walls. Follow the corridors they create."
+  ];
+
+  const PENTA = [0, 2, 4, 7, 9];
+
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function $(id) { return document.getElementById(id); }
+
+  function store(key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function save(key, value) {
+    try { window.localStorage.setItem(key, String(value)); } catch (e) {}
+  }
+
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function mulberry32(seed) {
+    let a = seed | 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function neighbors(idx, n) {
+    const r = (idx / n) | 0;
+    const c = idx % n;
+    const out = [];
+    if (r > 0) out.push(idx - n);
+    if (r < n - 1) out.push(idx + n);
+    if (c > 0) out.push(idx - 1);
+    if (c < n - 1) out.push(idx + 1);
+    return out;
+  }
+
+  function difficulty(level) {
+    return Math.min(1, (level - 1) / 40);
+  }
+
+  function tierFor(level) {
+    const d = difficulty(level);
+    for (let i = 0; i < TIERS.length; i++) {
+      if (d < TIERS[i].max) return TIERS[i];
+    }
+    return TIERS[TIERS.length - 1];
+  }
+
+  /* 8x8 for levels 1-3, 9x9 for 4-6 ... 16x16 from level 25 onward */
+  function sizeFor(level) {
+    return Math.min(MAX_SIZE, MIN_SIZE + Math.floor((level - 1) / 3));
+  }
+
+  /* share of the board that is dots (the rest are blocked tiles) */
+  function openFractionFor(level) {
+    return 0.58 + 0.30 * difficulty(level);
+  }
+
+  function pad2(n) { return n < 10 ? "0" + n : String(n); }
+
+  function formatTime(ms) {
+    const total = Math.floor(ms / 1000);
+    return pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+  }
+
+
+  /* =========================================================
+     LEVEL GENERATION
+     A level is a self-avoiding walk on the grid. Every cell the
+     walk visits is a dot, every other cell is a blocked tile,
+     so the walk itself is a guaranteed solution.
+  ========================================================= */
+
+  function walk(n, target, rnd, pWarn) {
+
+    const total = n * n;
+    const seen = new Uint8Array(total);
+    const start = Math.floor(rnd() * total);
+    const path = [start];
+    seen[start] = 1;
+
+    while (path.length < target) {
+
+      const head = path[path.length - 1];
+      const nb = neighbors(head, n);
+      let cand = [];
+
+      for (let i = 0; i < nb.length; i++) {
+
+        const cell = nb[i];
+        if (seen[cell]) continue;
+
+        let deg = 0;
+        const nn = neighbors(cell, n);
+        for (let j = 0; j < nn.length; j++) {
+          if (!seen[nn[j]]) deg++;
+        }
+
+        cand.push({ cell: cell, deg: deg });
+      }
+
+      if (!cand.length) break;
+
+      /* avoid stepping into dead ends unless it is the final step */
+      if (path.length + 1 < target) {
+        const live = cand.filter(function (x) { return x.deg > 0; });
+        if (live.length) cand = live;
+      }
+
+      let chosen;
+
+      if (rnd() < pWarn) {
+        let minDeg = 9;
+        cand.forEach(function (x) { if (x.deg < minDeg) minDeg = x.deg; });
+        const ties = cand.filter(function (x) { return x.deg === minDeg; });
+        chosen = ties[Math.floor(rnd() * ties.length)];
+      } else {
+        chosen = cand[Math.floor(rnd() * cand.length)];
+      }
+
+      seen[chosen.cell] = 1;
+      path.push(chosen.cell);
+    }
+
+    return path;
+  }
+
+  /* how scattered the blocked tiles are (more groups = nicer pattern) */
+  function blockedGroups(path, n) {
+
+    const total = n * n;
+    const inPath = new Uint8Array(total);
+    path.forEach(function (i) { inPath[i] = 1; });
+
+    const seen = new Uint8Array(total);
+    let groups = 0;
+
+    for (let i = 0; i < total; i++) {
+
+      if (inPath[i] || seen[i]) continue;
+
+      groups++;
+      const stack = [i];
+      seen[i] = 1;
+
+      while (stack.length) {
+        const cur = stack.pop();
+        const nb = neighbors(cur, n);
+        for (let k = 0; k < nb.length; k++) {
+          if (!inPath[nb[k]] && !seen[nb[k]]) {
+            seen[nb[k]] = 1;
+            stack.push(nb[k]);
+          }
+        }
+      }
+    }
+
+    return groups;
+  }
+
+  function generateLevel(level) {
+
+    const n = sizeFor(level);
+    const total = n * n;
+    const rnd = mulberry32(level * 7919 + 13);
+
+    const fraction = openFractionFor(level) + (rnd() - 0.5) * 0.04;
+    const target = Math.max(20, Math.min(total, Math.round(total * fraction)));
+    const pWarn = 0.55 + 0.40 * difficulty(level);
+
+    let chosen = null;
+    let chosenScore = -1;
+    let fallback = null;
+    let good = 0;
+
+    for (let attempt = 0; attempt < 400 && good < 10; attempt++) {
+
+      const p = walk(n, target, rnd, pWarn);
+
+      if (p.length >= target) {
+        good++;
+        const score = blockedGroups(p, n);
+        if (score > chosenScore) {
+          chosenScore = score;
+          chosen = p;
+        }
+      } else if (!fallback || p.length > fallback.length) {
+        fallback = p;
+      }
+    }
+
+    const path = chosen || fallback;
+    const open = new Uint8Array(total);
+    path.forEach(function (i) { open[i] = 1; });
+
+    return { n: n, path: path, open: open };
+  }
+
+
+  /* =========================================================
+     SOUND (Web Audio API, created on first user gesture)
+  ========================================================= */
+
+  let actx = null;
+  let muted = false;
+
+  function audio() {
+
+    if (muted) return null;
+
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { actx = new AC(); } catch (e) { return null; }
+    }
+
+    if (actx.state === "suspended") {
+      actx.resume().catch(function () {});
+    }
+
+    return actx;
+  }
+
+  function tone(freq, dur, type, vol, delay, endFreq) {
+
+    const a = audio();
+    if (!a) return;
+
+    const t = a.currentTime + (delay || 0);
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+
+    osc.type = type || "sine";
+    osc.frequency.setValueAtTime(freq, t);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur);
+
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    osc.connect(gain);
+    gain.connect(a.destination);
+
+    osc.start(t);
+    osc.stop(t + dur + 0.03);
+  }
+
+  function sfxStep(i) {
+    const note = PENTA[i % 5] + 12 * (Math.floor(i / 5) % 3);
+    const f = 261.63 * Math.pow(2, note / 12);
+    tone(f, 0.13, "sine", 0.13);
+    tone(f * 2, 0.08, "triangle", 0.035);
+  }
+
+  function sfxBack() { tone(320, 0.11, "triangle", 0.10, 0, 190); }
+  function sfxBlocked() { tone(150, 0.13, "square", 0.045, 0, 95); }
+  function sfxCancel() { tone(560, 0.28, "sawtooth", 0.05, 0, 110); tone(300, 0.2, "triangle", 0.06, 0.05, 90); }
+  function sfxStart() { tone(660, 0.1, "sine", 0.10); tone(990, 0.14, "sine", 0.09, 0.08); }
+  function sfxTick() { tone(520, 0.06, "sine", 0.07); }
+
+  function sfxWin() {
+    [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach(function (f, i) {
+      tone(f, 0.28, "sine", 0.12, i * 0.1);
+      tone(f * 2, 0.18, "triangle", 0.03, i * 0.1 + 0.02);
+    });
+  }
+
+
+  /* =========================================================
+     INIT (lazy: runs the first time the section is visible)
+  ========================================================= */
+
+  let inited = false;
+
+  const api = {
+    reset: function () {},
+    goToLevel: function () {},
+    getState: function () { return { inited: false }; }
+  };
+
+  function init() {
+
+    /* ---------- DOM ---------- */
+
+    const readyEl = $("dcReady");
+    const readyTitle = $("dcReadyTitle");
+    const readyText = $("dcReadyText");
+    const startBtn = $("dcStartBtn");
+
+    const resetBtn = $("dcResetBtn");
+    const resetSideBtn = $("dcResetSideBtn");
+    const soundBtn = $("dcSoundBtn");
+
+    const howToBtn = $("dcHowToBtn");
+    const howToModal = $("dcHowToModal");
+    const howToClose = $("dcHowToClose");
+
+    const winModal = $("dcWinModal");
+    const winNext = $("dcWinNext");
+    const winClose = $("dcWinClose");
+    const winMessage = $("dcWinMessage");
+
+    const statusEl = $("dcStatus");
+    const messageEl = $("dcMessage");
+    const foundEl = $("dcFound");
+    const totalEl = $("dcTotal");
+
+    const timerEl = $("dcTimer");
+    const barFillEl = $("dcBarFill");
+
+    const prevBtn = $("dcPrevBtn");
+    const nextBtn = $("dcNextBtn");
+    const currentBtn = $("dcCurrentBtn");
+    const levelLabel = $("dcLevelLabel");
+
+    const pieceRow = $("dcPieceRow");
+
+    const tierStat = $("dcTierStat");
+    const sizeStat = $("dcSizeStat");
+    const progStat = $("dcProgStat");
+    const movesStat = $("dcMovesStat");
+    const backStat = $("dcBackStat");
+
+    const tipEl = $("dcTip");
+
+
+    /* ---------- STATE ---------- */
+
+    let level = 1;
+    let best = 1;                 // highest level reached = "current level"
+    let n = 8;
+    let isOpen = null;
+    let solution = [];
+    let openCount = 0;
+    let baseHue = 0;
+
+    let path = [];
+    let pos = null;               // cell -> index in path, or -1
+    let cells = [];
+    let headIdx = -1;
+
+    let phase = "ready";          // ready | playing | won
+    let elapsed = 0;
+    let startTs = 0;
+    let timerId = null;
+
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let activePointer = null;
+
+    let moves = 0;
+    let backs = 0;
+
+    let pieceType = "dot";
+
+    let modalTimer = null;
+    let msgTimer = null;
+    let holdMsgUntil = 0;
+
+    let lastBlocked = -1;
+    let lastBlockedTs = 0;
+
+    let svgEl = null;
+    let gGlow = null;
+    let gMain = null;
+    const segGlow = [];
+    const segMain = [];
+
+
+    /* ---------- STORED SETTINGS ---------- */
+
+    const savedLevel = parseInt(store(KEYS.level), 10);
+    if (savedLevel > 0) best = savedLevel;
+    level = best;
+
+    const savedPiece = store(KEYS.piece);
+    if (savedPiece && /^(dot|N|Q|B|R|K|P)$/.test(savedPiece)) pieceType = savedPiece;
+
+    muted = store(KEYS.mute) === "1";
+
+
+    /* ---------- BOARD BUILD ---------- */
+
+    function hueFor(i) {
+      return (baseHue + (300 * i) / Math.max(1, openCount)) % 360;
+    }
+
+    function createPieceNode(type) {
+
+      if (type === "dot") return null;
+
+      const key = "w" + type;
+      const img = document.createElement("img");
+
+      img.src = ASSET_PATH + key + ".png";
+      img.alt = key;
+      img.draggable = false;
+
+      img.addEventListener("error", function () {
+        const span = document.createElement("span");
+        span.className = "dc-glyph";
+        span.textContent = GLYPHS[type] || "?";
+        if (img.parentNode) img.parentNode.replaceChild(span, img);
+      });
+
+      return img;
+    }
+
+    function fillDot(dot) {
+      dot.textContent = "";
+      const node = createPieceNode(pieceType);
+      if (node) dot.appendChild(node);
+    }
+
+    function buildBoard() {
+
+      boardEl.innerHTML = "";
+      boardEl.style.setProperty("--n", String(n));
+      boardEl.style.gridTemplateColumns = "repeat(" + n + ",1fr)";
+      boardEl.style.gridTemplateRows = "repeat(" + n + ",1fr)";
+      boardEl.classList.remove("dc-won");
+      boardEl.classList.toggle("dc-pm", pieceType !== "dot");
+
+      svgEl = document.createElementNS(NS, "svg");
+      svgEl.setAttribute("class", "dc-svg");
+      svgEl.setAttribute("viewBox", "0 0 " + (n * 100) + " " + (n * 100));
+
+      gGlow = document.createElementNS(NS, "g");
+      gMain = document.createElementNS(NS, "g");
+
+      svgEl.appendChild(gGlow);
+      svgEl.appendChild(gMain);
+      boardEl.appendChild(svgEl);
+
+      segGlow.length = 0;
+      segMain.length = 0;
+
+      cells = [];
+
+      for (let idx = 0; idx < n * n; idx++) {
+
+        const cell = document.createElement("div");
+        cell.dataset.idx = String(idx);
+
+        if (isOpen[idx]) {
+
+          cell.className = "dc-cell dc-open";
+
+          const dot = document.createElement("div");
+          dot.className = "dc-dot";
+          fillDot(dot);
+          cell.appendChild(dot);
+
+        } else {
+
+          cell.className = "dc-cell dc-block";
+
+          const block = document.createElement("span");
+          block.textContent = BLOCKERS[(idx * 7 + level) % BLOCKERS.length];
+          cell.appendChild(block);
+        }
+
+        cell.addEventListener("animationend", function () {
+          cell.classList.remove("dc-shake");
+        });
+
+        boardEl.appendChild(cell);
+        cells.push(cell);
+      }
+
+      path = [];
+      pos = new Int16Array(n * n).fill(-1);
+      headIdx = -1;
+
+      const first = solution[0];
+
+      cells[first].classList.add("dc-start");
+      pushCell(first);
+      refreshHead();
+    }
+
+    function rebuildPieces() {
+
+      boardEl.classList.toggle("dc-pm", pieceType !== "dot");
+
+      for (let idx = 0; idx < cells.length; idx++) {
+        if (!isOpen[idx]) continue;
+        const dot = cells[idx].firstChild;
+        if (dot) fillDot(dot);
+      }
+    }
+
+
+    /* ---------- LINES ---------- */
+
+    function cx(idx) { return ((idx % n) + 0.5) * 100; }
+    function cy(idx) { return (Math.floor(idx / n) + 0.5) * 100; }
+
+    function makeLine(a, b, width, color, opacity) {
+
+      const line = document.createElementNS(NS, "line");
+
+      line.setAttribute("x1", cx(a));
+      line.setAttribute("y1", cy(a));
+      line.setAttribute("x2", cx(b));
+      line.setAttribute("y2", cy(b));
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", width);
+      line.setAttribute("stroke-linecap", "round");
+      if (opacity) line.setAttribute("stroke-opacity", opacity);
+
+      return line;
+    }
+
+    function addSegment(a, b, hue) {
+
+      const color = "hsl(" + hue + " 95% 60%)";
+
+      const glow = makeLine(a, b, 40, color, 0.28);
+      const main = makeLine(a, b, 20, color, 0);
+
+      gGlow.appendChild(glow);
+      gMain.appendChild(main);
+
+      segGlow.push(glow);
+      segMain.push(main);
+    }
+
+    function removeSegment() {
+
+      const glow = segGlow.pop();
+      const main = segMain.pop();
+
+      if (glow && glow.parentNode) glow.parentNode.removeChild(glow);
+      if (main && main.parentNode) main.parentNode.removeChild(main);
+    }
+
+
+    /* ---------- PATH OPERATIONS ---------- */
+
+    function pushCell(idx) {
+
+      const i = path.length;
+      const hue = hueFor(i);
+
+      path.push(idx);
+      pos[idx] = i;
+
+      const cell = cells[idx];
+      cell.style.setProperty("--c", "hsl(" + hue + " 95% 60%)");
+      cell.style.setProperty("--ca", "hsl(" + hue + " 95% 60% / 0.38)");
+      cell.classList.add("dc-on");
+
+      if (i > 0) addSegment(path[i - 1], idx, hue);
+    }
+
+    function popCell() {
+
+      const idx = path.pop();
+
+      pos[idx] = -1;
+      cells[idx].classList.remove("dc-on", "dc-head");
+
+      removeSegment();
+    }
+
+    function refreshHead() {
+
+      if (headIdx >= 0 && cells[headIdx]) {
+        cells[headIdx].classList.remove("dc-head");
+      }
+
+      headIdx = path[path.length - 1];
+      cells[headIdx].classList.add("dc-head");
+    }
+
+    function isAdjacent(a, b) {
+      const d = Math.abs(a - b);
+      if (d === n) return true;
+      return d === 1 && Math.floor(a / n) === Math.floor(b / n);
+    }
+
+
+    /* ---------- TIMER ---------- */
+
+    function elapsedNow() {
+      return elapsed + (phase === "playing" ? performance.now() - startTs : 0);
+    }
+
+    function updateTimer() {
+      timerEl.textContent = formatTime(elapsedNow());
+    }
+
+    function stopTimer() {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    }
+
+    function startTimer() {
+      stopTimer();
+      startTs = performance.now();
+      timerId = setInterval(tick, 200);
+    }
+
+    function tick() {
+
+      /* section hidden (user left the tab): pause and wait on the Ready screen */
+      if (section.getClientRects().length === 0) {
+        pauseToReady();
+        return;
+      }
+
+      updateTimer();
+    }
+
+    function pauseToReady() {
+
+      if (phase !== "playing") return;
+
+      elapsed += performance.now() - startTs;
+      stopTimer();
+
+      phase = "ready";
+      dragging = false;
+
+      showReady("Paused", "Your drawing is saved. Press Resume to keep going.", "▶ Resume");
+      updateUI();
+    }
+
+    function showReady(title, text, btnText) {
+      readyTitle.textContent = title;
+      readyText.textContent = text;
+      startBtn.textContent = btnText;
+      readyEl.style.display = "flex";
+    }
+
+
+    /* ---------- UI ---------- */
+
+    function flashMessage(text, color, bg) {
+
+      messageEl.textContent = text;
+      messageEl.style.color = color;
+      messageEl.style.background = bg;
+
+      holdMsgUntil = performance.now() + 1400;
+
+      clearTimeout(msgTimer);
+      msgTimer = setTimeout(updateUI, 1450);
+    }
+
+    function updateUI() {
+
+      const k = path.length;
+      const tier = tierFor(level);
+
+      foundEl.textContent = String(k);
+      totalEl.textContent = String(openCount);
+
+      progStat.textContent = k + " / " + openCount;
+      movesStat.textContent = String(moves);
+      backStat.textContent = String(backs);
+      sizeStat.textContent = n + " × " + n;
+      tierStat.textContent = tier.name;
+      tierStat.style.color = tier.color;
+
+      barFillEl.style.width = (k / openCount * 100) + "%";
+
+      levelLabel.textContent = "Level " + level;
+      prevBtn.disabled = level <= 1;
+      nextBtn.disabled = level >= best;
+      currentBtn.style.display = level < best ? "block" : "none";
+      currentBtn.textContent = "⏭ Back to Level " + best;
+
+      if (phase === "won") {
+        statusEl.textContent = "All dots connected!";
+      } else if (k <= 1) {
+        statusEl.textContent = "Connect all " + openCount + " dots";
+      } else {
+        const left = openCount - k;
+        statusEl.textContent = left + (left === 1 ? " dot left" : " dots left");
+      }
+
+      if (performance.now() >= holdMsgUntil) {
+
+        if (phase === "won") {
+          messageEl.textContent = "Level complete!";
+          messageEl.style.color = "#78b887";
+          messageEl.style.background = "rgba(120,184,135,0.09)";
+        } else {
+          messageEl.textContent =
+            "Level " + level + " · " + tier.name + " · " + n + " × " + n + " · " + openCount + " dots";
+          messageEl.style.color = tier.color;
+          messageEl.style.background = "rgba(255,255,255,0.05)";
+        }
+      }
+
+      updateTimer();
+    }
+
+    function updatePieceButtons() {
+      Array.prototype.forEach.call(pieceRow.children, function (btn) {
+        btn.classList.toggle("dc-active", btn.dataset.piece === pieceType);
+      });
+    }
+
+    function updateSoundButton() {
+      soundBtn.textContent = muted ? "🔇 Muted" : "🔊 Sound";
+    }
+
+
+    /* ---------- LEVEL SETUP ---------- */
+
+    function clearModalTimer() {
+      if (modalTimer) {
+        clearTimeout(modalTimer);
+        modalTimer = null;
+      }
+    }
+
+    function hideModals() {
+      winModal.style.display = "none";
+    }
+
+    /* Replay the CURRENT level from the beginning. */
+    function resetRun(autostart) {
+
+      clearModalTimer();
+      hideModals();
+      stopTimer();
+
+      dragging = false;
+
+      while (path.length > 1) popCell();
+      refreshHead();
+
+      boardEl.classList.remove("dc-won");
+      for (let i = 0; i < cells.length; i++) cells[i].style.animationDelay = "";
+
+      moves = 0;
+      backs = 0;
+      elapsed = 0;
+      holdMsgUntil = 0;
+
+      tipEl.textContent = pick(TIPS);
+
+      if (autostart) {
+        phase = "playing";
+        readyEl.style.display = "none";
+        startTimer();
+      } else {
+        phase = "ready";
+        const tier = tierFor(level);
+        showReady(
+          "Level " + level,
+          tier.name + " · " + n + " × " + n + " board · " + openCount +
+          " dots. Connect them all in one line. The clock starts when you press Start.",
+          "▶ Start"
+        );
+      }
+
+      updateUI();
+    }
+
+    /* Load (or generate) a level. Same level number = same layout. */
+    function loadLevel(num, autostart) {
+
+      clearModalTimer();
+      stopTimer();
+
+      level = Math.max(1, num | 0);
+
+      const g = generateLevel(level);
+
+      n = g.n;
+      isOpen = g.open;
+      solution = g.path;
+      openCount = g.path.length;
+      baseHue = (level * 47) % 360;
+
+      buildBoard();
+      resetRun(autostart);
+    }
+
+
+    /* ---------- DRAWING LOGIC ---------- */
+
+    function blockedFeedback(idx) {
+
+      const now = performance.now();
+
+      if (idx === lastBlocked && now - lastBlockedTs < 400) return;
+
+      lastBlocked = idx;
+      lastBlockedTs = now;
+
+      const cell = cells[idx];
+      cell.classList.remove("dc-shake");
+      void cell.offsetWidth;
+      cell.classList.add("dc-shake");
+
+      sfxBlocked();
+    }
+
+    function stepTo(idx) {
+
+      if (phase !== "playing") return;
+
+      const head = path[path.length - 1];
+
+      if (idx === head) return;
+      if (!isAdjacent(head, idx)) return;           // no jumping, no diagonals
+
+      if (!isOpen[idx]) {
+        blockedFeedback(idx);
+        return;
+      }
+
+      /* dragging backward erases the line */
+      if (path.length > 1 && idx === path[path.length - 2]) {
+        popCell();
+        refreshHead();
+        backs++;
+        sfxBack();
+        updateUI();
+        return;
+      }
+
+      /* cannot cross or overlap the existing line */
+      if (pos[idx] >= 0) {
+        blockedFeedback(idx);
+        return;
+      }
+
+      pushCell(idx);
+      refreshHead();
+      moves++;
+      sfxStep(path.length - 1);
+      updateUI();
+
+      if (path.length === openCount) {
+        winLevel();
+      }
+    }
+
+    function cancelDrawing() {
+
+      if (phase !== "playing") return;
+      if (path.length <= 1) return;
+
+      while (path.length > 1) popCell();
+      refreshHead();
+
+      dragging = false;
+
+      sfxCancel();
+      flashMessage("Drawing cancelled", "#ff8a65", "rgba(255,138,101,0.10)");
+      updateUI();
+    }
+
+    function cellFromPoint(clientX, clientY, strict) {
+
+      const rect = boardEl.getBoundingClientRect();
+      const x = (clientX - rect.left) / rect.width * n;
+      const y = (clientY - rect.top) / rect.height * n;
+
+      if (x < 0 || y < 0 || x >= n || y >= n) return -1;
+
+      const c = Math.floor(x);
+      const r = Math.floor(y);
+
+      /* strict mode ignores the corners between cells so diagonal drags never skip a dot */
+      if (strict) {
+        const dx = x - c - 0.5;
+        const dy = y - r - 0.5;
+        if (Math.abs(dx) > 0.36 || Math.abs(dy) > 0.36) return -2;
+      }
+
+      return r * n + c;
+    }
+
+    function beginDrag(e) {
+
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      activePointer = e.pointerId;
+
+      try { boardEl.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    function endDrag(e) {
+
+      dragging = false;
+
+      if (activePointer !== null) {
+        try { boardEl.releasePointerCapture(activePointer); } catch (err) {}
+        activePointer = null;
+      }
+    }
+
+    function onPointerDown(e) {
+
+      if (phase !== "playing") return;
+
+      e.preventDefault();
+      audio();
+
+      const idx = cellFromPoint(e.clientX, e.clientY, false);
+      const head = path[path.length - 1];
+
+      if (idx >= 0 && isOpen[idx]) {
+
+        if (idx === head) {
+          beginDrag(e);
+          return;
+        }
+
+        /* click an earlier dot on the line: erase back to it and continue */
+        if (pos[idx] >= 0) {
+          while (path.length - 1 > pos[idx]) popCell();
+          refreshHead();
+          backs++;
+          sfxBack();
+          updateUI();
+          beginDrag(e);
+          return;
+        }
+
+        /* click a neighbouring free dot: extend the line */
+        if (isAdjacent(head, idx)) {
+          stepTo(idx);
+          if (phase === "playing") beginDrag(e);
+          return;
+        }
+      }
+
+      /* anything else cancels the whole drawing */
+      cancelDrawing();
+    }
+
+    function onPointerMove(e) {
+
+      if (!dragging || phase !== "playing") return;
+
+      const rect = boardEl.getBoundingClientRect();
+      const step = Math.max(2, rect.width / n * 0.2);
+
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / step));
+
+      for (let k = 1; k <= steps; k++) {
+
+        const px = lastX + dx * k / steps;
+        const py = lastY + dy * k / steps;
+        const idx = cellFromPoint(px, py, true);
+
+        if (idx >= 0) stepTo(idx);
+
+        if (phase !== "playing") break;
+      }
+
+      lastX = e.clientX;
+      lastY = e.clientY;
+    }
+
+    boardEl.addEventListener("pointerdown", onPointerDown);
+    boardEl.addEventListener("pointermove", onPointerMove);
+    boardEl.addEventListener("pointerup", endDrag);
+    boardEl.addEventListener("pointercancel", endDrag);
+    boardEl.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+    /* clicking anywhere outside the board also cancels the drawing */
+    document.addEventListener("pointerdown", function (e) {
+
+      if (phase !== "playing") return;
+      if (section.getClientRects().length === 0) return;
+      if (boardEl.contains(e.target)) return;
+      if (e.target.closest && e.target.closest("button, a, input, select, textarea, .dc-modal")) return;
+
+      cancelDrawing();
+    });
+
+
+    /* ---------- WIN ---------- */
+
+    function winLevel() {
+
+      elapsed += performance.now() - startTs;
+      stopTimer();
+
+      phase = "won";
+      dragging = false;
+
+      if (level >= best) {
+        best = level + 1;
+        save(KEYS.level, best);
+      }
+
+      const stepMs = Math.min(14, 1200 / openCount);
+      for (let i = 0; i < path.length; i++) {
+        cells[path[i]].style.animationDelay = (i * stepMs) + "ms";
+      }
+      boardEl.classList.add("dc-won");
+
+      sfxWin();
+
+      tipEl.textContent = "Perfect line! Every dot connected in one go.";
+      updateUI();
+
+      const nextLevel = level + 1;
+
+      winMessage.textContent =
+        "You connected all " + openCount + " dots in " + formatTime(elapsed) +
+        " with " + moves + " moves and " + backs + " backtracks.";
+
+      winNext.textContent =
+        "Next Level (Level " + nextLevel + " · " + sizeFor(nextLevel) + " × " + sizeFor(nextLevel) + ")";
+
+      clearModalTimer();
+
+      modalTimer = setTimeout(function () {
+        winModal.style.display = "flex";
+      }, 1100);
+    }
+
+
+    /* ---------- BUTTONS ---------- */
+
+    function replayCurrent() {
+      sfxTick();
+      resetRun(true);
+    }
+
+    function goToLevel(num) {
+      loadLevel(Math.min(Math.max(1, num), best), true);
+    }
+
+    startBtn.addEventListener("click", function () {
+
+      audio();
+      sfxStart();
+
+      if (phase === "ready") {
+        phase = "playing";
+        readyEl.style.display = "none";
+        startTimer();
+        updateUI();
+      }
+    });
+
+    resetBtn.addEventListener("click", replayCurrent);
+    resetSideBtn.addEventListener("click", replayCurrent);
+
+    prevBtn.addEventListener("click", function () {
+      if (level > 1) { audio(); sfxTick(); goToLevel(level - 1); }
+    });
+
+    nextBtn.addEventListener("click", function () {
+      if (level < best) { audio(); sfxTick(); goToLevel(level + 1); }
+    });
+
+    currentBtn.addEventListener("click", function () {
+      audio();
+      sfxTick();
+      goToLevel(best);
+    });
+
+    pieceRow.addEventListener("click", function (e) {
+
+      const btn = e.target.closest(".dc-pbtn");
+      if (!btn) return;
+
+      pieceType = btn.dataset.piece;
+      save(KEYS.piece, pieceType);
+
+      audio();
+      sfxTick();
+
+      updatePieceButtons();
+      rebuildPieces();
+    });
+
+    soundBtn.addEventListener("click", function () {
+      muted = !muted;
+      save(KEYS.mute, muted ? "1" : "0");
+      updateSoundButton();
+      if (!muted) sfxTick();
+    });
+
+    howToBtn.addEventListener("click", function () { howToModal.style.display = "flex"; });
+    howToClose.addEventListener("click", function () { howToModal.style.display = "none"; });
+
+    winNext.addEventListener("click", function () {
+      winModal.style.display = "none";
+      sfxStart();
+      goToLevel(level + 1);
+    });
+
+    winClose.addEventListener("click", function () { winModal.style.display = "none"; });
+
+    howToModal.addEventListener("click", function (e) {
+      if (e.target === howToModal) howToModal.style.display = "none";
+    });
+
+    winModal.addEventListener("click", function (e) {
+      if (e.target === winModal) winModal.style.display = "none";
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (howToModal.style.display === "flex") howToModal.style.display = "none";
+      if (winModal.style.display === "flex") winModal.style.display = "none";
+    });
+
+
+    /* ---------- PUBLIC API ---------- */
+
+    api.reset = function () { resetRun(true); };
+    api.goToLevel = goToLevel;
+    api.getState = function () {
+      return {
+        inited: true,
+        level: level,
+        best: best,
+        size: n,
+        connected: path.length,
+        total: openCount,
+        moves: moves,
+        phase: phase
+      };
+    };
+
+
+    /* ---------- FIRST LOAD ---------- */
+
+    updatePieceButtons();
+    updateSoundButton();
+
+    /* start on the saved current level, with the Ready screen so the clock never runs while hidden */
+    loadLevel(level, false);
+  }
+
+
+  /* =========================================================
+     LAZY LOADING
+     Nothing is generated or built until the tab is opened.
+  ========================================================= */
+
+  function ensureInit() {
+
+    if (inited) return;
+    if (section.getClientRects().length === 0) return;
+
+    inited = true;
+    init();
+  }
+
+  if ("IntersectionObserver" in window) {
+
+    const io = new IntersectionObserver(function (entries) {
+      if (entries.some(function (en) { return en.isIntersecting; })) {
+        ensureInit();
+        if (inited) io.disconnect();
+      }
+    });
+
+    io.observe(section);
+  }
+
+  const navBtn = document.getElementById("dotConnectNavBtn");
+
+  if (navBtn) {
+    navBtn.addEventListener("click", function () {
+      setTimeout(ensureInit, 60);
+      setTimeout(ensureInit, 350);
+    });
+  }
+
+  window.ChessDotConnect = {
+    reset: function () { api.reset(); },
+    goToLevel: function (n) { api.goToLevel(n); },
+    getState: function () { return api.getState(); }
+  };
+
+})();
+
+</script>
+
 
 
 <!-- ========================= -->
@@ -177201,7 +178763,7 @@ const lockedTabs = [
 
   // 🎮 Standalone games
   "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
-  "hiddenDeck","chesscrush","chessCraftGo",   "chess3d",
+  "hiddenDeck","chesscrush","chessCraftGo",   "chess3d","dotConnect",
   "legalMove",
   "legalChecks",
   "puzzlerush",
@@ -250135,6 +251697,7 @@ training: [
 ],
 
     games: [
+      '[data-tab="dotConnect"]',
       '[data-tab="chessCraftGo"]',
        '[data-tab="chessMaze" ]',
       '[data-tab="findDifferences" ]',
