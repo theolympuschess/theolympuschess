@@ -458,7 +458,7 @@ const X={
   runStop();
   sfx("gameover", 1);
 },
-  bang(){sfx("foxy",1)},
+  bang(){return sfx("foxy",1)},
   pow(){sfx("out",1)},
   step(){sfx("step",1.0,600)},
   begin(){sfx("start",1)},
@@ -1140,7 +1140,7 @@ function decorate(g){
       trophy(x+.1,2.585,-3.77,.8);[["queen",MB],["bishop",MW],["pawn",MB]].forEach((a,k)=>{const p=chessPiece(a[0],a[1]);p.scale.setScalar(.13);p.position.set(x+.4+k*.14,2.585,-3.77);g.add(p)})}});
   /* --- framed pictures --- */
   picFrame(-2.6,3.95,.8,1.0,drawing(1),-3.93);picFrame(2.6,3.95,.8,1.0,drawing(3),-3.93);
-  picFrame(0,3.9,0,0,null,-3.93);
+ 
     const wr=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.2),new THREE.MeshBasicMaterial({map:wreathTex,transparent:true,depthWrite:false}));wr.position.set(0,5.45,-3.94);g.add(wr);
   const rim=new THREE.Mesh(new THREE.TorusGeometry(.4,.04,8,36),MG);rim.position.set(0,5.45,-3.92);g.add(rim);
   const clk=new THREE.Mesh(new THREE.CircleGeometry(.38,40),new THREE.MeshBasicMaterial({map:mkScr(128,128,drawClock)}));clk.position.set(0,5.45,-3.925);g.add(clk);
@@ -1386,8 +1386,28 @@ const dtex = cv(128, 128, c => {
     decorate(g)}});
   bulbL=new THREE.PointLight(0xffd9a0,1.5,22,1.4);bulbL.position.set(0,4.9,-1.5);sc.add(bulbL);
   ball(sc,.22,0xffffff,0,5.3,-1.5,0xfff2c0);glow(sc,0,5.3,-1.5,3.2,0xffe0a0);cyl(sc,.02,.02,.7,0x222,0,5.8,-1.5);
-  const sp=(x,t)=>{const l=new THREE.SpotLight(0xfff2cc,0,26,.75,.5,1);l.position.set(x,3.4,-.5);l.target.position.set(t,.8,-.5);sc.add(l,l.target);return l};
-  spotL=sp(-4.8,-12);spotR=sp(4.8,12)}
+ 
+const sp = (x, t) => {
+const l = new THREE.SpotLight(
+  0xfff2cc, 0, 10, 0.30, 0.5, 1
+);
+  // Ceiling lamp mounted outside the office doorway.
+  l.position.set(x, 5.8, -0.5);
+
+  // Shine downward onto the doorway and floor.
+  l.target.position.set(t, 0.3, -0.5);
+
+  sc.add(l, l.target);
+  return l;
+};
+
+// Left ceiling lamp outside the west doorway.
+spotL = sp(-7.0, -6.2);
+
+// Right ceiling lamp outside the east doorway.
+spotR = sp(7.0, 7.2);
+}
+
 
 [["1A","Show Stage",0,-48,16,10,{wall:"#2a2347",f:["#1b1530","#3b2e66"],stars:16,p:stage}],
  ["1B","Dining Area",0,-32,16,14,{wall:"#263250",f:["#8c1d3b","#1d2f7a"],stars:14,art:4,p:dining}],
@@ -1402,6 +1422,78 @@ const dtex = cv(128, 128, c => {
  ["6","Kitchen",22,-46,10,10,{wall:"#4a5058",f:["#141218","#6b7078"],flick:1,p:kitchen}]
 ].forEach(a=>room(a[0],a[1],a[2],a[3],a[4],a[5],a[6]));
 office();
+
+/* ---------- DOOR SHADOWS (piece silhouette on a closed door when the light is on) ---------- */
+function shadowTex(type){
+  /* 100px = 1 world unit. Door is 3.4 wide x 4.4 tall -> 340 x 440.
+     Pieces are scaled .85, so 1 piece-unit = 85px. Floor is the bottom edge. */
+  return cv(340,440,(g,w,h)=>{
+    g.clearRect(0,0,w,h);
+    g.fillStyle="#000";g.shadowColor="#000";g.shadowBlur=4;
+    const U=85,CX=w/2;
+    const X=x=>CX+x*U, Y=y=>h-y*U;
+    const BASE=[[0,0],[1.4,0],[1.46,.12],[1.4,.26],[1.15,.42]];
+    const PROF={
+      rook:[...BASE,[.98,.7],[.92,1.1],[.9,2.3],[1.0,2.5],[1.28,2.65],[1.3,2.95],[0,2.95]],
+      knight:[...BASE,[.95,.7],[.85,1.2],[.8,1.7],[.88,2.0],[.92,2.1],[0,2.1]],
+      bishop:[...BASE,[.8,.75],[.58,1.3],[.52,1.9],[.7,2.1],[.72,2.2],[.6,2.3],[.8,2.45],[.95,2.7],[1.0,3.0],[.95,3.3],[.75,3.65],[.4,3.9],[0,4.0]],
+      queen:[...BASE,[.75,.8],[.55,1.4],[.5,2.2],[.68,2.4],[.58,2.55],[.78,2.85],[.84,3.1],[.8,3.4],[.6,3.7],[0,3.8]]
+    };
+    /* mirrored body silhouette */
+    const p=PROF[type];
+    g.beginPath();
+    p.forEach((v,i)=>{i?g.lineTo(X(v[0]),Y(v[1])):g.moveTo(X(v[0]),Y(v[1]))});
+    for(let i=p.length-1;i>=0;i--)g.lineTo(X(-p[i][0]),Y(p[i][1]));
+    g.closePath();g.fill();
+
+    const rect=(cx,y0,y1,hw)=>g.fillRect(X(cx-hw),Y(y1),hw*2*U,(y1-y0)*U);
+    const ell=(cx,cy,rx,ry)=>{g.beginPath();g.ellipse(X(cx),Y(cy),rx*U,ry*U,0,0,7);g.fill()};
+    const tri=(cx,y0,y1,hw)=>{g.beginPath();g.moveTo(X(cx-hw),Y(y0));g.lineTo(X(cx),Y(y1));g.lineTo(X(cx+hw),Y(y0));g.closePath();g.fill()};
+
+    if(type==="rook"){
+      /* 6 battlements: front view shows 3 columns */
+      [-.91,0,.91].forEach(c=>rect(c,2.93,3.51,.3));
+    }else if(type==="knight"){
+      /* neck, head, ears, mane ball (top ~4.13) */
+      g.beginPath();g.moveTo(X(-.72),Y(2.05));g.lineTo(X(-.55),Y(3.3));g.lineTo(X(.55),Y(3.3));g.lineTo(X(.72),Y(2.05));g.closePath();g.fill();
+      ell(0,3.3,.68,.72);
+      [-1,1].forEach(s=>tri(s*.3,3.7,4.13,.17));
+      ell(0,3.82,.17,.17);
+    }else if(type==="bishop"){
+      ell(0,4.1,.19,.19);              /* gold ball on top (top ~4.29) */
+    }else if(type==="queen"){
+      rect(0,3.7,4.02,.64);            /* crown band */
+      [0,.4,.57,.4,0,-.4,-.57,-.4].forEach(c=>{tri(c,4.01,4.47,.12);ell(c,4.52,.085,.085)}); /* spikes + balls */
+    }
+  })}
+const SHTEX={rook:shadowTex("rook"),knight:shadowTex("knight"),queen:shadowTex("queen"),bishop:shadowTex("bishop")};
+const SH={};
+[["L",doorL,PI/2,.152],["R",doorR,-PI/2,-.152]].forEach(a=>{
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(GW,4.4),new THREE.MeshBasicMaterial({map:SHTEX.rook,transparent:true,opacity:0,depthWrite:false,fog:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}));
+  m.position.x=a[3];m.rotation.y=a[2];m.visible=false;a[1].add(m);   /* child of the door, so it moves with it */
+  SH[a[0]]={m,key:"rook"}});
+  function banging(){const a=S.bangA;return !!(a&&!a.ended&&!a.paused&&(!isFinite(a.duration)||a.currentTime<a.duration-1.5))}
+  function bishopIn(){const a=S.bangA;return !!(a&&!a.ended&&!a.paused&&!S.dL&&!S.out&&S.phase==="playing")}
+function shadowWho(s){
+  if(s==="L"){
+    if(S.bangA&&!S.bangA.ended&&!S.bangA.paused)return"bishop";   /* hold until foxy.mp3 finishes */
+    if(atDoor(S.p.rook))return"rook";
+    const b=S.p.bishop;if(b.run&&b.runT/RUN>=.72)return"bishop";
+    return null}
+  if(atDoor(S.p.knight))return"knight";
+  if(atDoor(S.p.queen))return"queen";
+  return null}
+function shadowTick(now){
+  ["L","R"].forEach(s=>{
+    const o=SH[s],m=o.m,mat=m.material;
+    const who=(S.phase==="playing"&&!S.out&&!S.mon&&S["l"+s]&&S["d"+s])?shadowWho(s):null;
+    if(who&&who!==o.key){o.key=who;mat.map=SHTEX[who];mat.needsUpdate=true}
+    const hit=(s==="L"&&who==="bishop"&&banging())?Math.abs(Math.sin(now*.005)):0;  /* same rhythm as the door */
+    const target=who?.22+hit*.08:0;
+    mat.opacity+=(target-mat.opacity)*.35;
+    m.scale.set(1+hit*.07,1+hit*.04,1);   /* shadow lunges at the door on each hit */
+    m.visible=mat.opacity>.01})}
+
 const veil=[-1,1].map(s=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(GW+.4,4.6),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,fog:false}));m.position.set(s*6.4,2.3,-.5);m.rotation.y=-s*PI/2;sc.add(m);return m});
 
 /* ---------- chess pals (polished: smooth lathe bodies, painted skins, glossy gold trim, shiny eyes) ---------- */
@@ -1624,7 +1716,7 @@ function stepP(p,dt){
     {const sd=SIDE[p.id];if(S["l"+sd]&&!S["d"+sd]&&!S.mon)X.peek()}}}
 function stepBishop(p,dt){if(p.attacksThisNight>=p.attackQuota&&!p.run)return;
     if(p.run){p.runT+=dt;if(p.runT/RUN>=.72&&!p.pk){p.pk=1;if(S.lL&&!S.mon&&!S.dL)X.peek()}if(p.runT>=RUN){runStop();p.runT=0;p.run=0;p.phase=0;p.timer=0;
-    if(S.dL){X.bang();S.power=Math.max(0,S.power-6);log("Bishop bumped the door!",1);if(S.power<=0)powerOut()}else lose("piece")}return}
+    if(S.dL){S.bangA=X.bang();S.power=Math.max(0,S.power-6);log("Bishop bumped the door!",1);if(S.power<=0)powerOut()}else{S.bangA=X.bang();log("Bishop got in!",1);if(!S.bangA)lose("piece")}}return}
   if(S.mon){if(S.cam==="1C"&&p.phase>0){p.timer=0;p.hold=ri(1200,4500)}return}if(p.hold>0){p.hold-=dt;return}p.timer+=dt;if(p.timer<p.interval)return;p.timer=0;p.interval=p.base*p.spd*(.7+Math.random()*.6);
   if(Math.random()*20<p.ai){p.phase++;
     if(p.phase===1)log("Something is peeking out of the cove…");
@@ -1732,7 +1824,8 @@ function update(dt){
     S.laughT=ri(5000,13000);
     X.laugh();
   }
-
+  /* Bishop got in: door open while foxy.mp3 plays */
+  if(bishopIn()){S.inT=(S.inT||0)+dt;if(S.inT>=100){lose("piece");return}}else S.inT=0;
   stepP(S.p.rook,dt);
   if(S.phase!=="playing")return;
   stepP(S.p.knight,dt);
@@ -1782,13 +1875,55 @@ function toggleMon(){
 const press=(el,fn)=>el.addEventListener("pointerdown",e=>{e.preventDefault();fn()});
 press($d.L,()=>toggleDoor("L"));press($d.R,()=>toggleDoor("R"));press($l.L,()=>toggleLight("L"));press($l.R,()=>toggleLight("R"));mn.onclick=toggleMon;
 addEventListener("keydown",e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||!W.isConnected)return;const tg=e.target;if(tg&&(tg.isContentEditable||/^(input|textarea|select)$/i.test(tg.tagName||"")))return;const k=e.key.toLowerCase();if(k==="a")toggleDoor("L");else if(k==="d")toggleDoor("R");else if(k==="q")toggleLight("L");else if(k==="e")toggleLight("R");else if(k===" "&&S.phase==="playing"){e.preventDefault();toggleMon()}});
-let mx=.5;W.addEventListener("pointermove",e=>{if(!S.mon)mx=e.clientX/innerWidth});
+
+
+let mx = 0.5;
+
+const LEFT_WALL_EDGE = 0.11;
+const RIGHT_WALL_EDGE = 0.89;
+
+// Locked side: null = free movement, left/right = wall lock.
+let wallViewLock = null;
+
+W.addEventListener("pointermove", e => {
+  if (S.mon || S.phase !== "playing") return;
+
+  const x = e.clientX / innerWidth;
+
+  if (wallViewLock === "left") {
+    // Unlock as soon as the cursor leaves the left edge zone.
+    if (x > LEFT_WALL_EDGE) wallViewLock = null;
+    else return;
+  }
+
+  if (wallViewLock === "right") {
+    // Unlock as soon as the cursor leaves the right edge zone.
+    if (x < RIGHT_WALL_EDGE) wallViewLock = null;
+    else return;
+  }
+
+  // Lock only while the cursor is inside either wall zone.
+  if (x <= LEFT_WALL_EDGE) {
+    wallViewLock = "left";
+    return;
+  }
+
+  if (x >= RIGHT_WALL_EDGE) {
+    wallViewLock = "right";
+    return;
+  }
+
+  // The middle area is free: the front view is available.
+  mx = x;
+});
+
+
 const ray=new THREE.Raycaster(),v2=new THREE.Vector2();
 R.domElement.addEventListener("pointerdown",e=>{if(S.mon||S.phase!=="playing")return;v2.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);ray.setFromCamera(v2,cam);const h=ray.intersectObjects(BTNS)[0];if(h)h.object.userData.act()});
 addEventListener("resize",()=>{R.setSize(innerWidth,innerHeight);cam.aspect=camR.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();camR.updateProjectionMatrix()});
 
 /* ---------- night flow ---------- */
-function start(n){stopSong();S.night=Math.max(1,Math.floor(n));Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null});S.p=makeP();
+function start(n){stopSong();try{if(S.bangA)S.bangA.pause()}catch(e){}S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null});S.p=makeP();
 S.p.bishop.attacksThisNight=0;
 S.p.bishop.attackQuota=Math.min(S.night,5);
 setAI();
@@ -2060,11 +2195,13 @@ function place(k){
     x=d[0];z=d[1];ry=Math.atan2(-x,1-z);room="seq";if(S.seq.wait)vis=false}
   else if(k==="bishop"){
     if(p.run){const t=p.runT/RUN;y=Math.abs(Math.sin(p.runT*.014))*.45;if(t<.2){const c=ROOMS["1C"];x=c.cx;z=c.cz-1.6+(t/.2)*6.6;room="1C"}else if(t<.25){x=-10;z=-23;vis=false;room="2A"}else if(t<.72){x=-10;z=-23+((t-.25)/.47)*18;room="2A"}else{x=-12+((t-.72)/.28)*4.6;z=-.5;ry=PI/2;vis=!!(S.mon||S.lL);room="2B"}}
+     else if(bishopIn()){x=-7;z=-.5;ry=Math.atan2(-x,1-z);room="2B";vis=true}
     else{const r=ROOMS["1C"];x=r.cx;z=r.cz-1.5;room="1C"; if(p.phase === 0) vis = false;}
     const open=p.run?3.2:Math.min(3.2,p.phase*1.6),c=ROOMS["1C"].cu;c[0].position.x+=(-2.5-open-c[0].position.x)*.12;c[1].position.x+=(2.5+open-c[1].position.x)*.12}
   else{const id=p.path[p.idx],r=ROOMS[id];room=id;
     if(atDoor(p)){const d=k==="rook"?[-8.1,-.5]:[8.1,-1.3];x=d[0];z=d[1];ry=Math.atan2(-x,1-z);vis=!!(S.mon||S[k==="rook"?"lL":"lR"])}
     else{const f=Math.min(1,r.w/12);x=r.cx+SLOT[k]*f;z=id==="1A"?r.cz-r.d/2+3:r.cz-r.d*.08;if(id==="1A")y=.8}}
+    if(!S.mon&&room!=="2B"&&room!=="4B"&&room!=="seq")vis=false;   /* far-away pieces never show through the doorway */ 
   o.position.set(x,y,z);o.rotation.y=ry;o.rotation.x=k==="bishop"&&p.run?.16:0;o.visible=vis;
   /* eyes: steady normally; blink with the song for the power-out attacker */
   const ey=o.userData.eyes;if(ey){const on=sq?eyeOn(S.seq):true;for(let i=0;i<ey.length;i++)ey[i].visible=on}
@@ -2078,7 +2215,7 @@ function roomVis(){
   for(const id in ROOMS){
     let v=(id===cur||id==="OFF");
     if(!S.mon){
-      if(id==="2B")v=v||!!(S.lL||off);
+      if(id==="2B")v=v||!!(S.lL||off||bishopIn());
       if(id==="4B")v=v||!!(S.lR||off);
     }
     ROOMS[id].g.visible=v;
@@ -2090,9 +2227,10 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(now-(last||no
   const off=!!S.out&&S.phase!=="idle"&&S.phase!=="won";
   [[doorL,S.dL,"dL",S.p.rook],[doorR,S.dR,"dR",S.p.knight]].forEach(a=>{const d=a[0];d.position.y+=((a[1]?2.2:6.9)-d.position.y)*.16;
     d.material.emissive.setHex(0)});
+      doorL.position.x=-6.15+(banging()&&S.dL?Math.abs(Math.sin(now*.005))*.14:0);   /* door thumps with each bang */
   spotL.intensity+=((S.lL&&!S.mon&&!off?0.1:0)-spotL.intensity)*.3;spotR.intensity+=((S.lR&&!S.mon&&!off?1.2:0)-spotR.intensity)*.3;
   const sqSide=(off&&S.seq)?(S.seq.k==="rook"?0:1):-1;
-[[veil[0],S.lL,sqSide===0],[veil[1],S.lR,sqSide===1]].forEach(a=>{a[0].material.opacity+=((((a[1]&&!S.mon&&!off)||a[2])?0:1)-a[0].material.opacity)*.35});bulbL.intensity=off?0:S.mon?.8:.5;
+[[veil[0],S.lL,sqSide===0||bishopIn()],[veil[1],S.lR,sqSide===1]].forEach(a=>{a[0].material.opacity+=((((a[1]&&!S.mon&&!off)||a[2])?0:1)-a[0].material.opacity)*.35});bulbL.intensity=off?0:S.mon?.8:.5;
   /* blackout: almost no light, short fog so the whole office goes nearly pitch dark */
   amb.intensity=off?.015:.62;
   if(off){sc.fog.near=.3;sc.fog.far=5.5;sc.fog.color.setHex(0x000000);sc.background.setHex(0x000000)}
@@ -2100,6 +2238,7 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(now-(last||no
   btn.dl.emissive.setHex(S.dL?0xff2020:0x330000);btn.dr.emissive.setHex(S.dR?0xff2020:0x330000);btn.ll.emissive.setHex(S.lL?0xffee99:0);btn.lr.emissive.setHex(S.lR?0xffee99:0);
   fan.rotation.z-=off?0:.22;
   decoTick(now);
+  shadowTick(now);
   for(const k in PAL)place(k);
   roomVis();
   if(S.mon){const r=ROOMS[S.cam],c=r.cam;camR.position.set(c[0][0]+Math.sin(now*.0004)*.9,c[0][1],c[0][2]);camR.lookAt(c[1][0],c[1][1],c[1][2]);
