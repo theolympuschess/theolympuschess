@@ -1518,7 +1518,7 @@ for (let i = 0; i < 8; i++) {
     [-1,1].forEach(s=>{const p=plane(g,1.4,2.6,hz,s*5.1,.02,2.6);p.rotation.x=-PI/2;p.material.shininess=2;
       box(g,.3,2.6,1.1,0x17181c,s*5.7,1.9,2.6);
       const mkb=(y,c,act)=>{const m=box(g,.25,.55,.55,c,s*5.5,y,2.6);m.userData.act=act;BTNS.push(m);return m};
-      btn[s<0?"dl":"dr"]=mkb(2.5,0x7a1010,()=>toggleDoor(s<0?"L":"R")).material;btn[s<0?"ll":"lr"]=mkb(1.55,0xaab8c8,()=>toggleLight(s<0?"L":"R")).material});
+      btn[s<0?"dl":"dr"]=mkb(2.5,0x7a1010,()=>toggleDoor(s<0?"L":"R")).material;btn[s<0?"ll":"lr"]=mkb(1.55,0xaab8c8,()=>holdLight(s<0?"L":"R")).material});
    
 const dtex = cv(128, 128, c => {
   c.fillStyle = "#55575e";
@@ -2197,14 +2197,24 @@ function toggleMon(){
 }
 /* pointerdown (not click) so sounds and actions fire instantly on press */
 const press=(el,fn)=>el.addEventListener("pointerdown",e=>{e.preventDefault();fn()});
-press($d.L,()=>toggleDoor("L"));press($d.R,()=>toggleDoor("R"));press($l.L,()=>toggleLight("L"));press($l.R,()=>toggleLight("R"));mn.onclick=toggleMon;
+press($d.L,()=>toggleDoor("L"));press($d.R,()=>toggleDoor("R"));mn.onclick=toggleMon;
+
+/* hold = light on, release = light off */
+let heldLight=null;
+const holdLight=s=>{heldLight=s;if(!S["l"+s])toggleLight(s)};
+const releaseLight=()=>{const s=heldLight;heldLight=null;if(s&&S["l"+s])toggleLight(s)};
+$l.L.addEventListener("pointerdown",e=>{e.preventDefault();holdLight("L")});
+$l.R.addEventListener("pointerdown",e=>{e.preventDefault();holdLight("R")});
+addEventListener("pointerup",releaseLight);
+addEventListener("pointercancel",releaseLight);
+addEventListener("blur",releaseLight);
 $("maskBtn").addEventListener("pointerdown", (e) => {
   e.preventDefault();
   toggleMask();
 });
 
-addEventListener("keydown",e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||!W.isConnected)return;const tg=e.target;if(tg&&(tg.isContentEditable||/^(input|textarea|select)$/i.test(tg.tagName||"")))return;const k=e.key.toLowerCase();if(k==="a")toggleDoor("L");else if(k==="d")toggleDoor("R");else if(k==="q")toggleLight("L");else if(k==="e")toggleLight("R");else if(k===" "&&S.phase==="playing"){e.preventDefault();toggleMon()}});
-
+addEventListener("keydown",e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||!W.isConnected)return;const tg=e.target;if(tg&&(tg.isContentEditable||/^(input|textarea|select)$/i.test(tg.tagName||"")))return;const k=e.key.toLowerCase();if(k==="a")toggleDoor("L");else if(k==="d")toggleDoor("R");else if(k==="q"){if(!S.lL)toggleLight("L")}else if(k==="e"){if(!S.lR)toggleLight("R")}else if(k===" "&&S.phase==="playing"){e.preventDefault();toggleMon()}});
+addEventListener("keyup",e=>{const k=e.key.toLowerCase();if(k==="q"&&S.lL)toggleLight("L");else if(k==="e"&&S.lR)toggleLight("R")});
 
 let mx = 0.5;
 const LEFT_WALL_EDGE = 0.11;
