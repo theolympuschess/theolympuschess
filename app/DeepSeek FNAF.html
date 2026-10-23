@@ -428,6 +428,25 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   background:var(--mint);
   color:#062b1c;
 }
+#cpp #skipBtn{
+  position:absolute;
+  right:351px;
+  bottom:max(16px,env(safe-area-inset-bottom,0px));
+  z-index:150;
+  pointer-events:auto;
+  display:none;
+  padding:11px 16px;
+  border:1px solid #75658f;
+  border-radius:25px;
+  background:linear-gradient(145deg,#302442,#171125);
+  color:#ff9f43;
+  font:800 13px "Trebuchet MS",sans-serif;
+  letter-spacing:1px;
+  cursor:pointer;
+  box-shadow:0 4px 0 #090611,0 0 15px #0006;
+}
+#cpp #skipBtn:hover{border-color:#ff9f43}
+#cpp #skipBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #090611}
 
 </style></head><body>
 <div id="cpp">
@@ -446,6 +465,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
    <div class="mon" id="mn">RAISE MONITOR</div>
    <button id="maskBtn" type="button"> MASK</button>
  </div>
+ <button id="skipBtn" type="button" aria-label="Skip intro">SKIP ▶▶</button>
 <button id="helpBtn" type="button" aria-label="How to play">?</button>
  <button id="logBtn" type="button" aria-label="Toggle Logs">LOGS ON</button>
  <button id="pauseBtn" type="button" aria-label="Pause Game">PAUSE</button>
@@ -561,6 +581,7 @@ const FILES={
 pull:["pull"], // Monitor raise/lower sound
 click:["click"], // Camera selection click
   start:["start"],            /* night starts */
+  voice:["voice"],            /* intro voice line */
   amb:["ambiance"],           /* loops all night */
   win:["6am"],
   gameover: ["gameover"],                /* 6 AM complete */
@@ -706,7 +727,7 @@ function camLoopStart(){
 }
 function ambStop(){if(ambA){try{ambA.pause()}catch(e){}ambA=null}}
 function ambStart(){ambStop();const l=FILES.amb.filter(p=>!bad[p]);if(!l.length)return;
-  const a=new Audio(l[0]);a.loop=true;a.volume=.45;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);ambA=a}
+  const a=new Audio(l[0]);a.loop=true;a.volume=.70;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);ambA=a}
 function runStop(){if(runA){try{runA.pause()}catch(e){}runA=null}}
 function runStart(){runStop();const l=FILES.run.filter(p=>!bad[p]);if(!l.length)return;
   const a=new Audio(l[0]);a.loop=true;a.volume=1;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);runA=a}
@@ -2030,6 +2051,14 @@ function update(dt){
 
   if(S.out){outSeqTick(dt);return}
 
+  if(S.intro) return;   // intro: nothing happens, no laughs, no footsteps
+
+  S.ms+=dt;
+
+  if(S.ms>=NIGHT){
+    win();
+    return;
+  }
   S.ms+=dt;
 
   if(S.ms>=NIGHT){
@@ -2226,7 +2255,38 @@ R.domElement.addEventListener("pointerup",()=>{
   if(R.domElement.style.cursor==="grabbing")R.domElement.style.cursor="grab";
 });
 addEventListener("resize",()=>{R.setSize(innerWidth,innerHeight);cam.aspect=camR.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();camR.updateProjectionMatrix()});
-
+/* ---------- intro voice (no attacks until it finishes) ---------- */
+function endIntro(){
+  $("skipBtn").style.display="none";
+  if(!S.intro)return;
+  S.intro=0;
+  if(S.voiceA){
+    try{S.voiceA.pause()}catch(e){}
+    pausedSfx=pausedSfx.filter(a=>a!==S.voiceA);   // don't resume it after Skip
+    S.voiceA=null;
+  }
+  log("The night has begun. Good luck!");
+}
+function startIntro(){
+  S.intro=1;
+  S.voiceA=null;
+  S.stepT=ri(4000,8000);
+  $("skipBtn").style.display="block";
+  const playVoice=()=>{
+    if(!S.intro)return;                 // skipped already
+    const v=sfx("voice",1);
+    if(!v){endIntro();return}           // no voice file, start right away
+    S.voiceA=v;
+    v.addEventListener("ended",endIntro);
+    v.addEventListener("error",endIntro);
+  };
+  const begin=sfx("start",1);
+  if(begin){
+    begin.addEventListener("ended",playVoice);
+    begin.addEventListener("error",playVoice);
+  }else playVoice();
+}
+$("skipBtn").addEventListener("pointerdown",e=>{e.preventDefault();endIntro()});
 /* ---------- night flow ---------- */
 function start(n){
   stopSong();
@@ -2254,7 +2314,7 @@ function start(n){
   $("maskBtn").classList.remove("on");
   ui();
   log("Night "+S.night+" has begun. Have fun!");
-  X.begin();
+  startIntro();
   ambStart();
 }
 let kind="start";
@@ -2348,6 +2408,7 @@ resumeBtn.addEventListener("click", resumeGame);
 /* ---------- Home button ---------- */
 $("homeBtn").addEventListener("click", () => {
  stopAllSfx();
+ endIntro();
   ambStop();
   runStop();
   camLoopStop();
