@@ -8,7 +8,7 @@
 html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"Trebuchet MS","Comic Sans MS",system-ui,sans-serif;color:#fff}
 #cpp{position:fixed;inset:0;overflow:hidden;user-select:none;touch-action:none}
 #cpp canvas{display:block;width:100%;height:100%}
-#cpp.cam canvas {
+#cpp.cam > canvas {
   filter: grayscale(.85) contrast(1.12) brightness(.82);
 }
 #cpp .ui{position:absolute;inset:0;pointer-events:none}
@@ -31,6 +31,11 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 #cpp .log{position:absolute;left:14px;bottom:calc(var(--sab) + 18px);width:min(250px,32vw);min-width:170px;display:flex;flex-direction:column-reverse;gap:6px;z-index:10}
 #cpp .log div{background:#120d22cc;border-left:4px solid var(--gold);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;line-height:1.3}
 #cpp .log div.w{border-left-color:var(--red);background:#ff5c7a33}
+#cpp .fz{
+  position:absolute;inset:0;width:100%;height:100%;
+  z-index:4;pointer-events:none;opacity:0;
+  image-rendering:pixelated;background:#000;
+}
 
 /* Bottom Bar for Monitor and Mask */
 #cpp .bottom-bar {
@@ -174,7 +179,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   50% { opacity: .96; }
   75% { opacity: .99; }
 }
-#cpp.flicker canvas {
+#cpp.flicker > canvas {
   animation: flickerAnim 1.8s infinite;
 }
 
@@ -435,6 +440,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
  <div class="map" id="mp"></div>
  <canvas class="gl" id="gl" width="160" height="90"></canvas>
  <div class="scan" id="sc"></div>
+ <canvas class="fz" id="fz" width="160" height="90"></canvas>
  
  <div class="bottom-bar">
    <div class="mon" id="mn">RAISE MONITOR</div>
@@ -1745,7 +1751,27 @@ function camSwitch(id){
   },GLD*.35);
 }
 
-
+/* ---------- camera fuzz when a piece changes rooms ---------- */
+const FUZZ={};
+const FZ=$("fz"),fzx=FZ.getContext("2d");
+function camFuzz(from,to){
+  const t=S.ms+1500;               // 1.5 second of game time
+  if(from)FUZZ[from]=t;
+  if(to)FUZZ[to]=t;
+}
+function fuzzTick(){
+  const maskBusy=!!(S.maskEvent||S.mask);
+  const on=S.mon&&S.phase==="playing"&&!maskBusy&&(FUZZ[S.cam]||0)>S.ms;
+  if(on){
+    const im=fzx.createImageData(160,90),d=im.data;
+    for(let i=0;i<d.length;i+=4){const v=40+Math.random()*215;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
+    fzx.putImageData(im,0,0);
+    FZ.style.opacity="1";
+  }else if(FZ.style.opacity!=="0"){
+    FZ.style.opacity="0";
+  }
+  FZ.style.display=on?"block":"none";
+}
 /* ---------- UI ---------- */
 const $d={L:$("dL"),R:$("dR")},$l={L:$("lL"),R:$("lR")},mn=$("mn"),mp=$("mp"),lg=$("lg"),ov=$("ov");
 const MP={"1A":[132,6],"1B":[96,52],"5":[8,72],"1C":[58,120],"7":[254,72],"6":[254,152],"3":[8,162],"2A":[70,172],"2B":[70,212],YOU:[134,202],"4A":[198,172],"4B":[198,212]};
@@ -1827,8 +1853,11 @@ function stepP(p,dt){
   p.timer+=dt;if(p.timer<p.interval)return;p.timer=0;p.interval=p.base*p.spd*(.7+Math.random()*.6);
   if(Math.random()*20>=p.ai)return;
   if(p.idx>=p.path.length-2&&busy(p.id))return;
-  p.idx++;if(!atDoor(p)||hasFile("step"))X.step();
-  if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(2500,3000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
+  const fromRoom=p.path[p.idx];
+p.idx++;
+camFuzz(fromRoom,p.path[p.idx]);
+if(!atDoor(p)||hasFile("step"))X.step();
+  if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(4000,5000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
     {const sd=SIDE[p.id];if(S["l"+sd]&&!S["d"+sd]&&!S.mon)X.peek()}}}
 function stepBishop(p,dt){if(p.attacksThisNight>=p.attackQuota&&!p.run)return;
     if(p.run){p.runT+=dt;if(p.runT/RUN>=.72&&!p.pk){p.pk=1;if(S.lL&&!S.mon&&!S.dL)X.peek()}if(p.runT>=RUN){runStop();p.runT=0;p.run=0;p.phase=0;p.timer=0;
@@ -1966,10 +1995,11 @@ function triggerMaskEvent() {
     dir: dir,
     spd: 2.0,
     t: 0,
-    attackTimer: 1500 // 3.5 seconds to put on the mask
+    attackTimer: 2000 // 2.5 seconds to put on the mask
   };
   
   startEnemyAudio();
+  for(const k in FUZZ)delete FUZZ[k];
   
   maskPieceGroup.clear();
   const p = pal(k, PAL_COL[k], true);
@@ -2215,6 +2245,7 @@ function start(n){
   pauseBtn.textContent = "PAUSE";
   lg.innerHTML = "";
   glT=0;
+  for(const k in FUZZ)delete FUZZ[k];
   runStop();
   stopBreathAudio();
   stopEnemyAudio();
@@ -2611,6 +2642,7 @@ if (S.maskEvent && !S.out) {
 }
     const t=mx<.28?(.28-mx)/.28*.95:mx>.72?-(mx-.72)/.28*.95:0;cam.rotation.y+=(t-cam.rotation.y)*.08;R.render(sc,cam)}
   glitchTick(dt);
+  fuzzTick();
   uiT+=dt;if(uiT>150){uiT=0;ui()}}
 
 S.p=makeP();setAI();pops={};
