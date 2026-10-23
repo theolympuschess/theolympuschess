@@ -461,6 +461,7 @@ click:["click"], // Camera selection click
   out:["outage"],             /* power out */
   peek:["peek"],              /* light on + piece visible */
   flashlight:["flashlight"],  /* flashlight switch sound */
+    buzz:["buzzing"],           /* flashlight buzzing loop */
   song:["song"],              /* power-out music (plays in full, eyes blink with it) */
   
 laugh:["laugh1","laugh2","laugh3","laugh4","laugh5","laugh6","laugh7","laugh8"], // random laughs
@@ -475,6 +476,14 @@ Object.keys(FILES).forEach(k=>{FILES[k]=FILES[k].map(n=>SD+n+".mp3")});
 Object.keys(FILES).forEach(k=>FILES[k].forEach(p=>{if(pre[p])return;try{const a=new Audio();a.preload="auto";a.addEventListener("error",()=>{bad[p]=1});a.src=p;a.load();pre[p]=a}catch(e){bad[p]=1}}));
 const hasFile=k=>FILES[k].some(p=>!bad[p]);
 const safePlay=a=>{try{const pr=a.play();if(pr&&pr.catch)pr.catch(()=>{})}catch(e){}};
+/* flashlight buzzing: loops while a flashlight is on */
+const buzzA=new Audio(FILES.buzz[0]);buzzA.loop=true;buzzA.preload="auto";buzzA.volume=.6;
+let buzzBad=0;buzzA.addEventListener("error",()=>{buzzBad=1});buzzA.load();
+function buzzSync(){
+  const want=!!(S.lL||S.lR)&&S.phase==="playing"&&!S.mon&&!S.out;
+  if(want&&!buzzBad&&buzzA.paused){try{buzzA.currentTime=0}catch(e){}safePlay(buzzA)}
+  else if(!want&&!buzzA.paused){buzzA.pause();try{buzzA.currentTime=0}catch(e){}}
+}
 const LIVE=new Set();let pausedSfx=[];
 function stopAllSfx(){
   LIVE.forEach(a=>{try{a.pause();a.currentTime=0}catch(e){}});
@@ -670,6 +679,7 @@ function room(id,name,cx,cz,w,d,o){
   if(n)g.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position",new THREE.Float32BufferAttribute(pts,3)),new THREE.LineBasicMaterial({color:0x8a88a8})));
   if(!o.nobulb){
     const bm=ball(g,.18,0xffffff,0,H-.4,0,0xffffff),gs=glow(g,0,H-.4,0,2.4);
+        Rm.bulb=bm;Rm.gl=gs;
     if(o.flick)DECO.flick.push({ph:Math.random()*10,apply:v=>{bm.material.emissive.setRGB(v,v,v);gs.material.opacity=.18+.82*v}})}
   if(o.p)o.p(g,w,d,Rm);
   if(o.gap){const dx=o.gap==="e"?1:-1;Rm.cam=[[cx-dx*3.2,4.3,cz+3.2],[cx+dx*3.6,1.2,-.5]]}
@@ -1271,6 +1281,7 @@ function decoTick(now){
 
 /* office */
 let doorL,doorR,btn={},BTNS=[],fan,bulbL,spotL,spotR,spotTL,spotTR;
+let outL,outR;
 function office(){
   const Rm=room("OFF","Office",0,0,12,8,{wall:"#2d2f36",f:["#0c0c10","#d5d5dc"],gap:"ew",nobulb:1,p:(g,w,d)=>{
     const dm=mk(0x16161a);
@@ -1442,6 +1453,8 @@ const l = new THREE.SpotLight(
 
 spotL = sp(-7.0, -6.2);
 spotR = sp(7.0, 7.2);
+outL=new THREE.PointLight(0xffe2b0,0,8.5,1.2);outL.position.set(-12.5,3.5,0);sc.add(outL);
+outR=new THREE.PointLight(0xffe2b0,0,8.5,1.2);outR.position.set(12.5,3.5,0);sc.add(outR);
 }
 
 
@@ -1849,7 +1862,7 @@ function triggerMaskEvent() {
     dir: dir,
     spd: 2.0,
     t: 0,
-    attackTimer: 2000 // 3.5 seconds to put on the mask
+    attackTimer: 1500 // 3.5 seconds to put on the mask
   };
   
   startEnemyAudio();
@@ -2389,6 +2402,7 @@ function roomVis(){
 }
 
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(now-(last||now),100);last=now;
+  buzzSync();
   if(S.phase==="playing")update(dt);
   const off=!!S.out&&S.phase!=="idle"&&S.phase!=="won";
   [[doorL,S.dL,"dL",S.p.rook],[doorR,S.dR,"dR",S.p.knight]].forEach(a=>{const d=a[0];d.position.y+=((a[1]?2.2:6.9)-d.position.y)*.16;
@@ -2425,6 +2439,15 @@ function frame(now){requestAnimationFrame(frame);const dt=Math.min(now-(last||no
   }
 
   roomVis();
+    // whole outside room (doorway) flickers while its flashlight is on
+  const ofk=ph=>{const n=Math.sin(now*.023+ph)+Math.sin(now*.037+ph+1)+Math.sin(now*.061+ph+2);return n>1.0?.1:1};
+  [[outL,ROOMS["2B"],S.lL,0],[outR,ROOMS["4B"],S.lR,5]].forEach(a=>{
+    const on=a[2]&&!S.mon&&!off;
+    const v=on?ofk(a[3]):1;
+    a[0].intensity=on?2.0*v:0;
+    a[1].bulb.material.emissive.setRGB(v,v,v);
+    a[1].gl.material.opacity=.18+.82*v;
+  });
   if(S.mon){const r=ROOMS[S.cam],c=r.cam;camR.position.set(c[0][0]+Math.sin(now*.0004)*.9,c[0][1],c[0][2]);camR.lookAt(c[1][0],c[1][1],c[1][2]);
     roomLight.position.set(r.cx,4.6,r.cz);roomLight.intensity=1.5;R.render(sc,camR)}
   else{
@@ -2435,7 +2458,7 @@ if (S.maskEvent && !S.out) {
   if (S.fl.t <= 0) {
     S.fl.on = !S.fl.on;
     // ON stays 80-700 ms, OFF stays 40-500 ms (irregular)
-    S.fl.t = S.fl.on ? 80 + Math.random() * 620 : 40 + Math.random() * 900;
+    S.fl.t = S.fl.on ? 20 + Math.random() * 70 : 20 + Math.random() * 90;
   }
   const lvl = S.fl.on ? 1 : 0.02;
   roomLight.position.set(0, 3.8, 1.2);
