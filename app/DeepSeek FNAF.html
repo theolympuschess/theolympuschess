@@ -627,12 +627,13 @@ function pauseAllSfx(){
   Object.keys(FAST).forEach(k=>FAST[k].a.forEach(a=>{try{a.pause()}catch(e){}}));
 }
 function resumeAllSfx(){pausedSfx.forEach(a=>safePlay(a));pausedSfx=[]}
-function sfx(k,vol,gap){
+function sfx(k,vol,gap,pan){
   const now=performance.now();if(gap&&now-(lastT[k]||0)<gap)return null;lastT[k]=now;
   const l=FILES[k].filter(p=>!bad[p]);if(!l.length)return null;
   const p=l[Math.floor(Math.random()*l.length)];let a;
   try{a=new Audio(p)}catch(e){bad[p]=1;return null}
   a.volume=Math.max(0,Math.min(1,vol==null?1:vol));
+  if(pan!=null)panAudio(a,pan);
   a.addEventListener("error",()=>{bad[p]=1});
   LIVE.add(a);a.addEventListener("ended",()=>LIVE.delete(a));
   safePlay(a);return a}
@@ -729,9 +730,30 @@ function ambStop(){if(ambA){try{ambA.pause()}catch(e){}ambA=null}}
 function ambStart(){ambStop();const l=FILES.amb.filter(p=>!bad[p]);if(!l.length)return;
   const a=new Audio(l[0]);a.loop=true;a.volume=.70;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);ambA=a}
 function runStop(){if(runA){try{runA.pause()}catch(e){}runA=null}}
+let audCtx=null;
 function runStart(){runStop();const l=FILES.run.filter(p=>!bad[p]);if(!l.length)return;
-  const a=new Audio(l[0]);a.loop=true;a.volume=1;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);runA=a}
+  const a=new Audio(l[0]);a.loop=true;a.volume=1;a.addEventListener("error",()=>{bad[l[0]]=1});
+  try{
+    if(!audCtx)audCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audCtx.state==="suspended")audCtx.resume();
+    const src=audCtx.createMediaElementSource(a);
+    const pan=audCtx.createStereoPanner();
+    pan.pan.value=-0.85;   /* -1 = fully left, 0 = center, 1 = fully right */
+    src.connect(pan);pan.connect(audCtx.destination);
+  }catch(e){}
+  safePlay(a);runA=a}
 const nop=()=>{};
+const PAN={rook:-.85,bishop:-.85,knight:.85,queen:.85};
+function panAudio(a,pan){
+  try{
+    if(!audCtx)audCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audCtx.state==="suspended")audCtx.resume();
+    const src=audCtx.createMediaElementSource(a);
+    const p=audCtx.createStereoPanner();
+    p.pan.value=pan;
+    src.connect(p);p.connect(audCtx.destination);
+  }catch(e){}
+}
 const X={
   door(){fast("door",1)},
   light:nop,
@@ -744,9 +766,9 @@ const X={
 },
   bang(){return sfx("foxy",1)},
   pow(){sfx("out",1)},
-  step(){sfx("step",1.0,600)},
+  step(who){sfx("step",1.0,600,PAN[who])},
   begin(){sfx("start",1)},
-  laugh(){sfx("laugh",.45+Math.random()*.4)},
+  laugh(){const who=["rook","knight","bishop","queen"][ri(0,3)];sfx("laugh",.45+Math.random()*.4,0,PAN[who])},
   win(){sfx("win",1)}};
 
 /* ---------- three.js setup ---------- */
@@ -1877,7 +1899,7 @@ function stepP(p,dt){
   const fromRoom=p.path[p.idx];
 p.idx++;
 camFuzz(fromRoom,p.path[p.idx]);
-if(!atDoor(p)||hasFile("step"))X.step();
+if(!atDoor(p)||hasFile("step"))X.step(p.id);
   if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(4000,5000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
     {const sd=SIDE[p.id];if(S["l"+sd]&&!S["d"+sd]&&!S.mon)X.peek()}}}
 function stepBishop(p,dt){if(p.attacksThisNight>=p.attackQuota&&!p.run)return;
