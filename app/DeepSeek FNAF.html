@@ -600,7 +600,8 @@ laugh:["laugh1","laugh2","laugh3","laugh4","laugh5","laugh6","laugh7","laugh8"],
   run:["run"],                /* bishop sprinting to the office (loud, loops during the sprint) */
   enemy:["enemy"],            /* mask event enemy music */
   mask:["mask"],              /* mask equip / unequip */
-  breath:["breath"]           /* mask breathing loop */
+  breath:["breath"],           /* mask breathing loop */
+   balloon:["ballonboy"]       /* plays when the mask-event piece crosses the middle */
 };
 const bad={},pre={},lastT={};
 Object.keys(FILES).forEach(k=>{FILES[k]=FILES[k].map(n=>SD+n+".mp3")});
@@ -2038,7 +2039,9 @@ function triggerMaskEvent() {
     dir: dir,
     spd: 2.0,
     t: 0,
-    attackTimer: 1500 // 2.5 seconds to put on the mask
+    attackTimer: 1500, // 2.5 seconds to put on the mask
+     crossed: false,      // add this
+    snd: null            // add this
   };
   
   startEnemyAudio();
@@ -2057,6 +2060,7 @@ if (k === "rook") p.scale.y = 0.65 * 1.5;   // 20% taller, same width
 
 function endMaskEvent(scared) {
   if (!S.maskEvent) return;
+  
   stopEnemyAudio();
   S.maskEvent = null;
   maskPieceGroup.clear();
@@ -2113,7 +2117,11 @@ function update(dt){
   if (S.maskEvent) {
     S.maskEvent.t += dt;
     S.maskEvent.x += S.maskEvent.dir * S.maskEvent.spd * (dt / 1000);
-    
+    // Play ballonboy.mp3 once, a bit before the piece reaches the middle
+    if (!S.maskEvent.crossed && S.maskEvent.t >= 3000) {
+      S.maskEvent.crossed = true;
+      S.maskEvent.snd = sfx("balloon", 1);
+    }
     // If the player is NOT wearing the mask, they lose!
     if (!S.mask) {
       S.maskEvent.attackTimer -= dt;
