@@ -447,7 +447,27 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 }
 #cpp #skipBtn:hover{border-color:#ff9f43}
 #cpp #skipBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #090611}
-
+/* Wind Up Charger box (left of the map) */
+#cpp .wind{position:absolute;right:350px;bottom:calc(var(--sab) + 76px);width:190px;display:none;pointer-events:auto;z-index:20;padding:10px 12px;border:3px solid #fff;border-radius:14px;
+  background:linear-gradient(#2c2540,#1a1530);
+  box-shadow:0 5px 0 #0c0818,0 8px 18px #0008;cursor:pointer;user-select:none;touch-action:none;--p:100}
+#cpp .wind.show{display:block}
+#cpp .wind .wt{font:900 15px/1.1 "Trebuchet MS",sans-serif;color:#fff;text-shadow:none;letter-spacing:1px;text-align:center;margin-bottom:8px}
+#cpp .wind .wrow{display:flex;align-items:center;gap:10px;background:#120d22;border-radius:10px;padding:8px}
+#cpp .wind .pie{width:54px;height:54px;border-radius:50%;flex:none;border:3px solid #fff;
+  background:conic-gradient(#1a1530 calc((100 - var(--p))*1%),#4be3a0 0);box-shadow:0 0 10px #4be3a0}
+#cpp .wind .wsm{font:800 12px/1.25 "Trebuchet MS",sans-serif;color:#fff}
+#cpp .wind.on{transform:translateY(3px) scale(.98);box-shadow:0 0 28px #ffd23f,0 2px 0 #4a1a5e}
+#cpp .wind.low .pie{animation:wlow .5s steps(2) infinite}
+@keyframes wlow{50%{opacity:.3}}
+@media(max-width:700px){#cpp .wind{right:256px;width:150px}}
+/* Charger caution icons (only visible while the monitor is down) */
+/* Charger caution icons (visible while the monitor is down, including while wearing the mask) */
+#cpp .caut{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sab) + 72px);width:90px;height:90px;display:none;pointer-events:none;z-index:210;object-fit:contain;filter:drop-shadow(0 0 8px #000a)}
+#cpp .caut.show{display:block}
+#cpp #cautRed.show{animation:cautBlink .6s steps(2) infinite}
+#cpp #cautYellow.show{animation:cautBlink 1.4s steps(2) infinite}
+@keyframes cautBlink{50%{opacity:.25}}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -457,6 +477,9 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
  <div class="log" id="lg"></div>
  <div class="lab" id="lb"></div>
  <div class="map" id="mp"></div>
+  <div class="wind" id="wbox"><div class="wt">⚡ WIND UP<br>CHARGER 🔋</div><div class="wrow"><div class="pie" id="wpie"></div><div class="wsm">click &amp;<br>hold to wind</div></div></div>
+   <img class="caut" id="cautYellow" src="sound/caution_yellow.png" alt="">
+ <img class="caut" id="cautRed" src="sound/caution_red.png" alt="">
  <canvas class="gl" id="gl" width="160" height="90"></canvas>
  <div class="scan" id="sc"></div>
  <canvas class="fz" id="fz" width="160" height="90"></canvas>
@@ -546,6 +569,16 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
         <li>Doors, lights and the monitor all drain power. The bars at the top right show your usage.</li>
         <li>If power hits 0%, everything shuts down and you are in danger.</li>
         <li>Pals get bolder from 2 AM to 4 AM, so save power early.</li>
+      </ul>
+
+      <h3>WIND UP CHARGER</h3>
+      <ul>
+        <li>The charger slowly runs down all the time. If it reaches 0%, the power goes out.</li>
+        <li>Raise the monitor, then <b>click and hold</b> the Wind Up Charger box to refill it.</li>
+        <li>Winding only works while the monitor is up. It drains again when you lower the monitor.</li>
+        <li>A <b>yellow caution sign</b> appears above the monitor button when the charger drops below 20%.</li>
+        <li>A <b>blinking red caution sign</b> appears when it drops below 10%. Raise the monitor and wind it up right away!</li>
+        <li>The signs also show while you are wearing the mask.</li>
       </ul>
 
       <h3>OTHER BUTTONS</h3>
@@ -1865,7 +1898,12 @@ function ui(){
   $d.L.classList.toggle("jam",!!S.bL);$l.L.classList.toggle("jam",!!S.bL);$d.R.classList.toggle("jam",!!S.bR);$l.R.classList.toggle("jam",!!S.bR);
   mn.classList.toggle("up",!!S.mon);mn.textContent=S.mon?"LOWER MONITOR":"RAISE MONITOR";
   $("sc").classList.toggle("show",!!S.mon);mp.classList.toggle("show",!!S.mon);W.classList.toggle("cam",!!S.mon);
-  const lb=$("lb");lb.classList.toggle("show",!!S.mon);lb.textContent="CAM "+S.cam+" · "+ROOMS[S.cam].name;
+  const lb=$("lb");  const wb=$("wbox");
+  wb.classList.toggle("show",!!S.mon&&!S.out&&S.phase==="playing");
+  wb.style.setProperty("--p",Math.round(S.wind));
+    const cOK=!S.mon&&!S.out&&S.phase==="playing";
+  $("cautYellow").classList.toggle("show",cOK&&S.wind<20&&S.wind>=10);
+  $("cautRed").classList.toggle("show",cOK&&S.wind<10);lb.classList.toggle("show",!!S.mon);lb.textContent="CAM "+S.cam+" · "+ROOMS[S.cam].name;
   [...mp.children].forEach(b=>b.classList.toggle("act",b.dataset.id===S.cam))}
 
 /* ---------- game logic ---------- */
@@ -1901,7 +1939,7 @@ function stepP(p,dt){
 p.idx++;
 camFuzz(fromRoom,p.path[p.idx]);
 if(!atDoor(p)||hasFile("step"))X.step(p.id);
-  if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(2500,3500);log("⚠️ "+NAME[p.id]+" is at your door!",1);
+  if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(3000,4000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
     {const sd=SIDE[p.id];if(S["l"+sd]&&!S["d"+sd]&&!S.mon)X.peek()}}}
 function stepBishop(p,dt){if(p.attacksThisNight>=p.attackQuota&&!p.run)return;
     if(p.run){p.runT+=dt;if(p.runT/RUN>=.72&&!p.pk){p.pk=1;if(S.lL&&!S.mon&&!S.dL)X.peek()}if(p.runT>=RUN){runStop();p.runT=0;p.run=0;p.phase=0;p.timer=0;
@@ -2104,7 +2142,10 @@ function update(dt){
     powerOut();
     return;
   }
-
+  // Wind-up charger: winding refills it (only while the monitor is up), otherwise it drains
+  if (S.winding && S.mon) S.wind = Math.min(100, S.wind + 14*dt/1000);
+ else S.wind = Math.max(0, S.wind - (100/40)*dt/1000);
+  if (S.wind <= 0) { powerOut(); return; }
   S.laughT-=dt;
   if(S.laughT<=0){
     S.laughT=ri(5000,13000);
@@ -2242,7 +2283,12 @@ $("maskBtn").addEventListener("pointerdown", (e) => {
   e.preventDefault();
   toggleMask();
 });
-
+const wbox=$("wbox");
+wbox.addEventListener("pointerdown",e=>{e.preventDefault();if(S.phase==="playing"&&S.mon&&!S.out){S.winding=1;wbox.classList.add("on")}});
+const stopWind=()=>{S.winding=0;wbox.classList.remove("on")};
+addEventListener("pointerup",stopWind);
+addEventListener("pointercancel",stopWind);
+addEventListener("blur",stopWind);
 addEventListener("keydown",e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||!W.isConnected)return;const tg=e.target;if(tg&&(tg.isContentEditable||/^(input|textarea|select)$/i.test(tg.tagName||"")))return;const k=e.key.toLowerCase();if(k==="a")toggleDoor("L");else if(k==="d")toggleDoor("R");else if(k==="q"){if(!S.lL)toggleLight("L")}else if(k==="e"){if(!S.lR)toggleLight("R")}else if(k===" "&&S.phase==="playing"){e.preventDefault();toggleMon()}});
 addEventListener("keyup",e=>{const k=e.key.toLowerCase();if(k==="q"&&S.lL)toggleLight("L");else if(k==="e"&&S.lR)toggleLight("R")});
 
@@ -2329,7 +2375,7 @@ function start(n){
   try{if(S.bangA)S.bangA.pause()}catch(e){}
   S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));
   Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null,
-        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null
+        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0
   });
   S.p=makeP();
   S.p.bishop.attacksThisNight=0;
