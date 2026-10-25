@@ -509,6 +509,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   #cpp .ex-stage{left:calc(38% + 40px);right:calc(3% + 40px)}
   #cpp .ex-calls,#cpp .ex-callmsg{left:38%}
 }
+#cpp .ex-lock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:clamp(40px,9vw,90px);pointer-events:none;z-index:2;filter:drop-shadow(0 0 10px #000);opacity:.85}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -643,7 +644,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   </div>
   <div class="ex-name" id="exName"></div>
   <button type="button" class="ex-bar l" id="exPrev" aria-label="Previous">«</button>
-  <div class="ex-stage"><canvas id="exCanvas"></canvas></div>
+  <div class="ex-stage"><canvas id="exCanvas"></canvas><div class="ex-lock" id="exLock">🔒</div></div>
   <button type="button" class="ex-bar r" id="exNext" aria-label="Next">»</button>
   <div class="ex-calls" id="exCalls"></div>
   <div class="ex-callmsg" id="exCallMsg"></div>
@@ -2533,13 +2534,15 @@ function pauseGame(){
 
   pauseOverlay.classList.add("show");
   pauseBtn.textContent = "RESUME";
+  menuStart();   // play menu.mp3 while paused
 }
 
 function resumeGame(){
   if(S.phase !== "paused") return;
 
   S.phase = "playing";
-   resumeAllSfx();
+  menuStop();    // stop menu.mp3 when the game continues
+  resumeAllSfx();
   pauseOverlay.classList.remove("show");
   pauseBtn.textContent = "PAUSE";
 
@@ -2696,11 +2699,12 @@ nightModal.addEventListener("click", e => {
 /* ---------- EXTRA MENU: Animatronics + Phone Calls ---------- */
 const exEl=$("extraMenu"),extraBtn=$("openExtra");
 const EXP=[
-  {k:"queen",name:"Queen the Pink Queen"},
-  {k:"bishop",name:"Bishop the Cove Bishop"},
-  {k:"rook",name:"Rook the Tower Guard"},
-  {k:"knight",name:"Knight the Galloping Knight"}
+  {k:"rook",name:"Rook the Tower Guard",need:2},
+  {k:"bishop",name:"Bishop the Cove Bishop",need:4},
+  {k:"knight",name:"Knight the Galloping Knight",need:6},
+  {k:"queen",name:"Queen the Pink Queen",need:8}
 ];
+const EX_LOCKMAT=new THREE.MeshBasicMaterial({color:0x1c1c20,side:THREE.DoubleSide});
 const CALL_N=14,callFile=n=>SD+(n>1?"voice"+n:"voice")+".mp3";
 const exSx=$("exStatic").getContext("2d"),exIm=exSx.createImageData(160,90);
 const exCache={};
@@ -2733,7 +2737,7 @@ function exShow(i){
   const d=EXP[exIdx];
   if(exObj){exScn.remove(exObj);exObj=null}
   if(!exCache[d.k]){
-    const g=pal(d.k,PAL_COL[d.k],true);   /* same builder as the game pieces */
+    const g=pal(d.k,PAL_COL[d.k],true);
     g.scale.setScalar(1);
     const b=new THREE.Box3().setFromObject(g),sz=new THREE.Vector3();b.getSize(sz);
     g.scale.setScalar(4.2/sz.y);
@@ -2744,8 +2748,17 @@ function exShow(i){
     exCache[d.k]=holder;
   }
   exObj=exCache[d.k];
+  scn:{
+    const locked=(getUnlockedNight()-1)<d.need;   // nights completed < needed
+    exObj.traverse(o=>{
+      if(!o.isMesh)return;
+      if(!o.userData.om)o.userData.om=o.material;     // remember real material
+      o.material=locked?EX_LOCKMAT:o.userData.om;     // black silhouette or normal
+    });
+    $("exLock").style.display=locked?"flex":"none";
+    $("exName").textContent=locked?"??? — Beat Night "+d.need:d.name;
+  }
   exScn.add(exObj);
-  $("exName").textContent=d.name;
 }
 
 /* phone calls = the nightly intro voice files (voice.mp3 = night 1, voice2.mp3 = night 2 ...) */
