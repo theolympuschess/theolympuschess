@@ -510,6 +510,63 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   #cpp .ex-calls,#cpp .ex-callmsg{left:38%}
 }
 #cpp .ex-lock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:clamp(40px,9vw,90px);pointer-events:none;z-index:2;filter:drop-shadow(0 0 10px #000);opacity:.85}
+/* ===== MAIN MENU GLITCH ===== */
+#cpp .ov.glitchy::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(#0000 0 2px,#0005 2px 4px);opacity:.9;
+  animation:mgScan .2s steps(3) infinite}
+@keyframes mgScan{50%{transform:translateY(2px)}}
+
+#cpp .ov.glitchy::after{content:"";position:absolute;left:0;right:0;top:0;height:12%;pointer-events:none;
+  background:linear-gradient(#fff0,#ffffff1a,#fff0);
+  animation:mgBand 9s linear infinite}
+@keyframes mgBand{from{transform:translateY(-100%)}to{transform:translateY(900%)}}
+
+/* title glitches often */
+#cpp .ov.glitchy h1{animation:mgTitle 2.6s infinite}
+@keyframes mgTitle{
+  0%,55%,100%{transform:none;clip-path:none;text-shadow:0 4px 0 #8a4b00,0 0 30px #ffd23f66}
+  57%{transform:translate(-7px,1px) skewX(-10deg);text-shadow:7px 0 #ff2a6d,-7px 0 #00e5ff}
+  60%{transform:translate(8px,-2px) skewX(8deg);text-shadow:-8px 0 #ff2a6d,8px 0 #00e5ff}
+  63%{transform:translate(-4px,0);clip-path:inset(35% 0 40% 0)}
+  66%{transform:translate(5px,2px);clip-path:inset(10% 0 70% 0);text-shadow:6px 0 #ff2a6d,-6px 0 #00e5ff}
+  69%{transform:none;clip-path:inset(60% 0 10% 0)}
+  72%{transform:translate(-3px,0);clip-path:none;opacity:.6}
+  75%{transform:none;opacity:1}
+  88%{transform:translate(4px,-1px) skewX(5deg);text-shadow:-5px 0 #ff2a6d,5px 0 #00e5ff}
+  90%{transform:none}
+}
+
+/* buttons and text glitch too */
+#cpp .ov.glitchy button{animation:mgBtn 4.5s infinite}
+#cpp .ov.glitchy button:nth-of-type(2){animation-delay:-.9s}
+#cpp .ov.glitchy button:nth-of-type(3){animation-delay:-1.7s}
+@keyframes mgBtn{
+  0%,80%,100%{transform:none;filter:none}
+  82%{transform:translate(-5px,0) skewX(-6deg);filter:hue-rotate(90deg)}
+  85%{transform:translate(6px,1px);filter:invert(.15)}
+  88%{transform:none;filter:none}
+}
+#cpp .ov.glitchy p,#cpp .ov.glitchy .k{animation:mgText 5s infinite}
+@keyframes mgText{
+  0%,90%,100%{opacity:1;transform:none}
+  92%{opacity:.3;transform:translateX(-4px)}
+  94%{opacity:1;transform:translateX(5px)}
+  96%{opacity:.5;transform:none}
+}
+
+/* whole-screen burst (triggered randomly by JS) */
+#cpp .ov.glitchy.burst{animation:mgShake .28s steps(2) 1;filter:hue-rotate(var(--gh,40deg)) contrast(1.4) saturate(1.6)}
+@keyframes mgShake{
+  0%{transform:translate(0,0)}
+  25%{transform:translate(-8px,3px) skewX(2deg)}
+  50%{transform:translate(7px,-3px) skewX(-2deg)}
+  75%{transform:translate(-4px,2px)}
+  100%{transform:translate(0,0)}
+}
+@media (prefers-reduced-motion:reduce){
+  #cpp .ov.glitchy h1,#cpp .ov.glitchy::before,#cpp .ov.glitchy::after,
+  #cpp .ov.glitchy button,#cpp .ov.glitchy p,#cpp .ov.glitchy .k{animation:none}
+}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -2841,6 +2898,7 @@ function show(k,h,t,b,key){
   $("ob").textContent = b;
   nightModal.classList.remove("show");
   nightPickerBtn.style.display = k === "start" ? "block" : "none";
+    ov.classList.toggle("glitchy", k === "start");
   extraBtn.style.display = k === "start" ? "block" : "none";
   ov.classList.add("show");
 }
@@ -2916,7 +2974,21 @@ setInterval(()=>{
 },300);
 const fnafBtn=document.getElementById("chessFnafGameBtn");
 if(fnafBtn)fnafBtn.addEventListener("click",()=>{ if(S.phase==="idle"&&kind==="start")menuStart(); });
-
+(function glitchLoop(){
+  setTimeout(()=>{
+    if(ov.classList.contains("show") && ov.classList.contains("glitchy") && S.phase==="idle"){
+      const n = 1 + Math.floor(Math.random()*3);          // 1–3 bursts in a row
+      for(let i=0;i<n;i++){
+        setTimeout(()=>{
+          ov.style.setProperty("--gh",(Math.random()*360|0)+"deg");   // random colour shift
+          ov.classList.add("burst");
+          setTimeout(()=>ov.classList.remove("burst"),120+Math.random()*180);
+        }, i*220);
+      }
+    }
+    glitchLoop();
+  }, 1500 + Math.random()*3500);   // every 1.5 – 5 seconds
+})();
 /* ---------- render loop ---------- */
 const SLOT={rook:-3,knight:3,queen:0};let last=0,uiT=0,pops={};
 function place(k){
