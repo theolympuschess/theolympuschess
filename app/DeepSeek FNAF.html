@@ -468,6 +468,47 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 #cpp #cautRed.show{animation:cautBlink .6s steps(2) infinite}
 #cpp #cautYellow.show{animation:cautBlink 1.4s steps(2) infinite}
 @keyframes cautBlink{50%{opacity:.25}}
+/* ===== EXTRA MENU ===== */
+#cpp .ex{position:absolute;inset:0;z-index:400;display:none;background:#050505;pointer-events:auto;overflow:hidden;color:#fff;font-family:"Courier New",monospace}
+#cpp .ex.show{display:block}
+#cpp .ex-static{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:.8;pointer-events:none}
+#cpp .ex-band{position:absolute;left:0;right:0;top:0;height:14%;background:linear-gradient(#fff0,#ffffff1c,#fff0);pointer-events:none;animation:exBand 6s linear infinite}
+@keyframes exBand{from{transform:translateY(-100%)}to{transform:translateY(800%)}}
+#cpp .ex-menu{position:absolute;left:5%;top:7%;width:30%;display:flex;flex-direction:column;gap:14px;z-index:2}
+#cpp .ex-title{font-size:clamp(20px,3.4vw,30px);font-weight:700;letter-spacing:1px;padding-left:3ch;margin-bottom:6px;text-shadow:0 0 6px #fff4}
+#cpp .ex-item{background:none;border:0;color:#fff;font:700 clamp(18px,3vw,28px) "Courier New",monospace;letter-spacing:1px;text-align:left;padding:0 0 0 3ch;cursor:pointer;text-shadow:0 0 6px #fff4}
+#cpp .ex-item:hover{color:#ffd23f}
+#cpp .ex-item.sel::before{content:">>";display:inline-block;width:3ch;margin-left:-3ch}
+#cpp .ex-name{position:absolute;right:2.5%;top:2%;font:700 clamp(12px,1.8vw,17px) "Courier New",monospace;letter-spacing:1px;z-index:2;text-shadow:0 0 6px #fff4}
+#cpp .ex.calls .ex-name{display:none}
+#cpp .ex-bar{position:absolute;top:13%;height:72%;width:clamp(26px,3.6vw,38px);background:#00000066;border:3px solid #9a9a9a;border-radius:8px;color:#bbb;font:700 28px "Courier New",monospace;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center;padding:0}
+#cpp .ex-bar.l{left:34%}
+#cpp .ex-bar.r{right:3%}
+#cpp .ex-bar:hover{color:#fff;border-color:#fff}
+#cpp .ex.calls .ex-bar,#cpp .ex.calls .ex-stage{display:none}
+#cpp .ex-stage{position:absolute;left:calc(34% + 56px);right:calc(3% + 56px);top:4%;bottom:7%;z-index:1}
+#cpp .ex-stage::before{content:"";position:absolute;left:5%;right:5%;bottom:0;height:22%;background:radial-gradient(ellipse at 50% 50%,#4a78d655,#0000 70%)}
+#cpp .ex-stage canvas{position:relative;width:100%;height:100%;display:block}
+#cpp .ex-calls{position:absolute;left:34%;right:3%;top:7%;bottom:12%;display:none;flex-direction:column;gap:8px;overflow-y:auto;touch-action:pan-y;z-index:2;padding-right:6px;scrollbar-width:thin;scrollbar-color:#8a8a8a #111}
+#cpp .ex.calls .ex-calls{display:flex}
+#cpp .ex-call{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#000a;border:2px solid #8a8a8a;border-radius:6px;color:#fff;padding:11px 14px;font:700 clamp(13px,1.9vw,17px) "Courier New",monospace;letter-spacing:1px;cursor:pointer;text-align:left;flex:none}
+#cpp .ex-call:hover:not(:disabled){border-color:#fff;background:#222a}
+#cpp .ex-call.playing{border-color:#4be3a0;color:#4be3a0}
+#cpp .ex-call.locked{opacity:.4;cursor:not-allowed}
+#cpp .ex-cs{font-size:.8em;color:#4be3a0;white-space:nowrap}
+#cpp .ex-call.locked .ex-cs{color:#aaa}
+#cpp .ex-callmsg{position:absolute;left:34%;right:3%;bottom:4%;font:700 14px "Courier New",monospace;color:#ffd23f;z-index:2;display:none}
+#cpp .ex.calls .ex-callmsg{display:block}
+#cpp .ex-exit{position:absolute;left:3%;bottom:3%;background:none;border:0;color:#fff;font:700 clamp(18px,2.6vw,26px) "Courier New",monospace;cursor:pointer;z-index:3;text-shadow:0 0 6px #fff4}
+#cpp .ex-exit:hover{color:#ffd23f}
+@media(max-width:700px){
+  #cpp .ex-item{font-size:14px}
+  #cpp .ex-title{font-size:18px}
+  #cpp .ex-menu{left:2%;width:36%}
+  #cpp .ex-bar.l{left:38%}
+  #cpp .ex-stage{left:calc(38% + 40px);right:calc(3% + 40px)}
+  #cpp .ex-calls,#cpp .ex-callmsg{left:38%}
+}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -497,6 +538,9 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 <button id="ob">Start</button>
 <button id="openNightPicker" class="night-pick-btn" type="button">
   ☰ Select Night
+</button>
+<button id="openExtra" class="night-pick-btn" type="button">
+  ★ Extra
 </button>
 </div>
 <div class="ov" id="pauseOverlay">
@@ -589,6 +633,22 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
     <button class="help-close" id="helpClose" type="button">GOT IT</button>
   </div>
 </div>
+<div class="ex" id="extraMenu">
+  <canvas class="ex-static" id="exStatic" width="160" height="90"></canvas>
+  <div class="ex-band"></div>
+  <div class="ex-menu">
+    <div class="ex-title">Extra</div>
+    <button type="button" class="ex-item sel" id="exTabAnim">Animatronics</button>
+    <button type="button" class="ex-item" id="exTabCalls">Phone Calls</button>
+  </div>
+  <div class="ex-name" id="exName"></div>
+  <button type="button" class="ex-bar l" id="exPrev" aria-label="Previous">«</button>
+  <div class="ex-stage"><canvas id="exCanvas"></canvas></div>
+  <button type="button" class="ex-bar r" id="exNext" aria-label="Next">»</button>
+  <div class="ex-calls" id="exCalls"></div>
+  <div class="ex-callmsg" id="exCallMsg"></div>
+  <button type="button" class="ex-exit" id="exExit">Exit</button>
+</div>
 <!-- FNAF 2 Mask Overlay -->
 <!-- FNAF 2 Mask Overlay -->
 <!-- FNAF 2 Mask Overlay -->
@@ -617,6 +677,7 @@ click:["click"], // Camera selection click
   voice:["voice","voice2","voice3","voice4","voice5","voice6","voice7","voice8","voice9","voice10","voice11","voice12","voice13","voice14"],   /* intro voice per night: voice = night 1, voice2 = night 2, ... */
   amb:["ambiance"],           /* loops all night */
   win:["6am"],
+   menu:["menu"],              /* home menu music (loops) */
   gameover: ["gameover"],                /* 6 AM complete */
   cam:["cam1","cam2"],        /* camera rolling (random) */
   door:["door"],              /* door open / shut */
@@ -763,6 +824,17 @@ function camLoopStart(){
 function ambStop(){if(ambA){try{ambA.pause()}catch(e){}ambA=null}}
 function ambStart(){ambStop();const l=FILES.amb.filter(p=>!bad[p]);if(!l.length)return;
   const a=new Audio(l[0]);a.loop=true;a.volume=.70;a.addEventListener("error",()=>{bad[l[0]]=1});safePlay(a);ambA=a}
+  /* ---------- home menu music ---------- */
+let menuA=null;
+function menuStop(){if(menuA){try{menuA.pause()}catch(e){}menuA=null}}
+function menuStart(){
+  if(menuA&&!menuA.paused)return;          // already playing
+  menuStop();
+  const l=FILES.menu.filter(p=>!bad[p]);if(!l.length)return;
+  const a=new Audio(l[0]);a.loop=true;a.volume=.6;
+  a.addEventListener("error",()=>{bad[l[0]]=1});
+  safePlay(a);menuA=a;
+}
 function runStop(){if(runA){try{runA.pause()}catch(e){}runA=null}}
 let audCtx=null;
 function runStart(){runStop();const l=FILES.run.filter(p=>!bad[p]);if(!l.length)return;
@@ -2375,6 +2447,7 @@ function startIntro(){
 $("skipBtn").addEventListener("pointerdown",e=>{e.preventDefault();endIntro()});
 /* ---------- night flow ---------- */
 function start(n){
+  menuStop();
   stopSong();
   stopAllSfx();
   try{if(S.bangA)S.bangA.pause()}catch(e){}
@@ -2495,6 +2568,7 @@ resumeBtn.addEventListener("click", resumeGame);
 $("homeBtn").addEventListener("click", () => {
  stopAllSfx();
  endIntro();
+ menuStart();
   ambStop();
   runStop();
   camLoopStop();
@@ -2619,7 +2693,133 @@ nightModal.addEventListener("click", e => {
   }
 });
 
+/* ---------- EXTRA MENU: Animatronics + Phone Calls ---------- */
+const exEl=$("extraMenu"),extraBtn=$("openExtra");
+const EXP=[
+  {k:"queen",name:"Queen the Pink Queen"},
+  {k:"bishop",name:"Bishop the Cove Bishop"},
+  {k:"rook",name:"Rook the Tower Guard"},
+  {k:"knight",name:"Knight the Galloping Knight"}
+];
+const CALL_N=14,callFile=n=>SD+(n>1?"voice"+n:"voice")+".mp3";
+const exSx=$("exStatic").getContext("2d"),exIm=exSx.createImageData(160,90);
+const exCache={};
+let exTab="anim",exIdx=0,exRen=null,exScn=null,exCam=null,exObj=null,exRAF=0,exSt=0,exW=0,exH=0,exCallA=null,exCallN=0;
 
+function exInit(){
+  if(exRen)return;
+  try{exRen=new THREE.WebGLRenderer({canvas:$("exCanvas"),antialias:true,alpha:true})}catch(e){exRen=null;return}
+  exRen.setClearColor(0x000000,0);
+  exScn=new THREE.Scene();
+  exCam=new THREE.PerspectiveCamera(32,1,.1,60);exCam.position.set(0,0,10);
+  exScn.add(new THREE.AmbientLight(0xffffff,.75));
+  const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(3,6,8);exScn.add(dl);
+  const rim=new THREE.PointLight(0x88aaff,.8,40);rim.position.set(-6,3,-4);exScn.add(rim);
+}
+function exSize(){
+  if(!exRen)return;
+  const c=$("exCanvas"),w=c.clientWidth,h=c.clientHeight;
+  if(!w||!h||(w===exW&&h===exH))return;
+  exW=w;exH=h;
+  exRen.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  exRen.setSize(w,h,false);
+  exCam.aspect=w/h;
+  exCam.position.z=10*Math.max(1,.85/exCam.aspect);
+  exCam.updateProjectionMatrix();
+}
+function exShow(i){
+  if(!exRen)return;
+  exIdx=(i+EXP.length)%EXP.length;
+  const d=EXP[exIdx];
+  if(exObj){exScn.remove(exObj);exObj=null}
+  if(!exCache[d.k]){
+    const g=pal(d.k,PAL_COL[d.k],true);   /* same builder as the game pieces */
+    g.scale.setScalar(1);
+    const b=new THREE.Box3().setFromObject(g),sz=new THREE.Vector3();b.getSize(sz);
+    g.scale.setScalar(4.2/sz.y);
+    b.setFromObject(g);
+    const c=new THREE.Vector3();b.getCenter(c);
+    g.position.set(-c.x,-c.y,-c.z);
+    const holder=new THREE.Group();holder.add(g);
+    exCache[d.k]=holder;
+  }
+  exObj=exCache[d.k];
+  exScn.add(exObj);
+  $("exName").textContent=d.name;
+}
+
+/* phone calls = the nightly intro voice files (voice.mp3 = night 1, voice2.mp3 = night 2 ...) */
+function callStop(){if(exCallA){try{exCallA.pause()}catch(e){}exCallA=null}exCallN=0;if(menuA&&S.phase==="idle")safePlay(menuA)}
+function callsRender(){
+  const un=getUnlockedNight(),box=$("exCalls");
+  box.innerHTML="";
+  for(let n=1;n<=CALL_N;n++){
+    const ok=n<=un,row=document.createElement("button");
+    row.type="button";
+    row.className="ex-call"+(ok?"":" locked")+(exCallN===n?" playing":"");
+    row.disabled=!ok;
+    row.innerHTML="<span>"+(ok?"☎ ":"🔒 ")+"Phone Call — Night "+n+"</span><span class='ex-cs'>"+(exCallN===n?"■ STOP":ok?"▶ PLAY":"LOCKED")+"</span>";
+    row.addEventListener("click",()=>callToggle(n));
+    box.appendChild(row);
+  }
+}
+function callToggle(n){
+  if(exCallN===n){callStop();$("exCallMsg").textContent="";callsRender();return}
+  callStop();
+  if(menuA)menuA.pause();                   // quiet the menu music while a call plays
+  const a=new Audio(callFile(n));
+  exCallA=a;exCallN=n;
+  $("exCallMsg").textContent="Now playing: Phone Call — Night "+n;
+  a.addEventListener("ended",()=>{if(exCallA===a){callStop();$("exCallMsg").textContent="";callsRender()}});
+  a.addEventListener("error",()=>{if(exCallA===a){callStop();$("exCallMsg").textContent="Call "+n+" has not been recorded yet.";callsRender()}});
+  safePlay(a);
+  callsRender();
+}
+
+function exTabSet(t){
+  exTab=t;
+  $("exTabAnim").classList.toggle("sel",t==="anim");
+  $("exTabCalls").classList.toggle("sel",t==="calls");
+  exEl.classList.toggle("calls",t==="calls");
+  if(t==="anim"){callStop();$("exCallMsg").textContent="";exInit();exSize();exShow(exIdx)}
+  else callsRender();
+}
+function exLoop(now){
+  if(!exEl.classList.contains("show")){exRAF=0;return}
+  exRAF=requestAnimationFrame(exLoop);
+  if(now-exSt>70){
+    exSt=now;const d=exIm.data;
+    for(let i=0;i<d.length;i+=4){const v=Math.random()*60;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
+    exSx.putImageData(exIm,0,0);
+  }
+  if(exTab==="anim"&&exRen&&exObj){
+    exSize();
+    exObj.rotation.y=Math.sin(now*.0007)*.45;   /* slow turn left and right */
+    exRen.render(exScn,exCam);
+  }
+}
+function extraOpen(){
+  exEl.classList.add("show");
+  exTabSet("anim");
+  if(!exRAF)exRAF=requestAnimationFrame(exLoop);
+}
+function extraClose(){
+  exEl.classList.remove("show");
+  callStop();
+}
+extraBtn.addEventListener("click",extraOpen);
+$("exExit").addEventListener("click",extraClose);
+$("exTabAnim").addEventListener("click",()=>exTabSet("anim"));
+$("exTabCalls").addEventListener("click",()=>exTabSet("calls"));
+$("exPrev").addEventListener("click",()=>exShow(exIdx-1));
+$("exNext").addEventListener("click",()=>exShow(exIdx+1));
+addEventListener("keydown",e=>{
+  if(!exEl.classList.contains("show"))return;
+  if(e.key==="Escape")extraClose();
+  else if(exTab==="anim"&&e.key==="ArrowLeft")exShow(exIdx-1);
+  else if(exTab==="anim"&&e.key==="ArrowRight")exShow(exIdx+1);
+});
+addEventListener("resize",exSize);
 function show(k,h,t,b,key){
   kind = k;
   $("ok").textContent = key;
@@ -2628,6 +2828,7 @@ function show(k,h,t,b,key){
   $("ob").textContent = b;
   nightModal.classList.remove("show");
   nightPickerBtn.style.display = k === "start" ? "block" : "none";
+  extraBtn.style.display = k === "start" ? "block" : "none";
   ov.classList.add("show");
 }
 
@@ -2674,6 +2875,19 @@ function lose(r){
 }
 
 $("ob").onclick=()=>{unlock();start(kind==="win"?S.night+1:S.night)};
+/* menu music on first open: try right away, and if the browser blocks it, start on the first click / tap / key */
+const menuKick=e=>{
+  if(S.phase!=="idle"||kind!=="start")return;
+  if(e&&e.target&&e.target.id==="ob")return;      // pressing Start Night: don't start the music
+  if(menuA&&!menuA.paused){
+    removeEventListener("pointerdown",menuKick);
+    removeEventListener("keydown",menuKick);
+    return;
+  }
+  menuStart();
+};
+addEventListener("pointerdown",menuKick);
+addEventListener("keydown",menuKick);
 
 /* ---------- render loop ---------- */
 const SLOT={rook:-3,knight:3,queen:0};let last=0,uiT=0,pops={};
@@ -2798,5 +3012,6 @@ if (S.maskEvent && !S.out) {
 S.p=makeP();setAI();pops={};
 show("start","Five Night at Olympus Office", "⚠️ HORROR WARNING: This game contains spooky sounds and horror effects. Stop playing at any time if you feel uncomfortable. Your friendly chess pals wander the restaurant at night! Check the cameras, shine the lights, and close the doors when someone is waiting outside. Manage your power carefully and survive until 6 AM.",S.night>1?"Continue — Night "+S.night+" ▶":"Start Night 1 ▶","NIGHT "+S.night);
 ui();requestAnimationFrame(frame);
+menuStart();   // works if the browser allows autoplay; otherwise the first click above starts it
 })();
 </script></body></html>
