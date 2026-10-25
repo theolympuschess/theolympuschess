@@ -2875,9 +2875,12 @@ function lose(r){
 }
 
 $("ob").onclick=()=>{unlock();start(kind==="win"?S.night+1:S.night)};
-/* menu music on first open: try right away, and if the browser blocks it, start on the first click / tap / key */
+/* is the game on screen? (it is hidden while the player is on another tab of the main UI) */
+const gameVisible=()=>W.getClientRects().length>0;
+
+/* fallback: if the browser blocked autoplay, start the music on the first click / key inside the game */
 const menuKick=e=>{
-  if(S.phase!=="idle"||kind!=="start")return;
+  if(!gameVisible()||S.phase!=="idle"||kind!=="start")return;
   if(e&&e.target&&e.target.id==="ob")return;      // pressing Start Night: don't start the music
   if(menuA&&!menuA.paused){
     removeEventListener("pointerdown",menuKick);
@@ -2888,6 +2891,18 @@ const menuKick=e=>{
 };
 addEventListener("pointerdown",menuKick);
 addEventListener("keydown",menuKick);
+
+/* play when the main UI opens the game, stop when the player leaves it */
+let wasVisible=gameVisible();
+setInterval(()=>{
+  const v=gameVisible();
+  if(v===wasVisible)return;
+  wasVisible=v;
+  if(v){ if(S.phase==="idle"&&kind==="start")menuStart(); }
+  else { menuStop(); }
+},300);
+const fnafBtn=document.getElementById("chessFnafGameBtn");
+if(fnafBtn)fnafBtn.addEventListener("click",()=>{ if(S.phase==="idle"&&kind==="start")menuStart(); });
 
 /* ---------- render loop ---------- */
 const SLOT={rook:-3,knight:3,queen:0};let last=0,uiT=0,pops={};
@@ -3012,6 +3027,6 @@ if (S.maskEvent && !S.out) {
 S.p=makeP();setAI();pops={};
 show("start","Five Night at Olympus Office", "⚠️ HORROR WARNING: This game contains spooky sounds and horror effects. Stop playing at any time if you feel uncomfortable. Your friendly chess pals wander the restaurant at night! Check the cameras, shine the lights, and close the doors when someone is waiting outside. Manage your power carefully and survive until 6 AM.",S.night>1?"Continue — Night "+S.night+" ▶":"Start Night 1 ▶","NIGHT "+S.night);
 ui();requestAnimationFrame(frame);
-menuStart();   // works if the browser allows autoplay; otherwise the first click above starts it
+if(gameVisible())menuStart();   // only if the game is already on screen at load
 })();
 </script></body></html>
