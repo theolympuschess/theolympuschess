@@ -596,6 +596,13 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 #cpp .confirm-btns button:hover{transform:translateY(-2px);filter:brightness(1.12)}
 #cpp .confirm-btns .cf-yes{background:#c93a54}
 #cpp .confirm-btns .cf-no{background:#2fa876}
+#cpp .ncard{position:absolute;inset:0;width:100%;z-index:600;background:#000;display:none;
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  opacity:0;transition:opacity .8s ease;pointer-events:auto;
+  font-family:"Courier New",monospace;color:#fff;
+  font-size:clamp(40px,7vw,84px);line-height:1.6;letter-spacing:4px}
+#cpp .ncard.show{display:flex}
+#cpp .ncard.vis{opacity:1}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -743,6 +750,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 <div class="mask-overlay" id="maskOverlay">
   <img class="mask-img" src="sound/mask.png" alt="" draggable="false">
 </div>
+<div class="ncard" id="ncard"><div id="ncTime">12:00 AM</div><div id="ncNight">1st Night</div></div>
 
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2531,11 +2539,44 @@ function endIntro(){
   }
   log("The night has begun. Good luck!");
 }
+const ncard=$("ncard");
+let cardTok=0;
+const ord=n=>{const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
+function nightCardIntro(done){
+  const tok=++cardTok;
+  $("ncTime").textContent="12:00 AM";
+  $("ncNight").textContent=ord(S.night)+" Night";
+  ncard.classList.add("show");
+  void ncard.offsetWidth;
+  ncard.classList.add("vis");
+  setTimeout(()=>{ if(tok===cardTok) ov.classList.remove("show"); },850);
+
+  let finished=false;
+  const finish=()=>{
+    if(finished||tok!==cardTok)return;
+    finished=true;
+    if(S.phase==="playing")ambStart();   // ambiance starts the instant start.mp3 ends
+    ncard.classList.remove("vis");       // fade out into the office
+    setTimeout(()=>{
+      if(tok!==cardTok)return;
+      ncard.classList.remove("show");
+      done();                            // voice starts here
+    },800);
+  };
+
+  const a=sfx("start",1);
+  if(a){
+    a.addEventListener("ended",finish);  // no 400ms delay anymore
+    a.addEventListener("error",()=>setTimeout(finish,2500));
+  }else setTimeout(finish,3000);
+  setTimeout(finish,30000);
+}
 function startIntro(){
   S.intro=1;
   S.voiceA=null;
   S.stepT=ri(4000,8000);
-  $("skipBtn").style.display="block";
+  $("skipBtn").style.display="none";   // hidden during the night card
+
   const playVoice=()=>{
     if(!S.intro)return;                 // skipped already
     /* pick this night's voice file: night 1 = voice.mp3, night 2 = voice2.mp3, ... */
@@ -2549,11 +2590,15 @@ function startIntro(){
     v.addEventListener("ended",endIntro);
     v.addEventListener("error",endIntro);
   };
-  const begin=sfx("start",1);
-  if(begin){
-    begin.addEventListener("ended",playVoice);
-    begin.addEventListener("error",playVoice);
-  }else playVoice();
+
+  // night card: start.mp3 plays here, then fades out into the office
+  nightCardIntro(()=>{
+    if(S.phase!=="playing")return;
+    $("skipBtn").style.display="block";
+    setTimeout(()=>{
+      if(S.phase==="playing"&&S.intro)playVoice();   // voice starts after the extra delay
+    },1500);                                          // 1500 = 1.5 seconds, change as you like
+  });
 }
 $("skipBtn").addEventListener("pointerdown",e=>{e.preventDefault();endIntro()});
 /* ---------- night flow ---------- */
@@ -2564,13 +2609,13 @@ function start(n){
   try{if(S.bangA)S.bangA.pause()}catch(e){}
   S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));
   Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null,
-        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0
+        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0,killedBy:null,killedByMask:0
   });
   S.p=makeP();
   S.p.bishop.attacksThisNight=0;
   S.p.bishop.attackQuota=Math.min(S.night,5)*2;
   setAI();
-  ov.classList.remove("show");
+
   pauseOverlay.classList.remove("show");
   pauseBtn.textContent = "PAUSE";
   lg.innerHTML = "";
@@ -2585,7 +2630,7 @@ function start(n){
   ui();
   log("Night "+S.night+" has begun. Have fun!");
   startIntro();
-  ambStart();
+ 
 }
 let kind="start";
 
@@ -2681,6 +2726,8 @@ resumeBtn.addEventListener("click", resumeGame);
 
 /* ---------- Home button ---------- */
 function goHome() {
+   cardTok++;                              // cancels any pending night-card timers
+  ncard.classList.remove("show","vis");   // hides the black card immediately
  stopAllSfx();
  endIntro();
  menuStart();
@@ -3120,6 +3167,8 @@ $("exTabJs").addEventListener("click",()=>exTabSet("js"));
 function lose(r){
   if(S.phase!=="playing")return;
   const who=jsKiller(r);S.killer=null;
+  S.killedBy=who;                      // remember who got you for the Game Over screen
+  S.killedByMask=!!S.maskEvent;
   S.phase="jump";
   ambStop();camLoopStop();runStop();stopSong();stopBreathAudio();stopEnemyAudio();
   stopAllSfx();buzzSync();
@@ -3154,15 +3203,30 @@ function loseReal(r){
   X.lose();
   ui();
 
-  show(
-    "lose",
-    r==="power"?"Lights out!":"GAME OVER",
-    r==="power"
-      ?"The power ran out. Watch the battery bars and try again!"
-      :"The chess pals got inside! No worries — try again and defend your office!",
-    "Try Again ↻",
-    r==="power"?"POWER OUT":"GAME OVER"
-  );
+  const who=S.killedBy||"rook";
+  const nm=NAME[who]||"A chess pal";
+
+  const KILL_MSG={
+    rook:"Rook crashed through the door and got you. Check the left flashlight and keep that door shut!",
+    knight:"Knight galloped in from the right and got you. Watch the right door and don't let him wait outside!",
+    queen:"Queen sneaked in from the right and got you. Check the right flashlight often!",
+    bishop:"Bishop sprinted out of his cove and got you. When you hear running, close the left door fast!"
+  };
+
+  let head,text,key;
+  if(r==="power"){
+    head="Lights out!";
+    key="POWER OUT";
+    text="The power ran out and "+nm+" got you in the dark. Watch the battery bars and keep winding the charger!";
+  }else{
+    head="You were killed by "+nm+"!";
+    key="GAME OVER";
+    text=S.killedByMask
+      ? nm+" slipped into your office and you weren't wearing the mask! When the music turns spooky or the lights flicker, press MASK right away!"
+      : (KILL_MSG[who]||"The chess pals got inside! Try again and defend your office!");
+  }
+
+  show("lose",head,text,"Try Again ↻",key);
 }
 
 $("ob").onclick=()=>{unlock();start(kind==="win"?S.night+1:S.night)};
