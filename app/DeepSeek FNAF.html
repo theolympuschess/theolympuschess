@@ -603,6 +603,9 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   font-size:clamp(40px,7vw,84px);line-height:1.6;letter-spacing:4px}
 #cpp .ncard.show{display:flex}
 #cpp .ncard.vis{opacity:1}
+#cpp .camvid{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+#cpp #camKey{position:absolute;inset:0;width:100%;height:100%;z-index:240;pointer-events:none;display:none}
+#cpp #camKey.show{display:block}
 </style></head><body>
 <div id="cpp">
 <div class="ui">
@@ -618,7 +621,8 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
  <canvas class="gl" id="gl" width="160" height="90"></canvas>
  <div class="scan" id="sc"></div>
  <canvas class="fz" id="fz" width="160" height="90"></canvas>
- 
+ <video class="camvid" id="camVid" playsinline preload="auto" ></video>
+ <canvas id="camKey"></canvas>
  <div class="bottom-bar">
    <div class="mon" id="mn">RAISE MONITOR</div>
    <button id="maskBtn" type="button"> MASK</button>
@@ -2196,6 +2200,7 @@ function outSeqTick(dt){
   if(!q.audio&&q.t>=15000)q.ended=1;
   if(q.ended){q.endT+=dt;if(q.endT>=900)lose("power")}}
 function powerOut(){if(S.out)return;
+  stopFlip();S.flip=0;  
   S.out=1;S.power=0;S.dL=S.dR=S.lL=S.lR=S.mon=0;S.dark=0;
 
   // clear any mask event so it can't run during the power-out sequence
@@ -2335,7 +2340,7 @@ function update(dt){
   }
   // Wind-up charger: winding refills it (only while the monitor is up), otherwise it drains
   if (S.winding && S.mon) S.wind = Math.min(100, S.wind + 14*dt/1000);
- else S.wind = Math.max(0, S.wind - (100/25)*dt/1000);
+ else S.wind = Math.max(0, S.wind - (100/35)*dt/1000);
   if (S.wind <= 0) { powerOut(); return; }
   S.laughT-=dt;
   if(S.laughT<=0){
@@ -2427,8 +2432,57 @@ else fast("flashlight",1);
 S["l"+s]=turningOn?1:0;if(turningOn)S["l"+o]=0;
   if(pk)log("👀 Someone is waiting at the door!",1);
   ui()}
+  /* ---------- FNAF 2 style monitor flip videos ---------- */
+const camVid=$("camVid"),camKey=$("camKey"),kx=camKey.getContext("2d",{willReadFrequently:true});
+let flipTok=0,keyRAF=0;
+
+function keyDraw(){
+  const w=camVid.videoWidth,h=camVid.videoHeight;
+  if(w&&h){
+    const cw=Math.min(w,640),ch=Math.round(cw*h/w);   // smaller = faster
+    if(camKey.width!==cw||camKey.height!==ch){camKey.width=cw;camKey.height=ch}
+    kx.drawImage(camVid,0,0,cw,ch);
+    const im=kx.getImageData(0,0,cw,ch),d=im.data;
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i],g=d[i+1],b=d[i+2],m=Math.max(r,b),gd=g-m;  // how much greener than red/blue
+      if(gd>40){d[i+3]=0}                                      // pure green -> transparent
+      else if(gd>12){d[i+3]=255*(40-gd)/28;d[i+1]=m}           // edges: fade + remove green tint
+    }
+    kx.putImageData(im,0,0);
+  }
+  keyRAF=requestAnimationFrame(keyDraw);
+}
+
+function playFlip(file,done){
+  const tok=++flipTok;
+  camVid.onended=null;camVid.onerror=null;
+  camVid.src=SD+file;
+  camVid.currentTime=0;
+  cancelAnimationFrame(keyRAF);
+  const finish=()=>{
+    if(tok!==flipTok)return;
+    camVid.onended=null;camVid.onerror=null;
+    cancelAnimationFrame(keyRAF);keyRAF=0;
+    camKey.classList.remove("show");
+    camVid.pause();
+    if(done)done();
+  };
+  camVid.onended=finish;
+  camVid.onerror=finish;
+  const pr=camVid.play();
+  if(pr&&pr.then)pr.then(()=>{if(tok===flipTok){camKey.classList.add("show");keyDraw()}}).catch(finish);
+  else{camKey.classList.add("show");keyDraw()}
+}
+function stopFlip(){
+  flipTok++;
+  camVid.onended=null;camVid.onerror=null;
+  cancelAnimationFrame(keyRAF);keyRAF=0;
+  camKey.classList.remove("show");
+  try{camVid.pause()}catch(e){}
+}
 function toggleMon(){
   if(S.phase!=="playing"||S.out)return;
+  if(S.flip)return;                      // ignore presses during the flip animation
 
   if (S.mask) {
     S.mask = 0;
@@ -2437,16 +2491,27 @@ function toggleMon(){
     stopBreathAudio();
   }
 
-  S.mon = S.mon ? 0 : 1;
-  fast("pull", 0.85);
+ 
 
-  if(S.mon){
-    S.lL = S.lR = 0;
-    glT = 320;
-    camLoopStart();
+  if(!S.mon){
+    /* ---- RAISING: play camup.mp4, THEN show the cameras ---- */
+    S.flip=1;
+    S.lL = S.lR = 0;                     // lights off immediately
+    playFlip("camup.mp4",()=>{
+      S.flip=0;
+            if(S.phase!=="playing"||S.out||S.mask)return;   // <-- added ||S.mask
+      S.mon=1;
+      glT=320;
+      camLoopStart();
+      ui();
+    });
   }else{
+    /* ---- LOWERING: switch to office instantly, play camdown.mp4 over it ---- */
+    S.mon=0;
+    S.flip=1;
     camLoopStop();
-    glT = 0;
+    glT=0;
+    playFlip("camdown.mp4",()=>{ S.flip=0; });
 
     if(S.bL||S.bR){
       setTimeout(()=>{
@@ -2454,7 +2519,6 @@ function toggleMon(){
       },450);
     }
   }
-
   ui();
 }
 /* pointerdown (not click) so sounds and actions fire instantly on press */
@@ -2609,8 +2673,9 @@ function start(n){
   try{if(S.bangA)S.bangA.pause()}catch(e){}
   S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));
   Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null,
-        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0,killedBy:null,killedByMask:0
+        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0,killedBy:null,killedByMask:0, flip:0
   });
+  stopFlip();
   S.p=makeP();
   S.p.bishop.attacksThisNight=0;
   S.p.bishop.attackQuota=Math.min(S.night,5)*2;
@@ -2676,6 +2741,8 @@ function pauseGame(){
   if(S.phase !== "playing") return;
 
   S.phase = "paused";
+    try{camVid.pause()}catch(e){}
+  cancelAnimationFrame(keyRAF);keyRAF=0;
  pauseAllSfx();
   ambStop();
   runStop();
@@ -2697,6 +2764,7 @@ function resumeGame(){
   if(S.phase !== "paused") return;
 
   S.phase = "playing";
+    if(camKey.classList.contains("show")){safePlay(camVid);if(!keyRAF)keyDraw();}
   menuStop();    // stop menu.mp3 when the game continues
   resumeAllSfx();
   pauseOverlay.classList.remove("show");
@@ -2726,6 +2794,7 @@ resumeBtn.addEventListener("click", resumeGame);
 
 /* ---------- Home button ---------- */
 function goHome() {
+  stopFlip();S.flip=0;          // <-- paste here
    cardTok++;                              // cancels any pending night-card timers
   ncard.classList.remove("show","vis");   // hides the black card immediately
  stopAllSfx();
@@ -3034,7 +3103,7 @@ function show(k,h,t,b,key){
   ov.classList.add("show");
 }
 
-function win(){S.phase="won";ambStop();runStop();stopBreathAudio();stopEnemyAudio();X.win();try{localStorage.setItem("cpp.night",S.night+1)}catch(e){}S.mon=0;ui();
+function win(){stopFlip();S.flip=0;S.phase="won";ambStop();runStop();stopBreathAudio();stopEnemyAudio();X.win();try{localStorage.setItem("cpp.night",S.night+1)}catch(e){}S.mon=0;ui();
   show("win","6 AM — You did it!","Night "+S.night+" is done and everyone is happy. Great guarding!","Next Night ▶","SHIFT COMPLETE")}
   /* ---------- JUMPSCARE (plays right before the Game Over / Lights Out screen) ---------- */
 let JS_EL=$("jumpscare");
@@ -3166,6 +3235,7 @@ function jsRender(){
 $("exTabJs").addEventListener("click",()=>exTabSet("js"));
 function lose(r){
   if(S.phase!=="playing")return;
+   stopFlip();S.flip=0;          // <-- paste here (after the phase check)
   const who=jsKiller(r);S.killer=null;
   S.killedBy=who;                      // remember who got you for the Game Over screen
   S.killedByMask=!!S.maskEvent;
@@ -3176,6 +3246,7 @@ function lose(r){
 }
 function loseReal(r){
   if(S.phase!=="playing")return;
+   stopFlip();S.flip=0;          // <-- paste here (after the phase check)
 
   S.phase="lost";
   ambStop();
