@@ -104,6 +104,10 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 #cpp .map button{position:absolute;width:56px;height:30px;background:#222030;color:#cfc8e6;border:2px solid #6c6488;border-radius:5px;font:700 13px/1 "Trebuchet MS",sans-serif;cursor:pointer}
 #cpp .map button.act{background:var(--mint);color:#000;border-color:#fff}
 #cpp .map .you{background:var(--gold);color:#000;cursor:default;border-color:#fff}
+#cpp .nosig{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;font-family:"Courier New",monospace;text-align:center;text-shadow:0 0 8px #000}
+#cpp .nosig.show{display:flex}
+#cpp .nosig .ns-t{font-size:clamp(26px,5vw,56px);font-weight:800;letter-spacing:4px;color:#fff;background:#000a;padding:6px 18px}
+#cpp .nosig .ns-s{font-size:clamp(14px,2.2vw,24px);letter-spacing:3px;color:#ffd23f;background:#000a;padding:2px 12px}
 #cpp .lab{position:absolute;left:18px;top:calc(var(--sat) + 74px);font:800 20px "Courier New",monospace;color:#fff;text-shadow:0 0 6px #000;display:none;z-index:6}
 #cpp .lab.show{display:block}#cpp .lab::before{content:"";display:inline-block;width:14px;height:14px;border-radius:50%;background:#f33;margin-right:8px;animation:cpp-bl 1s steps(2) infinite}
 @keyframes cpp-bl{50%{opacity:0}}
@@ -724,6 +728,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
  <canvas class="gl" id="gl" width="160" height="90"></canvas>
  <div class="scan" id="sc"></div>
  <canvas class="fz" id="fz" width="160" height="90"></canvas>
+ <div class="nosig" id="nosig"><div class="ns-t">SIGNAL INTERRUPTED</div><div class="ns-s">AUDIO ONLY</div></div>
  <video class="camvid" id="camVid" playsinline preload="auto" ></video>
  <canvas id="camKey"></canvas>
  <div class="bottom-bar">
@@ -873,7 +878,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 (()=>{"use strict";
 const W=document.getElementById("cpp"),$=i=>W.querySelector("#"+i);
 if(!window.THREE){$("ot").textContent="The 3D library did not load. Please check your internet connection and reload.";return}
-const HOUR=80000,NIGHT=HOUR*6,DRAIN=.055,H=6,PI=Math.PI,RUN=5000;
+const HOUR=80000,NIGHT=HOUR*6,DRAIN=.050,H=6,PI=Math.PI,RUN=5000;
 const NAME={rook:"Rook",knight:"Knight",bishop:"Bishop",queen:"Queen"};
 const AIT=[[4,4,3,2],[6,6,5,4],[8,8,7,6],[10,10,9,8],[13,13,12,10],[16,16,15,13],[18,18,17,16]];
 const S={phase:"idle",night:1,ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],p:null,laughT:8000,seq:null};
@@ -2217,10 +2222,19 @@ function camFuzz(from,to){
   if(to)FUZZ[to]=t;
 }
 let glitchNext=0,glitchEnd=0;
+/* 2B / 4B signal loss: 2s working, 6s out of signal */
+const NOSIG_CAMS={"2B":1,"4B":1},SIG_ON=3000,SIG_OFF=5000;
+const sigOut=()=>{
+  if(!NOSIG_CAMS[S.cam])return false;
+  return (performance.now()%(SIG_ON+SIG_OFF))>=SIG_ON;
+};
 function fuzzTick(){
   const maskBusy=!!(S.maskEvent||S.mask);
   const camOn=S.mon&&S.phase==="playing"&&!maskBusy;
-  const hard=camOn&&(FUZZ[S.cam]||0)>S.ms;
+  const lost=camOn&&sigOut();
+  const hard=camOn&&(lost||(FUZZ[S.cam]||0)>S.ms);
+  const ns=document.getElementById("nosig");
+  if(ns)ns.classList.toggle("show",lost);
   if(camOn){
     FZ.style.background="transparent";
     const now=performance.now();
@@ -2253,6 +2267,7 @@ function fuzzTick(){
     glitchNext=0;
     FZ.style.opacity="0";
     FZ.style.display="none";
+     const ns2=document.getElementById("nosig");if(ns2)ns2.classList.remove("show");
   }
 }
 /* ---------- UI ---------- */
@@ -2551,7 +2566,7 @@ function update(dt){
   }
   // Wind-up charger: winding refills it (only while the monitor is up), otherwise it drains
   if (S.winding && S.mon) S.wind = Math.min(100, S.wind + 14*dt/1000);
- else S.wind = Math.max(0, S.wind - (100/35)*dt/1000);
+ else S.wind = Math.max(0, S.wind - (100/45)*dt/1000);
   if (S.wind <= 0) { powerOut(); return; }
   S.laughT-=dt;
   if(S.laughT<=0){
