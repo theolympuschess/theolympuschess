@@ -772,6 +772,7 @@ try{S.night=Math.max(1,Math.floor(+localStorage.getItem("cpp.night")||1))}catch(
 const SD="sound/";
 const FILES={
 pull:["pull"], // Monitor raise/lower sound
+glitch:["glitch"],        // jam click sound
 click:["click"], // Camera selection click
   start:["start"],            /* night starts */
   voice:["voice","voice2","voice3","voice4","voice5","voice6","voice7","voice8","voice9","voice10","voice11","voice12","voice13","voice14"],   /* intro voice per night: voice = night 1, voice2 = night 2, ... */
@@ -836,7 +837,7 @@ function sfx(k,vol,gap,pan){
 
 /* instant sounds: pre-loaded element pools so the sound starts the same moment the button is pressed */
 const FAST={};
-["door","peek","flashlight","pull","click","mask"].forEach(k=>{const p=FILES[k][0];FAST[k]={i:0,a:[0,1,2].map(()=>{const a=new Audio();a.preload="auto";a.addEventListener("error",()=>{bad[p]=1});a.src=p;a.load();return a})}});
+["door","peek","flashlight","pull","click","mask","glitch"].forEach(k=>{const p=FILES[k][0];FAST[k]={i:0,a:[0,1,2].map(()=>{const a=new Audio();a.preload="auto";a.addEventListener("error",()=>{bad[p]=1});a.src=p;a.load();return a})}});
 function fast(k,vol){
   const f=FAST[k];if(!f||bad[FILES[k][0]])return;
   const n=f.a.length,prev=f.a[(f.i+n-1)%n],a=f.a[f.i%n];f.i++;
@@ -2118,7 +2119,7 @@ const atDoor=p=>p.idx>=p.path.length-1,DOOR={rook:"dL",knight:"dR",queen:"dR"},S
 const grace=p=>p.arrivedAt<0?0:Math.max(0,Math.max(p.interval*1.5,7000)-(S.ms-p.arrivedAt));
 function attack(p) { S.killer = p.id; log("⚠️ " + NAME[p.id] + " attacked you!", 1); lose("piece"); }
 const busy=ex=>["rook","knight","queen"].some(k=>k!==ex&&atDoor(S.p[k]))||(ex!=="bishop"&&!!S.p.bishop.run);
-function leave(p){p.path=mkPath(p.id==="rook"?"W":"E");p.idx=ri(1,Math.max(1,p.path.length-3));p.arrivedAt=-1;p.timer=0;p.cool=ri(4000,9000);log(NAME[p.id]+" wandered away.");X.far()}
+function leave(p){p.seen=0;p.path=mkPath(p.id==="rook"?"W":"E");p.idx=ri(1,Math.max(1,p.path.length-3));p.arrivedAt=-1;p.timer=0;p.cool=ri(4000,9000);log(NAME[p.id]+" wandered away.");X.far()}
 function stepP(p,dt){
   if(atDoor(p)){
     p.doorT+=dt;
@@ -2133,7 +2134,7 @@ function stepP(p,dt){
 p.idx++;
 camFuzz(fromRoom,p.path[p.idx]);
 if(!atDoor(p)||hasFile("step"))X.step(p.id);
-  if(atDoor(p)){p.arrivedAt=S.ms;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(4000,5000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
+ if(atDoor(p)){p.arrivedAt=S.ms;p.seen=0;p.doorT=0;p.cT=0;p.leaveAt=ri(2500,5000);p.attackAt=ri(4000,5000);log("⚠️ "+NAME[p.id]+" is at your door!",1);
     {const sd=SIDE[p.id];if(S["l"+sd]&&!S["d"+sd]&&!S.mon)X.peek()}}}
 function stepBishop(p,dt){if(p.attacksThisNight>=p.attackQuota&&!p.run)return;
     if(p.run){p.runT+=dt;if(p.runT/RUN>=.72&&!p.pk){p.pk=1;if(S.lL&&!S.mon&&!S.dL)X.peek()}if(p.runT>=RUN){runStop();p.runT=0;p.run=0;p.phase=0;p.timer=0;
@@ -2343,10 +2344,15 @@ function update(dt){
   if (S.wind <= 0) { powerOut(); return; }
   S.laughT-=dt;
   if(S.laughT<=0){
-    S.laughT=ri(5000,13000);
+    S.laughT=ri(3500,13000);
     X.laugh();
   }
   if(bishopIn()){S.inT=(S.inT||0)+dt;if(S.inT>=100){lose("piece");return}}else S.inT=0;
+    if(S.jam){
+    S.jam.t+=dt;
+    if(S.jam.t>=4000){S.killer=S.jam.who;lose("piece")}
+    return;                                          // freeze all piece movement during the jam
+  }
 
   // Mask AI Logic
   // Mask AI Logic
@@ -2420,15 +2426,33 @@ if (!S.maskEvent) {
 
 
 /* ---------- controls ---------- */
-function toggleDoor(s){if(S.phase!=="playing"||S.out||S.mon)return;if(S["b"+s]){X.err();log("The "+(s==="L"?"left":"right")+" door is stuck!",1);return}
+function toggleDoor(s){if(S.phase!=="playing"||S.out||S.mon)return;if(S.jam){fast("glitch",1);return} if(S["b"+s]){X.err();log("The "+(s==="L"?"left":"right")+" door is stuck!",1);return}
   X.door(); 
   S["d"+s]=S["d"+s]?0:1;ui()}
-function toggleLight(s){if(S.phase!=="playing"||S.out||S.mon)return;if(S["b"+s]){X.err();return}
-  const o=s==="L"?"R":"L",turningOn=!S["l"+s];let pk=0;
-  if(turningOn){const k=s==="L"?"rook":"knight",q=S.p.queen;if(!S["d"+s]&&(atDoor(S.p[k])||(s==="R"&&atDoor(q))))pk=1}
-if(pk) X.peek();
-else fast("flashlight",1);
-S["l"+s]=turningOn?1:0;if(turningOn)S["l"+o]=0;
+function toggleLight(s){
+  if(S.phase!=="playing"||S.out||S.mon)return;
+  if(S.jam){fast("glitch",1);return}                 // jammed: only the glitch sound
+  if(S["b"+s]){X.err();return}
+  const o=s==="L"?"R":"L",turningOn=!S["l"+s];let pk=0,who=null;
+  if(turningOn&&!S["d"+s]){
+    const c=s==="L"?["rook"]:["knight","queen"];
+    who=c.find(k=>atDoor(S.p[k]))||null;
+    if(who)pk=1;
+  }
+  if(pk){
+    const p=S.p[who];
+    if(p.seen){                                      // 2nd look = jam everything
+      S.jam={who,t:0};
+      S.lL=S.lR=0;
+      fast("glitch",1);
+      log("⚠️ Everything is jammed!",1);
+      ui();return;
+    }
+    p.seen=1;                                        // 1st look is free
+  }
+  if(pk) X.peek();
+  else fast("flashlight",1);
+  S["l"+s]=turningOn?1:0;if(turningOn)S["l"+o]=0;
   if(pk)log("👀 Someone is waiting at the door!",1);
   ui()}
   /* ---------- FNAF 2 style monitor flip videos ---------- */
@@ -2673,7 +2697,7 @@ function start(n){
   try{if(S.bangA)S.bangA.pause()}catch(e){}
   S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));
   Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null,
-        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0,killedBy:null,killedByMask:0, flip:0
+        mask:0,maskEvent:null,maskAttempts:0,maskTimer:15000,endT:null,wind:100,winding:0,killedBy:null,killedByMask:0, flip:0,jam:null
   });
   stopFlip();
   S.p=makeP();
@@ -2815,6 +2839,7 @@ goFuzzStop();
   if (picker) picker.classList.remove("show");
 
   S.phase = "idle";
+  S.jam=null;
   S.mon = 0;
   S.out = 0;
   pauseOverlay.classList.remove("show");
