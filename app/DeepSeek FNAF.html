@@ -9,7 +9,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 #cpp{position:fixed;inset:0;overflow:hidden;user-select:none;touch-action:none}
 #cpp canvas{display:block;width:100%;height:100%}
 #cpp.cam > canvas {
-  filter: grayscale(.85) contrast(1.12) brightness(.82);
+  filter: grayscale(.85) contrast(1.12) brightness(.82) blur(.7px);
 }
 #cpp .ui{position:absolute;inset:0;pointer-events:none}
 #cpp .pn{position:absolute;top:34%;display:flex;flex-direction:column;gap:12px;pointer-events:auto;z-index:10}
@@ -873,7 +873,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 (()=>{"use strict";
 const W=document.getElementById("cpp"),$=i=>W.querySelector("#"+i);
 if(!window.THREE){$("ot").textContent="The 3D library did not load. Please check your internet connection and reload.";return}
-const HOUR=80000,NIGHT=HOUR*6,DRAIN=.061,H=6,PI=Math.PI,RUN=5000;
+const HOUR=80000,NIGHT=HOUR*6,DRAIN=.055,H=6,PI=Math.PI,RUN=5000;
 const NAME={rook:"Rook",knight:"Knight",bishop:"Bishop",queen:"Queen"};
 const AIT=[[4,4,3,2],[6,6,5,4],[8,8,7,6],[10,10,9,8],[13,13,12,10],[16,16,15,13],[18,18,17,16]];
 const S={phase:"idle",night:1,ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],p:null,laughT:8000,seq:null};
@@ -2216,18 +2216,44 @@ function camFuzz(from,to){
   if(from)FUZZ[from]=t;
   if(to)FUZZ[to]=t;
 }
+let glitchNext=0,glitchEnd=0;
 function fuzzTick(){
   const maskBusy=!!(S.maskEvent||S.mask);
-  const on=S.mon&&S.phase==="playing"&&!maskBusy&&(FUZZ[S.cam]||0)>S.ms;
-  if(on){
+  const camOn=S.mon&&S.phase==="playing"&&!maskBusy;
+  const hard=camOn&&(FUZZ[S.cam]||0)>S.ms;
+  if(camOn){
+    FZ.style.background="transparent";
+    const now=performance.now();
+    if(!glitchNext)glitchNext=now+ri(800,2000);
+    if(now>=glitchNext){glitchEnd=now+ri(120,260);glitchNext=now+ri(800,2000)}
+    const burst=now<glitchEnd;
+    const bars=[];
+    if(burst){const n=ri(2,4);for(let b=0;b<n;b++){const y=ri(0,86);bars.push([y,y+ri(1,5)])}}
+    const AMB=80;        // constant fuzz strength (0-255). Raise for more fuzz.
+    const BURST=70;      // glitch burst background strength
+    const BAR=160;       // tear-bar strength
     const im=fzx.createImageData(160,90),d=im.data;
-    for(let i=0;i<d.length;i+=4){const v=40+Math.random()*215;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
+    for(let i=0;i<d.length;i+=4){
+      const y=(i>>2)/160|0;
+      if(hard){
+        const v=40+Math.random()*215;
+        d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;
+      }else{
+        const v=Math.random()*255;
+        d[i]=d[i+1]=d[i+2]=v;
+        let a=burst?BURST:AMB;
+        if(burst){for(let b=0;b<bars.length;b++){if(y>=bars[b][0]&&y<=bars[b][1]){a=BAR;break}}}
+        d[i+3]=a;
+      }
+    }
     fzx.putImageData(im,0,0);
     FZ.style.opacity="1";
-  }else if(FZ.style.opacity!=="0"){
+    FZ.style.display="block";
+  }else{
+    glitchNext=0;
     FZ.style.opacity="0";
+    FZ.style.display="none";
   }
-  FZ.style.display=on?"block":"none";
 }
 /* ---------- UI ---------- */
 const $d={L:$("dL"),R:$("dR")},$l={L:$("lL"),R:$("lR")},mn=$("mn"),mp=$("mp"),lg=$("lg"),ov=$("ov");
