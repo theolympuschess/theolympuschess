@@ -969,7 +969,6 @@ const X={
   roar:nop,stomp:nop,warn:nop,groan:nop,err:nop,alert:nop,far:nop,lose() {
   ambStop();
   runStop();
-  sfx("gameover", 1);
 },
   bang(){return sfx("foxy",1)},
   pow(){sfx("out",1)},
@@ -2667,6 +2666,7 @@ function startIntro(){
 $("skipBtn").addEventListener("pointerdown",e=>{e.preventDefault();endIntro()});
 /* ---------- night flow ---------- */
 function start(n){
+ goFuzzStop();
   menuStop();
   stopSong();
   stopAllSfx();
@@ -2794,6 +2794,7 @@ resumeBtn.addEventListener("click", resumeGame);
 
 /* ---------- Home button ---------- */
 function goHome() {
+goFuzzStop();
   stopFlip();S.flip=0;          // <-- paste here
    cardTok++;                              // cancels any pending night-card timers
   ncard.classList.remove("show","vis");   // hides the black card immediately
@@ -3171,6 +3172,25 @@ function jsFrame(t,D,who){
   JS_DK.style.opacity=r>.82?(.55+Math.random()*.4).toFixed(2):(Math.random()<.5?".15":"0");
   JS_FL.style.opacity=(!JS_CALM&&r>.965)?".4":"0";
 }
+/* ---------- 2-second full static after the jumpscare ---------- */
+const GO_FUZZ=document.createElement("canvas");
+GO_FUZZ.width=160;GO_FUZZ.height=90;
+GO_FUZZ.style.cssText="position:absolute;inset:0;width:100%;height:100%;z-index:550;display:none;image-rendering:pixelated;background:#000;cursor:none";
+W.appendChild(GO_FUZZ);
+const gox=GO_FUZZ.getContext("2d"),god=gox.createImageData(160,90);
+let goRAF=0;
+function goFuzzStart(){
+  GO_FUZZ.style.display="block";
+  cancelAnimationFrame(goRAF);
+  const loop=()=>{
+    const d=god.data;
+    for(let i=0;i<d.length;i+=4){const v=Math.random()*255|0;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}
+    gox.putImageData(god,0,0);
+    goRAF=requestAnimationFrame(loop);
+  };
+  loop();
+}
+function goFuzzStop(){cancelAnimationFrame(goRAF);goRAF=0;GO_FUZZ.style.display="none"}
 function jsFinish(tok,r){
   if(tok!==jsToken)return;
   jsToken++;
@@ -3178,7 +3198,14 @@ function jsFinish(tok,r){
   JS_EL.classList.remove("show","nogl");
   if(jsAudio){try{jsAudio.pause()}catch(e){}jsAudio=null}
   if(r==="preview"){if(menuA&&S.phase==="idle")safePlay(menuA);return}   // Extra menu preview: just close
-  if(S.phase==="jump"){S.phase="playing";loseReal(r)}      // now show the normal Game Over / Lights Out screen
+  if(S.phase==="jump"){
+  goFuzzStart();                 // full-screen static
+  sfx("gameover",1);             // game over sound plays during the static
+  setTimeout(()=>{
+    goFuzzStop();
+    if(S.phase==="jump"){S.phase="playing";loseReal(r)}   // then the Game Over screen
+  },2000);                       // 2000 = 2 seconds
+}      // now show the normal Game Over / Lights Out screen
 }
 function jsPlay(who,r){
   const tok=++jsToken,D=jsDur();
@@ -3475,6 +3502,7 @@ if (S.maskEvent && !S.out) {
   glitchTick(dt);
   fuzzTick();
   uiT+=dt;if(uiT>150){uiT=0;ui()}}
+
 
 S.p=makeP();setAI();pops={};
 show("start","Five Night at Olympus Office", "⚠️ HORROR WARNING: This game contains spooky sounds and horror effects. Stop playing at any time if you feel uncomfortable. Your friendly chess pals wander the restaurant at night! Check the cameras, shine the lights, and close the doors when someone is waiting outside. Manage your power carefully and survive until 6 AM.",S.night>1?"Continue — Night "+S.night+" ▶":"Start Night 1 ▶","NIGHT "+S.night);
