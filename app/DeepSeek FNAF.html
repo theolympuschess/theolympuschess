@@ -447,6 +447,26 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
 }
 #cpp #skipBtn:hover{border-color:#ff9f43}
 #cpp #skipBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #090611}
+#cpp #ansBtn{
+  position:absolute;
+  right:461px;
+  bottom:max(16px,env(safe-area-inset-bottom,0px));
+  z-index:150;
+  pointer-events:auto;
+  display:none;
+  padding:11px 18px;
+  border:2px solid #fff;
+  border-radius:25px;
+  background:linear-gradient(#4be3a0,#1a8a5e);
+  color:#062b1c;
+  font:800 13px "Trebuchet MS",sans-serif;
+  letter-spacing:1px;
+  cursor:pointer;
+  box-shadow:0 4px 0 #0b4a33,0 0 18px #4be3a099;
+  animation:ansPulse .7s ease-in-out infinite alternate;
+}
+#cpp #ansBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0b4a33}
+@keyframes ansPulse{from{filter:brightness(1)}to{filter:brightness(1.3)}}
 /* Wind Up Charger box (left of the map) */
 #cpp .wind{position:absolute;right:350px;bottom:calc(var(--sab) + 76px);width:190px;display:none;pointer-events:auto;z-index:20;padding:10px 12px;border:3px solid #fff;border-radius:14px;
   background:linear-gradient(#2c2540,#1a1530);
@@ -628,6 +648,7 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
    <button id="maskBtn" type="button"> MASK</button>
  </div>
  <button id="skipBtn" type="button" aria-label="Skip intro">SKIP ▶▶</button>
+  <button id="ansBtn" type="button" aria-label="Answer call">📞 ANSWER</button>
 <button id="helpBtn" type="button" aria-label="How to play">?</button>
  <button id="logBtn" type="button" aria-label="Toggle Logs">LOGS ON</button>
  <button id="pauseBtn" type="button" aria-label="Pause Game">PAUSE</button>
@@ -775,6 +796,8 @@ pull:["pull"], // Monitor raise/lower sound
 glitch:["glitch"],        // jam click sound
 click:["click"], // Camera selection click
   start:["start"],            /* night starts */
+    ring:["ring"],              /* phone ringing loop (before the night voice) */
+  receive:["receive"],        /* player picks up the call */
   voice:["voice","voice2","voice3","voice4","voice5","voice6","voice7","voice8","voice9","voice10","voice11","voice12","voice13","voice14"],   /* intro voice per night: voice = night 1, voice2 = night 2, ... */
   amb:["ambiance"],           /* loops all night */
   win:["6am"],
@@ -851,6 +874,15 @@ function unlock(){if(unlocked)return;unlocked=1;
 
 let ambA=null,runA=null,enemyA=null,breathA=null;
 let camLoopActive = false, camLoopAudio = null;
+/* ---------- phone ring loop ---------- */
+let ringA=null;
+function ringStop(){if(ringA){try{ringA.pause()}catch(e){}ringA=null}}
+function ringStart(){
+  ringStop();
+  const l=FILES.ring.filter(p=>!bad[p]);if(!l.length)return;
+  const a=new Audio(l[0]);a.loop=true;a.volume=1;
+  a.addEventListener("error",()=>{bad[l[0]]=1});
+  safePlay(a);ringA=a}
 
 function startEnemyAudio() {
   stopEnemyAudio();
@@ -2617,11 +2649,18 @@ addEventListener("resize",()=>{R.setSize(innerWidth,innerHeight);cam.aspect=camR
 /* ---------- intro voice (no attacks until it finishes) ---------- */
 function endIntro(){
   $("skipBtn").style.display="none";
+  $("ansBtn").style.display="none";
+  S.ringing=0;ringStop();
+  if(S.recvA){
+    try{S.recvA.pause()}catch(e){}
+    pausedSfx=pausedSfx.filter(a=>a!==S.recvA);
+    S.recvA=null;
+  }
   if(!S.intro)return;
   S.intro=0;
   if(S.voiceA){
     try{S.voiceA.pause()}catch(e){}
-    pausedSfx=pausedSfx.filter(a=>a!==S.voiceA);   // don't resume it after Skip
+    pausedSfx=pausedSfx.filter(a=>a!==S.voiceA);
     S.voiceA=null;
   }
   log("The night has begun. Good luck!");
@@ -2660,40 +2699,56 @@ function nightCardIntro(done){
 }
 function startIntro(){
   S.intro=1;
-  S.voiceA=null;
+  S.voiceA=null;S.recvA=null;S.ringing=0;
   S.stepT=ri(4000,8000);
   $("skipBtn").style.display="none";   // hidden during the night card
+  $("ansBtn").style.display="none";
 
   const playVoice=()=>{
     if(!S.intro)return;                 // skipped already
-    /* pick this night's voice file: night 1 = voice.mp3, night 2 = voice2.mp3, ... */
     const want=SD+(S.night>1?"voice"+S.night:"voice")+".mp3";
     const all=FILES.voice;
-    FILES.voice=[bad[want]?SD+"voice.mp3":want];   // missing file -> fall back to voice.mp3
+    FILES.voice=[bad[want]?SD+"voice.mp3":want];
     const v=sfx("voice",1);
     FILES.voice=all;
-    if(!v){endIntro();return}           // no voice file, start right away
+    if(!v){endIntro();return}
     S.voiceA=v;
     v.addEventListener("ended",endIntro);
     v.addEventListener("error",endIntro);
   };
+  S.playVoice=playVoice;
 
-  // night card: start.mp3 plays here, then fades out into the office
+  // night card -> then the phone starts ringing
   nightCardIntro(()=>{
-    if(S.phase!=="playing")return;
-    $("skipBtn").style.display="block";
-    setTimeout(()=>{
-      if(S.phase==="playing"&&S.intro)playVoice();   // voice starts after the extra delay
-    },1500);                                          // 1500 = 1.5 seconds, change as you like
+    if(S.phase!=="playing"||!S.intro)return;
+    $("skipBtn").style.display="block";   // skip visible from the very start of the ringing
+    $("ansBtn").style.display="block";
+    S.ringing=1;
+    ringStart();
   });
 }
+function answerCall(){
+  if(!S.intro||!S.ringing)return;
+  S.ringing=0;ringStop();
+  $("ansBtn").style.display="none";
+  let went=0;
+  const go=()=>{
+    if(went)return;went=1;S.recvA=null;
+    if(S.phase==="playing"&&S.intro&&S.playVoice)S.playVoice();
+  };
+  const r=sfx("receive",1);
+  if(r){S.recvA=r;r.addEventListener("ended",go);r.addEventListener("error",go)}
+  else go();
+}
 $("skipBtn").addEventListener("pointerdown",e=>{e.preventDefault();endIntro()});
+$("ansBtn").addEventListener("pointerdown",e=>{e.preventDefault();answerCall()});
 /* ---------- night flow ---------- */
 function start(n){
  goFuzzStop();
   menuStop();
   stopSong();
   stopAllSfx();
+  ringStop();
   try{if(S.bangA)S.bangA.pause()}catch(e){}
   S.bangA=null;S.inT=0;S.night=Math.max(1,Math.floor(n));
   Object.assign(S,{ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],phase:"playing",laughT:ri(6000,12000),seq:null,
@@ -2770,6 +2825,7 @@ function pauseGame(){
  pauseAllSfx();
   ambStop();
   runStop();
+  ringStop();
   camLoopStop();
   stopBreathAudio();
   stopEnemyAudio();
@@ -2794,6 +2850,7 @@ function resumeGame(){
   pauseOverlay.classList.remove("show");
   pauseOverlay.classList.remove("glitchy");
   pauseBtn.textContent = "PAUSE";
+  if(S.ringing)ringStart();
 
   if(!S.out){
     ambStart();
