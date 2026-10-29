@@ -534,6 +534,19 @@ html,body{margin:0;height:100%;background:#07050f;overflow:hidden;font-family:"T
   #cpp .ex-calls,#cpp .ex-callmsg{left:38%}
 }
 #cpp .ex-lock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:clamp(40px,9vw,90px);pointer-events:none;z-index:2;filter:drop-shadow(0 0 10px #000);opacity:.85}
+
+/* ===== MODE PICKER ===== */
+#cpp .modepick{position:absolute;inset:0;z-index:350;display:none;align-items:center;justify-content:center;gap:18px;padding:16px;flex-wrap:wrap;background:#05030bee;pointer-events:auto}
+#cpp .modepick.show{display:flex}
+#cpp .mode-card{width:min(360px,92vw);padding:22px 20px;text-align:left;border:3px solid #75658f;border-radius:16px;background:linear-gradient(160deg,#29203f,#120d22);color:#fff;font-family:"Courier New",monospace;cursor:pointer;box-shadow:0 15px 55px #000b}
+#cpp .mode-card:hover{border-color:#fff;transform:translateY(-3px)}
+#cpp .mode-card h3{margin:0 0 4px;font-size:20px;color:var(--mint)}
+#cpp .mode-card.easy h3{color:#ff9f43}
+#cpp .mode-card b{display:block;margin-bottom:10px;font-size:12px;letter-spacing:2px;color:var(--gold)}
+#cpp .mode-card p{margin:0;font-size:13px;line-height:1.5;color:#ddd6f3}
+/* easy mode: no grayscale, no scanlines */
+#cpp.easy.cam > canvas{filter:none}
+#cpp.easy .scan{display:none !important}
 #cpp .ex-calls.art{flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:10px}
 #cpp .ex-art{flex:none;width:calc(33.3% - 7px);background:#000a;border:2px solid #8a8a8a;border-radius:6px;padding:0;cursor:pointer;color:#fff;font:700 12px "Courier New",monospace;overflow:hidden;text-align:left}
 #cpp .ex-art:hover:not(:disabled){border-color:#fff}
@@ -901,6 +914,7 @@ const NAME={rook:"Rook",knight:"Knight",bishop:"Bishop",queen:"Queen"};
 const AIT=[[4,4,3,2],[6,6,5,4],[8,8,7,6],[10,10,9,8],[13,13,12,10],[16,16,15,13],[18,18,17,16]];
 const S={phase:"idle",night:1,ms:0,hour:0,power:100,dL:0,dR:0,lL:0,lR:0,bL:0,bR:0,mon:0,cam:"1A",out:0,dark:0,log:[],p:null,laughT:8000,seq:null};
 try{S.night=Math.max(1,Math.floor(+localStorage.getItem("cpp.night")||1))}catch(e){}
+let easy=false;
 
 /* ---------- audio: ONLY mp3 files from the "sound" folder (no synthesized sounds) ---------- */
 const SD="sound/";
@@ -2209,6 +2223,7 @@ const PAL_COL={rook:0xff9f43,knight:0x4db8ff,queen:0xff6b9d,bishop:0xc77dff};
 /* ---------- camera glitch / hazy transition ---------- */
 const GL=$("gl"),gx=GL.getContext("2d");let glT=0;const GLD=320;GL.style.opacity="0";
 function glitchTick(dt){
+   if(easy)glT=0;
   if(glT>0&&S.mon){
     glT-=dt;const k=Math.max(0,glT)/GLD,e=Math.sin((1-k)*PI);
     const im=gx.createImageData(160,90),d=im.data;
@@ -2247,7 +2262,7 @@ const sigOut=()=>{
 };
 function fuzzTick(){
   const maskBusy=!!(S.maskEvent||S.mask);
-  const camOn=S.mon&&S.phase==="playing"&&!maskBusy;
+  const camOn=S.mon&&S.phase==="playing"&&!maskBusy&&!easy;
   const lost=camOn&&sigOut();
   const hard=camOn&&(lost||(FUZZ[S.cam]||0)>S.ms);
   const ns=document.getElementById("nosig");
@@ -3689,7 +3704,25 @@ function loseReal(r){
   show("lose",head,text,"Try Again ↻",key);
 }
 
-$("ob").onclick=()=>{unlock();start(kind==="win"?S.night+1:S.night)};
+const modeBox=document.createElement("div");
+modeBox.className="modepick";
+modeBox.innerHTML=
+ '<div class="mode-card" id="modeReal"><h3>1. REALISTIC MODE (RECOMMENDED)</h3><b>THE FULL HORROR EXPERIENCE</b><p>Experience the game as intended, with grayscale CCTV footage, camera static and visual noise, distorted surveillance feeds, and a dark, unsettling atmosphere. Every camera feels like a real security feed, keeping you on edge throughout the night.</p></div>'
++'<div class="mode-card easy" id="modeEasy"><h3>2. EASY MODE (NOT RECOMMENDED)</h3><b>A LESS INTENSE EXPERIENCE</b><p>Play with clear, full-color CCTV footage without grayscale filters, camera fuzz, static, or visual distortion. Enjoy a cleaner and more comfortable viewing experience while retaining the core survival gameplay.</p></div>';
+W.appendChild(modeBox);
+function beginNight(){unlock();start(kind==="win"?S.night+1:S.night)}
+function pickMode(e){
+  easy=e;W.classList.toggle("easy",easy);
+  modeBox.classList.remove("show");
+  beginNight();
+}
+$("modeReal").addEventListener("click",()=>pickMode(false));
+$("modeEasy").addEventListener("click",()=>pickMode(true));
+modeBox.addEventListener("click",e=>{if(e.target===modeBox)modeBox.classList.remove("show")});
+$("ob").onclick=()=>{
+  if(kind==="start"){modeBox.classList.add("show");return}   // main menu: ask for the mode
+  beginNight();                                             // Next Night / Try Again: keep the chosen mode
+};
 /* is the game on screen? (it is hidden while the player is on another tab of the main UI) */
 const gameVisible=()=>W.getClientRects().length>0;
 
