@@ -42228,6 +42228,15 @@ right:0;
 
 <button
   class="nav-btn"
+  data-tab="meditationZone"
+  id="meditationZoneNavBtn"
+>
+  🧘
+  Meditation Zone
+</button>
+
+<button
+  class="nav-btn"
   data-tab="chessMaze"
   id="chessMazeNavBtn"
 >
@@ -87948,6 +87957,757 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
 
 </script>
 
+<!-- =========================================================
+     1) NAV BUTTON  (paste inside your nav / sidebar)
+========================================================= -->
+
+
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+     Sound files go in a folder called "Meditation" next to your HTML:
+       Meditation/432 Hz .mp3
+       Meditation/528 Hz.mp3
+       Meditation/832 Hz.mp3
+       Meditation/963 Hz.mp3
+========================================================= -->
+
+<style>
+  #mz-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;}
+  @media (max-width:1100px){#mz-layout{grid-template-columns:1fr;}}
+
+  .mz-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:16px;box-sizing:border-box;}
+  .mz-card-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:12px;}
+  .mz-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .mz-stat-row strong{color:#fff;font-variant-numeric:tabular-nums;}
+
+  /* scrolling list of sounds */
+  #mz-list{display:flex;flex-direction:column;gap:14px;max-height:680px;overflow-y:auto;padding:2px 8px 2px 2px;scrollbar-width:thin;scrollbar-color:rgba(255,215,0,0.35) transparent;}
+  #mz-list::-webkit-scrollbar{width:8px;}
+  #mz-list::-webkit-scrollbar-thumb{background:rgba(255,215,0,0.30);border-radius:99px;}
+  #mz-list::-webkit-scrollbar-track{background:transparent;}
+  @media (max-width:1100px){#mz-list{max-height:560px;}}
+
+  /* one sound = one coloured card */
+  .mz-track{--c1:#ffd700;--c2:#b8860b;--rgb:255,215,0;position:relative;border-radius:18px;padding:16px;box-sizing:border-box;cursor:pointer;
+    background:linear-gradient(135deg,rgba(var(--rgb),0.18),rgba(20,24,42,0.97) 58%);
+    border:1px solid rgba(var(--rgb),0.30);transition:border-color .2s, box-shadow .2s;}
+  .mz-track.mz-active{border-color:rgba(var(--rgb),0.85);box-shadow:0 0 0 1px rgba(var(--rgb),0.35),0 14px 36px rgba(var(--rgb),0.14);}
+
+  .mz-head{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .mz-badge{flex:0 0 auto;min-width:86px;padding:10px 12px;border-radius:14px;text-align:center;color:#0b0e1c;font-weight:900;
+    background:linear-gradient(145deg,var(--c1),var(--c2));box-shadow:0 8px 20px rgba(var(--rgb),0.30);}
+  .mz-badge b{display:block;font-size:26px;line-height:1;letter-spacing:-0.5px;}
+  .mz-badge span{font-size:12px;font-weight:900;}
+  .mz-info{min-width:0;flex:1 1 auto;}
+  .mz-name{color:#fff;font-size:17px;font-weight:900;margin:0;}
+  .mz-tag{color:#aeb3cf;font-size:13px;font-weight:600;margin-top:3px;}
+  .mz-chip{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:99px;font-size:12px;font-weight:800;color:#aeb3cf;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .mz-track.mz-playing .mz-chip{color:var(--c1);border-color:rgba(var(--rgb),0.45);background:rgba(var(--rgb),0.12);}
+
+  /* tiny equaliser, only moves while playing */
+  .mz-eq{display:none;align-items:flex-end;gap:2px;height:14px;}
+  .mz-eq i{display:block;width:3px;border-radius:2px;background:var(--c1);height:30%;}
+  .mz-track.mz-playing .mz-eq{display:flex;}
+  .mz-track.mz-playing .mz-eq i{animation:mzEq .9s ease-in-out infinite alternate;}
+  .mz-eq i:nth-child(2){animation-delay:.2s !important;}
+  .mz-eq i:nth-child(3){animation-delay:.4s !important;}
+  .mz-eq i:nth-child(4){animation-delay:.1s !important;}
+  @keyframes mzEq{from{height:25%}to{height:100%}}
+  @media (prefers-reduced-motion:reduce){.mz-track.mz-playing .mz-eq i{animation:none;height:70%;}}
+
+  /* media-player control bar */
+  .mz-player{border-radius:14px;padding:12px;background:linear-gradient(180deg,#2a3150,#151929);border:1px solid rgba(255,255,255,0.10);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);}
+  .mz-row{display:flex;align-items:center;gap:10px;}
+  .mz-row + .mz-row{margin-top:12px;flex-wrap:wrap;}
+
+  .mz-orb{flex:0 0 auto;width:46px;height:46px;border:none;border-radius:50%;cursor:pointer;color:#0b0e1c;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 35% 25%,rgba(255,255,255,0.75),transparent 45%),linear-gradient(145deg,var(--c1),var(--c2));
+    box-shadow:0 6px 16px rgba(var(--rgb),0.40),inset 0 -3px 6px rgba(0,0,0,0.25);}
+  .mz-orb:active{transform:scale(0.95);}
+  .mz-mini{flex:0 0 auto;width:34px;height:34px;border-radius:50%;cursor:pointer;color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);}
+  .mz-mini:hover{background:rgba(255,255,255,0.15);}
+  .mz-orb:focus-visible,.mz-mini:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+
+  .mz-time{flex:0 0 auto;color:#aeb3cf;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  .mz-group{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:0;}
+  .mz-group label{color:#aeb3cf;font-size:12px;font-weight:800;white-space:nowrap;}
+  .mz-val{flex:0 0 auto;min-width:44px;text-align:right;color:#fff;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;}
+
+  .mz-range{-webkit-appearance:none;appearance:none;width:100%;height:6px;margin:0;border-radius:99px;outline:none;cursor:pointer;
+    background:linear-gradient(90deg,var(--c1) var(--p,0%),rgba(255,255,255,0.14) var(--p,0%));}
+  .mz-range::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--c1);box-shadow:0 0 0 3px rgba(0,0,0,0.25);}
+  .mz-range::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--c1);}
+  .mz-range:focus-visible{box-shadow:0 0 0 3px rgba(255,255,255,0.35);}
+
+  .mz-err{display:none;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(255,77,90,0.10);color:#ff6570;font-size:12px;font-weight:700;}
+
+  /* right panel */
+  #mz-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px;}
+  @media (max-width:1100px){#mz-side{position:static;}}
+  #mz-now{--c1:#ffd700;--c2:#b8860b;--rgb:255,215,0;border-radius:18px;padding:20px;box-sizing:border-box;
+    background:linear-gradient(160deg,rgba(var(--rgb),0.20),rgba(20,24,42,0.97) 60%);border:1px solid rgba(var(--rgb),0.45);box-shadow:0 20px 55px rgba(0,0,0,0.25);}
+  .mz-timer{font-size:64px;line-height:1;font-weight:900;color:var(--c1);text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-1px;margin:6px 0 4px;}
+  .mz-bar{height:8px;border-radius:99px;background:rgba(255,255,255,0.08);margin-top:12px;overflow:hidden;}
+  .mz-bar-fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--c2),var(--c1));transition:width .3s;}
+  .mz-def h4{margin:0 0 6px;color:#fff;font-size:15px;font-weight:900;}
+  .mz-def p{margin:0;color:#c8ccdf;font-size:14px;line-height:1.7;font-weight:500;}
+  .mz-def ul{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:8px;}
+  .mz-def li{position:relative;padding-left:22px;color:#e4e7f5;font-size:13px;line-height:1.55;font-weight:600;}
+  .mz-def li::before{content:"✦";position:absolute;left:0;top:0;color:var(--c1);}
+</style>
+
+<section
+  class="section hidden"
+  id="meditationZone-section"
+>
+
+  <div
+    id="mz-shell"
+    style="width:100%;max-width:1480px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">🧘</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Meditation Zone | 🎧 Recommended</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Pick a calming tone, press play, and listen for a few quiet minutes every day.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="mzPauseAllBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ⏸ Pause All
+        </button>
+      </div>
+
+    </div>
+
+    <!-- WHAT IS HERTZ -->
+    <div style="display:flex;gap:12px;padding:16px;margin-bottom:20px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+      <div style="font-size:22px;line-height:1;">🎵</div>
+      <div>
+        <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">What is a Hertz (Hz)?</strong>
+        <div style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+          Hertz counts how many sound waves reach your ear every second. A 432 Hz tone makes 432 waves per second.
+          Lower numbers sound deeper and warmer, higher numbers sound lighter and brighter. Each tone below has its own calm feeling.
+          Relax your body, close your eyes, put your headphone and just listen....
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="mz-layout">
+
+      <!-- SCROLLING SOUND LIST (cards are built by the script from the TRACKS list) -->
+      <div id="mz-list" aria-label="Meditation sounds"></div>
+
+      <!-- RIGHT PANEL -->
+      <div id="mz-side">
+
+        <div id="mz-now">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">NOW SELECTED</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;">
+            <span id="mzNowHz" style="color:var(--c1);font-size:34px;font-weight:900;">432 Hz</span>
+            <span id="mzNowTitle" style="color:#fff;font-size:15px;font-weight:800;"></span>
+          </div>
+
+          <div style="color:#aeb3cf;font-size:12px;font-weight:800;margin-top:14px;text-align:center;">⏱ Listening time</div>
+          <div id="mzTimer" class="mz-timer">0:00</div>
+
+          <div class="mz-bar"><div id="mzGoalFill" class="mz-bar-fill"></div></div>
+          <div id="mzGoalText" style="margin-top:8px;text-align:center;color:#aeb3cf;font-size:12px;font-weight:700;">Daily goal: 5 minutes</div>
+
+          <div style="display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);">
+            <div class="mz-stat-row"><span>This sound</span><strong id="mzThisStat">0:00</strong></div>
+            <div class="mz-stat-row"><span>All sounds this visit</span><strong id="mzTotalStat">0:00</strong></div>
+          </div>
+        </div>
+
+        <div class="mz-card mz-def" id="mzDef">
+          <h4 id="mzDefTitle"></h4>
+          <p id="mzDefText"></p>
+          <ul id="mzDefList"></ul>
+        </div>
+
+        <div style="display:flex;gap:12px;padding:16px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+          <div style="font-size:22px;line-height:1;">💡</div>
+          <div>
+            <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">Daily Practice</strong>
+            <div style="color:#aeb3cf;font-size:12px;line-height:1.6;font-weight:600;">
+              A few quiet minutes every day build a calm habit and help your mind reset and focus.
+              Use headphones, keep the volume low, close your eyes and breathe slowly.
+              These sounds support relaxation and are not a medical treatment.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   🧘 OLYMPUS MEDITATION ZONE
+   ---------------------------------------------------------
+   Completely isolated audio engine.
+
+   - One coloured media-player card per sound (scrolling list)
+   - Play / Pause / Stop, seek bar, per-sound volume + mute,
+     per-sound speed (0.5x - 2x, pitch stays the same)
+   - Every sound loops forever until you pause it
+   - Only one sound plays at a time
+   - Right panel: listening timer, daily goal bar, definition
+   - Leaving the tab pauses the sound
+   - No Supabase / libraries needed
+
+   TO ADD A NEW SOUND LATER: copy one block inside TRACKS,
+   change the numbers/text, and drop the mp3 into the
+   Meditation folder. The list scrolls on its own.
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* ENGINE START */
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const MEDIA_PATH = "Meditation/";
+  const DAILY_GOAL = 300;            // seconds (5 minutes)
+  const DEFAULT_VOLUME = 80;         // percent
+
+  /* colour pairs, used in order (new sounds pick the next pair automatically) */
+  const PALETTE = [
+    ["#34d399", "#059669"],   // emerald
+    ["#fbbf24", "#d97706"],   // amber
+    ["#38bdf8", "#2563eb"],   // sky
+    ["#c084fc", "#7c3aed"],   // violet
+    ["#fb7185", "#e11d48"],   // rose
+    ["#2dd4bf", "#0d9488"],   // teal
+    ["#fb923c", "#ea580c"]    // orange
+  ];
+
+  const TRACKS = [
+        {
+      hz: 40,
+      title: "40 Hz",
+      tag: "Alert and focused",
+      file: "40 Hz.mp3",
+      about: "40 Hz is a low, pulsing tone that sits in the range of gamma brain waves, which are linked with attention and concentration. Many listeners find it clear and energizing without feeling harsh.",
+      why: [
+        "Helps you wake up your focus before study or practice",
+        "A good tone for a short, alert listening session",
+        "Pairs well with sitting upright and breathing steadily"
+      ]
+    },
+        {
+      hz: 75,
+      title: "75 Hz",
+      tag: "Deep and steady",
+      file: "75 Hz.mp3",
+      about: "75 Hz is a very low, deep bass tone. You feel it as much as you hear it. Many listeners find it steady and grounding, like a slow hum that helps the body settle and the mind slow down.",
+      why: [
+        "Gives a deep, calm base for relaxing and unwinding",
+        "Helps you feel steady and grounded before a test or match",
+        "Works well with slow breathing and a few minutes of quiet sitting"
+      ]
+    },
+    {
+      hz: 432,
+      title: "432 Hz",
+      tag: "Calm and grounding",
+      file: "432 Hz.mp3",
+      about: "432 Hz is often called the natural tuning. Many listeners find it warm, soft and grounding, a gentle tone that helps the body slow down after a busy day.",
+      why: [
+        "Helps you unwind after school or practice",
+        "Pairs well with slow, deep breathing",
+        "A soft choice for the evening, before sleep"
+      ]
+    },
+    {
+      hz: 528,
+      title: "528 Hz",
+      tag: "Renewal and positivity",
+      file: "528 Hz.mp3",
+      about: "528 Hz belongs to the Solfeggio scale and is nicknamed the love tone. It is traditionally linked with renewal, joy and a lighter, happier mood.",
+      why: [
+        "Brings calm energy and a brighter mood",
+        "Great for a fresh start to the day or a study break",
+        "Encourages gratitude and a positive mindset"
+      ]
+    },
+    {
+      hz: 832,
+      title: "832 Hz",
+      tag: "Clarity and focus",
+      file: "832 Hz.mp3",
+      about: "832 Hz is a higher, brighter tone. Listeners often use it as a clarity sound: clean and clear, it helps the mind settle on one thing at a time.",
+      why: [
+        "Supports concentration before homework or practice",
+        "Clears mental clutter during a short break",
+        "Helps you stay present with one task"
+      ]
+    },
+    {
+      hz: 963,
+      title: "963 Hz",
+      tag: "Stillness and awareness",
+      file: "963 Hz.mp3",
+      about: "963 Hz is the highest tone in this collection and is traditionally called the crown tone. It is associated with deep stillness, awareness and a quiet sense of connection.",
+      why: [
+        "Deep, quiet stillness for mindful sitting",
+        "Helps you notice thoughts without chasing them",
+        "Best for a few silent minutes with your eyes closed"
+      ]
+    }
+  ];
+
+
+  /* =========================================================
+     ELEMENTS
+  ========================================================= */
+
+  const section = document.getElementById("meditationZone-section");
+  if (!section) return;
+
+  const listEl = document.getElementById("mz-list");
+  const nowBox = document.getElementById("mz-now");
+  const nowHz = document.getElementById("mzNowHz");
+  const nowTitle = document.getElementById("mzNowTitle");
+  const timerEl = document.getElementById("mzTimer");
+  const goalFill = document.getElementById("mzGoalFill");
+  const goalText = document.getElementById("mzGoalText");
+  const thisStat = document.getElementById("mzThisStat");
+  const totalStat = document.getElementById("mzTotalStat");
+  const defTitle = document.getElementById("mzDefTitle");
+  const defText = document.getElementById("mzDefText");
+  const defList = document.getElementById("mzDefList");
+  const pauseAllBtn = document.getElementById("mzPauseAllBtn");
+
+  const sideBox = document.getElementById("mz-side");
+
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+  function fmt(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    const s = Math.floor(sec);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    return h ? h + ":" + pad(m) + ":" + pad(r) : m + ":" + pad(r);
+  }
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255);
+  }
+
+  function setFill(input) {
+    const min = +input.min || 0;
+    const max = +input.max || 100;
+    const p = max > min ? ((+input.value - min) / (max - min)) * 100 : 0;
+    input.style.setProperty("--p", p + "%");
+  }
+
+  function paint(el, colors) {
+    el.style.setProperty("--c1", colors[0]);
+    el.style.setProperty("--c2", colors[1]);
+    el.style.setProperty("--rgb", hexToRgb(colors[0]));
+  }
+
+  function volIcon(audio) {
+    if (audio.muted || audio.volume === 0) return "🔇";
+    return audio.volume < 0.5 ? "🔉" : "🔊";
+  }
+
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+
+  const tracks = [];
+  let active = null;
+  let totalListened = 0;
+  let lastTick = performance.now();
+
+
+  /* =========================================================
+     BUILD ONE CARD PER SOUND
+  ========================================================= */
+
+  function buildTrack(data, index) {
+
+    const colors = PALETTE[index % PALETTE.length];
+
+    const card = document.createElement("div");
+    card.className = "mz-track";
+    card.tabIndex = -1;
+    paint(card, colors);
+
+    card.innerHTML =
+      '<div class="mz-head">' +
+        '<div class="mz-badge"><b>' + data.hz + '</b><span>Hz</span></div>' +
+        '<div class="mz-info">' +
+          '<h3 class="mz-name">' + data.title + '</h3>' +
+          '<div class="mz-tag">' + data.tag + '</div>' +
+        '</div>' +
+        '<div class="mz-chip"><span class="mz-eq"><i></i><i></i><i></i><i></i></span><span class="mz-status">Ready</span></div>' +
+      '</div>' +
+      '<div class="mz-player">' +
+        '<div class="mz-row">' +
+          '<button type="button" class="mz-orb" aria-label="Play ' + data.title + '">▶</button>' +
+          '<button type="button" class="mz-mini mz-stop" aria-label="Stop and rewind">■</button>' +
+          '<input type="range" class="mz-range mz-seek" min="0" max="100" step="0.1" value="0" aria-label="Seek">' +
+          '<span class="mz-time"><span class="mz-cur">0:00</span> / <span class="mz-dur">--:--</span></span>' +
+        '</div>' +
+        '<div class="mz-row">' +
+          '<div class="mz-group">' +
+            '<button type="button" class="mz-mini mz-mute" aria-label="Mute">🔊</button>' +
+            '<input type="range" class="mz-range mz-vol" min="0" max="100" step="1" value="' + DEFAULT_VOLUME + '" aria-label="Volume">' +
+            '<span class="mz-val mz-vol-lbl">' + DEFAULT_VOLUME + '%</span>' +
+          '</div>' +
+          '<div class="mz-group">' +
+            '<label>Speed</label>' +
+            '<input type="range" class="mz-range mz-speed" min="0.5" max="2" step="0.05" value="1" aria-label="Playback speed">' +
+            '<span class="mz-val mz-speed-lbl">1.00×</span>' +
+            '<button type="button" class="mz-mini mz-speed-reset" aria-label="Reset speed to normal" style="width:auto;padding:0 10px;border-radius:99px;font-weight:800;">1×</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="mz-err"></div>';
+
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audio.loop = true;                        /* infinite loop */
+    audio.preservesPitch = true;              /* speed changes keep the same Hz */
+    audio.mozPreservesPitch = true;
+    audio.webkitPreservesPitch = true;
+    audio.volume = DEFAULT_VOLUME / 100;
+    audio.src = encodeURI(MEDIA_PATH + data.file);
+
+    const t = {
+      data: data,
+      colors: colors,
+      audio: audio,
+      card: card,
+      listened: 0,
+      rate: 1,
+      dragging: false,
+      el: {
+        orb: card.querySelector(".mz-orb"),
+        stop: card.querySelector(".mz-stop"),
+        seek: card.querySelector(".mz-seek"),
+        cur: card.querySelector(".mz-cur"),
+        dur: card.querySelector(".mz-dur"),
+        mute: card.querySelector(".mz-mute"),
+        vol: card.querySelector(".mz-vol"),
+        volLbl: card.querySelector(".mz-vol-lbl"),
+        speed: card.querySelector(".mz-speed"),
+        speedLbl: card.querySelector(".mz-speed-lbl"),
+        speedReset: card.querySelector(".mz-speed-reset"),
+        status: card.querySelector(".mz-status"),
+        err: card.querySelector(".mz-err")
+      }
+    };
+
+    setFill(t.el.seek);
+    setFill(t.el.vol);
+    setFill(t.el.speed);
+
+    wireTrack(t);
+    return t;
+  }
+
+
+  /* =========================================================
+     CARD EVENTS
+  ========================================================= */
+
+  function wireTrack(t) {
+
+    const a = t.audio;
+    const e = t.el;
+
+    /* ---- buttons ---- */
+    e.orb.addEventListener("click", function () {
+      if (a.paused) playTrack(t); else pauseTrack(t);
+    });
+
+    e.stop.addEventListener("click", function () {
+      a.pause();
+      a.currentTime = 0;
+      refreshTrack(t);
+    });
+
+    /* ---- seek ---- */
+    e.seek.addEventListener("input", function () {
+      t.dragging = true;
+      e.cur.textContent = fmt(+e.seek.value);
+      setFill(e.seek);
+    });
+
+    e.seek.addEventListener("change", function () {
+      a.currentTime = +e.seek.value;
+      t.dragging = false;
+    });
+
+    /* ---- volume (each sound has its own) ---- */
+    e.vol.addEventListener("input", function () {
+      a.volume = +e.vol.value / 100;
+      if (a.volume > 0) a.muted = false;
+      setFill(e.vol);
+      refreshTrack(t);
+    });
+
+    e.mute.addEventListener("click", function () {
+      a.muted = !a.muted;
+      if (!a.muted && a.volume === 0) {
+        a.volume = 0.5;
+        e.vol.value = 50;
+        setFill(e.vol);
+      }
+      refreshTrack(t);
+    });
+
+    /* ---- speed (each sound has its own) ---- */
+    function applySpeed(rate) {
+      t.rate = rate;
+      a.playbackRate = rate;
+      e.speed.value = rate;
+      setFill(e.speed);
+      e.speedLbl.textContent = rate.toFixed(2) + "×";
+    }
+
+    e.speed.addEventListener("input", function () { applySpeed(+e.speed.value); });
+    e.speedReset.addEventListener("click", function () { applySpeed(1); });
+
+    /* ---- audio events ---- */
+    a.addEventListener("loadedmetadata", function () {
+      if (isFinite(a.duration)) {
+        e.seek.max = a.duration;
+        e.dur.textContent = fmt(a.duration);
+        setFill(e.seek);
+      }
+      a.playbackRate = t.rate;
+    });
+
+    a.addEventListener("timeupdate", function () {
+      if (t.dragging) return;
+      e.seek.value = a.currentTime;
+      e.cur.textContent = fmt(a.currentTime);
+      setFill(e.seek);
+    });
+
+    a.addEventListener("play", function () { a.playbackRate = t.rate; refreshTrack(t); });
+    a.addEventListener("pause", function () { refreshTrack(t); });
+
+    a.addEventListener("error", function () {
+      e.err.style.display = "block";
+      e.err.textContent = 'Sound file not found. Check that "' + MEDIA_PATH + t.data.file + '" exists.';
+      refreshTrack(t);
+    });
+
+    /* ---- select the card (shows its timer + definition on the right) ---- */
+    t.card.addEventListener("click", function (ev) {
+      if (!ev.target.closest("button,input")) selectTrack(t);
+    });
+    t.card.addEventListener("focusin", function () { selectTrack(t); });
+  }
+
+
+  /* =========================================================
+     PLAY / PAUSE
+  ========================================================= */
+
+  function playTrack(t) {
+
+    /* only one sound at a time */
+    tracks.forEach(function (o) {
+      if (o !== t && !o.audio.paused) o.audio.pause();
+    });
+
+    selectTrack(t);
+
+    const p = t.audio.play();
+    if (p && p.catch) {
+      p.catch(function () {
+        t.el.err.style.display = "block";
+        t.el.err.textContent = "Your browser could not start this sound. Check the file or press play again.";
+        refreshTrack(t);
+      });
+    }
+  }
+
+  function pauseTrack(t) { t.audio.pause(); }
+
+  function pauseAll() {
+    tracks.forEach(function (t) { if (!t.audio.paused) t.audio.pause(); });
+  }
+
+
+  /* =========================================================
+     UI REFRESH
+  ========================================================= */
+
+  function refreshTrack(t) {
+
+    const playing = !t.audio.paused;
+
+    t.card.classList.toggle("mz-playing", playing);
+
+    t.el.orb.textContent = playing ? "❚❚" : "▶";
+    t.el.orb.setAttribute("aria-label", (playing ? "Pause " : "Play ") + t.data.title);
+
+    t.el.mute.textContent = volIcon(t.audio);
+    t.el.volLbl.textContent = t.audio.muted ? "Muted" : Math.round(t.audio.volume * 100) + "%";
+
+    if (playing) t.el.status.textContent = "Playing · " + fmt(t.listened);
+    else if (t.listened > 0) t.el.status.textContent = "Paused · " + fmt(t.listened);
+    else t.el.status.textContent = "Ready";
+  }
+
+  function selectTrack(t) {
+
+    if (active === t) return;
+
+    active = t;
+
+    tracks.forEach(function (o) {
+      o.card.classList.toggle("mz-active", o === t);
+    });
+
+    paint(nowBox, t.colors);
+    paint(sideBox, t.colors);
+
+    nowHz.textContent = t.data.hz + " Hz";
+    nowTitle.textContent = t.data.tag;
+
+    defTitle.textContent = "What is " + t.data.hz + " Hz?";
+    defText.textContent = t.data.about;
+
+    defList.innerHTML = "";
+    t.data.why.forEach(function (line) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      defList.appendChild(li);
+    });
+
+    renderTimer();
+  }
+
+  function renderTimer() {
+
+    if (!active) return;
+
+    timerEl.textContent = fmt(active.listened);
+    thisStat.textContent = fmt(active.listened);
+    totalStat.textContent = fmt(totalListened);
+
+    goalFill.style.width = Math.min(100, (totalListened / DAILY_GOAL) * 100) + "%";
+
+    goalText.textContent = totalListened >= DAILY_GOAL
+      ? "Daily goal reached. Well done! 🎉"
+      : "Daily goal: 5 minutes · " + fmt(DAILY_GOAL - totalListened) + " to go";
+  }
+
+
+  /* =========================================================
+     LISTENING TIMER  (counts real time while a sound plays)
+  ========================================================= */
+
+  function tick() {
+
+    const now = performance.now();
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+
+    const playing = tracks.find(function (t) { return !t.audio.paused; });
+
+    if (!playing) return;
+
+    /* section hidden (user left the tab): pause the sound */
+    if (section.getClientRects().length === 0) {
+      playing.audio.pause();
+      return;
+    }
+
+    /* only count while sound is really flowing (not buffering) */
+    if (playing.audio.readyState >= 3) {
+      playing.listened += dt;
+      totalListened += dt;
+    }
+
+    refreshTrack(playing);
+    renderTimer();
+  }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  pauseAllBtn?.addEventListener("click", pauseAll);
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  TRACKS.forEach(function (data, i) {
+    const t = buildTrack(data, i);
+    tracks.push(t);
+    listEl.appendChild(t.card);
+    refreshTrack(t);
+  });
+
+  if (tracks.length) selectTrack(tracks[0]);
+
+  setInterval(tick, 250);
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.MeditationZone = {
+
+    pauseAll: pauseAll,
+
+    getState: function () {
+      return {
+        playing: tracks.filter(function (t) { return !t.audio.paused; })
+                       .map(function (t) { return t.data.title; }),
+        totalListenedSeconds: Math.round(totalListened)
+      };
+    }
+
+  };
+
+})();
+
+</script>
 
 <!-- =========================================================
      2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
@@ -178788,7 +179548,7 @@ const lockedTabs = [
   // 🎮 Standalone games
   "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
   "hiddenDeck","chesscrush","chessCraftGo",   "chess3d","dotConnect",
-  "legalMove","chessFnaf",
+  "legalMove","chessFnaf", "meditationZone",   
   "legalChecks",
   "puzzlerush",
   "guessElo",
@@ -251672,6 +252432,7 @@ style="
 
     learning: [
       '[data-tab="assignments"]',
+      '[data-tab="meditationZone" ]',
       '[data-tab="study"]',
       '[data-tab="chessConcepts"]',
        '[data-tab="lichessAnalysis"]',
