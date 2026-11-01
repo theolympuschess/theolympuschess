@@ -42269,6 +42269,14 @@ right:0;
 </button>
 <button
   class="nav-btn"
+  data-tab="snakes"
+  id="snakesNavBtn"
+>
+  🐍
+  Chess & <span style="font-size: 1.35em; color: #07aab3; font-weight: 900;">Snakes</span>
+</button>
+<button
+  class="nav-btn"
   data-tab="guessElo"
   id="guessEloNavBtn"
 >
@@ -87956,6 +87964,536 @@ if (!document.querySelector(".nav-btn:not(#chess3dNavBtn)")) { sec.classList.rem
 })();
 
 </script>
+<!-- =========================================================
+     SNAKES & LADDERS  (paste with your other sections)
+     Fully isolated: every class/id is snl-prefixed, everything
+     runs inside one IIFE. Nav button is at the very bottom.
+========================================================= -->
+
+<style>
+  #snl-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start;}
+  @media (max-width:1000px){#snl-layout{grid-template-columns:1fr;}}
+  #snakes-section .snl-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:12px;box-sizing:border-box;margin-bottom:12px;}
+  #snakes-section .snl-title{color:#ffd700;font-size:13px;font-weight:900;margin-bottom:8px;}
+  #snakes-section .snl-row{display:flex;gap:6px;flex-wrap:wrap;}
+  #snakes-section .snl-opt{flex:1 1 0;min-width:44px;padding:8px 4px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#fff;font-size:12px;font-weight:900;cursor:pointer;}
+  #snakes-section .snl-opt.snl-pc{font-size:22px;line-height:24px;padding:4px 0;font-family:"Segoe UI Symbol","Noto Sans Symbols2",serif;}
+  #snakes-section .snl-active{border-color:#ffd700;background:rgba(255,215,0,0.15);color:#ffd700;}
+  #snakes-section .snl-sw{width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,0.25);cursor:pointer;padding:0;}
+  #snakes-section .snl-sw.snl-active{border-color:#ffd700;box-shadow:0 0 0 2px #ffd700;}
+  #snakes-section .snl-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:15px;font-weight:900;cursor:pointer;}
+  #snakes-section .snl-btn:disabled{opacity:.45;cursor:not-allowed;}
+  #snakes-section .snl-green{background:#78b887;color:#000;}
+  #snakes-section .snl-gold{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.3);color:#ffd700;}
+  #snakes-section .snl-ghost{margin-top:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;}
+  #snakes-section .snl-lvl{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:#fff;font-size:16px;font-weight:900;cursor:pointer;}
+  #snakes-section .snl-lvl:disabled{opacity:.3;cursor:not-allowed;}
+  #snakes-section .snl-g{font-family:"Segoe UI Symbol","Noto Sans Symbols2",serif;text-shadow:0 0 2px #000,0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;}
+  .snl-pi{display:block;width:100%;height:100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;}
+  .snl-pi img{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;}
+  #snlBoardWrap{width:min(100%,760px);margin:0 auto;}
+  #snlBoard{position:relative;width:100%;aspect-ratio:1/1;border:6px solid var(--snl-frame,#fff);border-radius:16px;box-sizing:border-box;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,0.4);background:#fff;}
+  #snlGrid{position:absolute;inset:0;display:grid;}
+  #snlGrid div{position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);}
+  #snlNums{position:absolute;inset:0;display:grid;pointer-events:none;z-index:4;}
+  #snlNums b{justify-self:start;align-self:start;margin:4%;padding:1px 6px;border-radius:99px;background:rgba(20,24,42,.72);font-size:calc(var(--snl-cell,40px)*.27);font-weight:900;color:#fff;line-height:1.15;}
+  #snlSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  #snlTokens{position:absolute;inset:0;pointer-events:none;}
+  .snl-tok{position:absolute;width:calc(var(--snl-cell,40px)*.6);height:calc(var(--snl-cell,40px)*.6);transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;font-size:calc(var(--snl-cell,40px)*.58);line-height:1;transition:left .22s ease,top .22s ease;z-index:5;filter:drop-shadow(0 3px 2px rgba(0,0,0,.45));}
+  .snl-tok.snl-me{animation:snlHop .6s ease-in-out infinite alternate;z-index:6;}
+  #snlDice{--d1:#ff5d8f;--d2:#ffb703;width:92px;height:92px;margin:6px auto 10px;border-radius:22px;background:linear-gradient(135deg,var(--d1),var(--d2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:76px;line-height:1;font-family:"Segoe UI Symbol","Noto Sans Symbols2",sans-serif;text-shadow:0 2px 0 rgba(0,0,0,.25),0 0 8px rgba(255,255,255,.55);border:3px solid rgba(255,255,255,.85);box-sizing:border-box;box-shadow:0 6px 0 rgba(0,0,0,.35),0 10px 24px rgba(0,0,0,.45);transition:background .15s;}
+  #snlDice.snl-shake{animation:snlShake .18s linear infinite;}
+  .snl-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,7,16,0.8);backdrop-filter:blur(7px);}
+  .snl-modal-box{width:min(430px,92%);padding:26px;box-sizing:border-box;border-radius:18px;background:#14182a;box-shadow:0 25px 70px rgba(0,0,0,.5);color:#fff;text-align:center;max-height:90vh;overflow:auto;}
+  @keyframes snlHop{from{transform:translate(-50%,-50%) scale(1)}to{transform:translate(-50%,-62%) scale(1.12)}}
+  @keyframes snlShake{0%{transform:rotate(-12deg) translateY(-3px)}50%{transform:rotate(10deg) translateY(2px)}100%{transform:rotate(-12deg) translateY(-3px)}}
+</style>
+
+<section class="section hidden" id="snakes-section">
+  <div id="snl-shell" style="width:100%;max-width:1400px;margin:0 auto;padding:20px;box-sizing:border-box;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;">🐍</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Chess, Snakes & Ladders</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">Climb the ladders, slide down the snakes, be first to the top!</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="snlHowBtn" class="snl-btn snl-ghost" style="width:auto;margin-top:0;padding:10px 16px;font-size:13px;border-radius:99px;">❓ How to Play</button>
+        <button type="button" id="snlResetTop" class="snl-btn snl-green" style="width:auto;padding:10px 16px;font-size:13px;border-radius:99px;">↻ Reset</button>
+      </div>
+    </div>
+
+    <div id="snl-layout">
+      <div id="snlBoardWrap">
+        <div id="snlBoard"><div id="snlGrid"></div><svg id="snlSvg"></svg><div id="snlNums"></div><div id="snlTokens"></div></div>
+      </div>
+
+      <div id="snl-side">
+        <div class="snl-card" style="text-align:center;">
+          <div class="snl-title" style="text-align:left;">🎲 Dice</div>
+          <div id="snlTurn" style="color:#fff;font-weight:900;font-size:15px;min-height:22px;"></div>
+          <div id="snlDice">⚀</div>
+          <button type="button" id="snlRoll" class="snl-btn snl-green">🎲 Roll Dice</button>
+          <div id="snlMsg" style="margin-top:10px;color:#aeb3cf;font-size:12px;font-weight:700;min-height:32px;line-height:1.35;"></div>
+        </div>
+
+        <div class="snl-card">
+          <div class="snl-title">👥 Players</div>
+          <div id="snlPlayers"></div>
+        </div>
+
+        <div class="snl-card">
+          <div class="snl-title">🤖 Bots</div><div class="snl-row" id="snlBots"></div>
+          <div class="snl-title" style="margin-top:12px;">📐 Board</div><div class="snl-row" id="snlSizes"></div>
+          <div class="snl-title" style="margin-top:12px;">⭐ Level <span id="snlLvlInfo" style="color:#aeb3cf;font-weight:700;"></span></div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button type="button" id="snlPrev" class="snl-lvl">◀</button>
+            <div id="snlLvl" style="flex:1;text-align:center;color:#fff;font-weight:900;font-size:18px;"></div>
+            <button type="button" id="snlNext" class="snl-lvl">▶</button>
+          </div>
+          <div class="snl-title" style="margin-top:12px;">♟ Your Piece</div><div class="snl-row" id="snlPieces"></div>
+          <div class="snl-title" style="margin-top:12px;">🎨 Your Colour</div><div class="snl-row" id="snlColors" style="gap:8px;"></div>
+          <button type="button" id="snlNew" class="snl-btn snl-gold" style="margin-top:14px;">🔀 New Snakes &amp; Ladders</button>
+          <button type="button" id="snlReplay" class="snl-btn snl-ghost">↻ Replay This Board</button>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;color:#aeb3cf;font-size:12px;font-weight:700;cursor:pointer;"><input type="checkbox" id="snlSound" checked> 🔊 Sound</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="snl-modal" id="snlModal"><div class="snl-modal-box" id="snlModalBox"></div></div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var section = $("snakes-section");
+
+  var SIZES = [8, 9, 10], LEVELS = 6, KEY = "snl_prefs_v1";
+  var PIECES = ["K", "Q", "R", "B", "N", "P"];
+  var PIECE_DIR = "assets/pieces/";   /* folder holding wK.png wQ.png wR.png wB.png wN.png wP.png */
+  function pieceHTML(k, color) {
+    var u = PIECE_DIR + "w" + k + ".png";
+    return '<i class="snl-pi" style="background:' + color + ';-webkit-mask-image:url(' + u + ');mask-image:url(' + u + ')"><img src="' + u + '" alt=""></i>';
+  }
+  var COLORS = [["Blue", "#2f80ff"], ["Red", "#ff3b5c"], ["Green", "#22c55e"], ["Yellow", "#ffc400"], ["Purple", "#a855f7"], ["Orange", "#ff7a1a"]];
+  var FACES = "⚀⚁⚂⚃⚄⚅";
+  var SNAKE_COLS = ["#2e9d4a", "#1f5fbf", "#e8453c", "#9b4fd1", "#f59e0b", "#0fa3a3", "#d6379a", "#6ab04c", "#3b82f6", "#ff7a1a"];
+  var OFF = [[-.2, -.2], [.2, -.2], [-.2, .2], [.2, .2], [0, 0]];
+  /* one colourful palette + frame per level */
+  var PAL = [
+    ["#ff7043", "#ffca28", "#66bb6a", "#42a5f5", "#ab47bc", "#ec407a"],
+    ["#ff9ecd", "#ffd6a5", "#fdffb6", "#b9fbc0", "#a0c4ff", "#cdb4ff"],
+    ["#0ea5e9", "#22d3ee", "#34d399", "#6366f1", "#38bdf8", "#14b8a6"],
+    ["#f97316", "#facc15", "#ef4444", "#fb7185", "#f59e0b", "#c026d3"],
+    ["#4caf50", "#8bc34a", "#cddc39", "#ffb300", "#26a69a", "#ef6c00"],
+    ["#7c4dff", "#00e5ff", "#ff4081", "#69f0ae", "#ffea00", "#448aff"]
+  ];
+  var FRAME = ["#ffffff", "#ffe3f1", "#d8f3ff", "#ffe8c2", "#e4f5c8", "#e6dcff"];
+
+  var st = { size: 10, level: 1, bots: 1, piece: 1, color: 1, muted: false, players: [], turn: 0, busy: false, over: false, snakes: [], ladders: [], sn: {}, ld: {}, gen: 0 };
+
+  /* ---------- storage ---------- */
+  function load() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || "{}");
+      if (SIZES.indexOf(o.size) > -1) st.size = o.size;
+      if (o.level >= 1 && o.level <= LEVELS) st.level = o.level;
+      if (o.bots >= 1 && o.bots <= 4) st.bots = o.bots;
+      if (o.piece >= 0 && o.piece < 6) st.piece = o.piece;
+      if (o.color >= 0 && o.color < 6) st.color = o.color;
+    } catch (e) {}
+  }
+  function save(over) {
+    try { localStorage.setItem(KEY, JSON.stringify({ size: st.size, level: st.level, bots: st.bots, piece: st.piece, color: st.color, ...(over || {}) })); } catch (e) {}
+  }
+
+  /* ---------- sound (Web Audio, no files) ---------- */
+  var ac = null;
+  function A() {
+    if (st.muted) return null;
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === "suspended") ac.resume();
+    } catch (e) { return null; }
+    return ac;
+  }
+  function tone(f, d, type, v, delay, to) {
+    var c = A(); if (!c) return;
+    var t = c.currentTime + (delay || 0), o = c.createOscillator(), g = c.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(f, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+    g.gain.setValueAtTime(v || .15, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + d + .02);
+  }
+  var sndRoll = function () { tone(180 + Math.random() * 420, .05, "square", .07); };
+  var sndLand = function () { tone(160, .14, "square", .12, 0, 80); };
+  var sndStep = function (n) { tone(360 + (n % 8) * 35, .09, "triangle", .16); };
+  var sndLadder = function () { [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, .14, "triangle", .16, i * .08); }); };
+  var sndSnake = function () { tone(700, .8, "sawtooth", .1, 0, 90); tone(520, .8, "sine", .12, .05, 70); };
+  var sndWin = function () { [523, 659, 784, 1047, 784, 1047, 1319].forEach(function (f, i) { tone(f, .2, "triangle", .18, i * .12); }); };
+
+  /* ---------- geometry ---------- */
+  function rowOf(n) { return Math.floor((n - 1) / st.size); }
+  function ctr(n) {
+    var N = st.size, i = n - 1, r = Math.floor(i / N), c = i % N;
+    if (r % 2) c = N - 1 - c;
+    return { c: c, r: r, x: (c + .5) * 100, y: (N - r - .5) * 100 };
+  }
+  function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ---------- layout generator ---------- */
+  function generate() {
+    var N = st.size, T = N * N, L = st.level, used = {};
+    var nSn = Math.min(10, 4 + L);                                 /* 5 .. 10 snakes */
+    var nLd = Math.max(4, Math.round((8 - Math.floor((L - 1) / 2)) * N / 10)); /* fewer ladders later */
+    var maxUp = Math.max(2, Math.round(N * (0.6 - (L - 1) * 0.07)));   /* ladders get shorter */
+    var maxDown = Math.max(2, Math.round(N * (0.4 + (L - 1) * 0.1)));  /* snakes get longer  */
+    var snakes = [], ladders = [], tries;
+
+    function free(n) { return n > 1 && n < T && !used[n]; }
+    function pick(r) { return r * N + rnd(1, N); }
+
+    for (tries = 0; snakes.length < nSn && tries < 600; tries++) {
+      var rt = rnd(0, N - 2), rh = Math.min(N - 1, rt + rnd(1, maxDown));
+      if (rh <= rt) continue;
+      var h = pick(rh), t = pick(rt);
+      if (!free(h) || !free(t)) continue;
+      used[h] = used[t] = 1; snakes.push({ h: h, t: t });
+    }
+    for (tries = 0; ladders.length < nLd && tries < 600; tries++) {
+      var rb = rnd(0, N - 2), ru = Math.min(N - 1, rb + rnd(1, maxUp));
+      if (ru <= rb) continue;
+      var b = pick(rb), u = pick(ru);
+      if (!free(b) || !free(u)) continue;
+      used[b] = used[u] = 1; ladders.push({ b: b, t: u });
+    }
+    st.snakes = snakes; st.ladders = ladders; st.sn = {}; st.ld = {};
+    snakes.forEach(function (s) { st.sn[s.h] = s.t; });
+    ladders.forEach(function (l) { st.ld[l.b] = l.t; });
+  }
+
+  /* ---------- rendering ---------- */
+  function renderGrid() {
+    var N = st.size, pal = PAL[st.level - 1], g = [], r, c, html = "", nums = "";
+    for (r = 0; r < N; r++) {
+      g[r] = [];
+      for (c = 0; c < N; c++) {
+        var k = ((r * 73856093) ^ (c * 19349663) ^ (st.level * 83492791)) >>> 0;
+        k = (k >>> 3) % pal.length;
+        while ((c && g[r][c - 1] === k) || (r && g[r - 1][c] === k)) k = (k + 1) % pal.length;
+        g[r][c] = k;
+      }
+    }
+    for (r = N - 1; r >= 0; r--) {
+      for (c = 0; c < N; c++) {
+        var n = r * N + (r % 2 ? N - 1 - c : c) + 1;
+        html += '<div style="background:' + pal[g[r][c]] + '"></div>';
+        nums += '<b>' + n + '</b>';
+      }
+    }
+    var grid = $("snlGrid");
+    grid.style.gridTemplateColumns = "repeat(" + N + ",1fr)";
+    grid.style.gridTemplateRows = "repeat(" + N + ",1fr)";
+    grid.innerHTML = html;
+    var nm = $("snlNums");
+    nm.style.gridTemplateColumns = "repeat(" + N + ",1fr)";
+    nm.style.gridTemplateRows = "repeat(" + N + ",1fr)";
+    nm.innerHTML = nums;
+    $("snlBoard").style.setProperty("--snl-frame", FRAME[st.level - 1]);
+    sizeCell();
+  }
+
+  function ladderSVG(l) {
+    var a = ctr(l.b), c = ctr(l.t), dx = c.x - a.x, dy = c.y - a.y, len = Math.hypot(dx, dy);
+    var nx = -dy / len * 19, ny = dx / len * 19, o = "";
+    function ln(x1, y1, x2, y2, w, col) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + col + '" stroke-width="' + w + '" stroke-linecap="round"/>'; }
+    var cnt = Math.max(2, Math.floor(len / 44)), i, u, px, py;
+    for (i = 1; i <= cnt; i++) {
+      u = i / (cnt + 1); px = a.x + dx * u; py = a.y + dy * u;
+      o += ln(px + nx, py + ny, px - nx, py - ny, 9, "#7a3b12") + ln(px + nx, py + ny, px - nx, py - ny, 4, "#e0a566");
+    }
+    o += ln(a.x + nx, a.y + ny, c.x + nx, c.y + ny, 11, "#7a3b12") + ln(a.x - nx, a.y - ny, c.x - nx, c.y - ny, 11, "#7a3b12");
+    o += ln(a.x + nx, a.y + ny, c.x + nx, c.y + ny, 5, "#e0a566") + ln(a.x - nx, a.y - ny, c.x - nx, c.y - ny, 5, "#e0a566");
+    return o;
+  }
+
+  function snakeSVG(s, idx) {
+    var a = ctr(s.h), b = ctr(s.t), dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    var nx = -dy / len, ny = dx / len, waves = Math.max(2, Math.round(len / 140)), sign = idx % 2 ? 1 : -1;
+    var P = [], i, M = 36, col = SNAKE_COLS[idx % SNAKE_COLS.length];
+    for (i = 0; i <= M; i++) {
+      var u = i / M, off = Math.sin(u * Math.PI * 2 * waves) * 30 * sign; /* integer waves => ends on centre */
+      P.push([a.x + dx * u + nx * off, a.y + dy * u + ny * off]);
+    }
+    var out = "", fill = "", k, seg = 6, per = M / seg;
+    for (k = 0; k < seg; k++) {
+      var w = 32 - k * 3.2, d = "M" + P[Math.round(k * per)].join(",");
+      for (i = Math.round(k * per) + 1; i <= Math.round((k + 1) * per); i++) d += "L" + P[i].join(",");
+      out += '<path d="' + d + '" stroke="#1b2a33" stroke-width="' + (w + 7) + '" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+      fill += '<path d="' + d + '" stroke="' + col + '" stroke-width="' + w + '" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    var full = "M" + P.map(function (p) { return p.join(","); }).join("L");
+    var spots = '<path d="' + full + '" stroke="rgba(255,255,255,.55)" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="0 24"/>';
+    var ang = Math.atan2(P[0][1] - P[1][1], P[0][0] - P[1][0]) * 180 / Math.PI;
+    var head = '<g transform="translate(' + a.x + ',' + a.y + ') rotate(' + ang + ')">' +
+      '<path d="M26,0 l16,-5 M26,0 l16,5" stroke="#ff2d55" stroke-width="4" stroke-linecap="round"/>' +
+      '<ellipse rx="30" ry="26" fill="' + col + '" stroke="#1b2a33" stroke-width="4"/>' +
+      '<circle cx="6" cy="-13" r="11" fill="#fff" stroke="#1b2a33" stroke-width="2.5"/><circle cx="6" cy="13" r="11" fill="#fff" stroke="#1b2a33" stroke-width="2.5"/>' +
+      '<circle cx="9" cy="-13" r="6" fill="#111"/><circle cx="9" cy="13" r="6" fill="#111"/>' +
+      '<circle cx="11" cy="-15" r="2" fill="#fff"/><circle cx="11" cy="11" r="2" fill="#fff"/>' +
+      '<path d="M18,-8 Q28,0 18,8" stroke="#1b2a33" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="-4" cy="-24" r="0"/></g>';
+    return out + fill + spots + head;
+  }
+
+  function renderSVG() {
+    var W = st.size * 100, o = "";
+    st.ladders.forEach(function (l) { o += ladderSVG(l); });
+    st.snakes.forEach(function (s, i) { o += snakeSVG(s, i); });
+    var svg = $("snlSvg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + W);
+    svg.innerHTML = o;
+  }
+
+  function sizeCell() { $("snlBoard").style.setProperty("--snl-cell", ($("snlBoard").clientWidth / st.size) + "px"); }
+
+  function place(p) {
+    var N = st.size, q = ctr(p.pos), o = [0, 0];
+    var mates = st.players.filter(function (x) { return x.pos === p.pos; });
+    if (mates.length > 1) {
+      var a = (mates.indexOf(p) / mates.length) * Math.PI * 2 - Math.PI / 2;
+      o = [Math.cos(a) * .2, Math.sin(a) * .2];
+    }
+    p.el.style.left = ((q.c + .5 + o[0]) / N * 100) + "%";
+    p.el.style.top = ((N - q.r - .5 + o[1]) / N * 100) + "%";
+  }
+
+  function renderTokens() {
+    var box = $("snlTokens"); box.innerHTML = "";
+    st.players.forEach(function (p) {
+      var d = document.createElement("div");
+      d.className = "snl-tok"; d.innerHTML = pieceHTML(p.piece, p.color);
+      box.appendChild(d); p.el = d; place(p);
+    });
+  }
+
+  function cur() { return st.players[st.turn]; }
+  function setMsg(t) { $("snlMsg").innerHTML = t; }
+
+  function ui() {
+      st.players.forEach(place);
+    var p = cur();
+    $("snlTurn").innerHTML = '<span style="display:inline-block;width:26px;height:26px;vertical-align:middle;">' + pieceHTML(p.piece, p.color) + '</span> ' + (st.over ? "Game over" : p.bot ? p.name + " is playing…" : "Your turn!");
+    $("snlRoll").disabled = st.busy || st.over || p.bot;
+    $("snlPlayers").innerHTML = st.players.map(function (q, i) {
+      var me = i === st.turn && !st.over;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;margin-bottom:4px;color:#fff;font-size:13px;font-weight:800;background:' + (me ? "rgba(255,215,0,.13)" : "rgba(255,255,255,.04)") + '"><span style="display:block;width:28px;height:28px;">' + pieceHTML(q.piece, q.color) + '</span><span style="flex:1">' + q.name + '</span><span style="color:#aeb3cf">Square ' + q.pos + '</span></div>';
+    }).join("");
+    st.players.forEach(function (q, i) { q.el.classList.toggle("snl-me", i === st.turn && !st.over); });
+    $("snlLvl").textContent = "Level " + st.level + " / " + LEVELS;
+    $("snlLvlInfo").textContent = "· " + st.snakes.length + " snakes, " + st.ladders.length + " ladders";
+    $("snlPrev").disabled = st.level <= 1;
+    $("snlNext").disabled = st.level >= LEVELS;
+    mark("[data-bots]", "bots", st.bots); mark("[data-size]", "size", st.size);
+    mark("[data-piece]", "piece", st.piece); mark("[data-color]", "color", st.color);
+  }
+  function mark(sel, key, val) {
+    var els = section.querySelectorAll(sel), i;
+    for (i = 0; i < els.length; i++) els[i].classList.toggle("snl-active", Number(els[i].dataset[key]) === val);
+  }
+
+  /* ---------- game flow ---------- */
+  function newGame(keepLayout) {
+    st.gen++; st.busy = false; st.over = false; st.turn = 0;
+    if (!keepLayout || !st.snakes.length) generate();
+    var others = COLORS.map(function (c, i) { return i; }).filter(function (i) { return i !== st.color; });
+    st.players = [{ idx: 0, name: "You", bot: false, piece: PIECES[st.piece], color: COLORS[st.color][1], pos: 1 }];
+    for (var i = 0; i < st.bots; i++) {
+      st.players.push({ idx: i + 1, name: "Bot " + (i + 1), bot: true, piece: PIECES[(st.piece + 1 + i) % 6], color: COLORS[others[i]][1], pos: 1 });
+    }
+    renderGrid(); renderSVG(); renderTokens(); ui();
+    setMsg("Roll the dice! Land exactly on the last square to win. Roll a 6 to play again.");
+  }
+
+  function visible() { return section.getClientRects().length > 0; }
+
+  function next() {
+    ui();
+    if (st.over) return;
+    if (cur().bot) {
+      var g = st.gen;
+      (function wait() {
+        if (g !== st.gen) return;
+        if (!visible()) { setTimeout(wait, 600); return; }
+        doTurn();
+      })();
+    }
+  }
+  var DICE_COLS = [["#ff5d8f", "#ffb703"], ["#00b4d8", "#7b2ff7"], ["#43e97b", "#0aa6c9"], ["#ff9a3c", "#ff3d6e"], ["#a855f7", "#ec4899"], ["#22d3ee", "#22c55e"]];
+  function face(el, i) {
+    el.textContent = FACES[i];
+    el.style.setProperty("--d1", DICE_COLS[i][0]);
+    el.style.setProperty("--d2", DICE_COLS[i][1]);
+  }
+  async function doTurn() {
+    if (st.busy || st.over) return;
+    var g = st.gen, p = cur(), N = st.size, T = N * N;
+    st.busy = true; ui();
+    if (p.bot) await sleep(700); if (g !== st.gen) return;
+
+    var d = rnd(1, 6), el = $("snlDice"), i;
+    el.classList.add("snl-shake");
+    for (i = 0; i < 9; i++) { face(el, rnd(0, 5)); sndRoll(); await sleep(75); if (g !== st.gen) return; }
+    el.classList.remove("snl-shake"); face(el, d - 1); sndLand();
+    await sleep(350); if (g !== st.gen) return;
+
+    var moved = false;
+    if (p.pos + d <= T) {
+      moved = true;
+      setMsg("<b>" + p.name + "</b> rolled  " + d + ".");
+      for (i = 0; i < d; i++) { p.pos++; place(p); sndStep(p.pos); ui(); await sleep(230); if (g !== st.gen) return; }
+      var dest = st.ld[p.pos] || st.sn[p.pos];
+      if (dest && p.pos !== T) {
+        var up = !!st.ld[p.pos];
+        setMsg(up ? "🪜 Ladder! " + p.name + " climbs up to " + dest + "!" : "🐍 Oh no! " + p.name + " slides down to " + dest + "!");
+        await sleep(300); if (g !== st.gen) return;
+        up ? sndLadder() : sndSnake();
+        p.el.style.transitionDuration = up ? "1s" : "1.2s";
+        p.pos = dest; place(p); ui();
+        await sleep(up ? 1100 : 1300); if (g !== st.gen) return;
+        p.el.style.transitionDuration = "";
+      }
+    } else {
+      setMsg("<b>" + p.name + "</b> rolled  " + d + " but needs " + (T - p.pos) + " or less to finish.");
+      await sleep(700); if (g !== st.gen) return;
+    }
+
+    if (p.pos === T) { win(p); return; }
+    if (!(d === 6 && moved)) st.turn = (st.turn + 1) % st.players.length;
+    else setMsg("<b>" + p.name + "</b> rolled  6 — roll again! 🎉");
+    st.busy = false; next();
+  }
+
+  /* ---------- modal ---------- */
+  function modal(html, btns) {
+    var box = $("snlModalBox"); box.innerHTML = html;
+    btns.forEach(function (b) {
+      var e = document.createElement("button");
+      e.type = "button"; e.className = "snl-btn " + b[1]; e.style.marginTop = "10px"; e.textContent = b[0];
+      e.onclick = function () { closeModal(); if (b[2]) b[2](); };
+      box.appendChild(e);
+    });
+    $("snlModal").style.display = "flex";
+  }
+  function closeModal() { $("snlModal").style.display = "none"; }
+
+  function win(p) {
+    st.over = true; st.busy = false; sndWin(); ui();
+    var human = !p.bot, canNext = human && st.level < LEVELS;
+    if (human && st.level < LEVELS) save({ level: st.level + 1 });
+    var btns = [];
+    if (canNext) btns.push(["Next Level ▶", "snl-green", function () { setLevel(st.level + 1); }]);
+    btns.push(["↻ Play This Level Again", canNext ? "snl-ghost" : "snl-green", function () { newGame(false); }]);
+    btns.push(["✕ Close", "snl-ghost"]);
+    modal('<div style="font-size:56px">' + (human ? "🏆" : "🤖") + '</div><h3 style="margin:8px 0;font-size:22px;">' +
+      (human ? "You won!" : p.name + " won!") + '</h3><p style="color:#aeb3cf;font-weight:700;margin:0;">' +
+      (human ? (st.level >= LEVELS ? "You beat the final level — amazing!" : "Great rolling! Ready for Level " + (st.level + 1) + "?") : "Good try! Roll again and beat the bots.") + "</p>", btns);
+  }
+
+  function howTo() {
+    modal('<h3 style="margin:0 0 12px;font-size:20px;">🐍 How to Play</h3><div style="text-align:left;color:#d8daf0;font-size:13px;font-weight:700;line-height:1.7;">' +
+      '🎲 Tap <b>Roll Dice</b> — your piece walks that many squares.<br>🪜 Land on the bottom of a <b>ladder</b> and climb up!<br>🐍 Land on a snake\'s <b>head</b> and slide down to its tail.<br>' +
+      '🎯 Reach the <b>last square</b> with an exact roll to win.<br>🎉 Roll a <b>6</b> and you get another turn.<br>⭐ Win a level to unlock harder ones: more snakes, shorter ladders.<br>' +
+      '🔀 <b>Reset</b> makes a brand-new snakes &amp; ladders layout.</div>', [["Let's play!", "snl-green"]]);
+  }
+
+  /* ---------- controls ---------- */
+  function setLevel(n) { st.level = Math.max(1, Math.min(LEVELS, n)); save(); newGame(false); }
+    function buildPieces() {
+    var col = COLORS[st.color][1];
+    $("snlPieces").innerHTML = PIECES.map(function (g, i) {
+      return '<button type="button" class="snl-opt snl-pc" data-piece="' + i + '"><span style="display:block;width:28px;height:28px;margin:0 auto;">' + pieceHTML(g, col) + "</span></button>";
+    }).join("");
+  }
+
+  function buildButtons() {
+    $("snlBots").innerHTML = [1, 2, 3, 4].map(function (n) { return '<button type="button" class="snl-opt" data-bots="' + n + '">' + n + (n === 1 ? " Bot" : " Bots") + "</button>"; }).join("");
+    $("snlSizes").innerHTML = SIZES.map(function (n) { return '<button type="button" class="snl-opt" data-size="' + n + '">' + n + "×" + n + "</button>"; }).join("");
+          buildPieces();
+    $("snlColors").innerHTML = COLORS.map(function (c, i) { return '<button type="button" class="snl-sw" data-color="' + i + '" title="' + c[0] + '" style="background:' + c[1] + '"></button>'; }).join("");
+  }
+
+  $("snl-side").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-bots],[data-size],[data-piece],[data-color]");
+    if (!b) return;
+    var d = b.dataset, keep = true;
+    if (d.bots) st.bots = Number(d.bots);
+    if (d.size) { st.size = Number(d.size); keep = false; }
+    if (d.piece) st.piece = Number(d.piece);
+    if (d.color) { st.color = Number(d.color); buildPieces(); }
+    save(); newGame(keep);
+  });
+  $("snlRoll").addEventListener("click", function () { A(); if (!cur().bot) doTurn(); });
+  $("snlPrev").addEventListener("click", function () { setLevel(st.level - 1); });
+  $("snlNext").addEventListener("click", function () { setLevel(st.level + 1); });
+  $("snlNew").addEventListener("click", function () { newGame(false); });
+  $("snlResetTop").addEventListener("click", function () { newGame(false); });
+  $("snlReplay").addEventListener("click", function () { newGame(true); });
+  $("snlHowBtn").addEventListener("click", howTo);
+  $("snlSound").addEventListener("change", function (e) { st.muted = !e.target.checked; });
+  $("snlModal").addEventListener("click", function (e) { if (e.target === $("snlModal")) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && $("snlModal").style.display === "flex") closeModal(); });
+  window.addEventListener("resize", function () { if (started) sizeCell(); });
+
+  /* ---------- lazy start (same pattern as Chessduko) ---------- */
+  var started = false, lazyObserver = null;
+
+  function startGame() {
+    if (started) return;
+    started = true;
+    if (lazyObserver) lazyObserver.disconnect();
+    load(); buildButtons(); newGame(false);
+    if ("ResizeObserver" in window) new ResizeObserver(sizeCell).observe($("snlBoard"));
+  }
+
+  if ("IntersectionObserver" in window) {
+    lazyObserver = new IntersectionObserver(function (entries) {
+      if (entries.some(function (e) { return e.isIntersecting; })) startGame();
+    });
+    lazyObserver.observe(section);
+  }
+  var navBtn = document.getElementById("snakesNavBtn");
+  if (navBtn) navBtn.addEventListener("click", function () { setTimeout(function () { if (visible()) startGame(); }, 60); });
+  if (!lazyObserver) {
+    var poll = setInterval(function () {
+      if (started) { clearInterval(poll); return; }
+      if (visible()) { clearInterval(poll); startGame(); }
+    }, 400);
+  }
+  if (visible()) startGame();
+
+  /* optional public API */
+  window.SnakesLadders = {
+    reset: function () { startGame(); newGame(false); },
+    setLevel: function (n) { startGame(); setLevel(n); },
+    setBots: function (n) { if (n < 1 || n > 4) return; startGame(); st.bots = n; save(); newGame(true); },
+    setSize: function (n) { if (SIZES.indexOf(n) < 0) return; startGame(); st.size = n; save(); newGame(false); }
+  };
+})();
+</script>
+
+<!-- =========================================================
+     NAV BUTTON  (put with your other nav buttons)
+========================================================= -->
+
+
 
 <!-- =========================================================
      1) NAV BUTTON  (paste inside your nav / sidebar)
@@ -179563,7 +180101,7 @@ const lockedTabs = [
   // 🎮 Standalone games
   "cardClash", "pathHunter", "chessAssassin", "chessTraffic","chessduko",
   "hiddenDeck","chesscrush","chessCraftGo",   "chess3d","dotConnect",
-  "legalMove","chessFnaf", "meditationZone",   
+  "legalMove","chessFnaf", "meditationZone",   "snakes",
   "legalChecks",
   "puzzlerush",
   "guessElo",
@@ -252509,6 +253047,7 @@ training: [
 ],
 
     games: [
+      '[data-tab="snakes"]',
       '[data-tab="dotConnect"]',
       '[data-tab="chessCraftGo"]',
        '[data-tab="chessMaze" ]',
