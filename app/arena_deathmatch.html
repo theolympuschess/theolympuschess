@@ -152,7 +152,7 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 60, attackRange: 45, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .15, shotDelay: 1.2, accuracy: .09, separation: 1.05, turnSpeed: 10 },
+   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 60, attackRange: 50, damageMin: 2, damageMax: 4, respawn: 3, burst: 2, burstGap: .15, shotDelay: 1.2, accuracy: .013, separation: 1.05, turnSpeed: 10 },
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -600,6 +600,7 @@ class MeshMap {
       comp++;
     }
     console.log(`[map] ${this.id}: ${nodes.length} floor spots, ${best.length} walkable and connected`);
+        this.navNodes = best; this.navStep = step;   // kept for bot path-finding
     if (!best.length) {   // nothing found: drop everyone in from above the middle
       const p = V(0, b.max.y + 2, 0); this.spawnPoints = [p.clone()]; this.waypoints = [p.clone()];
       this.orbit = { look: true, pos: p.clone().add(V(0, 1.7, 0)) }; return;
@@ -1611,7 +1612,7 @@ function withTeamSpawns(team, fn) {
   try { return fn(); } finally { m.spawnPoints = orig; }
 }
 // Team-mode aggression: multipliers applied on top of your CFG.BOT values (FFA keeps the normal values).
-const TEAM_AGGRO = { speed: 1.2, sprint: 1.2, sight: 1.4, attackRange: 1.25, shotDelay: .6, burstGap: .8, accuracy: .65, turnSpeed: 1.4, damageMin: 1.25, damageMax: 1.25 };
+const TEAM_AGGRO = { speed: 1, sprint: 1, sight: 1, attackRange: 1, shotDelay: 1, burstGap: 1, accuracy: 1, turnSpeed: 1, damageMin: 1, damageMax: 1 };
 let _botBase = null;
 Game.prototype.assignTeams = function () {
   const n = this.menu.sel.teamSize | 0;
@@ -1715,6 +1716,141 @@ const _bf_gameUpdate = Game.prototype.update;
 Game.prototype.update = function (dt) {                // silence every bot on pause / menu / match over
   _bf_gameUpdate.call(this, dt);
   if (this.state !== 'Playing' && this.state !== 'Respawning') for (const b of this.bots) if (b._foot && !b._foot.paused) b._foot.pause();
+};
+// ============================================================
+// 10d. BOT NAVIGATION — real path-finding on the map's walkable grid, so bots never stay trapped and always find their way to the fight
+// (paste this whole block just above "// 11. BOOTSTRAP", after the other 10b / 10c blocks)
+// ============================================================
+// Build the walkable graph once per 3D map (uses the floor spots MeshMap.analyze() already found).
+MeshMap.prototype.getNav = function () {
+  if (this._nav) return this._nav;
+  const nodes = this.navNodes || [], grid = new Map();
+  nodes.forEach((n, id) => { n.id = id; n.nb = []; const k = n.i + ',' + n.j; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(n); });
+  for (const a of nodes) for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    if (!di && !dj) continue;
+    const arr = grid.get((a.i + di) + ',' + (a.j + dj)); if (!arr) continue;
+    for (const m of arr) if (m.id > a.id && Math.abs(m.y - a.y) <= .6 && this.segClear(a, m)) {
+      const d = Math.hypot(m.x - a.x, m.y - a.y, m.z - a.z); a.nb.push([m, d]); m.nb.push([a, d]);
+    }
+  }
+  this._navGrid = grid; return (this._nav = nodes);
+};
+const _nv_analyze = MeshMap.prototype.analyze;
+MeshMap.prototype.analyze = function () { _nv_analyze.call(this); this.getNav(); };     // build the graph while the map loads
+
+MeshMap.prototype.nearestNav = function (p) {
+  this.getNav(); const s = this.navStep, b = this.bounds;
+  const ci = Math.round((p.x - b.min.x - s * .5) / s), cj = Math.round((p.z - b.min.z - s * .5) / s);
+  let best = null, bd = 1e9;
+  for (let r = 0; r <= 10; r++) {
+    if (best && (r - 1) * s > bd) break;
+    for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) {
+      if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+      const arr = this._navGrid.get((ci + di) + ',' + (cj + dj)); if (!arr) continue;
+      for (const n of arr) { const d = Math.hypot(n.x - p.x, n.z - p.z) + Math.abs(n.y - p.y) * 2.5; if (d < bd) { bd = d; best = n; } }
+    }
+  }
+  return best;
+};
+// A* from one position to another. Returns a list of nodes (with x, y, z) or null when there is no way.
+MeshMap.prototype.findPath = function (from, to) {
+  const s = this.nearestNav(from), g = this.nearestNav(to); if (!s || !g) return null;
+  if (s === g) return [g];
+  const N = this._nav.length, gs = new Float32Array(N).fill(1e9), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N), heap = [];
+  const push = (n, f) => { heap.push([f, n]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } }
+    return top[1];
+  };
+  gs[s.id] = 0; push(s, 0);
+  while (heap.length) {
+    const a = pop(); if (done[a.id]) continue; done[a.id] = 1;
+    if (a === g) break;
+    for (const [m, d] of a.nb) { const t = gs[a.id] + d; if (t < gs[m.id]) { gs[m.id] = t; prev[m.id] = a.id; push(m, t + Math.hypot(m.x - g.x, m.y - g.y, m.z - g.z)); } }
+  }
+  if (prev[g.id] < 0) return null;
+  const path = []; for (let id = g.id; id >= 0; id = prev[id]) path.push(this._nav[id]);
+  return path.reverse();
+};
+// Clear line AND solid floor all the way (so a shortcut never cuts across a pit).
+MeshMap.prototype.walkClear = function (a, b) {
+  if (!this.segClear(a, b)) return false;
+  for (const t of [.25, .5, .75]) {
+    const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, y = a.y + (b.y - a.y) * t, f = this.floorAt(x, z, y);
+    if (f < y - .7 || f > y + .7) return false;
+  }
+  return true;
+};
+
+// ---- bots ----
+Bot.prototype.nearestFoe = function () {
+  const tm = game.teamMode; let best = null, bd = 1e9;
+  if (!game.player.dead && (!tm || game.playerTeam !== this.team)) { best = game.player; bd = this.pos.distanceTo(game.player.pos); }
+  for (const b of game.bots) if (b !== this && b.alive && (!tm || b.team !== this.team)) { const d = this.pos.distanceTo(b.pos); if (d < bd) { bd = d; best = b; } }
+  return best;
+};
+// Where to go next: any spot on the map (no line-of-sight needed any more), mostly towards the enemies = the battle ground.
+const _nv_pick = Bot.prototype.pickWaypoint;
+Bot.prototype.pickWaypoint = function (target) {
+  const m = this.map; if (!m.isMesh || !m.getNav().length) return _nv_pick.call(this, target);
+  const foe = this.nearestFoe(), wps = m.waypoints;
+  if (foe && this._path && this.waypoint && this.pos.distanceTo(this.waypoint) > 2 && this.waypoint.distanceTo(foe.pos) < 16) return;   // already heading to the fight
+  let pool = [];
+  if (foe && Math.random() < .8) pool = wps.filter(w => w.distanceTo(foe.pos) < 14 && w.distanceTo(this.pos) > 3);
+  if (!pool.length) pool = wps.filter(w => w.distanceTo(this.pos) > 8);
+  if (!pool.length) pool = wps;
+  this.waypoint = pool[Math.floor(Math.random() * pool.length)].clone(); this._path = null; this._pGoal = null;
+};
+// Direction (x, z) to the next point on the path to `goal`, or null when there is no path.
+Bot.prototype.navSteer = function (goal, dt) {
+  const m = this.map, p = this.pos, tol = this.state === 'Chase' ? 9 : 1;
+  const stale = this._path && Math.hypot(this._path[this._pi].x - p.x, this._path[this._pi].z - p.z) > m.navStep * 3.5;   // teleported / respawned
+  if (!this._pGoal || this._pGoal.distanceToSquared(goal) > tol || stale) { this._path = m.findPath(p, goal); this._pGoal = goal.clone(); this._pi = 0; this._skipT = 0; }
+  const path = this._path; if (!path) return null;
+  while (this._pi < path.length - 1 && Math.hypot(path[this._pi].x - p.x, path[this._pi].z - p.z) < 1.1 && Math.abs(path[this._pi].y - p.y) < 1.5) this._pi++;
+  this._skipT -= dt;
+  if (this._skipT <= 0) {                                   // cut corners: aim at the furthest of the next 4 nodes that is straight ahead and walkable
+    this._skipT = .3;
+    for (let k = Math.min(this._pi + 4, path.length - 1); k > this._pi; k--) if (m.walkClear(p, path[k])) { this._pi = k; break; }
+  }
+  const n = path[this._pi], dx = n.x - p.x, dz = n.z - p.z, l = Math.hypot(dx, dz);
+  return l < .05 ? null : [dx / l, dz / l];
+};
+const _nv_move = Bot.prototype.move;
+Bot.prototype.move = function (dir, speed, dt) {
+  if (this.map.isMesh) {
+    let goal = null;
+    if (this.state === 'Patrol') goal = this.waypoint;
+    else if (this.state === 'Chase' && this._chaseBlock > 0 && this.target) goal = this.target.pos;
+    if (goal) {
+      const st = this.navSteer(goal, dt);
+      if (st) {
+        const to = goal.clone().sub(this.pos); to.y = 0;
+        const sep = dir.clone().sub(to); sep.y = 0;          // keep the spacing push update() added between bots
+        dir.set(st[0] * 3 + sep.x, 0, st[1] * 3 + sep.z);
+      }
+    }
+  }
+  _nv_move.call(this, dir, speed, dt);
+};
+// Stuck watchdog: no progress for 1.2 s while it wanted to move -> new path, then hop ahead along the path, then respawn.
+const _nv_update = Bot.prototype.update;
+Bot.prototype.update = function (dt) {
+  _nv_update.call(this, dt);
+  if (!this.alive || !this.map.isMesh) { this._sw = 0; return; }
+  if (this._chaseBlock > 0) this._chaseBlock -= dt;
+  this._sw = (this._sw || 0) + dt; if (this._sw < 1.2) return;
+  const sp = this._sp || (this._sp = this.pos.clone()), moved = Math.hypot(this.pos.x - sp.x, this.pos.z - sp.z);
+  this._sw = 0; sp.copy(this.pos);
+  if (!(this.state === 'Patrol' || this.state === 'Chase') || moved > .5) { this._stuckN = 0; return; }
+  this._stuckN = (this._stuckN || 0) + 1;
+  if (this.state === 'Chase') this._chaseBlock = 4;           // can't walk straight at the enemy: path-find to it for a while
+  if (this._stuckN === 1) { this._path = null; this._pGoal = null; this.stateTimer = 0; }
+  else if (this._stuckN === 2) {
+    const n = this._path ? this._path[Math.min(this._pi + 3, this._path.length - 1)] : this.map.nearestNav(this.pos);
+    if (n) { this.pos.set(n.x, n.y, n.z); this.group.position.copy(this.pos); }
+  } else { this._stuckN = 0; this._path = null; this._pGoal = null; this.respawn(); }
 };
 
 // ============================================================
