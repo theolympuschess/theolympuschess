@@ -634,6 +634,8 @@ class MeshMap {
 const SOUND_FILES = {
   ak:      'CSGO/akshot.mp3',
   botgun:  'CSGO/akshot.mp3',
+  botm4:   'CSGO/m4a4.mp3',
+  damage: 'CSGO/hurt.mp3',
   m4:      'CSGO/m4a4.mp3',        // M4A4 (player)
   supp:    'CSGO/m4shot.mp3',      // M4A1-S
   awp:     'CSGO/awpshot.mp3',
@@ -675,8 +677,9 @@ function playStreak(n) {
 }
 // Per-sound volume (1 = normal, lower = quieter). Add any key from SOUND_FILES.
 const SOUND_VOL = {
-  ak:     .20,     // player's AK-47 shot  (lower this to make it quieter)
-  botgun: .20       // bots' rifle shots
+  ak:     .12,     // player's AK-47 shot  (lower this to make it quieter)
+   botgun: .10,     // bots' AK shots
+  botm4:  .50      // bots' M4A4 shots
 };
 function playFile(name, vol = 1) {
   const a = FILE_AUDIO[name];
@@ -699,6 +702,7 @@ function setFootsteps(on, rate = 1) {
     if (footAudio.paused) footAudio.play().catch(() => {});
   } else if (!footAudio.paused) footAudio.pause();
 }
+
 class AudioManager {
   constructor(){this.ctx=null;this.master=null;this.noiseBuffer=null;this.volume=.65;this.v=1;this.pan=0;}
   init(){if(this.ctx){this.ctx.resume();return;}const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;this.ctx=new AC();this.master=this.ctx.createGain();this.master.gain.value=this.volume;this.master.connect(this.ctx.destination);const len=this.ctx.sampleRate*.6;this.noiseBuffer=this.ctx.createBuffer(1,len,this.ctx.sampleRate);const d=this.noiseBuffer.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;}
@@ -1020,7 +1024,8 @@ class Bot {
     if(src.animations&&src.animations.length){this.mixer=new THREE.AnimationMixer(holder.children[0]);const clip=src.animations.find(a=>/run|walk/i.test(a.name))||src.animations[0];this.mixer.clipAction(clip).play();}
     const aim=this.aimPivot=new THREE.Group();aim.position.set(0,1.43,0);upper.add(aim);
     const rifle=new THREE.Group();rifle.position.set(.14,-.22,0);aim.add(rifle);
-    const spec=GUN_GLB.ak47,gsrc=ASSETS.gltf[spec.file];
+        this.gun=this.id%2?'ak47':'m4a4';                           // bot 1 = AK, bot 2 = M4, bot 3 = AK ...
+    const spec=GUN_GLB[this.gun],gsrc=ASSETS.gltf[spec.file];
     if(gsrc){const gun=fitGun(gsrc,1.0,spec.rot,spec.flip);gun.position.z=-.4;rifle.add(gun);}
         this.muzzle=new THREE.Object3D();this.muzzle.position.set(0,0,-.9);rifle.add(this.muzzle);
     this.gripR=new THREE.Object3D();this.gripR.position.set(0,-.07,-.2);rifle.add(this.gripR);    // trigger hand
@@ -1126,7 +1131,7 @@ class Bot {
     const spread=CFG.BOT.accuracy*(.7+dist/25),side=V(base.z,0,-base.x).normalize();
     base.addScaledVector(side,rand(-spread,spread)).add(V(0,rand(-spread*.7,spread*.7),0)).normalize();
     // muzzle flash + positional gunshot every time the bot pulls the trigger
-    this.flash.visible=true;this.flash.scale.setScalar(rand(.35,.55));this.flashTimer=.05;game.audio.playAt('botgun',this.pos,game.camera);
+    this.flash.visible=true;this.flash.scale.setScalar(rand(.35,.55));this.flashTimer=.05;game.audio.playAt(this.gun==='m4a4'?'botm4':'botgun',this.pos,game.camera);
     const wall=new THREE.Raycaster(origin,base,0,dist+14).intersectObjects(this.map.blockers,false)[0];
     if(wall&&wall.distance<dist-.3){game.effects.tracer(origin,wall.point,0xffc27a,170,2.6,.02);game.effects.sparks(wall.point,0xffc36b,4);return;}
     const toT=tp.clone().sub(origin),proj=base.dot(toT),closest=origin.clone().addScaledVector(base,proj),perpendicular=tp.distanceTo(closest);
@@ -1860,7 +1865,26 @@ Bot.prototype.update = function (dt) {
     if (n) { this.pos.set(n.x, n.y, n.z); this.group.position.copy(this.pos); }
   } else { this._stuckN = 0; this._path = null; this._pGoal = null; this.respawn(); }
 };
-
+// ============================================================
+// 10e. PLAYER DEATH SOUNDS — death1/2/3.mp3, one picked at random each time you die
+// ============================================================
+const DEATH_VOL = 9;                                   // 0..1, lower = quieter
+const DEATH_SOUNDS = ['CSGO/death1.mp3', 'CSGO/death2.mp3', 'CSGO/death3.mp3'].map(src => {
+  const a = new Audio(src); a.preload = 'auto'; a.addEventListener('error', () => { a._bad = true; }); return a;
+});
+let _lastDeath = -1;
+const _ds_playerDeath = Game.prototype.playerDeath;
+Game.prototype.playerDeath = function (source) {
+  const was = this.player.dead;
+  _ds_playerDeath.call(this, source);
+  if (was || !this.player.dead) return;                // only on the moment of dying
+  const ok = DEATH_SOUNDS.map((a, i) => i).filter(i => !DEATH_SOUNDS[i]._bad);
+  if (!ok.length) return;
+  let i = ok[Math.floor(Math.random() * ok.length)];
+  if (ok.length > 1 && i === _lastDeath) i = ok[(ok.indexOf(i) + 1) % ok.length];   // never the same one twice in a row
+  _lastDeath = i;
+  const c = DEATH_SOUNDS[i].cloneNode(); c.volume = clamp(DEATH_VOL * this.audio.volume / .65, 0, 1); c.play().catch(() => {});
+};
 // ============================================================
 // 11. BOOTSTRAP
 // ============================================================
