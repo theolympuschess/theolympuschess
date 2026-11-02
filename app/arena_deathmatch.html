@@ -118,7 +118,7 @@
       <div class="tiny" id="botInfo" style="margin-top:14px"></div>
     </div>
     <div class="pane" id="pane-controls">
-      <div class="controlsGrid"><div><span>W A S D</span> Move</div><div><span>MOUSE</span> Aim / Fire</div><div><span>RIGHT CLICK</span> Scope (AWP / SSG)</div><div><span>SHIFT</span> Sprint</div><div><span>F (hold)</span> Crouch</div><div><span>SPACE</span> Jump</div><div><span>R</span> Reload</div><div><span>1 / 2 / WHEEL</span> Switch weapon</div><div><span>TAB</span> Scoreboard</div><div><span>ESC</span> Pause</div></div>
+      <div class="controlsGrid"><div><span>W A S D</span> Move</div><div><span>MOUSE</span> Aim / Fire</div><div><span>RIGHT CLICK</span> Scope (AWP / SSG)</div> <div><span>Q</span> Quick Cancel Scope / Zoom</div><div><span>SHIFT</span> Sprint</div><div><span>F (hold)</span> Crouch</div><div><span>SPACE</span> Jump</div><div><span>R</span> Reload</div><div><span>1 / 2 / WHEEL</span> Switch weapon</div><div><span>TAB</span> Scoreboard</div><div><span>ESC</span> Pause</div></div>
     </div>
     <button class="primaryBtn" id="playBtn">START MATCH</button>
     <div class="tiny">LOADOUT, CROSSHAIR AND TIMER ARE SAVED IN YOUR BROWSER</div>
@@ -187,6 +187,16 @@ const MAPS = [
 ];
 const BOT_MIN = 1, BOT_MAX = 16;
 const BUY_SECONDS = 30;   // buy time after every respawn (also the no-damage time)
+
+const BOT_AWP_CHANCE = .35;   // chance each bot gets an AWP whenever it respawns (0 = never, 1 = all bots)
+const BOT_AWP = Object.assign({}, CFG.BOT, {
+  speed:3.4, sprint:4.1,          // slower, the AWP is heavy
+  sight:80, attackRange:70,       // sees and shoots from across the arena
+  damageMin:10, damageMax:30,    // 100 = instant kill
+  burst:1, shotDelay:2,         // one shot, then a long pause
+  accuracy:.006, turnSpeed:10,     // accurate, but slow to turn
+  aim:.75                         // seconds it must hold steady on you before firing
+});
 
 const XH_DEFAULT = { style:'cross', color:'#33ff66', size:6, thickness:2, gap:3, dotSize:2, dot:false, outline:1, opacity:1, dynamic:true };
 const XH_PRESETS = {
@@ -1009,7 +1019,7 @@ class Bot {
     this.id=id;this.name='Bot'+id;this.scene=scene;this.map=map;this.pos=pos.clone();this.vel=V();this.health=100;this.alive=true;this.kills=0;this.deaths=0;this.respawnTimer=0;this.protect=1.2;this.state='Patrol';
     this.stateTimer=rand(.4,1.2);this.shotTimer=rand(.4,1.2);this.strafe=Math.random()<.5?-1:1;this.target=null;this.waypoint=map.waypoints[Math.floor(Math.random()*map.waypoints.length)].clone();
     this.yaw=rand(0,Math.PI*2);this.phase=Math.random()*6.28;this.walkBlend=0;this.aimPitch=-.4;this.burstLeft=0;this.flashTimer=0;this.dying=0;
-    this.build();this.group.position.copy(this.pos);this.group.rotation.y=this.yaw;
+    this.build();this.setWeapon(Math.random()<BOT_AWP_CHANCE?'awp':'rifle');this.group.position.copy(this.pos);this.group.rotation.y=this.yaw;
   }
   buildGLB(){
     const src=ASSETS.gltf[CHAR_FILES[(this.id-1)%CHAR_FILES.length]];
@@ -1023,10 +1033,31 @@ class Bot {
     upper.add(holder);
     if(src.animations&&src.animations.length){this.mixer=new THREE.AnimationMixer(holder.children[0]);const clip=src.animations.find(a=>/run|walk/i.test(a.name))||src.animations[0];this.mixer.clipAction(clip).play();}
     const aim=this.aimPivot=new THREE.Group();aim.position.set(0,1.43,0);upper.add(aim);
-    const rifle=new THREE.Group();rifle.position.set(.14,-.22,0);aim.add(rifle);
-        this.gun=this.id%2?'ak47':'m4a4';                           // bot 1 = AK, bot 2 = M4, bot 3 = AK ...
-    const spec=GUN_GLB[this.gun],gsrc=ASSETS.gltf[spec.file];
-    if(gsrc){const gun=fitGun(gsrc,1.0,spec.rot,spec.flip);gun.position.z=-.4;rifle.add(gun);}
+const rifle=new THREE.Group();
+rifle.position.set(.14,-.22,0);
+aim.add(rifle);
+
+// Keep the existing AK-47 / M4A4 selection
+this.gun=this.id%2?'ak47':'m4a4';
+
+// Store the weapon group
+this.rifleGroup=rifle;
+
+// Existing rifle model
+const spec=GUN_GLB[this.gun],gsrc=ASSETS.gltf[spec.file];
+
+if(gsrc){
+  this.gunRifle=fitGun(gsrc,1.0,spec.rot,spec.flip);
+  this.gunRifle.position.z=-.4;
+}
+
+// New AWP model
+const aspec=GUN_GLB.awp,asrc=ASSETS.gltf[aspec.file];
+
+if(asrc){
+  this.gunAwp=fitGun(asrc,1.6,aspec.rot,aspec.flip);
+  this.gunAwp.position.z=-.45;
+}
         this.muzzle=new THREE.Object3D();this.muzzle.position.set(0,0,-.9);rifle.add(this.muzzle);
     this.gripR=new THREE.Object3D();this.gripR.position.set(0,-.07,-.2);rifle.add(this.gripR);    // trigger hand
     this.gripL=new THREE.Object3D();this.gripL.position.set(0,-.03,-.58);rifle.add(this.gripL);   // foregrip hand
@@ -1083,13 +1114,53 @@ class Bot {
     }
     this.scene.add(group);
   }
+    get isAwp(){
+    return this.weaponType==='awp';
+  }
+
+  get stat(){
+    return this.isAwp?BOT_AWP:CFG.BOT;
+  }
+
+  setWeapon(type){
+
+    // AWP requires both the character weapon group and loaded AWP model
+    if(type==='awp'&&(!this.rifleGroup||!this.gunAwp)){
+      type='rifle';
+    }
+
+    this.weaponType=type;
+    this.aimHold=0;
+
+    const r=this.rifleGroup;
+    if(!r)return;
+
+    // Remove previously selected gun
+    if(this.gunRifle)r.remove(this.gunRifle);
+    if(this.gunAwp)r.remove(this.gunAwp);
+
+    // Attach the selected weapon
+    const awp=type==='awp';
+    const g=awp?this.gunAwp:this.gunRifle;
+
+    if(g)r.add(g);
+
+    // Adjust muzzle and hand positions
+    const z=awp?-1.25:-.9;
+
+    this.muzzle.position.z=z;
+    this.flash.position.z=z;
+
+    this.gripL.position.z=awp?-.62:-.58;
+    this.gripR.position.z=awp?-.12:-.2;
+  }
   get radius(){return .36;}get height(){return 1.9;}
   takeDamage(amount,attacker){if(!this.alive||this.protect>0)return;this.health-=amount;if(this.health<=0){this.health=0;this.die(attacker);}}
   die(attacker){if(!this.alive)return;this.alive=false;this.deaths++;this.state='Dead';this.dying=.9;this.flash.visible=false;this.group.visible=true;this.respawnTimer=CFG.BOT.respawn;
     if(attacker==='Player'){game.player.kills++;game.player.streak=(game.player.streak||0)+1;game.audio.play('kill');if(game.player.streak>=2){const _s=game.player.streak;setTimeout(()=>playStreak(_s),450);}game.ui.feed('You',this.name);}else{const killer=game.bots.find(b=>b.name===attacker);if(killer){killer.kills++;game.ui.feed(killer.name,this.name);}else game.ui.feed(attacker||'Arena',this.name);}game.ui.updateScore();}
-  respawn(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(game.player.pos)>12)||choices[0];this.pos.copy(p);this.pos.y=this.map.floorAt(p.x,p.z,p.y+.4);this.vel.set(0,0,0);this.health=100;this.alive=true;this.dying=0;this.protect=1.35;this.group.visible=true;this.group.rotation.x=0;this.group.position.copy(this.pos);this.state='Patrol';this.burstLeft=0;this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();}
+  respawn(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(game.player.pos)>12)||choices[0];this.pos.copy(p);this.pos.y=this.map.floorAt(p.x,p.z,p.y+.4);this.vel.set(0,0,0);this.health=100;this.alive=true;this.dying=0;this.protect=1.35;this.group.visible=true;this.group.rotation.x=0;this.group.position.copy(this.pos);this.state='Patrol';this.burstLeft=0;this.setWeapon(Math.random()<BOT_AWP_CHANCE?'awp':'rifle');this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();}
   lineClear(targetPos){const from=this.pos.clone().add(V(0,1.35,0)),to=targetPos.clone().add(V(0,1.15,0)),dir=to.clone().sub(from),dist=dir.length();dir.normalize();const ray=new THREE.Raycaster(from,dir,0,dist);ray.firstHitOnly=true;return ray.intersectObjects(this.map.blockers,false).length===0;}
-  chooseTarget(){const candidates=[];if(!game.player.dead)candidates.push({type:'player',obj:game.player,name:'You',pos:game.player.pos});for(const b of game.bots)if(b!==this&&b.alive)candidates.push({type:'bot',obj:b,name:b.name,pos:b.pos});let best=null,bd=Infinity;for(const c of candidates){const d=this.pos.distanceTo(c.pos);if(d<bd&&d<CFG.BOT.sight&&this.lineClear(c.pos)){best=c;bd=d;}}return best;}
+  chooseTarget(){const candidates=[];if(!game.player.dead)candidates.push({type:'player',obj:game.player,name:'You',pos:game.player.pos});for(const b of game.bots)if(b!==this&&b.alive)candidates.push({type:'bot',obj:b,name:b.name,pos:b.pos});let best=null,bd=Infinity;for(const c of candidates){const d=this.pos.distanceTo(c.pos);if(d<bd&&d<this.stat.sight&&this.lineClear(c.pos)){best=c;bd=d;}}return best;}
   pickWaypoint(target){
     const vis=[];for(const w of this.map.waypoints){const d=this.pos.distanceTo(w);if(d<1.3)continue;if(!this.lineClear(w))continue;vis.push({w,d});}
     if(!vis.length){this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();return;}
@@ -1112,7 +1183,7 @@ class Bot {
     const floor=this.map.floorAt(this.pos.x,this.pos.z,this.pos.y);
     if(floor>-500){if(this.pos.y>floor)this.pos.y=Math.max(floor,this.pos.y-10*dt);else this.pos.y=floor;}
   }
-  turnTo(desired,dt){let d=desired-this.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));const m=CFG.BOT.turnSpeed*dt;this.yaw+=clamp(d,-m,m);this.group.rotation.y=this.yaw;return Math.abs(d);}
+  turnTo(desired,dt){let d=desired-this.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));const m=this.stat.turnSpeed*dt;this.yaw+=clamp(d,-m,m);this.group.rotation.y=this.yaw;return Math.abs(d);}
   // Walk / run cycle: swinging thighs, bending knees, body bob, rifle bob.
     animate(dt,spd,fwdDot){
     if(this.mixer)this.mixer.update(dt*clamp(spd/3,0,1.6));
@@ -1128,17 +1199,17 @@ class Bot {
     this.group.updateMatrixWorld(true);const origin=this.muzzle.getWorldPosition(V());
     const tp=target.pos.clone();tp.y+=target.type==='player'?(game.player.crouching?.78:1.1):1.1;
     const base=tp.clone().sub(origin),dist=base.length();base.normalize();
-    const spread=CFG.BOT.accuracy*(.7+dist/25),side=V(base.z,0,-base.x).normalize();
+    const spread=this.stat.accuracy*(this.isAwp ? .8 : (.7+dist/25)),side=V(base.z,0,-base.x).normalize();
     base.addScaledVector(side,rand(-spread,spread)).add(V(0,rand(-spread*.7,spread*.7),0)).normalize();
     // muzzle flash + positional gunshot every time the bot pulls the trigger
-    this.flash.visible=true;this.flash.scale.setScalar(rand(.35,.55));this.flashTimer=.05;game.audio.playAt(this.gun==='m4a4'?'botm4':'botgun',this.pos,game.camera);
+    this.flash.visible=true;this.flash.scale.setScalar(rand(.35,.55));this.flashTimer=.05;game.audio.playAt(this.isAwp?'awp':(this.gun==='m4a4'?'botm4':'botgun'),this.pos,game.camera);
     const wall=new THREE.Raycaster(origin,base,0,dist+14).intersectObjects(this.map.blockers,false)[0];
-    if(wall&&wall.distance<dist-.3){game.effects.tracer(origin,wall.point,0xffc27a,170,2.6,.02);game.effects.sparks(wall.point,0xffc36b,4);return;}
+    if(wall&&wall.distance<dist-.3){game.effects.tracer(origin,wall.point,this.isAwp?0xffffff:0xffc27a,this.isAwp?420:170,this.isAwp?4:2.6,this.isAwp?.03:.02);game.effects.sparks(wall.point,0xffc36b,4);return;}
     const toT=tp.clone().sub(origin),proj=base.dot(toT),closest=origin.clone().addScaledVector(base,proj),perpendicular=tp.distanceTo(closest);
     const hitRadius=target.type==='player'?.44:.46,hit=proj>0&&perpendicular<hitRadius;
     const reach=wall?wall.distance:dist+14,end=hit?closest:origin.clone().addScaledVector(base,Math.min(reach,Math.max(proj,dist)+10));
-    game.effects.tracer(origin,end,0xffc27a,170,2.6,.02);
-    if(hit){const dmg=rand(CFG.BOT.damageMin,CFG.BOT.damageMax);if(target.type==='player')target.obj.takeDamage(dmg,this.name,this.pos);else target.obj.takeDamage(dmg,this.name);}
+    game.effects.tracer(origin,end,this.isAwp?0xffffff:0xffc27a,this.isAwp?420:170,this.isAwp?4:2.6,this.isAwp?.03:.02);
+    if(hit){const dmg=rand(this.stat.damageMin,this.stat.damageMax);if(target.type==='player')target.obj.takeDamage(dmg,this.name,this.pos);else target.obj.takeDamage(dmg,this.name);}
     else if(wall)game.effects.sparks(wall.point,0xffc36b,3);
   }
     poseBones(){
@@ -1175,7 +1246,7 @@ class Bot {
     if(this.flashTimer>0){this.flashTimer-=dt;if(this.flashTimer<=0)this.flash.visible=false;}
     const target=this.chooseTarget();this.target=target;let dir=V(),wantFire=false;
     if(target){const dist=this.pos.distanceTo(target.pos);
-      if(dist<CFG.BOT.attackRange){const to=target.pos.clone().sub(this.pos);to.y=0;to.normalize();const side=V(-to.z,0,to.x).multiplyScalar(this.strafe);wantFire=true;
+      if(dist<this.stat.attackRange){const to=target.pos.clone().sub(this.pos);to.y=0;to.normalize();const side=V(-to.z,0,to.x).multiplyScalar(this.strafe);wantFire=true;
         if(this.health<32&&this.stateTimer<=0){this.state='Dodge';this.strafe*=-1;this.stateTimer=.55;dir.copy(side).addScaledVector(to,-1.1);}
         else if(this.state==='Dodge'&&this.stateTimer>0){dir.copy(side).addScaledVector(to,-1.1);}
         else if(dist<10){this.state='Attack';dir.copy(side).addScaledVector(to,-.42);}
@@ -1187,8 +1258,9 @@ class Bot {
       if(wd<1.5){this.state='Idle';if(this.stateTimer<=0){this.pickWaypoint(null);this.stateTimer=rand(1.5,3);}}else{this.state='Patrol';if(this.stateTimer<=0){this.pickWaypoint(null);this.stateTimer=rand(2,4);}}
       if(this.state!=='Idle'){dir.copy(this.waypoint).sub(this.pos);dir.y=0;}
     }
+    if(this.isAwp&&wantFire&&this.state!=='Dodge'&&this.shotTimer<.9)dir.set(0,0,0);
     const sep=V();for(const other of game.bots){if(other===this||!other.alive)continue;const d=this.pos.distanceTo(other.pos);if(d>0&&d<CFG.BOT.separation)sep.add(this.pos.clone().sub(other.pos).normalize().multiplyScalar((CFG.BOT.separation-d)*1.7));}dir.add(sep);
-    const prev=this.pos.clone();if(dir.lengthSq()>.01)this.move(dir,this.state==='Chase'?CFG.BOT.sprint:CFG.BOT.speed,dt);
+    const prev=this.pos.clone();if(dir.lengthSq()>.01)this.move(dir,this.state==='Chase'?this.stat.sprint:this.stat.speed,dt);
     const vx=(this.pos.x-prev.x)/dt,vz=(this.pos.z-prev.z)/dt,spd=Math.hypot(vx,vz);
     // face the target (or the walking direction) and aim the rifle at it
     let faceYaw=this.yaw,aimTarget=-.42;
@@ -1197,12 +1269,24 @@ class Bot {
     const err=this.turnTo(faceYaw,dt);
     this.aimPitch=THREE.MathUtils.damp(this.aimPitch,aimTarget,10,dt);this.aimPivot.rotation.x=this.aimPitch;
     const fwdDot=spd>.01?(vx*-Math.sin(this.yaw)+vz*-Math.cos(this.yaw))/spd:1;this.animate(dt,spd,fwdDot);
-    // bursts of fire, only when the rifle is actually pointing at the target
-    if(wantFire&&target&&err<.3&&this.shotTimer<=0){
-      if(this.burstLeft<=0)this.burstLeft=CFG.BOT.burst;
-      this.shoot(target);this.burstLeft--;
-      this.shotTimer=this.burstLeft>0?CFG.BOT.burstGap:CFG.BOT.shotDelay+rand(-.25,.4);
-    }
+// Rifle and AWP firing behaviour
+const S=this.stat;
+const aimOK=wantFire&&target&&err<(this.isAwp ? .1 : .3);
+
+if(aimOK)this.aimHold+=dt;
+else this.aimHold=0;
+
+if(aimOK&&this.shotTimer<=0&&(!this.isAwp||this.aimHold>=S.aim)){
+
+  if(this.burstLeft<=0)this.burstLeft=S.burst;
+
+  this.shoot(target);
+  this.burstLeft--;
+
+  this.shotTimer=this.burstLeft>0
+    ?S.burstGap
+    :S.shotDelay+rand(-.25,.4);
+}
      this.group.position.copy(this.pos);this.poseBones();
   }
 }
@@ -1223,8 +1307,20 @@ class UIManager {
     const p=game.player,w=p.weapons[p.currentWeapon];
     this.el.healthValue.textContent=Math.ceil(p.health);this.el.healthFill.style.width=`${p.health}%`;this.el.healthBlock.classList.toggle('lowHealth',p.health<=30);
     this.el.ammoValue.textContent=w.ammo;this.el.reserveValue.textContent='∞';this.el.ammoLabel.textContent=w.cfg.kind.toUpperCase();this.el.weaponName.textContent=w.cfg.name.toUpperCase()+(p.isReloading?' · RELOADING':'')+(p.crouching?' · CROUCHED':'');
-    const scoped=p.scopeLevel>0;this.el.scope.classList.toggle('hidden',!scoped);this.el.xhair.classList.toggle('hidden',scoped);
-    if(!scoped){const movement=Math.hypot(p.vel.x,p.vel.z),expand=game.xh.dynamic?Math.min(10,movement*.55*(p.crouching?.5:1))+p.crosshair*10+(p.grounded?0:4):0;drawCrosshair(this.el.xhair,game.xh,expand);}
+   const scoped=p.scopeLevel>0;
+const isSniper=w.cfg.id==='awp'||w.cfg.id==='ssg08';
+
+this.el.scope.classList.toggle('hidden',!scoped);
+
+// Hide normal crosshair for AWP and while scoped
+this.el.xhair.classList.toggle('hidden',scoped||isSniper);
+
+if(!scoped&&!isSniper){
+  const movement=Math.hypot(p.vel.x,p.vel.z),
+  expand=game.xh.dynamic?Math.min(10,movement*.55*(p.crouching?.5:1))+p.crosshair*10+(p.grounded?0:4):0;
+
+  drawCrosshair(this.el.xhair,game.xh,expand);
+}
   }
   updateScoreboard(){const rows=[{name:'You',kills:game.player.kills,deaths:game.player.deaths,status:game.player.dead?'RESPAWNING':'ACTIVE'}];for(const b of game.bots)rows.push({name:b.name,kills:b.kills,deaths:b.deaths,status:b.alive?'ACTIVE':'RESPAWNING'});rows.sort((a,b)=>b.kills-a.kills);this.el.scoreRows.innerHTML=rows.map(r=>`<tr><td>${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.status}</td></tr>`).join('');}
 }
@@ -1421,6 +1517,15 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
       if(e.code==='F3'){e.preventDefault();this.ui.el.fps.style.display=this.ui.el.fps.style.display==='block'?'none':'block';return;}
       if(e.code==='Escape')return;
       if(e.code==='Tab'){this.ui.scoreShown=true;this.ui.updateScoreboard();this.ui.show('scoreboard',true);return;}
+      // Q = Quick cancel scope / zoom
+if(e.code==='KeyQ'){
+  if(!e.repeat&&this.state==='Playing'&&this.player.scopeLevel>0){
+    this.player.scopeLevel=0;
+    this.player.applyFov();
+    this.player.audio.play('draw');  // Play switch.mp3
+  }
+  return;
+}
             if(this.buy.active&&e.repeat&&!this.player.keys[e.code])return;   // keys already held at respawn stay ignored until released
       if(e.code==='KeyB'){if(!e.repeat&&this.state==='Playing')this.toggleBuy();return;}
       if(this.buy.open&&this.state==='Playing'&&/^Digit[1-9]$/.test(e.code)){if(!e.repeat)this.buyKey(+e.code.slice(5));return;}
@@ -1600,7 +1705,7 @@ Bot.prototype.chooseTarget = function () {
   if (!game.player.dead && (!tm || game.playerTeam !== this.team)) candidates.push({ type: 'player', obj: game.player, name: 'You', pos: game.player.pos });
   for (const b of game.bots) if (b !== this && b.alive && (!tm || b.team !== this.team)) candidates.push({ type: 'bot', obj: b, name: b.name, pos: b.pos });
   let best = null, bd = Infinity;
-  for (const c of candidates) { const d = this.pos.distanceTo(c.pos); if (d < bd && d < CFG.BOT.sight && this.lineClear(c.pos)) { best = c; bd = d; } }
+  for (const c of candidates) { const d = this.pos.distanceTo(c.pos); if (d < bd && d < this.stat.sight && this.lineClear(c.pos)) { best = c; bd = d; } }
   return best;
 };
 
