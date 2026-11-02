@@ -152,7 +152,7 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.5, sprint: 5.5, sight: 50, attackRange: 37, damageMin: 5, damageMax: 10, respawn: 3, burst: 3, burstGap: .11, shotDelay: 1.2, accuracy: .013, separation: 1.05, turnSpeed: 12 },
+   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 50, attackRange: 40, damageMin: 2, damageMax: 4, respawn: 3, burst: 2, burstGap: .15, shotDelay: 1.2, accuracy: .013, separation: 1.05, turnSpeed: 11 },
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -178,7 +178,7 @@ const MAPS = [
   { id:'dm2',   name:'DM ARENA 2', file:'DM arena 2.glb', scale:'auto' }
 ];
 const BOT_MIN = 1, BOT_MAX = 10;
-const BUY_SECONDS = 20;   // buy time after every respawn (also the no-damage time)
+const BUY_SECONDS = 30;   // buy time after every respawn (also the no-damage time)
 
 const XH_DEFAULT = { style:'cross', color:'#33ff66', size:6, thickness:2, gap:3, dotSize:2, dot:false, outline:1, opacity:1, dynamic:true };
 const XH_PRESETS = {
@@ -635,7 +635,8 @@ const SOUND_FILES = {
   deagle:  'CSGO/deagle.mp3',      // Desert Eagle shot
   pistolS: 'CSGO/usp.mp3',         // USP-S shot
   pistol:  'CSGO/glock.mp3',       // Glock-18 shot
-  reload:  'CSGO/reload.mp3'       // all reloads
+  reload:  'CSGO/reload.mp3',      // all reloads
+  land:    'CSGO/land.wav'         // landing after a jump / drop
 };
 const FILE_AUDIO = {};
 for (const [k, src] of Object.entries(SOUND_FILES)) {
@@ -643,11 +644,34 @@ for (const [k, src] of Object.entries(SOUND_FILES)) {
   a.addEventListener('error', () => { a._bad = true; });
   FILE_AUDIO[k] = a;
 }
+// ---- Kill-streak announcer: CSGO/kill/k2.mp3 (double) ... k11.mp3; beyond 11 repeats k11 ----
+const STREAK_AUDIO = [];
+for (let n = 2; n <= 11; n++) {
+  const a = new Audio(`CSGO/kill/k${n}.mp3`); a.preload = 'auto';
+  a.addEventListener('error', () => { a._bad = true; });
+  STREAK_AUDIO[n] = a;
+}
+let _streakPlaying = null;
+function playStreak(n) {
+  const a = STREAK_AUDIO[Math.min(n, 11)];
+  if (!a || a._bad) return false;
+  if (_streakPlaying) { try { _streakPlaying.pause(); } catch (e) {} }   // don't overlap announcers
+  const c = a.cloneNode();
+ c.volume = 1; 
+  c.play().catch(() => {});
+  _streakPlaying = c;
+  return true;
+}
+// Per-sound volume (1 = normal, lower = quieter). Add any key from SOUND_FILES.
+const SOUND_VOL = {
+  ak:     .20,     // player's AK-47 shot  (lower this to make it quieter)
+  botgun: .20       // bots' rifle shots
+};
 function playFile(name, vol = 1) {
   const a = FILE_AUDIO[name];
   if (!a || a._bad) return false;
   const c = a.cloneNode();
-  c.volume = clamp(vol * game.audio.volume / .65, 0, 1);   // follows the Master volume slider
+  c.volume = clamp(vol * (SOUND_VOL[name] ?? 1) * game.audio.volume / .65, 0, 1);   // follows the Master volume slider
   c.play().catch(() => {});
   return true;
 }
@@ -885,7 +909,7 @@ class Player {
     if(this.map.isMesh&&this.vel.y>0){const ce=this.map.ceilingAt(this.pos.x,this.pos.z,this.pos.y+this.height-.1,.6);if(ce!==null&&ny+this.height>ce){ny=ce-this.height;this.vel.y=0;}}
     const ground=this.map.floorAt(this.pos.x,this.pos.z,this.pos.y),snap=(wasGrounded&&this.vel.y<=0&&!landed)?.2:0;
     if(ny<=ground+snap&&this.vel.y<=0){ny=ground;this.vel.y=0;landed=true;}
-    if(landed&&!wasGrounded&&prevVy<-.8){this.shake=Math.min(.16,Math.abs(prevVy)*.012);this.audio.play('land');}
+    if(landed&&!wasGrounded&&prevVy<-.8){this.shake=Math.min(.16,Math.abs(prevVy)*.012);this.audio.play('land',{vol:1});}
     this.grounded=landed;this.pos.y=ny;if(this.pos.y<-12)this.health=0;
     const horizontal=Math.hypot(this.vel.x,this.vel.z);
     if(this.grounded&&horizontal>.8){this.bob+=dt*(this.crouching?8:sprinting?14:10);setFootsteps(!this.crouching,sprinting?1.25:1);}else setFootsteps(false);
@@ -1046,7 +1070,7 @@ class Bot {
   get radius(){return .36;}get height(){return 1.9;}
   takeDamage(amount,attacker){if(!this.alive||this.protect>0)return;this.health-=amount;if(this.health<=0){this.health=0;this.die(attacker);}}
   die(attacker){if(!this.alive)return;this.alive=false;this.deaths++;this.state='Dead';this.dying=.9;this.flash.visible=false;this.group.visible=true;this.respawnTimer=CFG.BOT.respawn;
-    if(attacker==='Player'){game.player.kills++;game.audio.play('kill');game.ui.feed('You',this.name);}else{const killer=game.bots.find(b=>b.name===attacker);if(killer){killer.kills++;game.ui.feed(killer.name,this.name);}else game.ui.feed(attacker||'Arena',this.name);}game.ui.updateScore();}
+    if(attacker==='Player'){game.player.kills++;game.player.streak=(game.player.streak||0)+1;game.audio.play('kill');if(game.player.streak>=2){const _s=game.player.streak;setTimeout(()=>playStreak(_s),450);}game.ui.feed('You',this.name);}else{const killer=game.bots.find(b=>b.name===attacker);if(killer){killer.kills++;game.ui.feed(killer.name,this.name);}else game.ui.feed(attacker||'Arena',this.name);}game.ui.updateScore();}
   respawn(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(game.player.pos)>12)||choices[0];this.pos.copy(p);this.pos.y=this.map.floorAt(p.x,p.z,p.y+.4);this.vel.set(0,0,0);this.health=100;this.alive=true;this.dying=0;this.protect=1.35;this.group.visible=true;this.group.rotation.x=0;this.group.position.copy(this.pos);this.state='Patrol';this.burstLeft=0;this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();}
   lineClear(targetPos){const from=this.pos.clone().add(V(0,1.35,0)),to=targetPos.clone().add(V(0,1.15,0)),dir=to.clone().sub(from),dist=dir.length();dir.normalize();const ray=new THREE.Raycaster(from,dir,0,dist);ray.firstHitOnly=true;return ray.intersectObjects(this.map.blockers,false).length===0;}
   chooseTarget(){const candidates=[];if(!game.player.dead)candidates.push({type:'player',obj:game.player,name:'You',pos:game.player.pos});for(const b of game.bots)if(b!==this&&b.alive)candidates.push({type:'bot',obj:b,name:b.name,pos:b.pos});let best=null,bd=Infinity;for(const c of candidates){const d=this.pos.distanceTo(c.pos);if(d<bd&&d<CFG.BOT.sight&&this.lineClear(c.pos)){best=c;bd=d;}}return best;}
@@ -1403,7 +1427,7 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
     menuMusic.pause();mvpMusic.pause();
     this.audio.init();const sel=this.menu.sel;this.matchSeconds=sel.minutes*60;this.remaining=this.matchSeconds;
     this.setBotCount(sel.bots);this.player.setLoadout(sel.primary,sel.secondary);
-    this.player.kills=0;this.player.deaths=0;this.player.respawn(this.map.spawnPoints[5%this.map.spawnPoints.length]);this.player.mouseDown=false;this.player.fireBuffer=0;this.player.keys={};
+    this.player.kills=0;this.player.deaths=0;this.player.streak=0;this.player.respawn(this.map.spawnPoints[5%this.map.spawnPoints.length]);this.player.mouseDown=false;this.player.fireBuffer=0;this.player.keys={};
     this.bots.forEach(b=>{b.kills=0;b.deaths=0;b.respawn();b.protect=1.35;});
     this.ui.updateScore();['startScreen','pauseScreen','deathScreen','matchScreen','scoreboard'].forEach(id=>this.ui.show(id,false));
         this.startBuy();this.state='Playing';if(lock)this.requestLock();
@@ -1411,15 +1435,16 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
   toMenu(){mvpMusic.pause();menuMusic.currentTime=0;menuMusic.volume=.5*this.audio.volume/.65;menuMusic.play().catch(()=>{});this.state='Menu';this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();['pauseScreen','deathScreen','matchScreen','scoreboard'].forEach(id=>this.ui.show(id,false));this.ui.show('startScreen',true);if(document.pointerLockElement)document.exitPointerLock();}
   pause(){if(this.state!=='Playing'&&this.state!=='Respawning')return;this.pausedFrom=this.state;this.state='Paused';this.player.mouseDown=false;this.player.keys={};this.ui.show('pauseScreen',true);if(document.pointerLockElement)document.exitPointerLock();}
   resume(){if(this.state!=='Paused')return;this.requestLock();}
-  playerDeath(source){if(this.player.dead)return;this.player.dead=true;this.player.deaths++;this.player.scopeLevel=0;this.player.applyFov();if(source)this.ui.feed(source,'You');this.player.deathTimer=3;this.ui.updateScore();this.ui.show('deathScreen',true);this.state='Respawning';this.player.mouseDown=false;this.ui.el.deathTimer.textContent='3';}
-  respawnPlayer(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(this.player.pos)>15)||choices[0];this.player.respawn(p);this.player.keys={};this.player.mouseDown=false;this.startBuy();this.ui.show('deathScreen',false);this.state='Playing';if(!document.pointerLockElement)this.requestLock();}
+  playerDeath(source){if(this.player.dead)return;this.player.dead=true;this.player.streak=0;this.player.deaths++;this.player.scopeLevel=0;this.player.applyFov();if(source)this.ui.feed(source,'You');this.player.deathTimer=3;this.ui.updateScore();this.ui.show('deathScreen',true);this.state='Respawning';this.player.mouseDown=false;this.ui.el.deathTimer.textContent='3';}
+  respawnPlayer(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(this.player.pos)>15)||choices[0];this.player.respawn(p);this.player.keys={};this.player.mouseDown=false;this.startBuy(true);this.ui.show('deathScreen',false);this.state='Playing';if(!document.pointerLockElement)this.requestLock();}
   endMatch(){if(this.state==='MatchOver')return;this.state='MatchOver';mvpMusic.currentTime=0;mvpMusic.volume=clamp(.5*this.audio.volume/.65,0,1);mvpMusic.play().catch(()=>{});this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();if(document.pointerLockElement)document.exitPointerLock();const all=[{name:'YOU',kills:this.player.kills},...this.bots.map(b=>({name:b.name.toUpperCase(),kills:b.kills}))].sort((a,b)=>b.kills-a.kills);this.ui.el.matchWinner.textContent=all[0].name==='YOU'?'VICTORY':'WINNER: '+all[0].name;this.ui.el.matchSummary.textContent=`YOU: ${this.player.kills} KILLS · ${this.player.deaths} DEATHS  |  ${all.map(a=>a.name+': '+a.kills).join('  ·  ')}`;this.ui.show('deathScreen',false);this.ui.show('matchScreen',true);}
     // ---------------- BUY MENU (CS2 deathmatch style) ----------------
-  startBuy(){
+  startBuy(autoOpen=false){
     const b=this.buy,E=this.buyEls;
-    b.active=true;b.open=false;b.time=BUY_SECONDS;b.msg=0;
+    b.active=true;b.open=autoOpen;b.time=BUY_SECONDS;b.msg=0;   // autoOpen=true only after a respawn
     this.player.invuln=BUY_SECONDS+.1;                 // no damage during the buy window
     E.menu.classList.add('hidden');E.timer.className='';
+    if(autoOpen)this.renderBuy();                      // draws the list and un-hides the menu
   }
   endBuy(){const b=this.buy,E=this.buyEls;b.active=false;b.open=false;E.menu.classList.add('hidden');E.timer.className='hidden';}
   cancelBuy(msg){
