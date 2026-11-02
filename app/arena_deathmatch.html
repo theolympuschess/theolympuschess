@@ -179,7 +179,7 @@ const MAPS = [
   { id:'dm3',   name:'DM ARENA 3', file:'DM arena 3.glb', scale:'auto' },
    { id:'dm4',   name:'DM ARENA 4', file:'DM arena 4.glb', scale:0.04 }
 ];
-const BOT_MIN = 1, BOT_MAX = 15;
+const BOT_MIN = 1, BOT_MAX = 16;
 const BUY_SECONDS = 30;   // buy time after every respawn (also the no-damage time)
 
 const XH_DEFAULT = { style:'cross', color:'#33ff66', size:6, thickness:2, gap:3, dotSize:2, dot:false, outline:1, opacity:1, dynamic:true };
@@ -931,7 +931,7 @@ class Player {
     const dir=this.camera.getWorldDirection(V()),right=V(1,0,0).applyQuaternion(this.camera.quaternion),up=V(0,1,0).applyQuaternion(this.camera.quaternion);
     dir.addScaledVector(right,rand(-spread,spread)).addScaledVector(up,rand(-spread,spread)).normalize();
     const origin=this.camera.position.clone(),ray=new THREE.Raycaster(origin,dir,0,120),enemyObjects=[];
-    for(const b of game.bots)if(b.alive)enemyObjects.push(b.group);
+    for(const b of game.bots)if(b.alive&&!game.isFriend(b))enemyObjects.push(b.group);
     const hits=ray.intersectObjects([...this.map.blockers,...enemyObjects],true);let end=origin.clone().addScaledVector(dir,80);
     if(hits.length){
       const hit=hits[0];end.copy(hit.point);
@@ -1507,10 +1507,192 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
 }
 
 // ============================================================
+// 10b. TEAM MODE — 2v2 … 6v6, RED vs BLUE (paste this whole block just above "// 11. BOOTSTRAP")
+// ============================================================
+const TEAM_COL = { red: 0xff3b3b, blue: 0x3b8bff };          // 3D tint / marker colours
+const TEAM_CSS = { red: '#ff5a5a', blue: '#5aa2ff' };        // HUD / menu colours
+const TEAM_SIZES = [0, 2, 3, 4, 5, 6, 7, 8];                       // 0 = free-for-all, N = NvN
+
+// ---- main menu: GAME MODE + YOUR TEAM chips (injected into the MATCH tab, under the timer) ----
+Menu.prototype.buildTeams = function () {
+  const sel = this.sel;
+  sel.teamSize = TEAM_SIZES.includes(+sel.teamSize) ? +sel.teamSize : 0;
+  if (sel.team !== 'red' && sel.team !== 'blue') sel.team = 'red';
+  const wrap = document.createElement('div');
+  wrap.innerHTML = '<div class="groupTitle" style="margin-top:18px">GAME MODE</div><div class="chips" id="modeChips"></div>' +
+    '<div id="teamPick" style="display:none"><div class="groupTitle" style="margin-top:14px">YOUR TEAM</div><div class="chips" id="teamChips"></div></div>';
+  document.getElementById('timerChips').insertAdjacentElement('afterend', wrap);
+  const modeEl = wrap.querySelector('#modeChips'), teamEl = wrap.querySelector('#teamChips'), pick = wrap.querySelector('#teamPick');
+  const refresh = () => {
+    [...modeEl.children].forEach(c => c.classList.toggle('sel', +c.dataset.n === sel.teamSize));
+    [...teamEl.children].forEach(c => {
+      const on = c.dataset.t === sel.team;
+      c.classList.toggle('sel', on); c.style.color = TEAM_CSS[c.dataset.t]; c.style.borderColor = on ? TEAM_CSS[c.dataset.t] : '';
+    });
+    pick.style.display = sel.teamSize ? 'block' : 'none';
+    const sl = document.getElementById('botSlider'), info = document.getElementById('botInfo');
+    if (sel.teamSize) {
+      const n = sel.teamSize, foe = sel.team === 'red' ? 'BLUE' : 'RED';
+      sl.disabled = true; sl.style.opacity = .4;
+      info.textContent = `${n}V${n} · YOU + ${n - 1} BOT${n - 1 > 1 ? 'S' : ''} (${sel.team.toUpperCase()}) VS ${n} BOTS (${foe}) · THE TEAM WITH THE MOST KILLS WHEN THE CLOCK ENDS WINS`;
+    } else { sl.disabled = false; sl.style.opacity = 1; sl.dispatchEvent(new Event('input')); }
+  };
+  for (const n of TEAM_SIZES) {
+    const b = document.createElement('button'); b.className = 'chip'; b.dataset.n = n; b.textContent = n ? `${n}V${n}` : 'FREE FOR ALL';
+    b.addEventListener('click', () => { sel.teamSize = n; this.save(); refresh(); }); modeEl.appendChild(b);
+  }
+  for (const t of ['red', 'blue']) {
+    const b = document.createElement('button'); b.className = 'chip'; b.dataset.t = t; b.textContent = t.toUpperCase() + ' TEAM';
+    b.addEventListener('click', () => { sel.team = t; this.save(); refresh(); }); teamEl.appendChild(b);
+  }
+  refresh();
+};
+
+// ---- bots: team tint + floating marker, and they only target the enemy team ----
+Bot.prototype.setTeam = function (team) {
+  this.team = team || null;
+  if (!this._tint) {                                   // give every bot its own materials (models share them)
+    this._tint = [];
+    this.group.traverse(o => {
+      if (!o.isMesh || !o.material) return;
+      const arr = Array.isArray(o.material);
+      const cl = (arr ? o.material : [o.material]).map(m => {
+        const c = m.clone();
+        if (c.emissive) { c.userData._e = c.emissive.getHex(); c.userData._ei = c.emissiveIntensity; this._tint.push(c); }
+        return c;
+      });
+      o.material = arr ? cl : cl[0];
+    });
+  }
+  for (const m of this._tint) {
+    if (team) { m.emissive.setHex(TEAM_COL[team]); m.emissiveIntensity = .35; }
+    else { m.emissive.setHex(m.userData._e); m.emissiveIntensity = m.userData._ei; }
+  }
+  if (!this._mark) {
+    const g = new THREE.Mesh(new THREE.OctahedronGeometry(.11, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
+    g.scale.set(1, 1.5, 1); g.position.y = CHAR_HEIGHT + .38; g.raycast = () => {}; g.name = 'marker';
+    this.group.add(g); this._mark = g;
+  }
+  this._mark.visible = !!team;
+  if (team) {
+    const ally = team === game.playerTeam;             // teammates' markers show through walls
+    this._mark.material.color.setHex(TEAM_COL[team]); this._mark.material.depthTest = !ally; this._mark.renderOrder = ally ? 999 : 0; this._mark.material.needsUpdate = true;
+  }
+};
+Bot.prototype.chooseTarget = function () {
+  const tm = game.teamMode, candidates = [];
+  if (!game.player.dead && (!tm || game.playerTeam !== this.team)) candidates.push({ type: 'player', obj: game.player, name: 'You', pos: game.player.pos });
+  for (const b of game.bots) if (b !== this && b.alive && (!tm || b.team !== this.team)) candidates.push({ type: 'bot', obj: b, name: b.name, pos: b.pos });
+  let best = null, bd = Infinity;
+  for (const c of candidates) { const d = this.pos.distanceTo(c.pos); if (d < bd && d < CFG.BOT.sight && this.lineClear(c.pos)) { best = c; bd = d; } }
+  return best;
+};
+
+// ---- game: teams, spawn sides, scoring ----
+Game.prototype.isFriend = function (b) { return !!this.teamMode && b.team === this.playerTeam; };
+Game.prototype.teamOfName = function (name) {
+  if (!this.teamMode) return null;
+  if (name === 'You' || name === 'Player') return this.playerTeam;
+  const b = this.bots.find(x => x.name === name); return b ? b.team : null;
+};
+Game.prototype.teamSpawns = function (team) {          // RED = one half of the map's spawn points, BLUE = the other half
+  const pts = this.map.spawnPoints.slice();
+  if (pts.length < 4) return pts;
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+  const ax = (x1 - x0) >= (z1 - z0) ? 'x' : 'z'; pts.sort((a, b) => a[ax] - b[ax]);
+  const h = Math.ceil(pts.length / 2); return team === 'red' ? pts.slice(0, h) : pts.slice(pts.length - h);
+};
+function withTeamSpawns(team, fn) {
+  const g = game; if (!g.teamMode || !team) return fn();
+  const m = g.map, orig = m.spawnPoints; m.spawnPoints = g.teamSpawns(team);
+  try { return fn(); } finally { m.spawnPoints = orig; }
+}
+// Team-mode aggression: multipliers applied on top of your CFG.BOT values (FFA keeps the normal values).
+const TEAM_AGGRO = { speed: 1.2, sprint: 1.2, sight: 1.4, attackRange: 1.25, shotDelay: .6, burstGap: .8, accuracy: .65, turnSpeed: 1.4, damageMin: 1.25, damageMax: 1.25 };
+let _botBase = null;
+Game.prototype.assignTeams = function () {
+  const n = this.menu.sel.teamSize | 0;
+  this.teamMode = n > 0; this.playerTeam = this.teamMode ? this.menu.sel.team : null;
+  const foe = this.playerTeam === 'red' ? 'blue' : 'red';
+  this.bots.forEach((b, i) => b.setTeam(this.teamMode ? (i < n - 1 ? this.playerTeam : foe) : null));   // first N-1 bots are your teammates
+  this.teamScore = { red: 0, blue: 0 };
+  if (!_botBase) _botBase = Object.assign({}, CFG.BOT);          // remember your normal bot settings
+  for (const k in TEAM_AGGRO) CFG.BOT[k] = _botBase[k] * (this.teamMode ? TEAM_AGGRO[k] : 1);
+};
+Game.prototype.addTeamKill = function (attacker, victimTeam) {
+  if (!this.teamMode) return;
+  const kt = this.teamOfName(attacker);
+  if (kt && victimTeam && kt !== victimTeam) this.teamScore[kt]++;
+  this.ui.updateScore();
+};
+
+const _tm_startMatch = Game.prototype.startMatch;
+Game.prototype.startMatch = function (lock) {
+  if (!this.mapReady) return;
+  const sel = this.menu.sel, saved = sel.bots, n = sel.teamSize | 0;
+  if (n > 0) sel.bots = n * 2 - 1;                     // you + (N-1) teammates + N enemies = 2N bodies; the player is the 2Nth
+  this.setBotCount(sel.bots); this.assignTeams();
+  try { _tm_startMatch.call(this, lock); } finally { sel.bots = saved; }
+  if (this.teamMode) {                                 // put the player on his own team's side of the map
+    const sp = this.teamSpawns(this.playerTeam), free = sp.filter(s => this.bots.every(b => b.pos.distanceTo(s) > 4)), pool = free.length ? free : sp, p = pool[Math.floor(Math.random() * pool.length)];
+    this.player.pos.copy(p); this.player.pos.y = this.map.floorAt(p.x, p.z, p.y + .4);
+  }
+  this.ui.updateScore();
+};
+const _tm_respawnPlayer = Game.prototype.respawnPlayer;
+Game.prototype.respawnPlayer = function () { withTeamSpawns(this.playerTeam, () => _tm_respawnPlayer.call(this)); };
+const _tm_botRespawn = Bot.prototype.respawn;
+Bot.prototype.respawn = function () { withTeamSpawns(this.team, () => _tm_botRespawn.call(this)); };
+const _tm_botDie = Bot.prototype.die;
+Bot.prototype.die = function (attacker) { const was = this.alive; _tm_botDie.call(this, attacker); if (was && !this.alive) game.addTeamKill(attacker === 'Player' ? 'You' : attacker, this.team); };
+const _tm_playerDeath = Game.prototype.playerDeath;
+Game.prototype.playerDeath = function (source) { const was = this.player.dead; _tm_playerDeath.call(this, source); if (!was && this.player.dead) this.addTeamKill(source, this.playerTeam); };
+const _tm_endMatch = Game.prototype.endMatch;
+Game.prototype.endMatch = function () {
+  const was = this.state, w = this.ui.el.matchWinner; w.style.color = '';
+  _tm_endMatch.call(this);
+  if (was === 'MatchOver' || !this.teamMode) return;
+  const s = this.teamScore, win = s.red === s.blue ? null : (s.red > s.blue ? 'red' : 'blue');
+  w.textContent = win ? `${win.toUpperCase()} TEAM WINS` + (win === this.playerTeam ? ' — VICTORY' : ' — DEFEAT') : 'DRAW'; if (win) w.style.color = TEAM_CSS[win];
+  this.ui.el.matchSummary.textContent = `RED ${s.red}  —  ${s.blue} BLUE  |  YOU: ${this.player.kills} KILLS · ${this.player.deaths} DEATHS`;
+};
+
+// ---- HUD: team score on top right, coloured kill feed, team scoreboard ----
+const _tm_updateScore = UIManager.prototype.updateScore;
+UIManager.prototype.updateScore = function () {
+  _tm_updateScore.call(this);
+  const el = document.getElementById('rankTop'); if (!el) return;
+  if (game.teamMode) { const s = game.teamScore || { red: 0, blue: 0 }; el.innerHTML = `<span style="color:${TEAM_CSS.red}">RED ${s.red}</span> &nbsp;–&nbsp; <span style="color:${TEAM_CSS.blue}">${s.blue} BLUE</span>`; }
+  else el.textContent = 'IRON SIGHT / FFA';
+};
+const _tm_feed = UIManager.prototype.feed;
+UIManager.prototype.feed = function (killer, victim) {
+  _tm_feed.call(this, killer, victim);
+  if (!game.teamMode) return;
+  const d = this.el.killfeed.firstElementChild; if (!d) return;
+  const k = d.querySelector('.killer'), v = d.querySelector('.victim'), kt = game.teamOfName(killer), vt = game.teamOfName(victim);
+  if (k && kt) k.style.color = TEAM_CSS[kt]; if (v && vt) v.style.color = TEAM_CSS[vt];
+};
+const _tm_board = UIManager.prototype.updateScoreboard;
+UIManager.prototype.updateScoreboard = function () {
+  if (!game.teamMode) return _tm_board.call(this);
+  const rows = [{ name: 'You', team: game.playerTeam, kills: game.player.kills, deaths: game.player.deaths, status: game.player.dead ? 'RESPAWNING' : 'ACTIVE' }];
+  for (const b of game.bots) rows.push({ name: b.name, team: b.team, kills: b.kills, deaths: b.deaths, status: b.alive ? 'ACTIVE' : 'RESPAWNING' });
+  let html = '';
+  for (const t of ['red', 'blue']) {
+    html += `<tr><td colspan="4" style="color:${TEAM_CSS[t]};font-weight:900;letter-spacing:2px">${t.toUpperCase()} TEAM — ${game.teamScore[t]}</td></tr>`;
+    rows.filter(r => r.team === t).sort((a, b) => b.kills - a.kills).forEach(r => { html += `<tr><td style="color:${TEAM_CSS[t]}">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.status}</td></tr>`; });
+  }
+  this.el.scoreRows.innerHTML = html;
+};
+
+// ============================================================
 // 11. BOOTSTRAP
 // ============================================================
 await preloadAssets();
 const game=new Game();
+game.menu.buildTeams();
 window.game=game;
 </script>
 </body>
