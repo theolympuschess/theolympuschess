@@ -152,7 +152,7 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 60, attackRange: 40, damageMin: 2, damageMax: 4, respawn: 3, burst: 2, burstGap: .15, shotDelay: 1.2, accuracy: .011, separation: 1.05, turnSpeed: 10 },
+   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 60, attackRange: 40, damageMin: 2, damageMax: 4, respawn: 3, burst: 2, burstGap: .15, shotDelay: 1.2, accuracy: .010, separation: 1.05, turnSpeed: 10 },
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -685,7 +685,7 @@ const mvpMusic = new Audio('CSGO/mvp.mp3');
 mvpMusic.loop = true;
 function setFootsteps(on, rate = 1) {
   if (on) {
-    footAudio.volume = clamp(.6 * game.audio.volume / .65, 0, 1);
+    footAudio.volume = clamp(.8 * game.audio.volume / .65, 0, 1);
     footAudio.playbackRate = rate;
     if (footAudio.paused) footAudio.play().catch(() => {});
   } else if (!footAudio.paused) footAudio.pause();
@@ -1512,6 +1512,8 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
 const TEAM_COL = { red: 0xff3b3b, blue: 0x3b8bff };          // 3D tint / marker colours
 const TEAM_CSS = { red: '#ff5a5a', blue: '#5aa2ff' };        // HUD / menu colours
 const TEAM_SIZES = [0, 2, 3, 4, 5, 6, 7, 8];                       // 0 = free-for-all, N = NvN
+// Player's viewmodel sleeve colour per mode (tune the hex values to taste)
+const SLEEVE_COL = { red: 0x7a2626, blue: 0x2d3f66, solo: 0x44502c };   // red team / blue team (original blue) / solo = military olive
 
 // ---- main menu: GAME MODE + YOUR TEAM chips (injected into the MATCH tab, under the timer) ----
 Menu.prototype.buildTeams = function () {
@@ -1633,6 +1635,7 @@ Game.prototype.startMatch = function (lock) {
   const sel = this.menu.sel, saved = sel.bots, n = sel.teamSize | 0;
   if (n > 0) sel.bots = n * 2 - 1;                     // you + (N-1) teammates + N enemies = 2N bodies; the player is the 2Nth
   this.setBotCount(sel.bots); this.assignTeams();
+  HAND_MATS.sleeve.color.setHex(this.teamMode ? SLEEVE_COL[this.playerTeam] : SLEEVE_COL.solo);   // red team = red, blue team = blue, solo = military
   try { _tm_startMatch.call(this, lock); } finally { sel.bots = saved; }
   if (this.teamMode) {                                 // put the player on his own team's side of the map
     const sp = this.teamSpawns(this.playerTeam), free = sp.filter(s => this.bots.every(b => b.pos.distanceTo(s) > 4)), pool = free.length ? free : sp, p = pool[Math.floor(Math.random() * pool.length)];
@@ -1685,6 +1688,33 @@ UIManager.prototype.updateScoreboard = function () {
     rows.filter(r => r.team === t).sort((a, b) => b.kills - a.kills).forEach(r => { html += `<tr><td style="color:${TEAM_CSS[t]}">${r.name}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.status}</td></tr>`; });
   }
   this.el.scoreRows.innerHTML = html;
+};
+// ============================================================
+// 10c. BOT FOOTSTEPS — every bot walks with the same foot_steps.mp3 as the player (all modes)
+// ============================================================
+const BOT_FOOT_RANGE = 28;      // metres: beyond this you can't hear them
+const BOT_FOOT_VOL   = .8;      // loudness right next to you (player's own footsteps are .6)
+function botFootsteps(b, spd) {
+  if (!b._foot) {
+    const a = b._foot = new Audio('CSGO/foot_steps.mp3'); a.loop = true; a.preload = 'auto';
+    a.addEventListener('loadedmetadata', () => { try { a.currentTime = Math.random() * a.duration; } catch (e) {} });   // so bots don't step in sync
+  }
+  const a = b._foot, playing = game.state === 'Playing' || game.state === 'Respawning';
+  const on = playing && b.alive && spd > .8, d = b.pos.distanceTo(game.camera.position);
+  const vol = on ? Math.pow(clamp(1 - d / BOT_FOOT_RANGE, 0, 1), 1.6) * BOT_FOOT_VOL * game.audio.volume / .65 : 0;
+  if (vol > .01) { a.volume = clamp(vol, 0, 1); a.playbackRate = spd > 4.6 ? 1.25 : 1; if (a.paused) a.play().catch(() => {}); }
+  else if (!a.paused) a.pause();
+}
+const _bf_botUpdate = Bot.prototype.update;
+Bot.prototype.update = function (dt) {
+  const x = this.pos.x, z = this.pos.z;
+  _bf_botUpdate.call(this, dt);
+  botFootsteps(this, Math.hypot(this.pos.x - x, this.pos.z - z) / Math.max(dt, 1e-4));
+};
+const _bf_gameUpdate = Game.prototype.update;
+Game.prototype.update = function (dt) {                // silence every bot on pause / menu / match over
+  _bf_gameUpdate.call(this, dt);
+  if (this.state !== 'Playing' && this.state !== 'Respawning') for (const b of this.bots) if (b._foot && !b._foot.paused) b._foot.pause();
 };
 
 // ============================================================
