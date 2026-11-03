@@ -125,6 +125,15 @@ body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.sp
       <div class="groupTitle" style="margin-top:18px">BOTS</div>
       <div class="row"><span>Number of bots</span><input id="botSlider" type="range" min="1" max="15" step="1"><output id="botOut"></output></div>
       <div class="tiny" id="botInfo" style="margin-top:14px"></div>
+      <div class="groupTitle" style="margin-top:20px">
+  BOT DIFFICULTY
+</div>
+
+<div class="chips" id="difficultyChips"></div>
+
+<div class="tiny" id="difficultyInfo">
+  Current bot difficulty · Veteran
+</div>
     </div>
     <div class="pane" id="pane-controls">
       <div class="controlsGrid"><div><span>W A S D</span> Move</div><div><span>MOUSE</span> Aim / Fire</div><div><span>RIGHT CLICK</span> Scope (AWP / SSG)</div> <div><span>Q</span> Quick Cancel Scope / Zoom</div><div><span>SHIFT</span> Sprint</div><div><span>F (hold)</span> Crouch</div><div><span>SPACE</span> Jump</div><div><span>R</span> Reload</div><div><span>1 / 2 / WHEEL</span> Switch weapon</div><div><span>TAB</span> Scoreboard</div><div><span>ESC</span> Pause</div></div>
@@ -163,7 +172,7 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 90, attackRange: 60, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .09, shotDelay: .55, accuracy: .008, separation: 1.05, turnSpeed: 12 },
+   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 90, attackRange: 60, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .09, shotDelay: .50, accuracy: .008, separation: 1.05, turnSpeed: 13 },
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -208,6 +217,44 @@ const BOT_AWP = Object.assign({}, CFG.BOT, {
   accuracy:.006, turnSpeed:12,     // accurate, but slow to turn
   aim:.75                         // seconds it must hold steady on you before firing
 });
+
+// ============================================================
+// BOT DIFFICULTY SETTINGS
+// Veteran = current bot configuration (1.0x baseline)
+// ============================================================
+const BOT_DIFFICULTIES = {
+  recruit: {
+    label: 'Recruit',
+    description: 'Easier bots · slower reactions · less accurate shooting',
+    speed: .85, sprint: .86, sight: .82, attackRange: .85,
+    damage: .70, shotDelay: 1.45, accuracy: 1.55,
+    turnSpeed: .75, burst: .60, burstGap: 1.25, aim: 1.50
+  },
+
+  veteran: {
+    label: 'Veteran',
+    description: 'Current bot difficulty · original CFG.BOT settings',
+    speed: 1, sprint: 1, sight: 1, attackRange: 1,
+    damage: 1, shotDelay: 1, accuracy: 1,
+    turnSpeed: 1, burst: 1, burstGap: 1, aim: 1
+  },
+
+  professional: {
+    label: 'Professional',
+    description: 'More aggressive bots · faster reactions · better accuracy',
+    speed: 1.08, sprint: 1.10, sight: 1.12, attackRange: 1.10,
+    damage: 1.15, shotDelay: .85, accuracy: .82,
+    turnSpeed: 1.15, burst: 1.20, burstGap: .90, aim: .85
+  },
+
+  elite: {
+    label: 'Elite',
+    description: 'Highly aggressive bots · extremely fast reactions and aim',
+    speed: 1.18, sprint: 1.22, sight: 1.30, attackRange: 1.20,
+    damage: 1.30, shotDelay: .70, accuracy: .62,
+    turnSpeed: 1.40, burst: 1.50, burstGap: .72, aim: .65
+  }
+};
 
 const XH_DEFAULT = { style:'cross', color:'#33ff66', size:6, thickness:2, gap:3, dotSize:2, dot:false, outline:1, opacity:1, dynamic:true };
 const XH_PRESETS = {
@@ -1129,9 +1176,38 @@ if(asrc){
     return this.weaponType==='awp';
   }
 
-  get stat(){
-    return this.isAwp?BOT_AWP:CFG.BOT;
-  }
+get stat(){
+  const base = this.isAwp ? BOT_AWP : CFG.BOT;
+
+  const key = window.game?.menu?.sel?.difficulty || 'veteran';
+  const d = BOT_DIFFICULTIES[key] || BOT_DIFFICULTIES.veteran;
+
+  // Veteran returns the original configuration without modification.
+  if(key === 'veteran') return base;
+
+  return {
+    ...base,
+
+    speed: base.speed * d.speed,
+    sprint: base.sprint * d.sprint,
+
+    sight: base.sight * d.sight,
+    attackRange: base.attackRange * d.attackRange,
+
+    damageMin: base.damageMin * d.damage,
+    damageMax: base.damageMax * d.damage,
+
+    shotDelay: base.shotDelay * d.shotDelay,
+    accuracy: base.accuracy * d.accuracy,
+
+    turnSpeed: base.turnSpeed * d.turnSpeed,
+
+    burst: Math.max(1, Math.round(base.burst * d.burst)),
+    burstGap: base.burstGap * d.burstGap,
+
+    aim: base.aim == null ? base.aim : base.aim * d.aim
+  };
+}
 
   setWeapon(type){
 
@@ -1781,6 +1857,53 @@ Menu.prototype.buildTeams = function () {
   refresh();
 };
 
+// ============================================================
+// BOT DIFFICULTY MENU
+// ============================================================
+Menu.prototype.buildDifficulty = function () {
+  const sel = this.sel;
+
+  // Veteran is the default for existing saved configurations.
+  if (!BOT_DIFFICULTIES[sel.difficulty]) {
+    sel.difficulty = 'veteran';
+  }
+
+  const el = document.getElementById('difficultyChips');
+  const info = document.getElementById('difficultyInfo');
+
+  el.innerHTML = '';
+
+  const refresh = () => {
+    [...el.children].forEach(b => {
+      b.classList.toggle(
+        'sel',
+        b.dataset.difficulty === sel.difficulty
+      );
+    });
+
+    const d = BOT_DIFFICULTIES[sel.difficulty];
+    info.textContent = d.description;
+  };
+
+  for (const [key, difficulty] of Object.entries(BOT_DIFFICULTIES)) {
+    const b = document.createElement('button');
+
+    b.className = 'chip';
+    b.dataset.difficulty = key;
+    b.textContent = difficulty.label.toUpperCase();
+
+    b.addEventListener('click', () => {
+      sel.difficulty = key;
+      this.save();
+      refresh();
+    });
+
+    el.appendChild(b);
+  }
+
+  refresh();
+};
+
 // ---- bots: team tint + floating marker, and they only target the enemy team ----
 Bot.prototype.setTeam = function (team) {
   this.team = team || null;
@@ -2354,7 +2477,10 @@ Game.prototype.endMatch = function () {
 // ============================================================
 await preloadAssets();
 const game=new Game();
+
 game.menu.buildTeams();
+game.menu.buildDifficulty();
+
 window.game=game;
 </script>
 </body>
