@@ -60,7 +60,27 @@
 #spectatorHud span{display:block;margin-top:5px;color:#c0d2dc;font-size:9px;letter-spacing:1.2px}
 #spectatorPauseScreen{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(15,29,42,.68),rgba(3,7,12,.95));pointer-events:auto}
 body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.spectating #hitmarker,body.spectating #vignette,body.spectating #damageArrow,body.spectating #buyTimer,body.spectating #buyMenu,body.spectating #scoreTop{display:none!important}
+/* BUY TIME SCREEN FADE */
+#buyFade {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
 
+  background: rgba(5, 10, 16, 0.22);
+  backdrop-filter: blur(4px);
+
+  opacity: 0;
+  visibility: hidden;
+
+  transition:
+    opacity .45s ease,
+    visibility .45s ease;
+}
+
+#buyFade.active {
+  opacity: 1;
+  visibility: visible;
+}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","three-mesh-bvh":"https://unpkg.com/three-mesh-bvh@0.7.3/build/index.module.js"}}
@@ -68,6 +88,7 @@ body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.sp
 </head>
 <body>
 <div id="ui">
+  <div id="buyFade"></div>
   <div id="topbar"><div id="scoreTop">KILLS <b id="playerKills">0</b> &nbsp; DEATHS <b id="playerDeaths">0</b></div><div id="timer">05:00</div><div id="rankTop">IRON SIGHT / FFA</div></div>
   <div id="killfeed"></div>
   <div id="fps">FPS: --</div>
@@ -718,7 +739,8 @@ const SOUND_FILES = {
   pistol:  'CSGO/glock.mp3',       // Glock-18 shot
   reload:  'CSGO/reload.mp3',      // all reloads
   land:    'CSGO/land.wav',        // landing after a jump / drop
-  draw:    'CSGO/switch.mp3'       // switching weapon (keys 1/2, mouse wheel, buy menu)
+ draw: 'CSGO/switch.mp3',
+roundstart: 'CSGO/roundstart.mp3'       // switching weapon (keys 1/2, mouse wheel, buy menu)
 };
 const DINK_WEAPONS = new Set([
   'm4a4',
@@ -756,13 +778,71 @@ const SOUND_VOL = {
    botgun: .10,     // bots' AK shots
   botm4:  .50      // bots' M4A4 shots
 };
+let activeRoundStartAudio = null;
 function playFile(name, vol = 1) {
   const a = FILE_AUDIO[name];
   if (!a || a._bad) return false;
+
   const c = a.cloneNode();
-  c.volume = clamp(vol * (SOUND_VOL[name] ?? 1) * game.audio.volume / .65, 0, 1);   // follows the Master volume slider
+
+  c.volume = clamp(
+    vol * (SOUND_VOL[name] ?? 1) * game.audio.volume / .65,
+    0, 1
+  );
+
+  // Track only the round-start sound.
+  if (name === 'roundstart') {
+    if (activeRoundStartAudio) {
+      activeRoundStartAudio.pause();
+      activeRoundStartAudio.currentTime = 0;
+    }
+
+    activeRoundStartAudio = c;
+
+    c.addEventListener('ended', () => {
+      if (activeRoundStartAudio === c) {
+        activeRoundStartAudio = null;
+      }
+    }, { once: true });
+  }
+
   c.play().catch(() => {});
   return true;
+}
+
+
+// Smoothly fade out roundstart.mp3
+function fadeOutRoundStart(duration = 800) {
+  const a = activeRoundStartAudio;
+
+  if (!a || a.paused) {
+    activeRoundStartAudio = null;
+    return;
+  }
+
+  const initialVolume = a.volume;
+  const startTime = performance.now();
+
+  function fade(now) {
+    if (activeRoundStartAudio !== a) return;
+
+    const progress = Math.min(
+      1,
+      (now - startTime) / duration
+    );
+
+    a.volume = initialVolume * (1 - progress);
+
+    if (progress < 1 && !a.paused) {
+      requestAnimationFrame(fade);
+    } else {
+      a.pause();
+      a.currentTime = 0;
+      activeRoundStartAudio = null;
+    }
+  }
+
+  requestAnimationFrame(fade);
 }
 const menuMusic = new Audio('CSGO/menumusic.mp3');
 menuMusic.loop = true;
@@ -1685,7 +1765,13 @@ class Game {
     this.bots=[];
     this.menu=new Menu(this);this.matchSeconds=this.menu.sel.minutes*60;this.remaining=this.matchSeconds;this.setBotCount(this.menu.sel.bots);
     this.fpsFrames=0;this.fpsTime=0;this.last=performance.now();
-    this.buy={active:false,open:false,time:0,msg:0};this.buyEls={timer:document.getElementById('buyTimer'),menu:document.getElementById('buyMenu'),list:document.getElementById('buyList')};
+    this.buy = {active:false, open:false, time:0, msg:0};
+   this.buyEls={
+  timer:document.getElementById('buyTimer'),
+  menu:document.getElementById('buyMenu'),
+  list:document.getElementById('buyList'),
+  fade:document.getElementById('buyFade')
+};
     this.bindUI();this.bindInput();
     window.addEventListener('resize',()=>this.resize());document.addEventListener('pointerlockchange',()=>this.pointerLockChanged());
     window.addEventListener('blur',()=>{if(this.state==='Playing'||this.state==='Respawning')this.pause();});
@@ -1783,7 +1869,14 @@ if(e.code==='KeyQ'){
   requestLock(){const p=this.renderer.domElement.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}
   startMatch(lock){if(!this.mapReady)return;
     menuMusic.pause();mvpMusic.pause();
-    this.audio.init();const sel=this.menu.sel;this.matchSeconds=sel.minutes*60;this.remaining=this.matchSeconds;
+    this.audio.init();
+
+// ROUND START SOUND
+this.audio.play('roundstart');
+
+const sel=this.menu.sel;
+this.matchSeconds=sel.minutes*60;
+this.remaining=this.matchSeconds;
     this.setBotCount(sel.bots);this.player.setLoadout(sel.primary,sel.secondary);
     this.player.kills=0;this.player.deaths=0;this.player.streak=0;this.player.respawn(this.map.spawnPoints[5%this.map.spawnPoints.length]);this.player.mouseDown=false;this.player.fireBuffer=0;this.player.keys={};
     this.bots.forEach(b=>{b.kills=0;b.deaths=0;b.respawn();b.protect=1.35;});
@@ -1799,16 +1892,41 @@ if(e.code==='KeyQ'){
     // ---------------- BUY MENU (CS2 deathmatch style) ----------------
   startBuy(autoOpen=false){
     const b=this.buy,E=this.buyEls;
+    fadeOutRoundStart(800);
     b.active=true;b.open=autoOpen;b.time=BUY_SECONDS;b.msg=0;   // autoOpen=true only after a respawn
     this.player.invuln=BUY_SECONDS+.1;                 // no damage during the buy window
-    E.menu.classList.add('hidden');E.timer.className='';
+      E.fade.classList.add('active'); E.menu.classList.add('hidden');E.timer.className='';
     if(autoOpen)this.renderBuy();                      // draws the list and un-hides the menu
   }
-  endBuy(){const b=this.buy,E=this.buyEls;b.active=false;b.open=false;E.menu.classList.add('hidden');E.timer.className='hidden';}
-  cancelBuy(msg){
-    const b=this.buy,E=this.buyEls;b.active=false;b.open=false;this.player.invuln=0;   // damage is back on
-    E.menu.classList.add('hidden');E.timer.className='cancel';E.timer.innerHTML=msg;b.msg=1.6;this.audio.play('empty');
-  }
+  endBuy(){
+  const b=this.buy,E=this.buyEls;
+  fadeOutRoundStart(800);
+
+  b.active=false;
+  b.open=false;
+
+  E.fade.classList.remove('active'); // REMOVE SCREEN FADE
+
+  E.menu.classList.add('hidden');
+  E.timer.className='hidden';
+}
+cancelBuy(msg){
+  const b=this.buy,E=this.buyEls;
+  fadeOutRoundStart(800);
+
+  b.active=false;
+  b.open=false;
+  this.player.invuln=0;
+
+  E.fade.classList.remove('active'); // REMOVE SCREEN FADE
+
+  E.menu.classList.add('hidden');
+  E.timer.className='cancel';
+  E.timer.innerHTML=msg;
+
+  b.msg=1.6;
+  this.audio.play('empty');
+}
   toggleBuy(){
     const b=this.buy,E=this.buyEls;
     if(!b.active){E.timer.className='cancel';E.timer.innerHTML='BUY TIME IS OVER';b.msg=1.2;return;}
@@ -1837,7 +1955,11 @@ if(e.code==='KeyQ'){
     // moving, jumping or shooting ends the buy window
     if(k.KeyW||k.KeyA||k.KeyS||k.KeyD||k.Space||!p.grounded||p.mouseDown||p.fireBuffer>0||Math.hypot(p.vel.x,p.vel.z)>.6){this.cancelBuy('BUY CANCELLED — YOU MOVED');return;}
     b.time-=dt;
-    if(b.time<=0){b.active=false;b.open=false;p.invuln=0;E.menu.classList.add('hidden');E.timer.className='hidden';return;}
+   if(b.time<=0){
+  p.invuln=0;
+  this.endBuy();
+  return;
+}
     E.timer.innerHTML=`BUY TIME <b>${b.time.toFixed(1)}</b><small>${b.open?'1-8 SELECT WEAPON · B CLOSE':'PRESS B TO BUY'} · PROTECTED</small>`;
   }
   resize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.vmCamera.aspect=innerWidth/innerHeight;this.vmCamera.updateProjectionMatrix();this.renderer.setSize(innerWidth,innerHeight);this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));}
