@@ -83,7 +83,7 @@ body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.sp
 }
 </style>
 <script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","three-mesh-bvh":"https://unpkg.com/three-mesh-bvh@0.7.3/build/index.module.js"}}
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","three-mesh-bvh":"https://unpkg.com/three-mesh-bvh@0.7.3/build/index.module.js","cannon-es":"https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"}}
 </script>
 </head>
 <body>
@@ -186,6 +186,10 @@ try {
   THREE.BufferGeometry.prototype.disposeBoundsTree = BVH.disposeBoundsTree;
   THREE.Mesh.prototype.raycast = BVH.acceleratedRaycast;
 } catch (e) { console.warn('three-mesh-bvh not loaded - big maps will be slower', e); }
+// Optional: cannon-es drives the ragdoll deaths. If the CDN is blocked the game still works with the old death animation.
+let CANNON = null;
+try { CANNON = await import('cannon-es'); }
+catch (e) { console.warn('cannon-es not loaded - bots use the old death animation', e); }
 
 // ============================================================
 // 1. CONFIGURATION — tune gameplay from this section
@@ -193,7 +197,28 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 100, attackRange: 70, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .09, shotDelay: .50, accuracy: .008, separation: 1.05, turnSpeed: 13 },
+   BOT: {
+  health: 100,
+
+  speed: 3.8,
+  sprint: 4.7,
+
+  sight: 85,
+  attackRange: 65,
+
+  damageMin: 2.5,
+  damageMax: 3.5,
+
+  respawn: 3,
+
+  burst: 2,
+  burstGap: .12,
+  shotDelay: .70,
+
+  accuracy: .011,
+  separation: 1.05,
+  turnSpeed: 10
+},
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -237,8 +262,8 @@ const BUY_SECONDS = 30;   // buy time after every respawn (also the no-damage ti
 const BOT_AWP_CHANCE = .35;   // chance each bot gets an AWP whenever it respawns (0 = never, 1 = all bots)
 const BOT_AWP = Object.assign({}, CFG.BOT, {
   speed:3.4, sprint:4.1,          // slower, the AWP is heavy
-  sight:120, attackRange:80,       // sees and shoots from across the arena
-  damageMin:20, damageMax:40,    // 100 = instant kill
+  sight:100, attackRange:80,       // sees and shoots from across the arena
+  damageMin:10, damageMax:30,    // 100 = instant kill
   burst:1, shotDelay:2,         // one shot, then a long pause
   accuracy:.006, turnSpeed:12,     // accurate, but slow to turn
   aim:.75                         // seconds it must hold steady on you before firing
@@ -1125,7 +1150,7 @@ class Player {
     !wasProtected &&
     bot.health > damage;
 
-  bot.takeDamage(damage, 'Player');
+  bot.takeDamage(damage, 'Player', {dir:dir.clone(), point:hit.point.clone(), head:head, power:cfg.damage});
 
   game.ui.hit(
     head,
@@ -1245,6 +1270,8 @@ if(asrc){
     this.gripL=new THREE.Object3D();this.gripL.position.set(0,-.03,-.58);rifle.add(this.gripL);   // foregrip hand
     this.flash=new THREE.Sprite(FLASH_MAT);this.flash.position.copy(this.muzzle.position);this.flash.scale.setScalar(.45);this.flash.visible=false;this.flash.raycast=()=>{};rifle.add(this.flash);
         this.rig=buildRig(holder,group);
+    this._rifleHome={p:rifle.position.clone(),q:rifle.quaternion.clone(),s:rifle.scale.clone()};   // for restoring the rifle after a weapon drop
+    this.rdSpec=RAGDOLLS.analyze(holder,group,this.name);                                           // ragdoll skeleton map (null = use old death animation)
     this.scene.add(group);return true;
   }
   build(){
@@ -1366,10 +1393,11 @@ get stat(){
     this.gripR.position.z=awp?-.12:-.2;
   }
   get radius(){return .36;}get height(){return 1.9;}
-  takeDamage(amount,attacker){if(!this.alive||this.protect>0)return;this.health-=amount;if(this.health<=0){this.health=0;this.die(attacker);}}
+  takeDamage(amount,attacker,hit){if(!this.alive||this.protect>0)return;this.health-=amount;if(this.health<=0){this.health=0;this._lastHit=hit||null;this.die(attacker);}}
   die(attacker){if(!this.alive)return;this.alive=false;this.deaths++;this.state='Dead';this.dying=.9;this.flash.visible=false;this.group.visible=true;this.respawnTimer=CFG.BOT.respawn;
-    if(attacker==='Player'){game.player.kills++;game.player.streak=(game.player.streak||0)+1;game.audio.play('kill');if(game.player.streak>=2){const _s=game.player.streak;setTimeout(()=>playStreak(_s),450);}game.ui.feed('You',this.name);}else{const killer=game.bots.find(b=>b.name===attacker);if(killer){killer.kills++;game.ui.feed(killer.name,this.name);}else game.ui.feed(attacker||'Arena',this.name);}game.ui.updateScore();}
-  respawn(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(game.player.pos)>12)||choices[0];this.pos.copy(p);this.pos.y=this.map.floorAt(p.x,p.z,p.y+.4);this.vel.set(0,0,0);this.health=100;this.alive=true;this.dying=0;this.protect=1.35;this.group.visible=true;this.group.rotation.x=0;this.group.position.copy(this.pos);this.state='Patrol';this.burstLeft=0;this.setWeapon(Math.random()<BOT_AWP_CHANCE?'awp':'rifle');this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();}
+    if(attacker==='Player'){game.player.kills++;game.player.streak=(game.player.streak||0)+1;game.audio.play('kill');if(game.player.streak>=2){const _s=game.player.streak;setTimeout(()=>playStreak(_s),450);}game.ui.feed('You',this.name);}else{const killer=game.bots.find(b=>b.name===attacker);if(killer){killer.kills++;game.ui.feed(killer.name,this.name);}else game.ui.feed(attacker||'Arena',this.name);}game.ui.updateScore();
+    RAGDOLLS.begin(this,this._lastHit);this._lastHit=null;}   // kills/feed above run exactly once; ragdoll starts after them
+  respawn(){RAGDOLLS.release(this);const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(game.player.pos)>12)||choices[0];this.pos.copy(p);this.pos.y=this.map.floorAt(p.x,p.z,p.y+.4);this.vel.set(0,0,0);this.health=100;this.alive=true;this.dying=0;this.protect=1.35;this.group.visible=true;this.group.rotation.x=0;this.group.position.copy(this.pos);this.state='Patrol';this.burstLeft=0;this.setWeapon(Math.random()<BOT_AWP_CHANCE?'awp':'rifle');this.waypoint=this.map.waypoints[Math.floor(Math.random()*this.map.waypoints.length)].clone();}
   lineClear(targetPos){const from=this.pos.clone().add(V(0,1.35,0)),to=targetPos.clone().add(V(0,1.15,0)),dir=to.clone().sub(from),dist=dir.length();dir.normalize();const ray=new THREE.Raycaster(from,dir,0,dist);ray.firstHitOnly=true;return ray.intersectObjects(this.map.blockers,false).length===0;}
   chooseTarget(){const candidates=[];if(!game.player.dead)candidates.push({type:'player',obj:game.player,name:'You',pos:game.player.pos});for(const b of game.bots)if(b!==this&&b.alive)candidates.push({type:'bot',obj:b,name:b.name,pos:b.pos});let best=null,bd=Infinity;for(const c of candidates){const d=this.pos.distanceTo(c.pos);if(d<bd&&d<this.stat.sight&&this.lineClear(c.pos)){best=c;bd=d;}}return best;}
   pickWaypoint(target){
@@ -1420,7 +1448,7 @@ get stat(){
     const hitRadius=target.type==='player'?.44:.46,hit=proj>0&&perpendicular<hitRadius;
     const reach=wall?wall.distance:dist+14,end=hit?closest:origin.clone().addScaledVector(base,Math.min(reach,Math.max(proj,dist)+10));
     game.effects.tracer(origin,end,this.isAwp?0xffffff:0xffc27a,this.isAwp?420:170,this.isAwp?4:2.6,this.isAwp?.03:.02);
-    if(hit){const dmg=rand(this.stat.damageMin,this.stat.damageMax);if(target.type==='player')target.obj.takeDamage(dmg,this.name,this.pos);else target.obj.takeDamage(dmg,this.name);}
+    if(hit){const dmg=rand(this.stat.damageMin,this.stat.damageMax);if(target.type==='player')target.obj.takeDamage(dmg,this.name,this.pos);else target.obj.takeDamage(dmg,this.name,{dir:base.clone(),point:closest.clone(),head:false,power:dmg});}
     else if(wall)game.effects.sparks(wall.point,0xffc36b,3);
   }
     poseBones(){
@@ -1449,7 +1477,9 @@ get stat(){
   }
   update(dt){
     if(!this.alive){
-      if(this.dying>0){this.dying-=dt;const t=1-clamp(this.dying/.9,0,1);this.group.rotation.x=Math.min(1,t*2.5)*1.45;if(this.dying<=0){this.group.visible=false;this.group.rotation.x=0;}}
+      // With a ragdoll (this._rd) the skeleton is driven by RAGDOLLS.update(); no animation, IK or AI runs for a dead bot.
+      // The old whole-body tilt is only a fallback for bots without a ragdoll (procedural model / cannon-es missing).
+      if(!this._rd&&this.dying>0){this.dying-=dt;const t=1-clamp(this.dying/.9,0,1);this.group.rotation.x=Math.min(1,t*2.5)*1.45;if(this.dying<=0){this.group.visible=false;this.group.rotation.x=0;}}
       this.respawnTimer-=dt;if(this.respawnTimer<=0)this.respawn();return;
     }
     if(this.protect>0){this.protect-=dt;this.group.visible=Math.floor(performance.now()/100)%2===0;if(this.protect<=0)this.group.visible=true;}
@@ -1472,7 +1502,7 @@ get stat(){
     if(this.isAwp&&wantFire&&this.state!=='Dodge'&&this.shotTimer<.9)dir.set(0,0,0);
     const sep=V();for(const other of game.bots){if(other===this||!other.alive)continue;const d=this.pos.distanceTo(other.pos);if(d>0&&d<CFG.BOT.separation)sep.add(this.pos.clone().sub(other.pos).normalize().multiplyScalar((CFG.BOT.separation-d)*1.7));}dir.add(sep);
     const prev=this.pos.clone();if(dir.lengthSq()>.01)this.move(dir,this.state==='Chase'?this.stat.sprint:this.stat.speed,dt);
-    const vx=(this.pos.x-prev.x)/dt,vz=(this.pos.z-prev.z)/dt,spd=Math.hypot(vx,vz);
+    const vx=(this.pos.x-prev.x)/dt,vz=(this.pos.z-prev.z)/dt,spd=Math.hypot(vx,vz);this.mvx=vx;this.mvz=vz;   // remembered so the ragdoll inherits the running momentum
     // face the target (or the walking direction) and aim the rifle at it
     let faceYaw=this.yaw,aimTarget=-.42;
     if(target){const dx=target.pos.x-this.pos.x,dz=target.pos.z-this.pos.z;faceYaw=Math.atan2(-dx,-dz);const cy=target.pos.y+(target.type==='player'&&game.player.crouching?.78:1.1);aimTarget=Math.atan2(cy-(this.pos.y+1.43),Math.max(.5,Math.hypot(dx,dz)));}
@@ -1790,7 +1820,7 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
   // ---------------- BOTS + MAPS ----------------
   setBotCount(n){
     n=clamp(Math.round(n)||BOT_MIN,BOT_MIN,BOT_MAX);
-    while(this.bots.length>n){const b=this.bots.pop();this.scene.remove(b.group);}
+    while(this.bots.length>n){const b=this.bots.pop();RAGDOLLS.release(b);this.scene.remove(b.group);}
     while(this.bots.length<n){const i=this.bots.length,sp=this.map.spawnPoints[(i+1)%this.map.spawnPoints.length];this.bots.push(new Bot(i+1,this.scene,this.map,sp));}
   }
   applyMapView(map){
@@ -1820,7 +1850,7 @@ addEventListener('pointerdown',startMusic);addEventListener('keydown',startMusic
     if(token!==this.mapToken)return;       // another map was clicked while this one was loading
     this.menu.setMapStatus(def.id,'');
     if(this.map!==map){
-      this.map.detach();map.attach();this.map=map;this.player.map=map;this.applyMapView(map);
+      RAGDOLLS.clearAll();this.map.detach();map.attach();this.map=map;this.player.map=map;this.applyMapView(map);
       const n=this.bots.length;for(const b of this.bots)this.scene.remove(b.group);this.bots=[];this.setBotCount(n);
     }
     this.mapReady=true;this.menu.refreshPlay();
@@ -1872,7 +1902,7 @@ if(e.code==='KeyQ'){
     else if(this.state==='Playing'||this.state==='Respawning')this.pause();
   }
   requestLock(){const p=this.renderer.domElement.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}
-  startMatch(lock){if(!this.mapReady)return;
+  startMatch(lock){if(!this.mapReady)return;RAGDOLLS.clearAll();
     menuMusic.pause();mvpMusic.pause();
     this.audio.init();
 
@@ -1888,12 +1918,12 @@ this.remaining=this.matchSeconds;
     this.ui.updateScore();['startScreen','pauseScreen','deathScreen','matchScreen','scoreboard'].forEach(id=>this.ui.show(id,false));
         this.startBuy();this.state='Playing';if(lock)this.requestLock();
   }
-  toMenu(){mvpMusic.pause();menuMusic.currentTime=0;menuMusic.volume=.5*this.audio.volume/.65;menuMusic.play().catch(()=>{});this.state='Menu';this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();['pauseScreen','deathScreen','matchScreen','scoreboard'].forEach(id=>this.ui.show(id,false));this.ui.show('startScreen',true);if(document.pointerLockElement)document.exitPointerLock();}
+  toMenu(){RAGDOLLS.clearAll();mvpMusic.pause();menuMusic.currentTime=0;menuMusic.volume=.5*this.audio.volume/.65;menuMusic.play().catch(()=>{});this.state='Menu';this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();['pauseScreen','deathScreen','matchScreen','scoreboard'].forEach(id=>this.ui.show(id,false));this.ui.show('startScreen',true);if(document.pointerLockElement)document.exitPointerLock();}
   pause(){if(this.state!=='Playing'&&this.state!=='Respawning')return;this.pausedFrom=this.state;this.state='Paused';this.player.mouseDown=false;this.player.keys={};this.ui.show('pauseScreen',true);if(document.pointerLockElement)document.exitPointerLock();}
   resume(){if(this.state!=='Paused')return;this.requestLock();}
   playerDeath(source){if(this.player.dead)return;this.player.dead=true;this.player.streak=0;this.player.deaths++;this.player.scopeLevel=0;this.player.applyFov();if(source)this.ui.feed(source,'You');this.player.deathTimer=3;this.ui.updateScore();this.ui.show('deathScreen',true);this.state='Respawning';this.player.mouseDown=false;this.ui.el.deathTimer.textContent='3';}
   respawnPlayer(){const choices=this.map.spawnPoints.slice().sort(()=>Math.random()-.5);const p=choices.find(s=>s.distanceTo(this.player.pos)>15)||choices[0];this.player.respawn(p);this.player.keys={};this.player.mouseDown=false;this.startBuy(true);this.ui.show('deathScreen',false);this.state='Playing';if(!document.pointerLockElement)this.requestLock();}
-  endMatch(){if(this.state==='MatchOver')return;this.state='MatchOver';mvpMusic.currentTime=0;mvpMusic.volume=clamp(.5*this.audio.volume/.65,0,1);mvpMusic.play().catch(()=>{});this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();if(document.pointerLockElement)document.exitPointerLock();const all=[{name:'YOU',kills:this.player.kills},...this.bots.map(b=>({name:b.name.toUpperCase(),kills:b.kills}))].sort((a,b)=>b.kills-a.kills);this.ui.el.matchWinner.textContent=all[0].name==='YOU'?'VICTORY':'WINNER: '+all[0].name;this.ui.el.matchSummary.textContent=`YOU: ${this.player.kills} KILLS · ${this.player.deaths} DEATHS  |  ${all.map(a=>a.name+': '+a.kills).join('  ·  ')}`;this.ui.show('deathScreen',false);this.ui.show('matchScreen',true);}
+  endMatch(){if(this.state==='MatchOver')return;this.state='MatchOver';RAGDOLLS.clearAll();mvpMusic.currentTime=0;mvpMusic.volume=clamp(.5*this.audio.volume/.65,0,1);mvpMusic.play().catch(()=>{});this.player.mouseDown=false;this.player.scopeLevel=0;this.player.applyFov();if(document.pointerLockElement)document.exitPointerLock();const all=[{name:'YOU',kills:this.player.kills},...this.bots.map(b=>({name:b.name.toUpperCase(),kills:b.kills}))].sort((a,b)=>b.kills-a.kills);this.ui.el.matchWinner.textContent=all[0].name==='YOU'?'VICTORY':'WINNER: '+all[0].name;this.ui.el.matchSummary.textContent=`YOU: ${this.player.kills} KILLS · ${this.player.deaths} DEATHS  |  ${all.map(a=>a.name+': '+a.kills).join('  ·  ')}`;this.ui.show('deathScreen',false);this.ui.show('matchScreen',true);}
     // ---------------- BUY MENU (CS2 deathmatch style) ----------------
   startBuy(autoOpen=false){
     const b=this.buy,E=this.buyEls;
@@ -1976,7 +2006,7 @@ cancelBuy(msg){
       this.player.update(dt);if(this.player.health<=0&&!this.player.dead)this.playerDeath('Arena');this.updateBuy(dt);
     }else if(this.state==='Respawning'){this.player.deathTimer-=dt;this.ui.el.deathTimer.textContent=Math.max(0,Math.ceil(this.player.deathTimer));if(this.player.deathTimer<=0)this.respawnPlayer();}
     else if(this.state==='Menu'||this.state==='MatchOver'){this.menuAngle+=dt*.12;const o=this.map.orbit;if(o.look){this.camera.position.copy(o.pos);this.camera.lookAt(o.pos.x+Math.cos(this.menuAngle*2)*10,o.pos.y-.4,o.pos.z+Math.sin(this.menuAngle*2)*10);}else{this.camera.position.set(o.center.x+Math.cos(this.menuAngle)*o.radius,o.center.y+o.height,o.center.z+Math.sin(this.menuAngle)*o.radius);this.camera.lookAt(o.center);}}
-    if(this.state==='Playing'||this.state==='Respawning')for(const b of this.bots)b.update(dt);
+    if(this.state==='Playing'||this.state==='Respawning'){for(const b of this.bots)b.update(dt);RAGDOLLS.update(dt);}
     this.effects.update(dt);this.ui.update(dt);if(this.state!=='Menu'&&this.state!=='MatchOver')this.ui.updateHUD();
     const secs=Math.ceil(this.state==='Menu'?this.menu.sel.minutes*60:this.remaining);this.ui.el.timer.textContent=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
     if(this.state==='Playing'&&this.ui.scoreShown)this.ui.updateScoreboard();
@@ -2583,6 +2613,7 @@ Game.prototype.update = function (dt) {
     this.remaining = Math.max(0, this.remaining - dt);
     this.updateSpectatorCamera(dt);
     for (const b of this.bots) b.update(dt);
+    RAGDOLLS.update(dt);
   }
   this.effects.update(dt);
   this.ui.update(dt);
@@ -2647,6 +2678,290 @@ Game.prototype.endMatch = function () {
     this.ui.el.matchSummary.textContent = 'BOTS ONLY · ' + ranked.map(b => `${b.name.toUpperCase()}: ${b.kills} KILLS`).join('  ·  ');
   }
 };
+// ============================================================
+// 10g. RAGDOLL DEATHS (cannon-es) — physics-driven skeleton for dead bots
+// ============================================================
+const RAGDOLL = {
+  enabled: true,
+  maxActive: 8,        // ragdolls simulated at once (max 14). Older ones freeze in their final pose.
+  lifetime: 3.6,       // hard cap in seconds; always shortened to stay under CFG.BOT.respawn
+  minSim: .7,          // never freeze before this many seconds
+  gravity: -16,
+  hitSpeed: 3.2,       // velocity change (m/s) given to the hit body part by a normal rifle hit
+  maxBodySpeed: 8,     // clamp so nothing flies away
+  maxSpin: 12,         // rad/s clamp
+  groundHalf: 2,       // half size of the per-ragdoll ground slab
+  weaponDrop: true
+};
+const RD_BODY = 1 << 16, RD_WALL = 1 << 17;     // collision groups (ground slabs use bits 0..13)
+// rx/rz = half thickness of the collider, m = mass, ang/tw = joint cone / twist limit (radians) toward the parent
+const RD_KIND = {
+  pelvis:  { rx: .15,  rz: .11,  m: 10,  ang: 0,   tw: 0 },
+  abdomen: { rx: .14,  rz: .10,  m: 6,   ang: .35, tw: .3 },
+  chest:   { rx: .17,  rz: .11,  m: 14,  ang: .40, tw: .3 },
+  neck:    { rx: .045, rz: .045, m: 1,   ang: .55, tw: .5 },
+  head:    { rx: .11,  rz: .11,  m: 5,   ang: .65, tw: .8 },
+  uarm:    { rx: .05,  rz: .05,  m: 2.5, ang: 1.5, tw: 1.2 },
+  farm:    { rx: .04,  rz: .04,  m: 1.6, ang: 1.3, tw: .6 },
+  thigh:   { rx: .085, rz: .085, m: 7,   ang: 1.0, tw: .5 },
+  calf:    { rx: .065, rz: .065, m: 4,   ang: 1.2, tw: .3 }
+};
+const _rq1 = new THREE.Quaternion(), _rq2 = new THREE.Quaternion();
+const _rv1 = new THREE.Vector3(), _rv2 = new THREE.Vector3(), _rv3 = new THREE.Vector3();
+const _rm1 = new THREE.Matrix4(), _rm2 = new THREE.Matrix4();
+
+class RagdollSystem {
+  constructor() { this.world = null; this.active = []; this.all = new Set(); this.free = []; this.statics = []; this.mapRef = null; this.tick = 0; this._warned = {}; }
+
+  ready() {
+    if (!CANNON || !RAGDOLL.enabled) return false;
+    if (!this.world) {
+      const w = this.world = new CANNON.World();
+      w.gravity.set(0, RAGDOLL.gravity, 0);
+      w.allowSleep = false;                       // settling is handled per ragdoll (a sleeping limb would stay stuck in a moving body)
+      w.solver.iterations = 12;
+      w.defaultContactMaterial.friction = .7;
+      w.defaultContactMaterial.restitution = .02;
+      this.free = []; for (let i = Math.min(14, RAGDOLL.maxActive) - 1; i >= 0; i--) this.free.push(i);
+    }
+    return true;
+  }
+
+  // ---- skeleton discovery (runs once per bot, when its GLB is built) ----
+  analyze(holder, group, label) {
+    if (!CANNON || !RAGDOLL.enabled) return null;
+    group.updateMatrixWorld(true);
+    const bones = []; holder.traverse(o => { if (o.isBone) bones.push(o); });
+    const depthOf = o => { let d = 0; for (let p = o.parent; p; p = p.parent) d++; return d; };
+    const isDesc = (o, a) => { for (let p = o.parent; p; p = p.parent) if (p === a) return true; return false; };
+    const nm = b => b.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const BAD = /finger|thumb|index|middle|ring|pinky|twist|roll|nub|toe|ball|end|helper|ik|metacarp|weapon|prop|attach|jiggle|cloth|hair|eye|jaw|tongue|face|brow|lid|cheek|lip|clav|collar|shoulder/;
+    const pick = (re, exc, anc) => bones.filter(b => { const n = nm(b); return re.test(n) && !BAD.test(n) && !(exc && exc.test(n)) && (!anc || isDesc(b, anc)); }).sort((a, b) => depthOf(a) - depthOf(b));
+    const lx = b => group.worldToLocal(b.getWorldPosition(_rv3)).x;
+    const side = (arr, s) => arr.find(b => Math.sign(lx(b)) === s) || null;
+    const hips = pick(/hips|pelvis/)[0];
+    if (!hips) { console.warn('[ragdoll] ' + label + ': no hips/pelvis bone found - old death animation used. Bones: ' + bones.map(b => b.name).join(', ')); return null; }
+    const spine = pick(/spine|abdomen|chest|torso|waist/, /neck|head|arm|leg|thigh/, hips);
+    const abdomen = spine.length > 1 ? spine[0] : null, chest = spine.length ? spine[spine.length - 1] : null;
+    const neck = pick(/neck/, null, hips)[0] || null, head = pick(/head/, /top|tip|neck/, hips)[0] || null;
+    let upA = pick(/upperarm|armupper|uparm/, null, hips); if (!upA.length) upA = pick(/arm/, /fore|lower|hand|upper|twist/, hips);
+    const foA = pick(/forearm|lowerarm|armlower|lowarm/, null, hips), hnA = pick(/hand|wrist/, null, hips);
+    const th = pick(/thigh|upleg|upperleg|legupper/, null, hips);
+    let cf = pick(/calf|shin|lowerleg|leglower|lowleg/, null, hips); if (!cf.length) cf = pick(/leg/, /up|thigh/, hips);
+    const ft = pick(/foot|ankle/, null, hips);
+    const segs = [], has = k => segs.some(x => x.key === k);
+    const add = (key, bone, end, par, kind, ext = 0, fb = 0) => {
+      if (!bone) return;
+      segs.push({ key, bone, end: end || null, par: par.find(has) || null, kind, ext, fb, depth: depthOf(bone) });
+    };
+    add('pelvis', hips, abdomen || chest || neck || head, [], 'pelvis', 0, .15);
+    add('abdomen', abdomen, chest, ['pelvis'], 'abdomen');
+    add('chest', chest, neck || head, ['abdomen', 'pelvis'], 'chest', 0, .3);
+    add('neck', neck, head, ['chest', 'abdomen', 'pelvis'], 'neck', 0, .1);
+    add('head', head, null, ['neck', 'chest', 'abdomen', 'pelvis'], 'head', 0, .22);
+    for (const s of [1, -1]) {
+      add('uarm' + s, side(upA, s), side(foA, s), ['chest', 'abdomen', 'pelvis'], 'uarm', 0, .3);
+      add('farm' + s, side(foA, s), side(hnA, s), ['uarm' + s, 'chest', 'abdomen', 'pelvis'], 'farm', 0, .27);
+      add('thigh' + s, side(th, s), side(cf, s), ['pelvis'], 'thigh', 0, .42);
+      add('calf' + s, side(cf, s), side(ft, s), ['thigh' + s, 'pelvis'], 'calf', .09, .42);
+    }
+    const expected = ['pelvis', 'abdomen', 'chest', 'neck', 'head', 'uarm1', 'uarm-1', 'farm1', 'farm-1', 'thigh1', 'thigh-1', 'calf1', 'calf-1'];
+    const missing = expected.filter(k => !has(k)), sig = bones.map(b => b.name).join('|');
+    if (missing.length && !this._warned[sig]) { this._warned[sig] = 1; console.warn('[ragdoll] ' + label + ': missing sections: ' + missing.join(', ') + ' | bones: ' + bones.map(b => b.name).join(', ')); }
+    if (segs.length < 6) return null;
+    return { segs };
+  }
+
+  // ---- static colliders for the built-in arena (GLB maps use a ray test, see track()) ----
+  syncMap(map) {
+    if (this.mapRef === map) return;
+    for (const b of this.statics) this.world.removeBody(b);
+    this.statics = []; this.mapRef = map;
+    if (map.isMesh) return;
+    for (const c of map.colliders) {
+      const b = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC, collisionFilterGroup: RD_WALL, collisionFilterMask: RD_BODY });
+      b.addShape(new CANNON.Box(new CANNON.Vec3((c.maxX - c.minX) / 2, (c.maxY - c.minY) / 2, (c.maxZ - c.minZ) / 2)));
+      b.position.set((c.minX + c.maxX) / 2, (c.minY + c.maxY) / 2, (c.minZ + c.maxZ) / 2);
+      this.world.addBody(b); this.statics.push(b);
+    }
+  }
+
+  begin(bot, hit) {
+    if (!this.ready() || !bot.rdSpec || bot._rd) return false;
+    try { return this._begin(bot, hit); }
+    catch (e) { console.warn('[ragdoll] failed - old death animation used', e); this.release(bot); return false; }
+  }
+
+  _begin(bot, hit) {
+    const spec = bot.rdSpec, map = game.map, W = this.world, UP = V(0, 1, 0);
+    this.syncMap(map);
+    if (!this.free.length && this.active.length) this.freeze(this.active[0]);
+    if (!this.free.length) return false;
+    const slot = this.free.pop(), G = 1 << slot;
+    const rd = { bot, slot, segs: [], byKey: {}, bodies: [], cons: [], ground: null, weapon: null, order: null, age: 0, still: 0, active: true, top: bot.pos.y, max: Math.min(RAGDOLL.lifetime, Math.max(1, CFG.BOT.respawn - .15)) };
+    bot._rd = rd; this.all.add(rd); this.active.push(rd);
+    bot.group.updateMatrixWorld(true);
+    if (bot._mark) bot._mark.visible = false;
+    // fatal hit: direction, strength, which body part
+    const D = hit && hit.dir ? hit.dir.clone() : V(rand(-1, 1), 0, rand(-1, 1));
+    D.y *= .35; if (D.lengthSq() < 1e-6) D.set(0, 0, -1); D.normalize();
+    const power = clamp(((hit && hit.power) || 30) / 30, .7, 1.9), headHit = !!(hit && hit.head);
+    const dv = rand(.75, 1.25) * RAGDOLL.hitSpeed * power * (headHit ? 1.25 : 1);
+    const mv = V(isFinite(bot.mvx) ? bot.mvx : 0, 0, isFinite(bot.mvz) ? bot.mvz : 0).multiplyScalar(.75);
+    // ground slab (follows the pelvis, see track())
+    const gb = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC, collisionFilterGroup: G, collisionFilterMask: RD_BODY });
+    gb.addShape(new CANNON.Box(new CANNON.Vec3(RAGDOLL.groundHalf, .25, RAGDOLL.groundHalf)));
+    gb.position.set(bot.pos.x, bot.pos.y - .25, bot.pos.z); rd.ground = gb;
+    // one rigid body per skeleton section, placed from the bones' current (animated) world pose
+    for (const sp of spec.segs) {
+      const K = RD_KIND[sp.kind], bone = sp.bone;
+      bone.matrixWorld.decompose(_rv1, _rq1, _rv2);
+      const wp = _rv1.clone(), wq = _rq1.clone(), ws = _rv2.clone();
+      const par = sp.par ? rd.byKey[sp.par] : null;
+      const dir = V();
+      if (sp.end) dir.setFromMatrixPosition(sp.end.matrixWorld).sub(wp);
+      else { dir.copy(wp); if (par) dir.sub(par.wp); else dir.set(0, 1, 0); }
+      let len = dir.length();
+      if (len < .06) { dir.set(0, (sp.kind === 'thigh' || sp.kind === 'calf') ? -1 : 1, 0); len = sp.fb || .15; }
+      else dir.divideScalar(len);
+      if (!sp.end) len = sp.fb || len;
+      len += sp.ext;
+      const c = wp.clone().addScaledVector(dir, len / 2);
+      const q = new THREE.Quaternion().setFromUnitVectors(UP, dir), iq = q.clone().invert();
+      const body = new CANNON.Body({
+        mass: K.m, collisionFilterGroup: RD_BODY, collisionFilterMask: G | RD_WALL, linearDamping: .12, angularDamping: .55,
+        position: new CANNON.Vec3(c.x, c.y, c.z), quaternion: new CANNON.Quaternion(q.x, q.y, q.z, q.w)
+      });
+      if (sp.kind === 'head') body.addShape(new CANNON.Sphere(K.rx));
+      else body.addShape(new CANNON.Box(new CANNON.Vec3(K.rx, Math.max(len / 2, .07), K.rz)));
+      const lp = wp.clone().sub(c).applyQuaternion(iq), lq = iq.clone().multiply(wq);
+      const seg = { key: sp.key, kind: sp.kind, bone, body, c, iq, wp, dir, lp, lq, ws, depth: sp.depth, rest: { p: bone.position.clone(), q: bone.quaternion.clone(), s: bone.scale.clone() } };
+      rd.segs.push(seg); rd.byKey[sp.key] = seg; rd.bodies.push(body);
+      if (par) {                                    // joint at this bone's position, neutral = the captured pose
+        const pA = wp.clone().sub(par.c).applyQuaternion(par.iq), aA = dir.clone().applyQuaternion(par.iq);
+        rd.cons.push(new CANNON.ConeTwistConstraint(par.body, body, {
+          pivotA: new CANNON.Vec3(pA.x, pA.y, pA.z), pivotB: new CANNON.Vec3(lp.x, lp.y, lp.z),
+          axisA: new CANNON.Vec3(aA.x, aA.y, aA.z), axisB: new CANNON.Vec3(0, 1, 0),
+          angle: K.ang, twistAngle: K.tw, collideConnected: false
+        }));
+      }
+    }
+    rd.order = rd.segs.slice().sort((a, b) => a.depth - b.depth);
+    // initial motion: a little of the bot's own velocity + the shot, with random per-body variation
+    for (const s of rd.segs) {
+      s.body.velocity.set(mv.x + D.x * dv * .4, rand(0, .5) + D.y * dv * .4, mv.z + D.z * dv * .4);
+      s.body.angularVelocity.set(rand(-1, 1) * 1.2, rand(-1, 1) * 1.2, rand(-1, 1) * 1.2);
+    }
+    let hs = headHit ? rd.byKey.head : null;
+    if (!hs && hit && hit.point) { let bd = 1e9; for (const s of rd.segs) { const d = s.c.distanceTo(hit.point); if (d < bd) { bd = d; hs = s; } } }
+    if (!hs) hs = rd.byKey.chest || rd.segs[0];
+    const rel = hit && hit.point ? hit.point.clone().sub(hs.c).clampLength(0, .12) : V();
+    hs.body.updateInertiaWorld(true);
+    hs.body.applyImpulse(new CANNON.Vec3(D.x * hs.body.mass * dv * .9, D.y * hs.body.mass * dv * .9, D.z * hs.body.mass * dv * .9), new CANNON.Vec3(rel.x, rel.y, rel.z));
+    // weapon drop (only for GLB bots whose rifle group is intact)
+    const R = bot.rifleGroup;
+    if (RAGDOLL.weaponDrop && R && R.parent === bot.aimPivot && bot._rifleHome) {
+      const awp = bot.isAwp, len = awp ? 1.6 : 1, cz = awp ? -.45 : -.4;
+      R.updateMatrixWorld(true);
+      bot.scene.attach(R);                           // keeps its world transform
+      const wb = new CANNON.Body({
+        mass: 3.5, collisionFilterGroup: RD_BODY, collisionFilterMask: G | RD_WALL, linearDamping: .1, angularDamping: .4,
+        position: new CANNON.Vec3(R.position.x, R.position.y, R.position.z), quaternion: new CANNON.Quaternion(R.quaternion.x, R.quaternion.y, R.quaternion.z, R.quaternion.w)
+      });
+      wb.addShape(new CANNON.Box(new CANNON.Vec3(.04, .08, len / 2)), new CANNON.Vec3(0, 0, cz));
+      wb.velocity.set(mv.x + D.x * dv * .7, 1 + rand(0, 1), mv.z + D.z * dv * .7);
+      wb.angularVelocity.set(rand(-4, 4), rand(-4, 4), rand(-4, 4));
+      rd.weapon = { mesh: R, body: wb }; rd.bodies.push(wb);
+    }
+    for (const b of rd.bodies) { const l = b.velocity.length(); if (l > RAGDOLL.maxBodySpeed) b.velocity.scale(RAGDOLL.maxBodySpeed / l, b.velocity); }
+    W.addBody(gb);
+    for (const b of rd.bodies) W.addBody(b);
+    for (const c of rd.cons) W.addConstraint(c);
+    return true;
+  }
+
+  // ---- once per gameplay frame: step physics, drive bones, settle ----
+  update(dt) {
+    if (!this.active.length) return;
+    this.world.step(1 / 60, dt, 3);
+    this.tick++;
+    const map = game.map;
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      const rd = this.active[i]; rd.age += dt;
+      for (const b of rd.bodies) { const a = b.angularVelocity, l = a.lengthSquared(); if (l > RAGDOLL.maxSpin * RAGDOLL.maxSpin) a.scale(RAGDOLL.maxSpin / Math.sqrt(l), a); }
+      if ((this.tick + rd.slot) % 3 === 0) this.track(rd, map);
+      this.sync(rd);
+      let calm = true;
+      for (const b of rd.bodies) if (b.velocity.lengthSquared() > .05 || b.angularVelocity.lengthSquared() > .5) { calm = false; break; }
+      rd.still = calm ? rd.still + dt : 0;
+      if ((rd.age > RAGDOLL.minSim && rd.still > .5) || rd.age >= rd.max) this.freeze(rd);
+    }
+  }
+
+  // ground slab follows the floor under the pelvis (so bodies can roll off ledges); wall push on GLB maps
+  track(rd, map) {
+    const pel = rd.segs[0].body, p = pel.position;
+    const f = map.isMesh ? map.floorAt(p.x, p.z, p.y) : map.floorAt(p.x, p.z);
+    if (f > -500 && f <= rd.top + .5) rd.top = f;
+    rd.ground.position.set(p.x, rd.top - .25, p.z); rd.ground.aabbNeedsUpdate = true;
+    if (!map.isMesh) return;
+    const v = pel.velocity, hs = Math.hypot(v.x, v.z);
+    if (hs < .8) return;
+    _rv1.set(p.x, p.y, p.z); _rv2.set(v.x / hs, 0, v.z / hs);
+    const h = map.cast(_rv1, _rv2, .5);
+    if (h.length) {
+      const n = map.wn(h[0]);
+      if (Math.abs(n.y) < .6) for (const b of rd.bodies) { const u = b.velocity, vn = u.x * n.x + u.z * n.z; if (vn < 0) { u.x -= n.x * vn; u.z -= n.z * vn; } }
+    }
+  }
+
+  // write the physics pose into the real skeleton (parents first), then the dropped weapon
+  sync(rd) {
+    for (const s of rd.order) {
+      const b = s.body, P = b.interpolatedPosition, Q = b.interpolatedQuaternion, bone = s.bone;
+      _rq1.set(Q.x, Q.y, Q.z, Q.w);
+      _rv1.copy(s.lp).applyQuaternion(_rq1); _rv1.x += P.x; _rv1.y += P.y; _rv1.z += P.z;
+      _rq2.copy(_rq1).multiply(s.lq);
+      _rm1.compose(_rv1, _rq2, s.ws);
+      bone.parent.updateWorldMatrix(true, false);
+      _rm2.copy(bone.parent.matrixWorld).invert();
+      _rm1.premultiply(_rm2);
+      _rm1.decompose(bone.position, bone.quaternion, bone.scale);
+    }
+    const w = rd.weapon;
+    if (w) { w.mesh.position.copy(w.body.interpolatedPosition); w.mesh.quaternion.copy(w.body.interpolatedQuaternion); }
+  }
+
+  // stop simulating but keep the final pose on screen
+  freeze(rd) {
+    if (!rd.active) return;
+    if (rd.segs.length) this.sync(rd);
+    rd.active = false;
+    const W = this.world;
+    for (const c of rd.cons) W.removeConstraint(c);
+    for (const b of rd.bodies) W.removeBody(b);
+    if (rd.ground) W.removeBody(rd.ground);
+    rd.cons.length = 0; rd.bodies.length = 0; rd.ground = null;
+    const i = this.active.indexOf(rd); if (i >= 0) this.active.splice(i, 1);
+    this.free.push(rd.slot);
+  }
+
+  // remove everything and restore the bot's normal skeleton / rifle
+  release(bot) {
+    const rd = bot && bot._rd; if (!rd) return;
+    this.freeze(rd);
+    for (const s of rd.segs) { const b = s.bone; b.position.copy(s.rest.p); b.quaternion.copy(s.rest.q); b.scale.copy(s.rest.s); }
+    const w = rd.weapon;
+    if (w && bot.aimPivot && bot._rifleHome) { const h = bot._rifleHome; bot.aimPivot.add(w.mesh); w.mesh.position.copy(h.p); w.mesh.quaternion.copy(h.q); w.mesh.scale.copy(h.s); }
+    if (bot._mark) bot._mark.visible = !!bot.team;
+    this.all.delete(rd); bot._rd = null;
+  }
+
+  clearAll() {
+    for (const rd of [...this.all]) { const bot = rd.bot; this.release(bot); if (bot && !bot.alive) bot.group.visible = false; }
+  }
+}
+const RAGDOLLS = new RagdollSystem();
 // ============================================================
 // ============================================================
 // 11. BOOTSTRAP
