@@ -179,12 +179,12 @@ const CFG = {
 // Weapon table. slot 0 = primary, slot 1 = secondary. scope = FOV per zoom level (right click).
 const WEAPONS = {
   ak47:  { id:'ak47',  name:'AK-47',  kind:'Assault Rifle', slot:0, mag:30, reserve:90, damage:30, head:3.4, rpm:600, reload:2.4, spread:.009, moveSpread:.030, recoil:.034, auto:true,  snd:'ak',     rl:'rifle',  speed:.96 },
-  m4a4:  { id:'m4a4',  name:'M4A4',   kind:'Assault Rifle', slot:0, mag:30, reserve:90, damage:26, head:3.9, rpm:666, reload:2.1, spread:.008, moveSpread:.028, recoil:.026, auto:true,  snd:'m4',     rl:'rifle',  speed:1 },
-  m4a1s: { id:'m4a1s', name:'M4A1-S', kind:'Suppressed Rifle', slot:0, mag:20, reserve:80, damage:24, head:4.2, rpm:600, reload:2.0, spread:.007, moveSpread:.026, recoil:.019, auto:true, snd:'supp', rl:'rifle', speed:1, suppressed:true },
+  m4a4:  { id:'m4a4',  name:'M4A4',   kind:'Assault Rifle', slot:0, mag:30, reserve:90, damage:26, head:3.7, rpm:666, reload:2.1, spread:.008, moveSpread:.028, recoil:.026, auto:true,  snd:'m4',     rl:'rifle',  speed:1 },
+  m4a1s: { id:'m4a1s', name:'M4A1-S', kind:'Suppressed Rifle', slot:0, mag:20, reserve:80, damage:24, head:4.0, rpm:600, reload:2.0, spread:.007, moveSpread:.026, recoil:.019, auto:true, snd:'supp', rl:'rifle', speed:1, suppressed:true },
   awp:   { id:'awp',   name:'AWP',    kind:'Sniper Rifle',  slot:0, mag:5,  reserve:30, damage:115, head:2, rpm:41,  reload:3.6, spread:.002, moveSpread:.10,  unscoped:.075, recoil:.075, auto:false, snd:'awp', rl:'sniper', speed:.82, scope:[38,14], bolt:true },
   ssg08: { id:'ssg08', name:'SSG 08', kind:'Scout Rifle',   slot:0, mag:10, reserve:90, damage:88, head:2, rpm:48,  reload:3.1, spread:.003, moveSpread:.07,  unscoped:.060, recoil:.05,  auto:false, snd:'ssg', rl:'sniper', speed:.9,  scope:[40,16], bolt:true },
   deagle:{ id:'deagle',name:'Desert Eagle', kind:'Heavy Pistol', slot:1, mag:7, reserve:35, damage:54, head:2.1, rpm:140, reload:2.2, spread:.004, moveSpread:.020, recoil:.075, auto:false, snd:'deagle', rl:'pistol', speed:1 },
-  usps:  { id:'usps',  name:'USP-S',  kind:'Suppressed Pistol', slot:1, mag:12, reserve:48, damage:30, head:3.4, rpm:360, reload:1.8, spread:.004, moveSpread:.014, recoil:.026, auto:false, snd:'pistolS', rl:'pistol', speed:1, suppressed:true },
+  usps:  { id:'usps',  name:'USP-S',  kind:'Suppressed Pistol', slot:1, mag:12, reserve:48, damage:30, head:3.2, rpm:360, reload:1.8, spread:.004, moveSpread:.014, recoil:.026, auto:false, snd:'pistolS', rl:'pistol', speed:1, suppressed:true },
   glock: { id:'glock', name:'Glock-18', kind:'Pistol',      slot:1, mag:20, reserve:100, damage:22, head:3.2, rpm:380, reload:1.9, spread:.005, moveSpread:.016, recoil:.024, auto:false, snd:'pistol', rl:'pistol', speed:1 }
 };
 const PRIMARIES = ['ak47','m4a4','m4a1s','awp','ssg08'], SECONDARIES = ['deagle','usps','glock'];
@@ -710,6 +710,7 @@ const SOUND_FILES = {
    ssg:     'CSGO/ssg.mp3',         // SSG 08 (scout)
   scope:   'CSGO/awpzoom.mp3',
   headshot:'CSGO/headshot.mp3',
+  dink: 'CSGO/dink.mp3',
   kill:    'CSGO/kill_feed.mp3',
    mvp:     'CSGO/mvp.mp3',
   deagle:  'CSGO/deagle.mp3',      // Desert Eagle shot
@@ -719,6 +720,12 @@ const SOUND_FILES = {
   land:    'CSGO/land.wav',        // landing after a jump / drop
   draw:    'CSGO/switch.mp3'       // switching weapon (keys 1/2, mouse wheel, buy menu)
 };
+const DINK_WEAPONS = new Set([
+  'm4a4',
+  'm4a1s',
+  'usps',
+  'glock'
+]);
 const FILE_AUDIO = {};
 for (const [k, src] of Object.entries(SOUND_FILES)) {
   const a = new Audio(src); a.preload = 'auto';
@@ -1017,7 +1024,39 @@ class Player {
     if(hits.length){
       const hit=hits[0];end.copy(hit.point);
       let o=hit.object;while(o&&!(o.userData&&o.userData.bot))o=o.parent;const bot=o?o.userData.bot:null;
-      if(bot){const head=hit.object.name==='head'||hit.point.y>bot.pos.y+1.55,damage=cfg.damage*(head?cfg.head:1),actual=Math.min(damage,bot.health),wasProtected=bot.protect>0;bot.takeDamage(damage,'Player');game.ui.hit(head,!bot.alive);if(!wasProtected){game.effects.damageNumber(hit.point,actual);game.effects.sparks(hit.point,head?0xffe8a1:0x9be9ff,4);}}
+      if(bot){
+  const head =
+    hit.object.name === 'head' ||
+    hit.point.y > bot.pos.y + 1.55;
+
+  const damage = cfg.damage * (head ? cfg.head : 1);
+  const actual = Math.min(damage, bot.health);
+  const wasProtected = bot.protect > 0;
+
+  // Dink only when a selected weapon lands a non-lethal headshot.
+  const isDink =
+    head &&
+    DINK_WEAPONS.has(cfg.id) &&
+    !wasProtected &&
+    bot.health > damage;
+
+  bot.takeDamage(damage, 'Player');
+
+  game.ui.hit(
+    head,
+    !bot.alive,
+    isDink ? 'dink' : null
+  );
+
+  if(!wasProtected){
+    game.effects.damageNumber(hit.point, actual);
+    game.effects.sparks(
+      hit.point,
+      head ? 0xffe8a1 : 0x9be9ff,
+      4
+    );
+  }
+}
       else{const normal=hit.face?hit.face.normal.clone().transformDirection(hit.object.matrixWorld):V(0,1,0);game.effects.decal(hit.point,normal);game.effects.sparks(hit.point,0xffc36b,5);}
     }
     const tracerStart=this.scopeLevel?origin.clone().addScaledVector(dir,.6):origin.clone().add(V(.2,-.18,-.5).applyQuaternion(this.camera.quaternion));
@@ -1385,7 +1424,17 @@ class UIManager {
   constructor(){this.el={};for(const id of ['startScreen','pauseScreen','deathScreen','matchScreen','scoreboard','timer','playerKills','playerDeaths','healthValue','healthFill','healthBlock','ammoValue','reserveValue','ammoLabel','weaponName','killfeed','hitmarker','vignette','damageArrow','xhair','scope','fps','scoreRows','deathTimer','matchWinner','matchSummary'])this.el[id]=document.getElementById(id);
     this.feedItems=[];this.hitTimer=0;this.damageTimer=0;this.arrowTimer=0;this.scoreShown=false;setupCanvas(this.el.xhair,160);}
   show(id,on){this.el[id].classList.toggle('hidden',!on);}
- hit(head=false,kill=false){const h=this.el.hitmarker;h.classList.toggle('kill',!!kill||!!head);h.style.opacity='1';this.hitTimer=.12;game.audio.play(head?'headshot':'hit');}
+hit(head=false,kill=false,soundOverride=null){
+  const h=this.el.hitmarker;
+
+  h.classList.toggle('kill',!!kill||!!head);
+  h.style.opacity='1';
+  this.hitTimer=.12;
+
+  game.audio.play(
+    soundOverride || (head ? 'headshot' : 'hit')
+  );
+}
   damage(sourcePos,playerPos){this.el.vignette.style.opacity='1';this.damageTimer=.25;this.el.damageArrow.style.opacity='1';if(sourcePos){const v=sourcePos.clone().sub(playerPos),angle=Math.atan2(-v.x,-v.z)-game.player.yaw;this.el.damageArrow.style.transform=`translate(-50%,-50%) rotate(${-angle*180/Math.PI}deg)`;}this.arrowTimer=.5;}
   feed(killer,victim){const d=document.createElement('div');d.className='feed';d.innerHTML=`<span class="killer">${killer}</span><span class="arrow">⟶</span><span class="victim">${victim}</span>`;this.el.killfeed.prepend(d);this.feedItems.push({node:d,life:5});while(this.feedItems.length>5){const a=this.feedItems.shift();a.node.remove();}}
   update(dt){if(this.hitTimer>0){this.hitTimer-=dt;if(this.hitTimer<=0)this.el.hitmarker.style.opacity='0';}if(this.damageTimer>0){this.damageTimer-=dt;if(this.damageTimer<=0)this.el.vignette.style.opacity='0';}if(this.arrowTimer>0){this.arrowTimer-=dt;if(this.arrowTimer<=0)this.el.damageArrow.style.opacity='0';}for(let i=this.feedItems.length-1;i>=0;i--){this.feedItems[i].life-=dt;if(this.feedItems[i].life<=0){this.feedItems[i].node.remove();this.feedItems.splice(i,1);}}}
