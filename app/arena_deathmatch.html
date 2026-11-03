@@ -152,7 +152,7 @@ try {
 const CFG = {
   ARENA_HALF: 30, MATCH_SECONDS: 300, BOT_COUNT: 5,
   PLAYER: { speed: 5.5, sprint: 6.5, crouch: 3.8, accel: 25, airAccel: 7, friction: 12, jump: 7.1, gravity: 19, radius: .36, height: 1.82, crouchHeight: 1.12, eye: 1.62, crouchEye: .98, sensitivity: .0022, fov: 65, maxHealth: 100, step: .17 },
-   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 80, attackRange: 60, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .09, shotDelay: .75, accuracy: .013, separation: 1.05, turnSpeed: 10 },
+   BOT: { health: 100, speed: 4.1, sprint: 5.1, sight: 90, attackRange: 60, damageMin: 3, damageMax: 4, respawn: 3, burst: 2, burstGap: .09, shotDelay: .55, accuracy: .008, separation: 1.05, turnSpeed: 12 },
   COLORS: { floor: 0x25333b, wall: 0x394751, metal: 0x546772, crate: 0x826d52, accent: 0x55c9d9 }
 };
 
@@ -191,10 +191,10 @@ const BUY_SECONDS = 30;   // buy time after every respawn (also the no-damage ti
 const BOT_AWP_CHANCE = .35;   // chance each bot gets an AWP whenever it respawns (0 = never, 1 = all bots)
 const BOT_AWP = Object.assign({}, CFG.BOT, {
   speed:3.4, sprint:4.1,          // slower, the AWP is heavy
-  sight:80, attackRange:70,       // sees and shoots from across the arena
+  sight:90, attackRange:70,       // sees and shoots from across the arena
   damageMin:10, damageMax:30,    // 100 = instant kill
   burst:1, shotDelay:2,         // one shot, then a long pause
-  accuracy:.006, turnSpeed:10,     // accurate, but slow to turn
+  accuracy:.006, turnSpeed:12,     // accurate, but slow to turn
   aim:.75                         // seconds it must hold steady on you before firing
 });
 
@@ -1383,25 +1383,126 @@ class Menu {
   }
   drawPreview(){drawCrosshair(this.preview,this.xh,0);}
   buildCrosshair(){
-    const $=id=>document.getElementById(id),x=this.xh;
-    const ranges=[['xhSize','size',1],['xhThick','thickness',1],['xhGap','gap',1],['xhDotSize','dotSize',1],['xhOutline','outline',1],['xhOpacity','opacity',100]];
-    const sync=()=>{
-      for(const [id,key,div] of ranges){$(id).value=x[key]*div;$(id+'Out').textContent=div===100?Math.round(x[key]*100)+'%':x[key];}
-      $('xhColor').value=x.color;$('xhDot').checked=!!x.dot;$('xhDyn').checked=!!x.dynamic;
-      document.querySelectorAll('#xhStyles .chip').forEach(c=>c.classList.toggle('sel',c.dataset.style===x.style));
-      this.drawPreview();
-    };
-    for(const [id,key,div] of ranges)$(id).addEventListener('input',e=>{x[key]=+e.target.value/div;$(id+'Out').textContent=div===100?Math.round(x[key]*100)+'%':x[key];this.save();this.drawPreview();});
-    $('xhColor').addEventListener('input',e=>{x.color=e.target.value;this.save();this.drawPreview();});
-    $('xhDot').addEventListener('change',e=>{x.dot=e.target.checked;this.save();this.drawPreview();});
-    $('xhDyn').addEventListener('change',e=>{x.dynamic=e.target.checked;this.save();});
-    document.querySelectorAll('#xhStyles .chip').forEach(c=>c.addEventListener('click',()=>{x.style=c.dataset.style;this.save();sync();}));
-    const colors=$('xhColors');
-    for(const col of XH_COLORS){const b=document.createElement('button');b.className='swatch';b.style.background=col;b.title=col;b.addEventListener('click',()=>{x.color=col;this.save();sync();});colors.appendChild(b);}
-    const presets=$('xhPresets');
-    for(const name of Object.keys(XH_PRESETS)){const b=document.createElement('button');b.className='chip';b.textContent=name.toUpperCase();b.addEventListener('click',()=>{Object.assign(x,XH_PRESETS[name]);this.save();sync();});presets.appendChild(b);}
-    sync();
+  const $=id=>document.getElementById(id),x=this.xh;
+
+  const ranges=[
+    ['xhSize','size',1],
+    ['xhThick','thickness',1],
+    ['xhGap','gap',1],
+    ['xhDotSize','dotSize',1],
+    ['xhOutline','outline',1],
+    ['xhOpacity','opacity',100]
+  ];
+
+  const sync=()=>{
+    // Update slider values and labels
+    for(const [id,key,div] of ranges){
+      $(id).value=x[key]*div;
+      $(id+'Out').textContent=
+        div===100 ? Math.round(x[key]*100)+'%' : x[key];
+    }
+
+    // Update color and checkboxes
+    $('xhColor').value=x.color;
+    $('xhDot').checked=!!x.dot;
+    $('xhDyn').checked=!!x.dynamic;
+
+    // Highlight selected style
+    document.querySelectorAll('#xhStyles .chip').forEach(c=>{
+      c.classList.toggle('sel',c.dataset.style===x.style);
+    });
+
+    // Highlight matching preset
+    document.querySelectorAll('#xhPresets .chip').forEach(c=>{
+      const preset=XH_PRESETS[c.dataset.preset];
+      const selected=!!preset &&
+        Object.keys(preset).every(key=>x[key]===preset[key]);
+
+      c.classList.toggle('sel',selected);
+    });
+
+    this.drawPreview();
+  };
+
+  // Slider event listeners — register only once
+  for(const [id,key,div] of ranges){
+    $(id).addEventListener('input',e=>{
+      x[key]=+e.target.value/div;
+      this.save();
+      sync();
+    });
   }
+
+  // Color picker
+  $('xhColor').addEventListener('input',e=>{
+    x.color=e.target.value;
+    this.save();
+    sync();
+  });
+
+  // Center dot
+  $('xhDot').addEventListener('change',e=>{
+    x.dot=e.target.checked;
+    this.save();
+    sync();
+  });
+
+  // Dynamic crosshair
+  $('xhDyn').addEventListener('change',e=>{
+    x.dynamic=e.target.checked;
+    this.save();
+    sync();
+  });
+
+  // Style buttons
+  document.querySelectorAll('#xhStyles .chip').forEach(c=>{
+    c.addEventListener('click',()=>{
+      x.style=c.dataset.style;
+      this.save();
+      sync();
+    });
+  });
+
+  // Color swatches
+  const colors=$('xhColors');
+
+  for(const col of XH_COLORS){
+    const b=document.createElement('button');
+    b.className='swatch';
+    b.style.background=col;
+    b.title=col;
+
+    b.addEventListener('click',()=>{
+      x.color=col;
+      this.save();
+      sync();
+    });
+
+    colors.appendChild(b);
+  }
+
+  // Preset buttons
+  const presets=$('xhPresets');
+
+  for(const name of Object.keys(XH_PRESETS)){
+    const b=document.createElement('button');
+
+    b.className='chip';
+    b.dataset.preset=name;
+    b.textContent=name.toUpperCase();
+
+    b.addEventListener('click',()=>{
+      Object.assign(x,XH_PRESETS[name]);
+      this.save();
+      sync();
+    });
+
+    presets.appendChild(b);
+  }
+
+  // Initial UI synchronization
+  sync();
+}
 }
 
 // ============================================================
