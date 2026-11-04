@@ -157,7 +157,28 @@ body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.sp
 </div>
     </div>
     <div class="pane" id="pane-controls">
-      <div class="controlsGrid"><div><span>W A S D</span> Move</div><div><span>MOUSE</span> Aim / Fire</div><div><span>RIGHT CLICK</span> Scope (AWP / SSG)</div> <div><span>Q</span> Quick Cancel Scope / Zoom</div><div><span>SHIFT</span> Sprint</div><div><span>F (hold)</span> Crouch</div><div><span>SPACE</span> Jump</div><div><span>R</span> Reload</div><div><span>1 / 2 / WHEEL</span> Switch weapon</div><div><span>TAB</span> Scoreboard</div><div><span>ESC</span> Pause</div></div>
+     <div class="controlsGrid">
+    <div><span>W A S D</span> Move</div>
+    <div><span>MOUSE</span> Aim / Fire</div>
+
+    <div><span>RIGHT CLICK</span> Scope (AWP / SSG)</div>
+    <div><span>Q</span> Quick Cancel Scope / Zoom</div>
+
+    <div><span>SHIFT</span> Sprint</div>
+    <div><span>F (hold)</span> Crouch</div>
+
+    <div><span>SPACE</span> Jump</div>
+    <div><span>R</span> Reload</div>
+
+    <div><span>1 / 2 / WHEEL</span> Switch Weapon</div>
+    <div><span>X</span> Select Smoke Grenade</div>
+
+    <div><span>Z</span> Select Flashbang</div>
+    <div><span>LEFT CLICK</span> Throw Grenade</div>
+
+    <div><span>TAB</span> Scoreboard</div>
+    <div><span>ESC</span> Pause</div>
+</div>
     </div>
     <button class="primaryBtn" id="playBtn">START MATCH</button>
     <button class="secondaryBtn" id="spectateBtn">SPECTATE BOTS</button>
@@ -941,8 +962,8 @@ const sharedParticleGeo=new THREE.SphereGeometry(.045,5,4);
 
 // ---- BLOOD SPRAY: pooled 3D droplets that fly out of the impact point (one burst per successful hit) ----
 const BLOOD_SPRAY_CFG = {
-  MAX: 320, GRAVITY: 12, DRAG: 1.7, LIFE: [.38, .75], FADE: .35,
-  CONE_BODY: .8, CONE_HEAD: 1.0, OFFSET: .03, DIST_BOOST: 3.0, DIST_REF: 12, BODY_R: .2
+  MAX: 400, GRAVITY: 12, DRAG: 1.6, LIFE: [.45, .9], FADE: .35,
+  CONE_BODY: .95, CONE_HEAD: 1.15, OFFSET: .03, DIST_BOOST: 3.5, DIST_REF: 10, BODY_R: .2
 };
 class BloodSpraySystem {
   constructor(scene) {
@@ -984,7 +1005,7 @@ class BloodSpraySystem {
     const t1 = this._t1.crossVectors(base, ref).normalize(), t2 = this._t2.crossVectors(base, t1);
     const dist = game.camera ? Math.hypot(px - game.camera.position.x, py - game.camera.position.y, pz - game.camera.position.z) : 0;
     const mul = clamp(dist / C.DIST_REF, 1, C.DIST_BOOST) * (head ? 1.1 : 1);
-    const n = Math.min(32, Math.round((head ? 22 : 14) + clamp(power / 30, 0, 3) * 2)), speedMul = (head ? 1.2 : 1) * clamp(.8 + power / 150, .8, 1.3);
+    const n = Math.min(40, Math.round((head ? 28 : 18) + clamp(power / 30, 0, 3) * 2)), speedMul = (head ? 1.2 : 1) * clamp(.8 + power / 150, .8, 1.3);
     const half = head ? C.CONE_HEAD : C.CONE_BODY, sx = px + base.x * C.OFFSET, sy = py + base.y * C.OFFSET, sz = pz + base.z * C.OFFSET, fy = bot.pos.y - .02;
     for (let i = 0; i < n; i++) {
       const streak = Math.random() < .25, cone = half * (Math.random() < .15 ? 1.5 : 1);
@@ -995,7 +1016,7 @@ class BloodSpraySystem {
       this.px[k] = sx; this.py[k] = sy; this.pz[k] = sz;
       this.vx[k] = dx * speed; this.vy[k] = dy * speed; this.vz[k] = dz * speed;
       this.maxLife[k] = this.life[k] = rand(C.LIFE[0], C.LIFE[1]);
-  this.w[k] = (streak ? rand(.010, .019) : rand(.015, .034)) * mul;
+  this.w[k] = (streak ? rand(.012, .022) : rand(.018, .04)) * mul;
 this.stretch[k] = streak ? .04 : .012; this.floorY[k] = fy;
       this.mesh.setColorAt(k, this.palette[(Math.random() * this.palette.length) | 0]);
     }
@@ -3052,17 +3073,824 @@ class RagdollSystem {
   }
 }
 const RAGDOLLS = new RagdollSystem();
+
+// ============================================================
+// OLYMPUS STRIKE - GO: SMOKE GRENADE + FLASHBANG EXTENSION
+// Insert after: const RAGDOLLS = new RagdollSystem();
+// This extension intentionally wraps the final prototype methods.
+// ============================================================
+const grenadeEase = x => x*x*(3-2*x);
+
+const GRENADE_CFG = {
+  MAX_PROJECTILES: 32,
+  MAX_SMOKE_CLOUDS: 5,
+  MAX_FLASH_FX: 6,
+  PLAYER_INVENTORY: 4,
+  BOT_INVENTORY: 4,
+  PLAYER_THROW_TIME: .72,
+  PLAYER_RELEASE_AT: .34,
+  BOT_THROW_TIME: .78,
+  BOT_RELEASE_AT: .42,
+  PLAYER_THROW_SPEED: 12.0,
+  PLAYER_THROW_UP: 3.0,
+  BOT_THROW_SPEED: 8.8,
+  BOT_THROW_UP: 3.0,
+  GRAVITY: 15.8,
+  AIR_DRAG: .055,
+  BOUNCE: .43,
+  WALL_FRICTION: .72,
+  GROUND_FRICTION: .72,
+  SMOKE_FUSE: 1.35,
+  FLASH_FUSE: 1.35,
+  SMOKE_DURATION: 9.0,
+  SMOKE_EXPANSION: 1.0,
+  SMOKE_FADE: 1.25,
+  SMOKE_RADIUS: 7.5,
+  SMOKE_HEIGHT: 6.0,
+  SMOKE_PUFFS: 68,
+  SMOKE_OPACITY: .92,
+FLASH_RADIUS: 30,
+FLASH_MAX_BLIND: 4.5,
+FLASH_VISUAL_TIME: .35,
+  BOT_THINK_MIN: 3.2,
+  BOT_THINK_MAX: 6.6
+};
+
+function grenadeCanvasTexture(kind) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  if (kind === 'smoke') {
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#65705d'); grad.addColorStop(.5, '#424c3d'); grad.addColorStop(1, '#252d27');
+    g.fillStyle = grad; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = 'rgba(184,190,160,.22)'; g.fillRect(0, 18, 512, 12); g.fillRect(0, 226, 512, 12);
+    g.fillStyle = '#d8ddc9'; g.font = 'bold 48px Arial'; g.textAlign = 'center';
+    g.fillText('SMOKE', 256, 112); g.font = 'bold 20px Arial'; g.fillText('TACTICAL GRENADE', 256, 151);
+    g.strokeStyle = 'rgba(225,230,205,.55)'; g.lineWidth = 4; g.strokeRect(26, 25, 460, 206);
+  } else {
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#7f8980'); grad.addColorStop(.34, '#506660'); grad.addColorStop(.66, '#334a48'); grad.addColorStop(1, '#7a8178');
+    g.fillStyle = grad; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#b18a50'; g.fillRect(0, 48, 512, 25); g.fillRect(0, 184, 512, 25);
+    g.fillStyle = '#17201e'; g.font = 'bold 43px Arial'; g.textAlign = 'center'; g.fillText('FLASH', 256, 128);
+    g.font = 'bold 18px Arial'; g.fillText('STUN GRENADE', 256, 157);
+    g.strokeStyle = 'rgba(20,28,26,.7)'; g.lineWidth = 5; g.strokeRect(22, 18, 468, 220);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+
+function grenadeNoiseTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const nx = (x - 127.5) / 127.5, ny = (y - 127.5) / 127.5;
+    const r = Math.sqrt(nx * nx + ny * ny);
+    const n1 = Math.sin(x * .093 + Math.sin(y * .071) * 2.1) * .055;
+    const n2 = Math.sin(y * .147 + x * .037) * .045;
+    const n3 = (Math.random() - .5) * .20;
+    const edge = 1 - r + n1 + n2 + n3;
+    const a = clamp((edge - .04) * 2.7, 0, 1) * clamp(1 - r * .18, 0, 1);
+    const i = (y * 256 + x) * 4, shade = 188 + Math.round((n1 + n2 + n3) * 65);
+    img.data[i] = shade + 6; img.data[i + 1] = shade + 7; img.data[i + 2] = shade + 2; img.data[i + 3] = Math.round(a * 255);
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t;
+}
+
+function grenadeWhiteFlashTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), r = g.createRadialGradient(64,64,0,64,64,64);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.28, 'rgba(255,255,255,.94)');
+  r.addColorStop(.65, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+class GrenadeSystem {
+  constructor(gameRef) {
+    this.game = gameRef;
+    this.projectilePool = [];
+    this.projectiles = [];
+    this.smokeClouds = [];
+    this.flashFX = [];
+    this._ray = new THREE.Raycaster(); this._ray.firstHitOnly = true;
+    this._v0 = V(); this._v1 = V(); this._v2 = V(); this._v3 = V(); this._v4 = V(); this._up = V(0,1,0);
+    this._q0 = new THREE.Quaternion(); this._q1 = new THREE.Quaternion();
+    this._dummy = new THREE.Object3D(); this._matrix = new THREE.Matrix4();
+    this._axisX = V(1,0,0); this._axisY = V(0,1,0);
+    this.templates = this.buildTemplates();
+    this.smokeTexture = grenadeNoiseTexture();
+    this.flashTexture = grenadeWhiteFlashTexture();
+    this.puffGeo = new THREE.PlaneGeometry(1,1);
+    this.buildProjectilePool(); this.buildFlashPool(); this.buildUI(); this.registerAudio();
+    this.playerBlindTime = 0; this.playerBlindDuration = 0; this.playerBlindStrength = 0;
+    this._lastHUD = '';
+    this.resetInventoriesOnly();
+  }
+
+  buildTemplates() {
+    const makeSet = kind => {
+      const texture = grenadeCanvasTexture(kind);
+      const bodyMat = new THREE.MeshStandardMaterial({ color:0xffffff, map:texture, metalness:.58, roughness:.42 });
+      const capMat = new THREE.MeshStandardMaterial({ color:0x20272a, metalness:.82, roughness:.3 });
+      const bandMat = new THREE.MeshStandardMaterial({ color:kind==='smoke'?0x303a2c:0x967447, metalness:.72, roughness:.38 });
+      const leverMat = new THREE.MeshStandardMaterial({ color:0x171d20, metalness:.84, roughness:.28 });
+      const ringMat = new THREE.MeshStandardMaterial({ color:0x9ca5a2, metalness:.9, roughness:.23 });
+      const root = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,.36,16,1,false),bodyMat); body.position.y=.015; body.castShadow=true; body.receiveShadow=true; root.add(body);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(.105,.115,.055,16),capMat); top.position.y=.222; top.castShadow=true; root.add(top);
+      const bottom = new THREE.Mesh(new THREE.CylinderGeometry(.115,.105,.045,16),capMat); bottom.position.y=-.19; bottom.castShadow=true; root.add(bottom);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(.117,.117,.045,16),bandMat); band.position.y=kind==='smoke'?.12:-.085; root.add(band);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(.052,.075,.055,12),leverMat); neck.position.y=.264; root.add(neck);
+      const lever = new THREE.Mesh(new THREE.BoxGeometry(.055,.30,.018),leverMat); lever.position.set(.09,.13,.005); lever.rotation.z=-.16; root.add(lever);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(.075,.008,6,18),ringMat); ring.position.set(-.005,.325,.015); ring.rotation.x=Math.PI/2; ring.rotation.z=.24; root.add(ring);
+      const pin = new THREE.Mesh(new THREE.SphereGeometry(.018,8,6),ringMat); pin.position.set(-.02,.275,.045); root.add(pin);
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(.014,8,6),bandMat); rivet.position.set(.105,.02,.025); root.add(rivet);
+      root.traverse(o=>{ if(o.isMesh){o.raycast=()=>{};} });
+      root.userData.grenadeKind=kind;
+      return root;
+    };
+    return { smoke:makeSet('smoke'), flash:makeSet('flash') };
+  }
+
+  cloneModel(kind) {
+    const model = this.templates[kind].clone(true);
+    model.traverse(o=>{ if(o.isMesh) o.raycast=()=>{}; });
+    return model;
+  }
+
+  registerAudio() {
+    const files = {
+      grenadeSmokeThrow:'CSGO/smoke grenade.mp3',
+      grenadeSmokeBoom:'CSGO/smoke grenade boom.mp3',
+      grenadeFlashThrow:'CSGO/flashbang.mp3',
+      grenadeFlashBoom:'CSGO/flashbang boom.mp3'
+    };
+    for (const [name,src] of Object.entries(files)) {
+      SOUND_FILES[name]=src;
+      const a=new Audio(src); a.preload='auto'; a.addEventListener('error',()=>{a._bad=true;}); FILE_AUDIO[name]=a;
+    }
+  }
+
+  buildProjectilePool() {
+    for (let i=0;i<GRENADE_CFG.MAX_PROJECTILES;i++) {
+      const root=new THREE.Group(); root.visible=false;
+      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash');
+      smokeModel.visible=false;flashModel.visible=false;root.add(smokeModel,flashModel);
+      this.game.scene.add(root);
+      this.projectilePool.push({root,smokeModel,flashModel,active:false,kind:'smoke',owner:null,fuse:0,age:0,pos:V(),vel:V(),spin:V()});
+    }
+  }
+
+  buildFlashPool() {
+    for (let i=0;i<GRENADE_CFG.MAX_FLASH_FX;i++) {
+      const group=new THREE.Group(); group.visible=false;
+      const material=new THREE.SpriteMaterial({map:this.flashTexture,color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
+      const sprite=new THREE.Sprite(material); sprite.scale.set(13,13,1); group.add(sprite);
+      const light=new THREE.PointLight(0xffffff,0,22,2); group.add(light);
+      this.game.scene.add(group);
+      this.flashFX.push({group,sprite,material,light,life:0,max:GRENADE_CFG.FLASH_VISUAL_TIME});
+    }
+  }
+
+  buildUI() {
+    const style=document.createElement('style');
+    style.textContent=`
+      #grenadeHud{position:absolute;left:50%;bottom:19px;transform:translateX(-50%);display:flex;gap:7px;align-items:center;pointer-events:none;z-index:12;font:900 10px Arial,sans-serif;letter-spacing:1.3px;text-shadow:0 2px 5px #000}
+      .grenadeCount{padding:7px 10px;background:rgba(5,10,16,.78);border:1px solid rgba(130,190,210,.30);color:#d7e5eb;min-width:105px;text-align:center}
+      .grenadeCount.active{border-color:#66e8ff;color:#66e8ff;background:rgba(12,35,44,.9)}
+      .grenadeCount.empty{color:#ff7783;border-color:rgba(255,80,95,.5)}
+      #grenadeSmokeOverlay{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;background:rgba(190,194,190,.94);backdrop-filter:blur(7px);transition:opacity .12s linear}
+      #grenadeFlashOverlay{position:fixed;inset:0;z-index:90;pointer-events:none;opacity:0;background:#fff;transition:opacity .06s linear}
+      body.spectating #grenadeFlashOverlay,body.spectating #grenadeSmokeOverlay{opacity:0!important}
+      @media(max-width:700px){#grenadeHud{bottom:76px;gap:4px}.grenadeCount{min-width:90px;padding:6px 7px;font-size:9px}}
+    `;
+    document.head.appendChild(style);
+    const ui=document.getElementById('ui');
+    this.smokeOverlay=document.createElement('div'); this.smokeOverlay.id='grenadeSmokeOverlay'; ui.appendChild(this.smokeOverlay);
+    this.flashOverlay=document.createElement('div'); this.flashOverlay.id='grenadeFlashOverlay'; ui.appendChild(this.flashOverlay);
+    this.hud=document.createElement('div'); this.hud.id='grenadeHud';
+    this.hud.innerHTML='<div class="grenadeCount" id="grenadeSmokeCount">X · SMOKE × 3</div><div class="grenadeCount" id="grenadeFlashCount">Z · FLASH × 3</div>';
+    ui.appendChild(this.hud);
+    this.smokeCountEl=this.hud.querySelector('#grenadeSmokeCount');
+    this.flashCountEl=this.hud.querySelector('#grenadeFlashCount');
+  }
+
+  inventory(count=GRENADE_CFG.PLAYER_INVENTORY) { return {smoke:count,flash:count}; }
+  resetInventoriesOnly() {
+    const p=this.game.player; if(p){p.grenadeInventory=this.inventory();p.grenadeSelected=null;p._grenadeMouseConsumed=false;}
+    for(const b of this.game.bots||[]){b.grenadeInventory=this.inventory(GRENADE_CFG.BOT_INVENTORY);b.grenadeBlind=0;b.grenadeDecisionTimer=rand(1.8,4.5);b._grenadeThrow=null;}
+  }
+
+  hidePlayerHand() {
+    const p=this.game.player;
+    if(p && p._grenadeVM) p._grenadeVM.visible=false;
+  }
+
+  exitPlayerSelection() {
+    const p=this.game.player;
+    if(!p) return;
+    p.grenadeSelected=null;
+    this.hidePlayerHand();
+    p._grenadeThrow=null;
+    p._grenadeMouseConsumed=false;
+    if(p.viewmodels) p.showWeapon();
+    this.updateHUD();
+  }
+
+  selectPlayer(kind) {
+    const p=this.game.player;
+    if(this.game.state!=='Playing'||p.dead||!['smoke','flash'].includes(kind)) return false;
+    p.grenadeSelected=kind;
+    p.scopeLevel=0; p.applyFov(); p.drawTimer=0;
+    if(!p._grenadeVM) {
+      const hand=new THREE.Group();
+      hand.add(makeHand('grip',V(-.04,-.64,-.76),.9));
+      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash');
+      for(const model of [smokeModel,flashModel]) {
+    model.scale.setScalar(.58);
+    model.position.set(.005,.075,-.025);
+    model.rotation.set(Math.PI/2,.04,-.18);
+}
+      hand.add(smokeModel,flashModel);hand.userData.smokeModel=smokeModel;hand.userData.flashModel=flashModel;
+      hand.position.set(.30,-.31,-.58);hand.rotation.set(-.08,0,-.18);
+      this.game.vmCamera.add(hand);p._grenadeVM=hand;
+    }
+    const hand=p._grenadeVM,smokeModel=hand.userData.smokeModel,flashModel=hand.userData.flashModel;
+    hand.userData.grenadeModel=kind==='smoke'?smokeModel:flashModel;
+    smokeModel.visible=kind==='smoke';flashModel.visible=kind==='flash';
+    p._grenadeVM.visible=true;
+    p.showWeapon();
+    this.updateHUD();
+    return true;
+  }
+
+  beginPlayerThrow(player) {
+    if(!player.grenadeSelected||player._grenadeThrow) return false;
+    const kind=player.grenadeSelected, inv=player.grenadeInventory||this.inventory();
+    if(inv[kind]<=0||!this.getFreeProjectile()) return false;
+    if(player.isReloading) return false;
+    player._grenadeThrow={kind,time:0,released:false,duration:GRENADE_CFG.PLAYER_THROW_TIME};
+    player.fireBuffer=0;
+    this.game.audio.play(kind==='smoke'?'grenadeSmokeThrow':'grenadeFlashThrow');
+    return true;
+  }
+
+  playerReleasePosition(player) {
+    const cam=this.game.camera,dir=cam.getWorldDirection(this._v0).normalize();
+    const right=this._v1.set(1,0,0).applyQuaternion(cam.quaternion).normalize();
+    return this._v2.copy(cam.position).addScaledVector(dir,.48).addScaledVector(right,.20).add(V(0,-.12,0)).clone();
+  }
+
+  updatePlayerViewmodel(dt) {
+    const p=this.game.player,hand=p&&p._grenadeVM;
+    if(!hand) return;
+    if(!p.grenadeSelected){hand.visible=false;return;}
+    hand.visible=true;
+    const model=hand.userData.grenadeModel,throwing=p._grenadeThrow;
+    if(!throwing){hand.position.set(.30,-.31,-.58);hand.rotation.set(-.08,0,-.18);if(model){model.rotation.set(Math.PI/2,.04,-.18);model.visible=(p.grenadeInventory?.[p.grenadeSelected]||0)>0;}return;}
+    throwing.time+=dt;
+    const t=clamp(throwing.time/throwing.duration,0,1),prep=clamp(t/.48,0,1),swing=clamp((t-.38)/.52,0,1);
+    hand.position.set(.30-.13*grenadeEase(prep)+.08*grenadeEase(swing),-.31-.13*grenadeEase(prep)+.36*grenadeEase(swing),-.58+.16*grenadeEase(prep)-.30*grenadeEase(swing));
+    hand.rotation.set(-.08-.62*grenadeEase(prep)+.88*grenadeEase(swing),.12*grenadeEase(swing),-.18-.48*grenadeEase(prep)+.58*grenadeEase(swing));
+    if(model){model.rotation.x=Math.PI/2+.28*grenadeEase(prep)-.36*grenadeEase(swing);model.visible=!throwing.released;}
+    if(!throwing.released&&throwing.time>=GRENADE_CFG.PLAYER_RELEASE_AT) {
+      const kind=throwing.kind,origin=this.playerReleasePosition(p);
+      const dir=this.game.camera.getWorldDirection(this._v1).normalize();
+      const velocity=dir.multiplyScalar(GRENADE_CFG.PLAYER_THROW_SPEED).add(V(0,GRENADE_CFG.PLAYER_THROW_UP,0)).addScaledVector(p.vel,.35);
+      if(this.spawnProjectile(kind,origin,velocity,p)) {
+        p.grenadeInventory[kind]--;
+        throwing.released=true;
+        if(model)model.visible=false;
+        this.updateHUD();
+      } else {
+        throwing.released=true;
+        if(model)model.visible=true;
+      }
+    }
+    if(throwing.time>=throwing.duration) {
+      p._grenadeThrow=null;
+      hand.position.set(.30,-.31,-.58);hand.rotation.set(-.08,0,-.18);
+      if(model)model.visible=(p.grenadeInventory?.[p.grenadeSelected]||0)>0;
+    }
+  }
+
+  getFreeProjectile() { return this.projectilePool.find(p=>!p.active)||null; }
+
+  spawnProjectile(kind,origin,velocity,owner) {
+    const p=this.getFreeProjectile(); if(!p) return false;
+    p.active=true; p.kind=kind; p.owner=owner; p.fuse=kind==='smoke'?GRENADE_CFG.SMOKE_FUSE:GRENADE_CFG.FLASH_FUSE; p.age=0;
+    p.pos.copy(origin);p.vel.copy(velocity);p.spin.set(rand(-5,5),rand(-7,7),rand(-5,5));
+    p.smokeModel.visible=kind==='smoke';p.flashModel.visible=kind==='flash';
+    p.root.visible=true;p.root.position.copy(origin);
+    p.root.quaternion.setFromUnitVectors(this._up,this._v0.copy(velocity).normalize());
+    this.projectiles.push(p); return true;
+  }
+
+  releaseProjectile(p) {
+    p.active=false;p.owner=null;p.root.visible=false;p.smokeModel.visible=false;p.flashModel.visible=false;
+  }
+
+  updateProjectiles(dt) {
+    const map=this.game.map;
+    for(let i=this.projectiles.length-1;i>=0;i--) {
+      const p=this.projectiles[i]; p.age+=dt; p.fuse-=dt;
+      p.vel.y-=GRENADE_CFG.GRAVITY*dt;
+      const drag=Math.exp(-GRENADE_CFG.AIR_DRAG*dt); p.vel.multiplyScalar(drag);
+      this._v0.copy(p.pos); this._v1.copy(p.vel).multiplyScalar(dt); const travel=this._v1.length();
+      if(travel>.0001) {
+        this._v1.normalize(); this._ray.set(p.pos,this._v1); this._ray.near=0; this._ray.far=travel+.04;
+        const hit=map.blockers.length?this._ray.intersectObjects(map.blockers,false)[0]:null;
+        if(hit&&hit.distance<=travel+.02) {
+          const normal=hit.face?this._v3.copy(hit.face.normal).transformDirection(hit.object.matrixWorld):this._v3.set(0,1,0);
+          p.pos.copy(hit.point).addScaledVector(normal,.13);
+          const vn=p.vel.dot(normal);
+          if(vn<0)p.vel.addScaledVector(normal,-(1+GRENADE_CFG.BOUNCE)*vn);
+          if(normal.y>.55){p.vel.x*=GRENADE_CFG.GROUND_FRICTION;p.vel.z*=GRENADE_CFG.GROUND_FRICTION;if(Math.abs(p.vel.y)<1.05)p.vel.y=0;}
+          else {p.vel.x*=GRENADE_CFG.WALL_FRICTION;p.vel.z*=GRENADE_CFG.WALL_FRICTION;}
+        } else p.pos.addScaledVector(p.vel,dt);
+      }
+      const floor=map.floorAt(p.pos.x,p.pos.z,p.pos.y);
+      if(floor>-500&&p.pos.y<floor+.13) {
+        p.pos.y=floor+.13;
+        if(Math.abs(p.vel.y)>1.0)p.vel.y=Math.abs(p.vel.y)*GRENADE_CFG.BOUNCE;else p.vel.y=0;
+        p.vel.x*=GRENADE_CFG.GROUND_FRICTION;p.vel.z*=GRENADE_CFG.GROUND_FRICTION;
+      }
+      if(p.vel.lengthSq()>.08){p.root.quaternion.setFromUnitVectors(this._up,this._v2.copy(p.vel).normalize());p.root.rotateX(p.spin.x*dt);p.root.rotateY(p.spin.y*dt);p.root.rotateZ(p.spin.z*dt);}
+      p.root.position.copy(p.pos);
+      if(p.fuse<=0) {
+        if(p.kind==='smoke')this.detonateSmoke(p.pos);
+        else this.detonateFlash(p.pos,p.owner);
+        this.releaseProjectile(p); this.projectiles.splice(i,1);
+      }
+    }
+  }
+
+  detonateSmoke(position) {
+    if(this.smokeClouds.length>=GRENADE_CFG.MAX_SMOKE_CLOUDS) {
+      const oldest=this.smokeClouds.shift(); this.removeSmokeCloud(oldest);
+    }
+    const material=new THREE.MeshBasicMaterial({map:this.smokeTexture,color:0xd1d1c9,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
+    const mesh=new THREE.InstancedMesh(this.puffGeo,material,GRENADE_CFG.SMOKE_PUFFS);
+    mesh.frustumCulled=false;mesh.raycast=()=>{};mesh.renderOrder=3;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const puffs=[];
+    for(let i=0;i<GRENADE_CFG.SMOKE_PUFFS;i++) {
+      const a=Math.random()*Math.PI*2,r=Math.sqrt(Math.random())*.77;
+      puffs.push({x:Math.cos(a)*r,z:Math.sin(a)*r,y:(Math.random()-.5)*1.15,w:rand(2.2,4.6),h:rand(3.0,5.5),rot:rand(-Math.PI,Math.PI),phase:rand(0,6.28),rate:rand(.45,1.15)});
+      const col= new THREE.Color().setHSL(.13,.045,rand(.69,.83)); mesh.setColorAt(i,col);
+    }
+    mesh.instanceColor.needsUpdate=true;
+    const cloud={mesh,material,puffs,center:position.clone(),age:0,radius:0,alive:true};
+    mesh.position.copy(position);this.game.scene.add(mesh);this.smokeClouds.push(cloud);
+    this.game.audio.playAt('grenadeSmokeBoom',position,this.game.camera);
+  }
+
+  removeSmokeCloud(cloud) {
+    if(!cloud)return;
+    this.game.scene.remove(cloud.mesh);cloud.material.dispose();cloud.alive=false;
+  }
+
+  segmentBlockedBySmoke(a,b) {
+    for(const c of this.smokeClouds) {
+      if(!c.alive||c.age>=GRENADE_CFG.SMOKE_DURATION)continue;
+      const radius=Math.max(1.0,c.radius*.94),height=GRENADE_CFG.SMOKE_HEIGHT*.5;
+      const ab=this._v0.copy(b).sub(a),den=ab.lengthSq();
+      const t=den>1e-6?clamp(this._v1.copy(c.center).sub(a).dot(ab)/den,0,1):0;
+      const closest=this._v2.copy(a).addScaledVector(ab,t);
+      const dx=(closest.x-c.center.x)/radius,dy=(closest.y-c.center.y)/height,dz=(closest.z-c.center.z)/radius;
+      if(dx*dx+dy*dy+dz*dz<=1.12)return true;
+    }
+    return false;
+  }
+
+  updateSmoke(dt) {
+    for(let i=this.smokeClouds.length-1;i>=0;i--) {
+      const c=this.smokeClouds[i]; c.age+=dt;
+      if(c.age>=GRENADE_CFG.SMOKE_DURATION) {this.removeSmokeCloud(c);this.smokeClouds.splice(i,1);continue;}
+      const e=clamp(c.age/GRENADE_CFG.SMOKE_EXPANSION,0,1),exp=e*e*(3-2*e);
+      c.radius=GRENADE_CFG.SMOKE_RADIUS*exp;
+      const fadeStart=GRENADE_CFG.SMOKE_DURATION-GRENADE_CFG.SMOKE_FADE;
+      const fade=c.age>fadeStart?clamp((GRENADE_CFG.SMOKE_DURATION-c.age)/GRENADE_CFG.SMOKE_FADE,0,1):1;
+      c.material.opacity=GRENADE_CFG.SMOKE_OPACITY*fade;
+      c.mesh.position.set(c.center.x+Math.sin(c.age*.55)*.12,c.center.y+Math.min(.24,c.age*.025),c.center.z+Math.cos(c.age*.43)*.12);
+      for(let j=0;j<c.puffs.length;j++) {
+        const p=c.puffs[j],w=exp;
+        this._dummy.position.set(p.x*GRENADE_CFG.SMOKE_RADIUS*w+Math.sin(c.age*p.rate+p.phase)*.14,p.y*GRENADE_CFG.SMOKE_HEIGHT*w*.42+Math.sin(c.age*.75+p.phase)*.10,p.z*GRENADE_CFG.SMOKE_RADIUS*w+Math.cos(c.age*p.rate+p.phase)*.14);
+        this._dummy.quaternion.copy(this.game.camera.quaternion);this._dummy.rotateZ(p.rot+c.age*.10);
+        this._dummy.scale.set(p.w*(.12+.88*w),p.h*(.12+.88*w),1);
+        this._dummy.updateMatrix();c.mesh.setMatrixAt(j,this._dummy.matrix);
+      }
+      c.mesh.instanceMatrix.needsUpdate=true;
+    }
+  }
+
+  flashVisibility(from,to) {
+    // Five short visibility probes let a corner or railing weaken a flash rather than acting like an all-or-nothing switch.
+    const offsets=[[0,0,0],[.42,0,0],[-.42,0,0],[0,.42,0],[0,-.42,0]];
+    let visible=0;
+    for(const o of offsets){
+      const sample=this._v4.set(to.x+o[0],to.y+o[1],to.z+o[2]);
+      const dir=this._v0.copy(sample).sub(from),dist=dir.length();
+      if(dist<.05){visible++;continue;}
+      dir.normalize();this._ray.set(from,dir);this._ray.near=.02;this._ray.far=Math.max(.02,dist-.08);
+      const hit=this.game.map.blockers.length?this._ray.intersectObjects(this.game.map.blockers,false)[0]:null;
+      if(!hit||hit.distance>=dist-.10)visible++;
+    }
+    return visible/offsets.length;
+  }
+
+  exposureAt(eye,forward,position) {
+    const to=this._v3.copy(position).sub(eye),dist=to.length();
+    if(dist>GRENADE_CFG.FLASH_RADIUS||dist<.1)return 0;
+    to.normalize();
+    const visibility=this.flashVisibility(eye,position);
+    if(visibility<=0)return 0;
+    const facing=clamp((forward.dot(to)+.08)/1.08,0,1);
+    const distance=clamp(1-dist/GRENADE_CFG.FLASH_RADIUS,0,1);
+    return distance*distance*(.12+.88*facing)*visibility;
+  }
+
+  detonateFlash(position,owner) {
+    let fx=this.flashFX.find(x=>x.life<=0)||this.flashFX[0];
+    fx.group.visible=true;fx.group.position.copy(position);fx.life=GRENADE_CFG.FLASH_VISUAL_TIME;fx.max=GRENADE_CFG.FLASH_VISUAL_TIME;
+    fx.sprite.scale.set(15,15,1);fx.material.opacity=1;fx.light.intensity=34;fx.light.distance=24;
+    this.game.audio.playAt('grenadeFlashBoom',position,this.game.camera);
+    const g=this.game;
+    if(!g.spectatorMatch&&(g.state==='Playing'||g.state==='Respawning')&&!g.player.dead) {
+      const eye=g.camera.position,forward=g.camera.getWorldDirection(new THREE.Vector3()).normalize();
+     const amount = this.exposureAt(eye, forward, position);
+
+if (amount > 0.045) {
+
+    // Stronger, near-white full-screen flash.
+const visualStrength = clamp(
+    Math.pow(amount, 0.20),
+    0.96,
+    1.0
+);
+
+    // Hold the blindness effect for several seconds.
+    const blindDuration =
+        0.35 + GRENADE_CFG.FLASH_MAX_BLIND * visualStrength;
+
+    this.applyPlayerBlind(
+        blindDuration,
+        visualStrength
+    );
+}
+    }
+    for(const bot of g.bots) {
+      if(!bot.alive)continue;
+      const eye=new THREE.Vector3(bot.pos.x,bot.pos.y+1.45,bot.pos.z);
+      const forward=new THREE.Vector3(-Math.sin(bot.yaw),0,-Math.cos(bot.yaw));
+      const amount=this.exposureAt(eye,forward,position);
+      if(amount>.075)bot.grenadeBlind=Math.max(bot.grenadeBlind||0,.18+GRENADE_CFG.FLASH_MAX_BLIND*amount);
+    }
+  }
+
+  applyPlayerBlind(duration,strength) {
+    if(duration>this.playerBlindTime) {
+      this.playerBlindTime=duration;this.playerBlindDuration=duration;this.playerBlindStrength=clamp(strength,.1,1);
+    } else this.playerBlindStrength=Math.max(this.playerBlindStrength,clamp(strength,.1,1));
+  }
+
+  updateFlashFX(dt) {
+    for(const fx of this.flashFX) {
+      if(fx.life<=0)continue;
+      fx.life-=dt;const f=clamp(fx.life/fx.max,0,1);
+      fx.material.opacity=f;fx.sprite.scale.setScalar(8+8*(1-f));fx.light.intensity=34*f;
+      if(fx.life<=0){fx.life=0;fx.group.visible=false;fx.light.intensity=0;fx.material.opacity=0;}
+    }
+    if(this.playerBlindTime>0) {
+      this.playerBlindTime=Math.max(0,this.playerBlindTime-dt);
+    // Hold an almost-white screen, then smoothly fade out.
+const fadeTime = 1.0;
+
+const fade = clamp(
+    this.playerBlindTime / fadeTime,
+    0,
+    1
+);
+
+const flashOpacity = clamp(
+    this.playerBlindStrength * Math.min(1, fade * 1.15),
+    0,
+    0.995
+);
+
+this.flashOverlay.style.opacity = String(flashOpacity);
+      if(this.playerBlindTime<=0){this.flashOverlay.style.opacity='0';this.playerBlindStrength=0;}
+    }
+  }
+
+  smokeScreenDensity() {
+    if(this.game.spectatorMatch||this.game.state==='Spectating'||this.game.state==='SpectatorPaused')return 0;
+    const cam=this.game.camera.position;let density=0;
+    for(const c of this.smokeClouds) {
+      if(c.radius<1)continue;
+      const dx=(cam.x-c.center.x)/(c.radius*.78),dz=(cam.z-c.center.z)/(c.radius*.78),dy=(cam.y-c.center.y)/(GRENADE_CFG.SMOKE_HEIGHT*.55);
+      const d=Math.sqrt(dx*dx+dz*dz+dy*dy);
+      if(d<1) {
+        const fade=c.age>GRENADE_CFG.SMOKE_DURATION-GRENADE_CFG.SMOKE_FADE?clamp((GRENADE_CFG.SMOKE_DURATION-c.age)/GRENADE_CFG.SMOKE_FADE,0,1):1;
+        density=Math.max(density,(.12+.82*Math.pow(1-d,.38))*fade);
+      }
+    }
+    return clamp(density,0,.92);
+  }
+
+  beginBotThrow(bot,kind,target) {
+    if(!bot.alive||bot.protect>0||bot.grenadeBlind>0||bot._grenadeThrow||!bot.grenadeInventory||bot.grenadeInventory[kind]<=0||!this.getFreeProjectile())return false;
+    const handArm=bot.rig&&bot.rig.arms?bot.rig.arms.find(a=>a.sign===1):null;
+    if(!bot._grenadeProps){bot._grenadeProps={smoke:this.cloneModel('smoke'),flash:this.cloneModel('flash')};for(const m of Object.values(bot._grenadeProps))m.scale.setScalar(.58);}
+    const prop=bot._grenadeProps[kind];prop.visible=true;
+    if(handArm&&handArm.hand) {
+      handArm.hand.add(prop);prop.position.set(.015,.015,-.045);
+    } else {
+      bot.group.add(prop);prop.position.set(.30,1.35,-.22);
+    }
+    bot._grenadeProp=prop;bot._grenadeHandArm=handArm||null;
+    bot._grenadeGun=bot.rifleGroup||(bot.aimPivot&&bot.aimPivot.children.find(c=>c.isGroup))||null;
+    if(bot._grenadeGun)bot._grenadeGun.visible=false;
+    const aimPoint=kind==='smoke'?bot.pos.clone().lerp(target.pos,.44):target.pos.clone();
+    bot._grenadeThrow={kind,target:aimPoint,time:0,released:false,duration:GRENADE_CFG.BOT_THROW_TIME};
+    this.game.audio.playAt(kind==='smoke'?'grenadeSmokeThrow':'grenadeFlashThrow',bot.pos,this.game.camera);
+    return true;
+  }
+
+  updateBotThrow(bot,dt) {
+    const t=bot._grenadeThrow;if(!t)return;
+    t.time+=dt;const u=clamp(t.time/t.duration,0,1),prep=clamp(u/.5,0,1),swing=clamp((u-.38)/.48,0,1);
+    if(bot._grenadeProp) {
+      bot._grenadeProp.rotation.set(.35+prep*.65-swing*.5,.1+swing*.3,-.25-prep*.45+swing*.7);
+      if(bot._grenadeProp.parent===bot._grenadeHandArm?.hand)bot._grenadeProp.position.set(.015,.015-.035*prep,-.045-.04*swing);
+      else bot._grenadeProp.position.set(.30+.03*swing,1.35+.12*prep+.10*swing,-.22-.14*swing);
+    }
+    const arm=bot._grenadeHandArm;
+    if(arm) {
+      const wave=Math.sin(Math.PI*Math.min(1,u));
+      arm.up.quaternion.multiply(this._q0.setFromAxisAngle(this._axisX,-.72*wave));
+      arm.fore.quaternion.multiply(this._q1.setFromAxisAngle(this._axisX,.86*wave));
+    }
+    if(!t.released&&t.time>=GRENADE_CFG.BOT_RELEASE_AT) {
+      bot.group.updateMatrixWorld(true);
+      const origin=bot._grenadeProp?bot._grenadeProp.getWorldPosition(this._v0).clone():this._v0.set(bot.pos.x,bot.pos.y+1.4,bot.pos.z).clone();
+      const aim=t.target.clone().add(V(0,.5,0)).sub(origin).normalize();
+      const velocity=aim.multiplyScalar(GRENADE_CFG.BOT_THROW_SPEED).add(V(0,GRENADE_CFG.BOT_THROW_UP,0));
+      if(this.spawnProjectile(t.kind,origin,velocity,bot)) {
+        bot.grenadeInventory[t.kind]--;t.released=true;
+      } else t.released=true;
+    }
+    if(t.time>=t.duration)this.cancelBotThrow(bot);
+  }
+
+  cancelBotThrow(bot) {
+    if(!bot)return;
+    if(bot._grenadeProp) {
+      if(bot._grenadeProp.parent)bot._grenadeProp.parent.remove(bot._grenadeProp);
+      bot._grenadeProp=null;
+    }
+    if(bot._grenadeGun)bot._grenadeGun.visible=true;
+    bot._grenadeThrow=null;bot._grenadeHandArm=null;bot._grenadeGun=null;
+  }
+
+  updateBotAI(bot,dt) {
+    if(!bot.alive) {if(bot._grenadeThrow)this.cancelBotThrow(bot);return;}
+    if(bot._grenadeThrow){this.updateBotThrow(bot,dt);return;}
+    if(this.game.state!=='Playing'&&this.game.state!=='Spectating')return;
+    bot.grenadeDecisionTimer=(bot.grenadeDecisionTimer||0)-dt;
+    if(bot.grenadeDecisionTimer>0||bot.protect>0||bot.grenadeBlind>0)return;
+    bot.grenadeDecisionTimer=rand(GRENADE_CFG.BOT_THINK_MIN,GRENADE_CFG.BOT_THINK_MAX);
+    const target=bot.target;if(!target)return;
+    const dist=bot.pos.distanceTo(target.pos);if(dist<5||dist>bot.stat.sight*.72)return;
+    const hasSight=bot.lineClear(target.pos);if(!hasSight)return;
+    const alliesNearTarget=this.game.teamMode&&(this.game.bots.some(a=>a!==bot&&a.alive&&a.team===bot.team&&a.pos.distanceTo(target.pos)<7.5)||(!this.game.player.dead&&this.game.playerTeam===bot.team&&this.game.player.pos.distanceTo(target.pos)<7.5));
+    if(bot.grenadeInventory.flash>0&&dist>6&&dist<19&&!alliesNearTarget&&Math.random()<.38) {
+      if(this.beginBotThrow(bot,'flash',target))return;
+    }
+    if(bot.grenadeInventory.smoke>0&&dist>7&&dist<26&&(bot.health<78||dist<14)&&Math.random()<.42) {
+      this.beginBotThrow(bot,'smoke',target);
+    }
+  }
+
+  updateHUD() {
+    const p=this.game.player;if(!p||!this.hud)return;
+    const inv=p.grenadeInventory||this.inventory(),kind=p.grenadeSelected;
+    const smoke=inv.smoke>0?`X · SMOKE × ${inv.smoke}`:'X · SMOKE × EMPTY';
+    const flash=inv.flash>0?`Z · FLASH × ${inv.flash}`:'Z · FLASH × EMPTY';
+    const signature=smoke+'|'+flash+'|'+kind+'|'+this.game.state;
+    if(signature!==this._lastHUD){
+      this.smokeCountEl.textContent=smoke;this.flashCountEl.textContent=flash;
+      this.smokeCountEl.classList.toggle('active',kind==='smoke');this.flashCountEl.classList.toggle('active',kind==='flash');
+      this.smokeCountEl.classList.toggle('empty',inv.smoke<=0);this.flashCountEl.classList.toggle('empty',inv.flash<=0);
+      this.hud.style.display=(this.game.state==='Playing'||this.game.state==='Respawning')?'flex':'none';
+      this._lastHUD=signature;
+    }
+  }
+
+  update(dt) {
+    const state=this.game.state;
+    if(state==='Paused'||state==='SpectatorPaused'||state==='Menu'||state==='MatchOver') {this.updateHUD();return;}
+    this.updatePlayerViewmodel(dt);
+    this.updateProjectiles(dt);
+    this.updateSmoke(dt);
+    this.updateFlashFX(dt);
+    const density=this.smokeScreenDensity();this.smokeOverlay.style.opacity=String(density);
+    if(state==='Playing'||state==='Respawning'||state==='Spectating')this.updateHUD();
+  }
+
+  clearAll() {
+    for(const b of this.game.bots||[])if(b._grenadeThrow||b._grenadeProp)this.cancelBotThrow(b);
+    for(const p of this.projectiles){this.releaseProjectile(p);}
+    this.projectiles.length=0;
+    for(const c of this.smokeClouds)this.removeSmokeCloud(c);
+    this.smokeClouds.length=0;
+    for(const fx of this.flashFX){fx.life=0;fx.group.visible=false;fx.light.intensity=0;fx.material.opacity=0;}
+    this.playerBlindTime=0;this.playerBlindDuration=0;this.playerBlindStrength=0;
+    if(this.flashOverlay)this.flashOverlay.style.opacity='0';
+    if(this.smokeOverlay)this.smokeOverlay.style.opacity='0';
+  }
+
+  resetMatch() {
+    this.clearAll();this.exitPlayerSelection();
+    const p=this.game.player;
+    if(p){p.grenadeInventory=this.inventory();p._grenadeMouseConsumed=false;p._grenadeThrow=null;}
+    for(const b of this.game.bots){
+      b.grenadeInventory=this.inventory(GRENADE_CFG.BOT_INVENTORY);b.grenadeBlind=0;b.grenadeDecisionTimer=rand(1.8,4.5);
+      this.cancelBotThrow(b);
+    }
+    this.updateHUD();
+  }
+
+  prepareNewMatch() {
+    this.clearAll();this.exitPlayerSelection();
+    for(const b of this.game.bots)this.cancelBotThrow(b);
+  }
+}
+
+// Player wrappers are deliberately small and preserve the original method bodies.
+const _grenadePlayerShowWeapon=Player.prototype.showWeapon;
+Player.prototype.showWeapon=function(){
+  _grenadePlayerShowWeapon.call(this);
+  if(this.grenadeSelected){this.viewmodels.forEach(v=>v.visible=false);if(this.effects&&this.effects.muzzle)this.effects.muzzle.visible=false;}
+};
+const _grenadePlayerSwitchWeapon=Player.prototype.switchWeapon;
+Player.prototype.switchWeapon=function(n){
+  if(this.grenadeSelected){this.grenadeSelected=null;if(this._grenadeVM)this._grenadeVM.visible=false;this._grenadeThrow=null;this._grenadeMouseConsumed=false;this.showWeapon();}
+  return _grenadePlayerSwitchWeapon.call(this,n);
+};
+const _grenadePlayerFire=Player.prototype.fire;
+Player.prototype.fire=function(){if(this.grenadeSelected)return false;return _grenadePlayerFire.call(this);};
+const _grenadePlayerReload=Player.prototype.reload;
+Player.prototype.reload=function(){if(this.grenadeSelected)return false;return _grenadePlayerReload.call(this);};
+const _grenadePlayerScope=Player.prototype.toggleScope;
+Player.prototype.toggleScope=function(){if(this.grenadeSelected)return false;return _grenadePlayerScope.call(this);};
+const _grenadePlayerRespawn=Player.prototype.respawn;
+
+Player.prototype.respawn=function(pos){
+
+  this.grenadeSelected=null;
+  this._grenadeThrow=null;
+  this._grenadeMouseConsumed=false;
+
+  if(this._grenadeVM)
+    this._grenadeVM.visible=false;
+
+  const result=_grenadePlayerRespawn.call(this,pos);
+
+  // REFILL BOTH GRENADE TYPES AFTER EVERY PLAYER RESPAWN
+  this.grenadeInventory={
+    smoke:GRENADE_CFG.PLAYER_INVENTORY,
+    flash:GRENADE_CFG.PLAYER_INVENTORY
+  };
+
+  if(window.game&&window.game.grenades)
+    window.game.grenades.updateHUD();
+
+  return result;
+};
+
+// Wrap the final Game input binding, which already includes the spectator extension.
+const _grenadeGameBindInput=Game.prototype.bindInput;
+Game.prototype.bindInput=function(){
+  _grenadeGameBindInput.call(this);
+  window.addEventListener('keydown',e=>{
+    if(e.repeat||this.state!=='Playing'||this.player.dead)return;
+    if(this.buy&&this.buy.open)return;
+    if(e.code==='KeyX'){e.preventDefault();if(this.grenades)this.grenades.selectPlayer('smoke');}
+    else if(e.code==='KeyZ'){e.preventDefault();if(this.grenades)this.grenades.selectPlayer('flash');}
+  });
+  document.addEventListener('mousedown',e=>{
+    if(e.button!==0||document.pointerLockElement!==this.renderer.domElement||this.state!=='Playing')return;
+    const p=this.player;if(!p||!p.grenadeSelected||p.dead||p._grenadeMouseConsumed)return;
+    p._grenadeMouseConsumed=true;p.fireBuffer=0;
+    if(p._grenadeThrow)return;
+    const count=p.grenadeInventory?.[p.grenadeSelected]??0;
+    if(count<=0){p.audio.play('empty');return;}
+    if(this.grenades&&!this.grenades.beginPlayerThrow(p)&&!this.grenades.getFreeProjectile())p.audio.play('empty');
+  });
+  document.addEventListener('mouseup',e=>{if(e.button===0&&this.player)this.player._grenadeMouseConsumed=false;});
+};
+
+// The last Bot.chooseTarget (team-aware) is wrapped so smoke and blindness affect perception only.
+const _grenadeBotChooseTarget=Bot.prototype.chooseTarget;
+Bot.prototype.chooseTarget=function(){
+  if(this.grenadeBlind>0)return null;
+  const g=window.game,gs=g&&g.grenades;
+  if(!gs)return _grenadeBotChooseTarget.call(this);
+  const tm=!!g.teamMode,from=gs._v3.set(this.pos.x,this.pos.y+1.35,this.pos.z),to=gs._v4;
+  let best=null,bestDistance=Infinity;
+  const consider=(type,obj,name,pos)=>{
+    const distance=this.pos.distanceTo(pos);
+    if(distance>=bestDistance||distance>=this.stat.sight||!this.lineClear(pos))return;
+    to.set(pos.x,pos.y+(type==='player'?(g.player.crouching?.78:1.15):1.15),pos.z);
+    if(gs.segmentBlockedBySmoke(from,to))return;
+    bestDistance=distance;best={type,obj,name,pos};
+  };
+  if(!g.player.dead&&(!tm||g.playerTeam!==this.team))consider('player',g.player,'You',g.player.pos);
+  for(const b of g.bots){if(b!==this&&b.alive&&(!tm||b.team!==this.team))consider('bot',b,b.name,b.pos);}
+  return best;
+};
+const _grenadeBotShoot=Bot.prototype.shoot;
+Bot.prototype.shoot=function(target){if(this.grenadeBlind>0||this._grenadeThrow)return;return _grenadeBotShoot.call(this,target);};
+const _grenadeBotUpdate=Bot.prototype.update;
+Bot.prototype.update=function(dt){
+  if(this.grenadeBlind>0)this.grenadeBlind=Math.max(0,this.grenadeBlind-dt);
+  _grenadeBotUpdate.call(this,dt);
+  if(window.game&&window.game.grenades)window.game.grenades.updateBotAI(this,dt);
+};
+const _grenadeBotDie=Bot.prototype.die;
+Bot.prototype.die=function(attacker){if(window.game&&window.game.grenades)window.game.grenades.cancelBotThrow(this);return _grenadeBotDie.call(this,attacker);};
+const _grenadeBotRespawn=Bot.prototype.respawn;
+
+Bot.prototype.respawn=function(){
+
+  if(window.game&&window.game.grenades)
+    window.game.grenades.cancelBotThrow(this);
+
+  const result=_grenadeBotRespawn.call(this);
+
+  // REFILL BOTH GRENADE TYPES AFTER EVERY BOT RESPAWN
+  this.grenadeInventory={
+    smoke:GRENADE_CFG.BOT_INVENTORY,
+    flash:GRENADE_CFG.BOT_INVENTORY
+  };
+
+  this.grenadeBlind=0;
+
+  return result;
+};
+
+// Install after all existing team, death, spectator and navigation prototype extensions.
+const _grenadeStartMatch=Game.prototype.startMatch;
+Game.prototype.startMatch=function(lock){
+  if(this.grenades)this.grenades.prepareNewMatch();
+  const result=_grenadeStartMatch.call(this,lock);
+  if(this.grenades)this.grenades.resetMatch();
+  return result;
+};
+const _grenadeStartSpectator=Game.prototype.startSpectator;
+Game.prototype.startSpectator=function(lock=true){
+  if(this.grenades)this.grenades.prepareNewMatch();
+  const result=_grenadeStartSpectator.call(this,lock);
+  if(this.grenades)this.grenades.resetMatch();
+  return result;
+};
+const _grenadeGameUpdate=Game.prototype.update;
+Game.prototype.update=function(dt){
+  const result=_grenadeGameUpdate.call(this,dt);
+  if(this.grenades)this.grenades.update(dt);
+  return result;
+};
+const _grenadePlayerDeath=Game.prototype.playerDeath;
+Game.prototype.playerDeath=function(source){
+  if(this.grenades)this.grenades.exitPlayerSelection();
+  const result=_grenadePlayerDeath.call(this,source);
+  if(this.player.dead&&this.player.viewmodels)this.player.viewmodels.forEach(v=>v.visible=false);
+  if(this.player.dead&&this.grenades){this.grenades.playerBlindTime=0;this.grenades.flashOverlay.style.opacity='0';}
+  return result;
+};
+const _grenadeToMenu=Game.prototype.toMenu;
+Game.prototype.toMenu=function(){
+  if(this.grenades){this.grenades.prepareNewMatch();this.grenades.hud.style.display='none';}
+  return _grenadeToMenu.call(this);
+};
+const _grenadeEndMatch=Game.prototype.endMatch;
+Game.prototype.endMatch=function(){
+  const result=_grenadeEndMatch.call(this);
+  if(this.grenades){this.grenades.clearAll();this.grenades.exitPlayerSelection();this.grenades.hud.style.display='none';}
+  return result;
+};
 // ============================================================
 // ============================================================
 // 11. BOOTSTRAP
 // ============================================================
 await preloadAssets();
 const game=new Game();
+window.game=game;
+game.grenades=new GrenadeSystem(game);
 
 game.menu.buildTeams();
 game.menu.buildDifficulty();
-
-window.game=game;
 </script>
 </body>
 </html>
