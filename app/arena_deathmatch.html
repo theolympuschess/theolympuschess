@@ -3880,6 +3880,149 @@ Game.prototype.endMatch=function(){
   if(this.grenades){this.grenades.clearAll();this.grenades.exitPlayerSelection();this.grenades.hud.style.display='none';}
   return result;
 };
+
+// ============================================================
+// SOLO FFA BOT SPAWN SEPARATION SYSTEM
+// Only affects Solo Deathmatch and Solo Spectator matches.
+// Team mode remains completely untouched.
+// ============================================================
+
+const _ffaOriginalBotRespawn = Bot.prototype.respawn;
+
+function getFFABestSpawn(bot, g) {
+
+  const map = bot.map;
+  if (!map || !map.spawnPoints || !map.spawnPoints.length) return null;
+
+  const primarySpawns = [];
+  const allCandidates = [];
+
+  // Collect unique spawn points and navigation waypoints.
+  // Waypoints provide extra locations when all normal spawns are occupied.
+  const addCandidate = (p, isSpawn) => {
+
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) return;
+
+    const duplicate = allCandidates.some(q =>
+      Math.hypot(q.x - p.x, q.z - p.z) < 0.75
+    );
+
+    if (duplicate) return;
+
+    allCandidates.push(p);
+
+    if (isSpawn) primarySpawns.push(p);
+  };
+
+  map.spawnPoints.forEach(p => addCandidate(p, true));
+
+  if (Array.isArray(map.waypoints)) {
+    map.waypoints.forEach(p => addCandidate(p, false));
+  }
+
+  // Collect other bots, including dead bots, to avoid spawning
+  // on top of their current positions.
+  const occupied = [];
+
+  for (const other of g.bots) {
+    if (other === bot) continue;
+    if (other.pos) occupied.push(other.pos);
+  }
+
+  // In a normal Solo DM match, also avoid spawning too close to the player.
+  // In spectator mode, there is no active player to avoid.
+  if (!g.spectatorMatch && g.player && !g.player.dead) {
+    occupied.push(g.player.pos);
+  }
+
+  // Find the candidate with the largest distance from nearby characters.
+  const findBest = candidates => {
+
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (const p of candidates) {
+
+      const floorY = map.floorAt(p.x, p.z, p.y + 0.4);
+
+      if (!Number.isFinite(floorY) || floorY < -100) continue;
+
+      let nearestDistance = Infinity;
+
+      for (const other of occupied) {
+
+        const distance = Math.hypot(
+          p.x - other.x,
+          p.z - other.z
+        );
+
+        nearestDistance = Math.min(nearestDistance, distance);
+      }
+
+      if (!Number.isFinite(nearestDistance)) nearestDistance = 999;
+
+      // Tiny random value prevents identical choices during ties.
+      const score = nearestDistance + Math.random() * 0.05;
+
+      if (score > bestScore) {
+
+        bestScore = score;
+
+        best = {
+          x: p.x,
+          y: floorY,
+          z: p.z,
+          gap: nearestDistance
+        };
+      }
+    }
+
+    return best;
+  };
+
+  // Prefer dedicated map spawn points first.
+  let best = findBest(primarySpawns);
+
+  // If normal spawn points are crowded, use navigation waypoints too.
+  if (!best || best.gap < 8) {
+    best = findBest(allCandidates);
+  }
+
+  return best;
+}
+
+
+// Wrap the FINAL existing respawn method.
+Bot.prototype.respawn = function() {
+
+  // Preserve the original respawn, team, grenade and other logic.
+  const result = _ffaOriginalBotRespawn.call(this);
+
+  const g = window.game;
+
+  // Strict protection: never change team-mode spawning.
+  if (!g || g.teamMode || !g.map) return result;
+
+  const spawn = getFFABestSpawn(this, g);
+
+  if (!spawn) return result;
+
+  // Apply the individually selected spawn position.
+  this.pos.set(spawn.x, spawn.y, spawn.z);
+
+  // Remove any leftover movement.
+  this.vel.set(0, 0, 0);
+
+  // Synchronize the visible 3D character immediately.
+  this.group.position.copy(this.pos);
+
+  return result;
+};
+
+// ============================================================
+// END SOLO FFA BOT SPAWN SEPARATION SYSTEM
+// ============================================================
+
 // ============================================================
 // ============================================================
 // 11. BOOTSTRAP
