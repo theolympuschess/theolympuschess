@@ -3219,19 +3219,74 @@ class GrenadeSystem {
     return model;
   }
 
-  registerAudio() {
-    const files = {
-      grenadeSmokeThrow:'CSGO/smoke grenade.mp3',
-      grenadeSmokeBoom:'CSGO/smoke grenade boom.mp3',
-      grenadeFlashThrow:'CSGO/flashbang.mp3',
-      grenadeFlashBoom:'CSGO/flashbang boom.mp3'
-    };
-    for (const [name,src] of Object.entries(files)) {
-      SOUND_FILES[name]=src;
-      const a=new Audio(src); a.preload='auto'; a.addEventListener('error',()=>{a._bad=true;}); FILE_AUDIO[name]=a;
-    }
-  }
+registerAudio() {
 
+    const files = {
+
+        // PLAYER-ONLY GRENADE THROW SOUNDS
+        grenadeSmokePlayerThrow: 'CSGO/smoke grenade 3.mp3',
+        grenadeFlashPlayerThrow: 'CSGO/flashbang 3.mp3',
+
+        // CT BOT RANDOM SMOKE SOUNDS
+        grenadeSmokeBot0: 'CSGO/smoke grenade.mp3',
+        grenadeSmokeBot1: 'CSGO/smoke grenade 1.mp3',
+        grenadeSmokeBot2: 'CSGO/smoke grenade 2.mp3',
+        grenadeSmokeBot3: 'CSGO/smoke grenade 4.mp3',
+
+        // CT BOT RANDOM FLASHBANG SOUNDS
+        grenadeFlashBot0: 'CSGO/flashbang.mp3',
+        grenadeFlashBot1: 'CSGO/flashbang 1.mp3',
+        grenadeFlashBot2: 'CSGO/flashbang 2.mp3',
+        grenadeFlashBot3: 'CSGO/flashbang 4.mp3',
+
+        // EXISTING EXPLOSION SOUNDS
+        grenadeSmokeBoom: 'CSGO/smoke grenade boom.mp3',
+        grenadeFlashBoom: 'CSGO/flashbang boom.mp3'
+    };
+
+    for (const [name, src] of Object.entries(files)) {
+
+        SOUND_FILES[name] = src;
+
+        const a = new Audio(src);
+        a.preload = 'auto';
+
+        a.addEventListener('error', () => {
+            a._bad = true;
+            console.warn('[Grenade Audio] Failed:', src);
+        });
+
+        FILE_AUDIO[name] = a;
+    }
+}
+playBotGrenadeSound(kind, position) {
+
+    const variants = kind === 'smoke'
+        ? [
+            'grenadeSmokeBot0',
+            'grenadeSmokeBot1',
+            'grenadeSmokeBot2',
+            'grenadeSmokeBot3'
+          ]
+        : [
+            'grenadeFlashBot0',
+            'grenadeFlashBot1',
+            'grenadeFlashBot2',
+            'grenadeFlashBot3'
+          ];
+
+    // Randomly select one sound
+    const selected = variants[
+        Math.floor(Math.random() * variants.length)
+    ];
+
+    // Play from the CT bot's actual world position
+    this.game.audio.playAt(
+        selected,
+        position,
+        this.game.camera
+    );
+}
   buildProjectilePool() {
     for (let i=0;i<GRENADE_CFG.MAX_PROJECTILES;i++) {
       const root=new THREE.Group(); root.visible=false;
@@ -3332,7 +3387,11 @@ class GrenadeSystem {
     if(player.isReloading) return false;
     player._grenadeThrow={kind,time:0,released:false,duration:GRENADE_CFG.PLAYER_THROW_TIME};
     player.fireBuffer=0;
-    this.game.audio.play(kind==='smoke'?'grenadeSmokeThrow':'grenadeFlashThrow');
+    this.game.audio.play(
+    kind === 'smoke'
+        ? 'grenadeSmokePlayerThrow'
+        : 'grenadeFlashPlayerThrow'
+);
     return true;
   }
 
@@ -3613,7 +3672,7 @@ this.flashOverlay.style.opacity = String(flashOpacity);
     if(bot._grenadeGun)bot._grenadeGun.visible=false;
     const aimPoint=kind==='smoke'?bot.pos.clone().lerp(target.pos,.44):target.pos.clone();
     bot._grenadeThrow={kind,target:aimPoint,time:0,released:false,duration:GRENADE_CFG.BOT_THROW_TIME};
-    this.game.audio.playAt(kind==='smoke'?'grenadeSmokeThrow':'grenadeFlashThrow',bot.pos,this.game.camera);
+    this.playBotGrenadeSound(kind, bot.pos);
     return true;
   }
 
