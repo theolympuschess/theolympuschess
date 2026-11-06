@@ -3417,12 +3417,27 @@ playBotGrenadeSound(kind, position) {
       const kind=throwing.kind,origin=this.playerReleasePosition(p);
       const dir=this.game.camera.getWorldDirection(this._v1).normalize();
       const velocity=dir.multiplyScalar(GRENADE_CFG.PLAYER_THROW_SPEED).add(V(0,GRENADE_CFG.PLAYER_THROW_UP,0)).addScaledVector(p.vel,.35);
-      if(this.spawnProjectile(kind,origin,velocity,p)) {
-        p.grenadeInventory[kind]--;
-        throwing.released=true;
-        if(model)model.visible=false;
-        this.updateHUD();
-      } else {
+  if(this.spawnProjectile(kind,origin,velocity,p)) {
+
+    p.grenadeInventory[kind]--;
+    throwing.released = true;
+
+    // Hide grenade from player's hand
+    if(model) model.visible = false;
+
+    // IMMEDIATELY EXIT GRENADE SELECTION
+    this.exitPlayerSelection();
+
+      // Play CSGO switch.mp3
+    this.game.audio.play('draw');
+
+    // Restore player's normal rifle
+    if(p.viewmodels) {
+        p.showWeapon();
+    }
+
+    this.updateHUD();
+} else {
         throwing.released=true;
         if(model)model.visible=true;
       }
