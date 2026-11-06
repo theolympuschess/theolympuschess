@@ -900,7 +900,7 @@ menuMusic.loop = true;
 const footAudio = new Audio('CSGO/foot_steps.mp3');
 footAudio.loop = true;
 const mvpMusic = new Audio('CSGO/mvp.mp3');
-mvpMusic.loop = true;
+mvpMusic.loop = true; 
 function setFootsteps(on, rate = 1) {
   if (on) {
     footAudio.volume = clamp(.8 * game.audio.volume / .65, 0, 1);
@@ -3241,7 +3241,9 @@ registerAudio() {
 
         // EXISTING EXPLOSION SOUNDS
         grenadeSmokeBoom: 'CSGO/smoke grenade boom.mp3',
-        grenadeFlashBoom: 'CSGO/flashbang boom.mp3'
+        grenadeFlashBoom: 'CSGO/flashbang boom.mp3',
+        // GRENADE BOUNCE SOUND
+grenadeBounce: 'CSGO/bounce.mp3'
     };
 
     for (const [name, src] of Object.entries(files)) {
@@ -3453,6 +3455,7 @@ playBotGrenadeSound(kind, position) {
 
   spawnProjectile(kind,origin,velocity,owner) {
     const p=this.getFreeProjectile(); if(!p) return false;
+    p.bounceSoundCooldown = 0;
     p.active=true; p.kind=kind; p.owner=owner; p.fuse=kind==='smoke'?GRENADE_CFG.SMOKE_FUSE:GRENADE_CFG.FLASH_FUSE; p.age=0;
     p.pos.copy(origin);p.vel.copy(velocity);p.spin.set(rand(-5,5),rand(-7,7),rand(-5,5));
     p.smokeModel.visible=kind==='smoke';p.flashModel.visible=kind==='flash';
@@ -3469,6 +3472,8 @@ playBotGrenadeSound(kind, position) {
     const map=this.game.map;
     for(let i=this.projectiles.length-1;i>=0;i--) {
       const p=this.projectiles[i]; p.age+=dt; p.fuse-=dt;
+      p.bounceSoundCooldown = Math.max(0, (p.bounceSoundCooldown || 0) - dt);
+let didBounce = false;
       p.vel.y-=GRENADE_CFG.GRAVITY*dt;
       const drag=Math.exp(-GRENADE_CFG.AIR_DRAG*dt); p.vel.multiplyScalar(drag);
       this._v0.copy(p.pos); this._v1.copy(p.vel).multiplyScalar(dt); const travel=this._v1.length();
@@ -3478,18 +3483,35 @@ playBotGrenadeSound(kind, position) {
         if(hit&&hit.distance<=travel+.02) {
           const normal=hit.face?this._v3.copy(hit.face.normal).transformDirection(hit.object.matrixWorld):this._v3.set(0,1,0);
           p.pos.copy(hit.point).addScaledVector(normal,.13);
-          const vn=p.vel.dot(normal);
-          if(vn<0)p.vel.addScaledVector(normal,-(1+GRENADE_CFG.BOUNCE)*vn);
+         const vn = p.vel.dot(normal);
+
+if(vn < 0) {
+    p.vel.addScaledVector(normal, -(1 + GRENADE_CFG.BOUNCE) * vn);
+    didBounce = true;
+}
           if(normal.y>.55){p.vel.x*=GRENADE_CFG.GROUND_FRICTION;p.vel.z*=GRENADE_CFG.GROUND_FRICTION;if(Math.abs(p.vel.y)<1.05)p.vel.y=0;}
           else {p.vel.x*=GRENADE_CFG.WALL_FRICTION;p.vel.z*=GRENADE_CFG.WALL_FRICTION;}
         } else p.pos.addScaledVector(p.vel,dt);
       }
       const floor=map.floorAt(p.pos.x,p.pos.z,p.pos.y);
-      if(floor>-500&&p.pos.y<floor+.13) {
-        p.pos.y=floor+.13;
-        if(Math.abs(p.vel.y)>1.0)p.vel.y=Math.abs(p.vel.y)*GRENADE_CFG.BOUNCE;else p.vel.y=0;
-        p.vel.x*=GRENADE_CFG.GROUND_FRICTION;p.vel.z*=GRENADE_CFG.GROUND_FRICTION;
-      }
+   if(floor > -500 && p.pos.y < floor + .13) {
+    p.pos.y = floor + .13;
+
+    if(Math.abs(p.vel.y) > 1.0) {
+        p.vel.y = Math.abs(p.vel.y) * GRENADE_CFG.BOUNCE;
+        didBounce = true;
+    } else {
+        p.vel.y = 0;
+    }
+
+    p.vel.x *= GRENADE_CFG.GROUND_FRICTION;
+    p.vel.z *= GRENADE_CFG.GROUND_FRICTION;
+}
+// PLAY BOUNCE SOUND FOR EVERY REAL GRENADE IMPACT
+if(didBounce && p.bounceSoundCooldown <= 0) {
+    this.game.audio.playAt('grenadeBounce', p.pos, this.game.camera);
+    p.bounceSoundCooldown = 0.08;
+}
       if(p.vel.lengthSq()>.08){p.root.quaternion.setFromUnitVectors(this._up,this._v2.copy(p.vel).normalize());p.root.rotateX(p.spin.x*dt);p.root.rotateY(p.spin.y*dt);p.root.rotateZ(p.spin.z*dt);}
       p.root.position.copy(p.pos);
       if(p.fuse<=0) {
