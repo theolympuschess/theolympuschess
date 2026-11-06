@@ -61,26 +61,26 @@
 #spectatorPauseScreen{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(15,29,42,.68),rgba(3,7,12,.95));pointer-events:auto}
 body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.spectating #hitmarker,body.spectating #vignette,body.spectating #damageArrow,body.spectating #buyTimer,body.spectating #buyMenu,body.spectating #scoreTop{display:none!important}
 /* BUY TIME SCREEN FADE */
+
+/* BUY TIME SCREEN FADE */
+
+/* BUY TIME: BLUR ONLY THE 3D GAME VIEW */
 #buyFade {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-
-  background: rgba(5, 10, 16, 0.22);
-  backdrop-filter: blur(4px);
-
-  opacity: 0;
-  visibility: hidden;
-
-  transition:
-    opacity .45s ease,
-    visibility .45s ease;
+  display: none !important;
 }
+
+canvas.buy-blur {
+  filter: blur(3px);
+  transform: scale(1.01);
+  transition: filter .35s ease, transform .35s ease;
+}
+
 
 #buyFade.active {
   opacity: 1;
   visibility: visible;
 }
+
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","three-mesh-bvh":"https://unpkg.com/three-mesh-bvh@0.7.3/build/index.module.js","cannon-es":"https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"}}
@@ -174,7 +174,8 @@ body.spectating #bottomHud,body.spectating #xhair,body.spectating #scope,body.sp
     <div><span>X</span> Select Smoke Grenade</div>
 
     <div><span>Z</span> Select Flashbang</div>
-    <div><span>LEFT CLICK</span> Throw Grenade</div>
+    <div><span>C</span> Select HE Grenade</div>
+    <div><span>LEFT CLICK</span> Throw Selected Grenade</div>
 
     <div><span>TAB</span> Scoreboard</div>
     <div><span>ESC</span> Pause</div>
@@ -2041,7 +2042,9 @@ this.remaining=this.matchSeconds;
     fadeOutRoundStart(800);
     b.active=true;b.open=autoOpen;b.time=BUY_SECONDS;b.msg=0;   // autoOpen=true only after a respawn
     this.player.invuln=BUY_SECONDS+.1;                 // no damage during the buy window
-      E.fade.classList.add('active'); E.menu.classList.add('hidden');E.timer.className='';
+      this.renderer.domElement.classList.add('buy-blur');
+E.menu.classList.add('hidden');
+E.timer.className='';
     if(autoOpen)this.renderBuy();                      // draws the list and un-hides the menu
   }
   endBuy(){
@@ -2051,7 +2054,7 @@ this.remaining=this.matchSeconds;
   b.active=false;
   b.open=false;
 
-  E.fade.classList.remove('active'); // REMOVE SCREEN FADE
+  this.renderer.domElement.classList.remove('buy-blur');
 
   E.menu.classList.add('hidden');
   E.timer.className='hidden';
@@ -2064,7 +2067,7 @@ cancelBuy(msg){
   b.open=false;
   this.player.invuln=0;
 
-  E.fade.classList.remove('active'); // REMOVE SCREEN FADE
+ this.renderer.domElement.classList.remove('buy-blur');
 
   E.menu.classList.add('hidden');
   E.timer.className='cancel';
@@ -2094,20 +2097,43 @@ cancelBuy(msg){
     if(w.slot===1)p.switchWeapon(1);else{p.drawTimer=.3;this.audio.play('draw');}
     this.renderBuy();
   }
-  updateBuy(dt){
+
+updateBuy(dt){
     const b=this.buy,E=this.buyEls,p=this.player;
-    if(!b.active){if(b.msg>0){b.msg-=dt;if(b.msg<=0)E.timer.className='hidden';}return;}
+
+    if(!b.active){
+        if(b.msg>0){
+            b.msg-=dt;
+            if(b.msg<=0)E.timer.className='hidden';
+        }
+        return;
+    }
+
     const k=p.keys;
-    // moving, jumping or shooting ends the buy window
-    if(k.KeyW||k.KeyA||k.KeyS||k.KeyD||k.Space||!p.grounded||p.mouseDown||p.fireBuffer>0||Math.hypot(p.vel.x,p.vel.z)>.6){this.cancelBuy('BUY CANCELLED — YOU MOVED');return;}
+
+    // Moving, jumping or shooting ends the buy window
+    if(
+        k.KeyW || k.KeyA || k.KeyS || k.KeyD ||
+        k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight ||
+        k.Space || !p.grounded ||
+        p.mouseDown || p.fireBuffer > 0 ||
+        Math.hypot(p.vel.x, p.vel.z) > 0.6
+    ) {
+        this.cancelBuy('BUY CANCELLED — YOU MOVED');
+        return;
+    }
+
     b.time-=dt;
-   if(b.time<=0){
-  p.invuln=0;
-  this.endBuy();
-  return;
-}
+
+    if(b.time<=0){
+        p.invuln=0;
+        this.endBuy();
+        return;
+    }
+
     E.timer.innerHTML=`BUY TIME <b>${b.time.toFixed(1)}</b><small>${b.open?'1-8 SELECT WEAPON · B CLOSE':'PRESS B TO BUY'} · PROTECTED</small>`;
-  }
+}
+
   resize(){this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.vmCamera.aspect=innerWidth/innerHeight;this.vmCamera.updateProjectionMatrix();this.renderer.setSize(innerWidth,innerHeight);this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));}
   update(dt){
      if(this.buy.active&&this.state!=='Playing'&&this.state!=='Paused')this.endBuy();
@@ -3085,8 +3111,8 @@ const GRENADE_CFG = {
   MAX_PROJECTILES: 32,
   MAX_SMOKE_CLOUDS: 5,
   MAX_FLASH_FX: 6,
-  PLAYER_INVENTORY: 4,
-  BOT_INVENTORY: 4,
+  PLAYER_INVENTORY: 3,
+  BOT_INVENTORY: 3,
   PLAYER_THROW_TIME: .72,
   PLAYER_RELEASE_AT: .34,
   BOT_THROW_TIME: .78,
@@ -3102,6 +3128,10 @@ const GRENADE_CFG = {
   GROUND_FRICTION: .72,
   SMOKE_FUSE: 1.35,
   FLASH_FUSE: 1.35,
+  HE_FUSE: 1.35,
+  HE_RADIUS: 10.0,
+  HE_MAX_DAMAGE: 105,
+  HE_MAX_FX: 8,
   SMOKE_DURATION: 9.0,
   SMOKE_EXPANSION: 1.0,
   SMOKE_FADE: 1.25,
@@ -3127,6 +3157,14 @@ function grenadeCanvasTexture(kind) {
     g.fillStyle = '#d8ddc9'; g.font = 'bold 48px Arial'; g.textAlign = 'center';
     g.fillText('SMOKE', 256, 112); g.font = 'bold 20px Arial'; g.fillText('TACTICAL GRENADE', 256, 151);
     g.strokeStyle = 'rgba(225,230,205,.55)'; g.lineWidth = 4; g.strokeRect(26, 25, 460, 206);
+  } else if (kind === 'he') {
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#68745b'); grad.addColorStop(.5, '#394332'); grad.addColorStop(1, '#20291f');
+    g.fillStyle = grad; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#c5a832'; g.fillRect(0, 43, 512, 30); g.fillRect(0, 183, 512, 30);
+    g.fillStyle = '#f0e7bd'; g.font = 'bold 62px Arial'; g.textAlign = 'center'; g.fillText('HE', 256, 137);
+    g.font = 'bold 18px Arial'; g.fillText('HIGH EXPLOSIVE', 256, 164);
+    g.strokeStyle = 'rgba(15,22,14,.85)'; g.lineWidth = 5; g.strokeRect(22, 18, 468, 220);
   } else {
     const grad = g.createLinearGradient(0, 0, 0, 256);
     grad.addColorStop(0, '#7f8980'); grad.addColorStop(.34, '#506660'); grad.addColorStop(.66, '#334a48'); grad.addColorStop(1, '#7a8178');
@@ -3166,6 +3204,19 @@ function grenadeWhiteFlashTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+function grenadeHETexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(128,128,2,128,128,126);
+  r.addColorStop(0, 'rgba(255,255,245,1)');
+  r.addColorStop(.12, 'rgba(255,242,180,.98)');
+  r.addColorStop(.30, 'rgba(255,166,48,.88)');
+  r.addColorStop(.58, 'rgba(225,60,12,.38)');
+  r.addColorStop(1, 'rgba(130,24,0,0)');
+  g.fillStyle = r; g.fillRect(0,0,256,256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 class GrenadeSystem {
   constructor(gameRef) {
     this.game = gameRef;
@@ -3173,6 +3224,9 @@ class GrenadeSystem {
     this.projectiles = [];
     this.smokeClouds = [];
     this.flashFX = [];
+    this.heFX = [];
+    this.heOverlayTimer = 0;
+    this.heOverlayStrength = 0;
     this._ray = new THREE.Raycaster(); this._ray.firstHitOnly = true;
     this._v0 = V(); this._v1 = V(); this._v2 = V(); this._v3 = V(); this._v4 = V(); this._up = V(0,1,0);
     this._q0 = new THREE.Quaternion(); this._q1 = new THREE.Quaternion();
@@ -3181,6 +3235,7 @@ class GrenadeSystem {
     this.templates = this.buildTemplates();
     this.smokeTexture = grenadeNoiseTexture();
     this.flashTexture = grenadeWhiteFlashTexture();
+    this.heTexture = grenadeHETexture();
     this.puffGeo = new THREE.PlaneGeometry(1,1);
     this.buildProjectilePool(); this.buildFlashPool(); this.buildUI(); this.registerAudio();
     this.playerBlindTime = 0; this.playerBlindDuration = 0; this.playerBlindStrength = 0;
@@ -3193,14 +3248,14 @@ class GrenadeSystem {
       const texture = grenadeCanvasTexture(kind);
       const bodyMat = new THREE.MeshStandardMaterial({ color:0xffffff, map:texture, metalness:.58, roughness:.42 });
       const capMat = new THREE.MeshStandardMaterial({ color:0x20272a, metalness:.82, roughness:.3 });
-      const bandMat = new THREE.MeshStandardMaterial({ color:kind==='smoke'?0x303a2c:0x967447, metalness:.72, roughness:.38 });
+      const bandMat = new THREE.MeshStandardMaterial({ color:kind==='smoke'?0x303a2c:kind==='he'?0xa18b32:0x967447, metalness:.72, roughness:.38 });
       const leverMat = new THREE.MeshStandardMaterial({ color:0x171d20, metalness:.84, roughness:.28 });
       const ringMat = new THREE.MeshStandardMaterial({ color:0x9ca5a2, metalness:.9, roughness:.23 });
       const root = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,.36,16,1,false),bodyMat); body.position.y=.015; body.castShadow=true; body.receiveShadow=true; root.add(body);
       const top = new THREE.Mesh(new THREE.CylinderGeometry(.105,.115,.055,16),capMat); top.position.y=.222; top.castShadow=true; root.add(top);
       const bottom = new THREE.Mesh(new THREE.CylinderGeometry(.115,.105,.045,16),capMat); bottom.position.y=-.19; bottom.castShadow=true; root.add(bottom);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(.117,.117,.045,16),bandMat); band.position.y=kind==='smoke'?.12:-.085; root.add(band);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(.117,.117,.045,16),bandMat); band.position.y=kind==='smoke'?.12:kind==='he'?.055:-.085; root.add(band);
       const neck = new THREE.Mesh(new THREE.CylinderGeometry(.052,.075,.055,12),leverMat); neck.position.y=.264; root.add(neck);
       const lever = new THREE.Mesh(new THREE.BoxGeometry(.055,.30,.018),leverMat); lever.position.set(.09,.13,.005); lever.rotation.z=-.16; root.add(lever);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(.075,.008,6,18),ringMat); ring.position.set(-.005,.325,.015); ring.rotation.x=Math.PI/2; ring.rotation.z=.24; root.add(ring);
@@ -3210,7 +3265,7 @@ class GrenadeSystem {
       root.userData.grenadeKind=kind;
       return root;
     };
-    return { smoke:makeSet('smoke'), flash:makeSet('flash') };
+    return { smoke:makeSet('smoke'), flash:makeSet('flash'), he:makeSet('he') };
   }
 
   cloneModel(kind) {
@@ -3242,8 +3297,19 @@ registerAudio() {
         // EXISTING EXPLOSION SOUNDS
         grenadeSmokeBoom: 'CSGO/smoke grenade boom.mp3',
         grenadeFlashBoom: 'CSGO/flashbang boom.mp3',
-        // GRENADE BOUNCE SOUND
-grenadeBounce: 'CSGO/bounce.mp3'
+
+        // HE GRENADE PLAYER / BOT THROW SOUNDS
+        grenadeHEPlayerThrow: 'CSGO/HE 3.mp3',
+        grenadeHEBot0: 'CSGO/HE 1.mp3',
+        grenadeHEBot1: 'CSGO/HE 2.mp3',
+        grenadeHEBot2: 'CSGO/HE 4.mp3',
+        grenadeHEBot3: 'CSGO/HE 5.mp3',
+
+        // EXPLOSION, TYPE-SPECIFIC BOUNCE AND UTILITY SELECT
+        grenadeHEBoom: 'CSGO/HE boom.mp3',
+        grenadeSmokeFlashBounce: 'CSGO/bounce.mp3',
+        grenadeHEBounce: 'CSGO/grenade bounce.mp3',
+        grenadeSelect: 'CSGO/select.mp3'
     };
 
     for (const [name, src] of Object.entries(files)) {
@@ -3270,12 +3336,19 @@ playBotGrenadeSound(kind, position) {
             'grenadeSmokeBot2',
             'grenadeSmokeBot3'
           ]
-        : [
-            'grenadeFlashBot0',
-            'grenadeFlashBot1',
-            'grenadeFlashBot2',
-            'grenadeFlashBot3'
-          ];
+        : kind === 'flash'
+          ? [
+              'grenadeFlashBot0',
+              'grenadeFlashBot1',
+              'grenadeFlashBot2',
+              'grenadeFlashBot3'
+            ]
+          : [
+              'grenadeHEBot0',
+              'grenadeHEBot1',
+              'grenadeHEBot2',
+              'grenadeHEBot3'
+            ];
 
     // Randomly select one sound
     const selected = variants[
@@ -3292,10 +3365,11 @@ playBotGrenadeSound(kind, position) {
   buildProjectilePool() {
     for (let i=0;i<GRENADE_CFG.MAX_PROJECTILES;i++) {
       const root=new THREE.Group(); root.visible=false;
-      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash');
-      smokeModel.visible=false;flashModel.visible=false;root.add(smokeModel,flashModel);
+      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash'),heModel=this.cloneModel('he');
+      smokeModel.visible=false;flashModel.visible=false;heModel.visible=false;
+      root.add(smokeModel,flashModel,heModel);
       this.game.scene.add(root);
-      this.projectilePool.push({root,smokeModel,flashModel,active:false,kind:'smoke',owner:null,fuse:0,age:0,pos:V(),vel:V(),spin:V()});
+      this.projectilePool.push({root,smokeModel,flashModel,heModel,active:false,kind:'smoke',owner:null,fuse:0,age:0,pos:V(),vel:V(),spin:V()});
     }
   }
 
@@ -3313,27 +3387,30 @@ playBotGrenadeSound(kind, position) {
   buildUI() {
     const style=document.createElement('style');
     style.textContent=`
-      #grenadeHud{position:absolute;left:50%;bottom:19px;transform:translateX(-50%);display:flex;gap:7px;align-items:center;pointer-events:none;z-index:12;font:900 10px Arial,sans-serif;letter-spacing:1.3px;text-shadow:0 2px 5px #000}
+      #grenadeHud{position:absolute;left:50%;bottom:19px;transform:translateX(-50%);display:flex;gap:7px;align-items:center;pointer-events:none;z-index:12;font:900 10px Arial,sans-serif;letter-spacing:1.1px;text-shadow:0 2px 5px #000}
       .grenadeCount{padding:7px 10px;background:rgba(5,10,16,.78);border:1px solid rgba(130,190,210,.30);color:#d7e5eb;min-width:105px;text-align:center}
       .grenadeCount.active{border-color:#66e8ff;color:#66e8ff;background:rgba(12,35,44,.9)}
       .grenadeCount.empty{color:#ff7783;border-color:rgba(255,80,95,.5)}
       #grenadeSmokeOverlay{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;background:rgba(190,194,190,.94);backdrop-filter:blur(7px);transition:opacity .12s linear}
       #grenadeFlashOverlay{position:fixed;inset:0;z-index:90;pointer-events:none;opacity:0;background:#fff;transition:opacity .06s linear}
-      body.spectating #grenadeFlashOverlay,body.spectating #grenadeSmokeOverlay{opacity:0!important}
-      @media(max-width:700px){#grenadeHud{bottom:76px;gap:4px}.grenadeCount{min-width:90px;padding:6px 7px;font-size:9px}}
+      #grenadeHEOverlay{position:fixed;inset:0;z-index:82;pointer-events:none;opacity:0;background:radial-gradient(circle,rgba(255,244,190,.62),rgba(255,130,28,.22) 42%,rgba(100,20,0,0) 78%);mix-blend-mode:screen;transition:opacity .04s linear}
+      body.spectating #grenadeFlashOverlay,body.spectating #grenadeSmokeOverlay,body.spectating #grenadeHEOverlay{opacity:0!important}
+      @media(max-width:700px){#grenadeHud{bottom:76px;gap:4px}.grenadeCount{min-width:82px;padding:6px 6px;font-size:8px}}
     `;
     document.head.appendChild(style);
     const ui=document.getElementById('ui');
     this.smokeOverlay=document.createElement('div'); this.smokeOverlay.id='grenadeSmokeOverlay'; ui.appendChild(this.smokeOverlay);
     this.flashOverlay=document.createElement('div'); this.flashOverlay.id='grenadeFlashOverlay'; ui.appendChild(this.flashOverlay);
+    this.heOverlay=document.createElement('div'); this.heOverlay.id='grenadeHEOverlay'; ui.appendChild(this.heOverlay);
     this.hud=document.createElement('div'); this.hud.id='grenadeHud';
-    this.hud.innerHTML='<div class="grenadeCount" id="grenadeSmokeCount">X · SMOKE × 3</div><div class="grenadeCount" id="grenadeFlashCount">Z · FLASH × 3</div>';
+    this.hud.innerHTML='<div class="grenadeCount" id="grenadeSmokeCount">X · SMOKE × 3</div><div class="grenadeCount" id="grenadeFlashCount">Z · FLASH × 3</div><div class="grenadeCount" id="grenadeHECount">C · HE × 3</div>';
     ui.appendChild(this.hud);
     this.smokeCountEl=this.hud.querySelector('#grenadeSmokeCount');
     this.flashCountEl=this.hud.querySelector('#grenadeFlashCount');
+    this.heCountEl=this.hud.querySelector('#grenadeHECount');
   }
 
-  inventory(count=GRENADE_CFG.PLAYER_INVENTORY) { return {smoke:count,flash:count}; }
+  inventory(count=GRENADE_CFG.PLAYER_INVENTORY) { return {smoke:count,flash:count,he:count}; }
   resetInventoriesOnly() {
     const p=this.game.player; if(p){p.grenadeInventory=this.inventory();p.grenadeSelected=null;p._grenadeMouseConsumed=false;}
     for(const b of this.game.bots||[]){b.grenadeInventory=this.inventory(GRENADE_CFG.BOT_INVENTORY);b.grenadeBlind=0;b.grenadeDecisionTimer=rand(1.8,4.5);b._grenadeThrow=null;}
@@ -3357,25 +3434,27 @@ playBotGrenadeSound(kind, position) {
 
   selectPlayer(kind) {
     const p=this.game.player;
-    if(this.game.state!=='Playing'||p.dead||!['smoke','flash'].includes(kind)) return false;
+    if(this.game.state!=='Playing'||p.dead||!['smoke','flash','he'].includes(kind)) return false;
+    if(p.grenadeSelected!==kind)this.game.audio.play('grenadeSelect');
     p.grenadeSelected=kind;
     p.scopeLevel=0; p.applyFov(); p.drawTimer=0;
     if(!p._grenadeVM) {
       const hand=new THREE.Group();
       hand.add(makeHand('grip',V(-.04,-.64,-.76),.9));
-      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash');
-      for(const model of [smokeModel,flashModel]) {
+      const smokeModel=this.cloneModel('smoke'),flashModel=this.cloneModel('flash'),heModel=this.cloneModel('he');
+      for(const model of [smokeModel,flashModel,heModel]) {
     model.scale.setScalar(.58);
     model.position.set(.005,.075,-.025);
     model.rotation.set(Math.PI/2,.04,-.18);
 }
-      hand.add(smokeModel,flashModel);hand.userData.smokeModel=smokeModel;hand.userData.flashModel=flashModel;
+      hand.add(smokeModel,flashModel,heModel);
+      hand.userData.smokeModel=smokeModel;hand.userData.flashModel=flashModel;hand.userData.heModel=heModel;
       hand.position.set(.30,-.31,-.58);hand.rotation.set(-.08,0,-.18);
       this.game.vmCamera.add(hand);p._grenadeVM=hand;
     }
-    const hand=p._grenadeVM,smokeModel=hand.userData.smokeModel,flashModel=hand.userData.flashModel;
-    hand.userData.grenadeModel=kind==='smoke'?smokeModel:flashModel;
-    smokeModel.visible=kind==='smoke';flashModel.visible=kind==='flash';
+    const hand=p._grenadeVM,smokeModel=hand.userData.smokeModel,flashModel=hand.userData.flashModel,heModel=hand.userData.heModel;
+    hand.userData.grenadeModel=kind==='smoke'?smokeModel:kind==='flash'?flashModel:heModel;
+    smokeModel.visible=kind==='smoke';flashModel.visible=kind==='flash';heModel.visible=kind==='he';
     p._grenadeVM.visible=true;
     p.showWeapon();
     this.updateHUD();
@@ -3389,11 +3468,12 @@ playBotGrenadeSound(kind, position) {
     if(player.isReloading) return false;
     player._grenadeThrow={kind,time:0,released:false,duration:GRENADE_CFG.PLAYER_THROW_TIME};
     player.fireBuffer=0;
-    this.game.audio.play(
-    kind === 'smoke'
+    const throwSound = kind === 'smoke'
         ? 'grenadeSmokePlayerThrow'
-        : 'grenadeFlashPlayerThrow'
-);
+        : kind === 'flash'
+          ? 'grenadeFlashPlayerThrow'
+          : 'grenadeHEPlayerThrow';
+    this.game.audio.play(throwSound);
     return true;
   }
 
@@ -3456,16 +3536,18 @@ playBotGrenadeSound(kind, position) {
   spawnProjectile(kind,origin,velocity,owner) {
     const p=this.getFreeProjectile(); if(!p) return false;
     p.bounceSoundCooldown = 0;
-    p.active=true; p.kind=kind; p.owner=owner; p.fuse=kind==='smoke'?GRENADE_CFG.SMOKE_FUSE:GRENADE_CFG.FLASH_FUSE; p.age=0;
+    p.active=true; p.kind=kind; p.owner=owner;
+    p.fuse=kind==='smoke'?GRENADE_CFG.SMOKE_FUSE:kind==='flash'?GRENADE_CFG.FLASH_FUSE:GRENADE_CFG.HE_FUSE;
+    p.age=0;
     p.pos.copy(origin);p.vel.copy(velocity);p.spin.set(rand(-5,5),rand(-7,7),rand(-5,5));
-    p.smokeModel.visible=kind==='smoke';p.flashModel.visible=kind==='flash';
+    p.smokeModel.visible=kind==='smoke';p.flashModel.visible=kind==='flash';p.heModel.visible=kind==='he';
     p.root.visible=true;p.root.position.copy(origin);
     p.root.quaternion.setFromUnitVectors(this._up,this._v0.copy(velocity).normalize());
     this.projectiles.push(p); return true;
   }
 
   releaseProjectile(p) {
-    p.active=false;p.owner=null;p.root.visible=false;p.smokeModel.visible=false;p.flashModel.visible=false;
+    p.active=false;p.owner=null;p.root.visible=false;p.smokeModel.visible=false;p.flashModel.visible=false;p.heModel.visible=false;
   }
 
   updateProjectiles(dt) {
@@ -3509,16 +3591,212 @@ if(vn < 0) {
 }
 // PLAY BOUNCE SOUND FOR EVERY REAL GRENADE IMPACT
 if(didBounce && p.bounceSoundCooldown <= 0) {
-    this.game.audio.playAt('grenadeBounce', p.pos, this.game.camera);
+    // Smoke + Flash use bounce.mp3; HE uses grenade bounce.mp3.
+    const bounceSound = p.kind === 'he'
+        ? 'grenadeHEBounce'
+        : 'grenadeSmokeFlashBounce';
+
+    this.game.audio.playAt(bounceSound, p.pos, this.game.camera);
     p.bounceSoundCooldown = 0.08;
 }
       if(p.vel.lengthSq()>.08){p.root.quaternion.setFromUnitVectors(this._up,this._v2.copy(p.vel).normalize());p.root.rotateX(p.spin.x*dt);p.root.rotateY(p.spin.y*dt);p.root.rotateZ(p.spin.z*dt);}
       p.root.position.copy(p.pos);
       if(p.fuse<=0) {
         if(p.kind==='smoke')this.detonateSmoke(p.pos);
-        else this.detonateFlash(p.pos,p.owner);
+        else if(p.kind==='flash')this.detonateFlash(p.pos,p.owner);
+        else this.detonateHE(p.pos,p.owner);
         this.releaseProjectile(p); this.projectiles.splice(i,1);
       }
+    }
+  }
+
+  detonateHE(position,owner) {
+    this.createHEExplosion(position);
+    this.game.audio.playAt('grenadeHEBoom',position,this.game.camera);
+
+    const g=this.game;
+    const ownerTeam=owner===g.player?g.playerTeam:(owner&&owner.team);
+    const attackerName=owner===g.player?'Player':owner&&owner.name?owner.name:'HE Grenade';
+    const blastOrigin=position.clone().add(V(0,.25,0));
+    const candidates=[];
+
+    if(!g.spectatorMatch&&g.player&&!g.player.dead) {
+      if(owner===g.player||!g.teamMode||ownerTeam==null||g.playerTeam!==ownerTeam)
+        candidates.push({type:'player',obj:g.player,team:g.playerTeam});
+    }
+
+    for(const bot of g.bots) {
+      if(!bot.alive)continue;
+      if(bot!==owner&&g.teamMode&&ownerTeam!=null&&bot.team===ownerTeam)continue;
+      candidates.push({type:'bot',obj:bot,team:bot.team});
+    }
+
+    for(const target of candidates) {
+      const center=target.obj.pos.clone().add(V(0,.6,0));
+      const distance=center.distanceTo(position);
+      if(distance>=GRENADE_CFG.HE_RADIUS)continue;
+
+      const visibility=this.flashVisibility(blastOrigin,center);
+      if(visibility<=0)continue;
+
+      const falloff=Math.pow(1-distance/GRENADE_CFG.HE_RADIUS,1.45);
+      const damage=Math.max(0,GRENADE_CFG.HE_MAX_DAMAGE*falloff*visibility);
+      if(damage<1.5)continue;
+
+      const creditedAttacker=target.obj===owner?'HE Grenade':attackerName;
+      if(target.type==='player') {
+        target.obj.takeDamage(damage,creditedAttacker,position.clone());
+      } else {
+        const dir=center.clone().sub(position).normalize();
+        target.obj.takeDamage(damage,creditedAttacker,{
+          dir,
+          point:center.clone(),
+          head:false,
+          power:damage
+        });
+      }
+    }
+
+    // A short, distance-scaled warm flash adds impact without hiding the 3D blast.
+    if(!g.spectatorMatch&&!g.player.dead) {
+      const distance=g.player.pos.distanceTo(position);
+      if(distance<GRENADE_CFG.HE_RADIUS) {
+        this.heOverlayStrength=clamp(1-distance/GRENADE_CFG.HE_RADIUS,0,1);
+        this.heOverlayTimer=.22;
+      }
+    }
+  }
+
+  createHEExplosion(position) {
+    if(this.heFX.length>=GRENADE_CFG.HE_MAX_FX) {
+      const oldest=this.heFX.shift();
+      this.disposeHEExplosion(oldest);
+    }
+
+    const group=new THREE.Group();
+    group.position.copy(position);
+
+    const flashMaterial=new THREE.SpriteMaterial({
+      map:this.heTexture,color:0xffffff,transparent:true,opacity:1,
+      blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false
+    });
+    const flash=new THREE.Sprite(flashMaterial);
+    flash.scale.set(2.2,2.2,1);
+    group.add(flash);
+
+    const ringMaterial=new THREE.MeshBasicMaterial({
+      color:0xff8a24,transparent:true,opacity:.9,
+      side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
+      depthWrite:false,toneMapped:false
+    });
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.72,1,48),ringMaterial);
+    ring.rotation.x=-Math.PI/2;
+    ring.position.y=.045;
+    group.add(ring);
+
+    const count=240;
+    const positions=new Float32Array(count*3);
+    const velocities=new Float32Array(count*3);
+    const colors=new Float32Array(count*3);
+    const palette=[
+      new THREE.Color(0xffd36a),
+      new THREE.Color(0xff7626),
+      new THREE.Color(0xffefc0),
+      new THREE.Color(0xd83212)
+    ];
+    for(let i=0;i<count;i++) {
+      const angle=Math.random()*Math.PI*2;
+      const y=rand(-.12,1);
+      const horizontal=Math.sqrt(1-y*y);
+   // Wider circular horizontal blast + taller vertical fire
+const speed=rand(9.0,19.0);
+
+velocities[i*3]=Math.cos(angle)*horizontal*speed;
+velocities[i*3+1]=rand(8.0,17.0);
+velocities[i*3+2]=Math.sin(angle)*horizontal*speed;
+      const color=palette[Math.floor(Math.random()*palette.length)];
+      colors[i*3]=color.r;colors[i*3+1]=color.g;colors[i*3+2]=color.b;
+    }
+
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+    geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+    const particleMaterial=new THREE.PointsMaterial({
+      map:this.heTexture,size:1.25,sizeAttenuation:true,
+      transparent:true,opacity:1,vertexColors:true,
+      blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false
+    });
+    const particles=new THREE.Points(geometry,particleMaterial);
+    particles.frustumCulled=false;
+    group.add(particles);
+
+    const light=new THREE.PointLight(0xff7a24,48,42,2);
+    group.add(light);
+
+    this.game.scene.add(group);
+    this.heFX.push({
+      group,flash,flashMaterial,ring,ringMaterial,particles,
+      geometry,particleMaterial,light,positions,velocities,
+      count,life:0,max:.95
+    });
+  }
+
+  disposeHEExplosion(fx) {
+    if(!fx)return;
+    this.game.scene.remove(fx.group);
+    fx.geometry.dispose();
+    fx.flashMaterial.dispose();
+    fx.ring.geometry.dispose();
+    fx.ringMaterial.dispose();
+    fx.particleMaterial.dispose();
+  }
+
+  updateHEFX(dt) {
+    for(let i=this.heFX.length-1;i>=0;i--) {
+      const fx=this.heFX[i];
+      fx.life+=dt;
+      const t=clamp(fx.life/fx.max,0,1);
+      const fade=1-t;
+
+      const flashGrow=clamp(fx.life/.18,0,1);
+      fx.flash.scale.set(
+  2.2+8.5*flashGrow,
+  2.2+17.0*flashGrow,
+  1
+);
+      fx.flashMaterial.opacity=fx.life<.12?1:Math.pow(fade,1.7)*.72;
+
+      fx.ring.scale.setScalar(.15+10.5*t);
+      fx.ringMaterial.opacity=Math.pow(fade,1.35)*.9;
+
+      fx.light.intensity=fx.life<.13?48*(1-fx.life/.13):0;
+
+      for(let j=0;j<fx.count;j++) {
+        const k=j*3;
+        fx.velocities[k+1]-=12*dt;
+        const drag=Math.exp(-1.15*dt);
+        fx.velocities[k]*=drag;
+        fx.velocities[k+1]*=drag;
+        fx.velocities[k+2]*=drag;
+        fx.positions[k]+=fx.velocities[k]*dt;
+        fx.positions[k+1]+=fx.velocities[k+1]*dt;
+        fx.positions[k+2]+=fx.velocities[k+2]*dt;
+      }
+      fx.geometry.attributes.position.needsUpdate=true;
+      fx.particleMaterial.opacity=fade;
+
+      if(fx.life>=fx.max) {
+        this.disposeHEExplosion(fx);
+        this.heFX.splice(i,1);
+      }
+    }
+
+    if(this.heOverlayTimer>0) {
+      this.heOverlayTimer=Math.max(0,this.heOverlayTimer-dt);
+      this.heOverlay.style.opacity=String(this.heOverlayStrength*(this.heOverlayTimer/.22)*.42);
+    } else {
+      this.heOverlay.style.opacity='0';
+      this.heOverlayStrength=0;
     }
   }
 
@@ -3697,7 +3975,7 @@ this.flashOverlay.style.opacity = String(flashOpacity);
   beginBotThrow(bot,kind,target) {
     if(!bot.alive||bot.protect>0||bot.grenadeBlind>0||bot._grenadeThrow||!bot.grenadeInventory||bot.grenadeInventory[kind]<=0||!this.getFreeProjectile())return false;
     const handArm=bot.rig&&bot.rig.arms?bot.rig.arms.find(a=>a.sign===1):null;
-    if(!bot._grenadeProps){bot._grenadeProps={smoke:this.cloneModel('smoke'),flash:this.cloneModel('flash')};for(const m of Object.values(bot._grenadeProps))m.scale.setScalar(.58);}
+    if(!bot._grenadeProps){bot._grenadeProps={smoke:this.cloneModel('smoke'),flash:this.cloneModel('flash'),he:this.cloneModel('he')};for(const m of Object.values(bot._grenadeProps))m.scale.setScalar(.58);}
     const prop=bot._grenadeProps[kind];prop.visible=true;
     if(handArm&&handArm.hand) {
       handArm.hand.add(prop);prop.position.set(.015,.015,-.045);
@@ -3763,6 +4041,9 @@ this.flashOverlay.style.opacity = String(flashOpacity);
     if(bot.grenadeInventory.flash>0&&dist>6&&dist<19&&!alliesNearTarget&&Math.random()<.38) {
       if(this.beginBotThrow(bot,'flash',target))return;
     }
+    if(bot.grenadeInventory.he>0&&dist>5&&dist<18&&!alliesNearTarget&&Math.random()<.28) {
+      if(this.beginBotThrow(bot,'he',target))return;
+    }
     if(bot.grenadeInventory.smoke>0&&dist>7&&dist<26&&(bot.health<78||dist<14)&&Math.random()<.42) {
       this.beginBotThrow(bot,'smoke',target);
     }
@@ -3773,11 +4054,12 @@ this.flashOverlay.style.opacity = String(flashOpacity);
     const inv=p.grenadeInventory||this.inventory(),kind=p.grenadeSelected;
     const smoke=inv.smoke>0?`X · SMOKE × ${inv.smoke}`:'X · SMOKE × EMPTY';
     const flash=inv.flash>0?`Z · FLASH × ${inv.flash}`:'Z · FLASH × EMPTY';
-    const signature=smoke+'|'+flash+'|'+kind+'|'+this.game.state;
+    const he=inv.he>0?`C · HE × ${inv.he}`:'C · HE × EMPTY';
+    const signature=smoke+'|'+flash+'|'+he+'|'+kind+'|'+this.game.state;
     if(signature!==this._lastHUD){
-      this.smokeCountEl.textContent=smoke;this.flashCountEl.textContent=flash;
-      this.smokeCountEl.classList.toggle('active',kind==='smoke');this.flashCountEl.classList.toggle('active',kind==='flash');
-      this.smokeCountEl.classList.toggle('empty',inv.smoke<=0);this.flashCountEl.classList.toggle('empty',inv.flash<=0);
+      this.smokeCountEl.textContent=smoke;this.flashCountEl.textContent=flash;this.heCountEl.textContent=he;
+      this.smokeCountEl.classList.toggle('active',kind==='smoke');this.flashCountEl.classList.toggle('active',kind==='flash');this.heCountEl.classList.toggle('active',kind==='he');
+      this.smokeCountEl.classList.toggle('empty',inv.smoke<=0);this.flashCountEl.classList.toggle('empty',inv.flash<=0);this.heCountEl.classList.toggle('empty',inv.he<=0);
       this.hud.style.display=(this.game.state==='Playing'||this.game.state==='Respawning')?'flex':'none';
       this._lastHUD=signature;
     }
@@ -3790,6 +4072,7 @@ this.flashOverlay.style.opacity = String(flashOpacity);
     this.updateProjectiles(dt);
     this.updateSmoke(dt);
     this.updateFlashFX(dt);
+    this.updateHEFX(dt);
     const density=this.smokeScreenDensity();this.smokeOverlay.style.opacity=String(density);
     if(state==='Playing'||state==='Respawning'||state==='Spectating')this.updateHUD();
   }
@@ -3801,9 +4084,13 @@ this.flashOverlay.style.opacity = String(flashOpacity);
     for(const c of this.smokeClouds)this.removeSmokeCloud(c);
     this.smokeClouds.length=0;
     for(const fx of this.flashFX){fx.life=0;fx.group.visible=false;fx.light.intensity=0;fx.material.opacity=0;}
+    for(const fx of this.heFX)this.disposeHEExplosion(fx);
+    this.heFX.length=0;
+    this.heOverlayTimer=0;this.heOverlayStrength=0;
     this.playerBlindTime=0;this.playerBlindDuration=0;this.playerBlindStrength=0;
     if(this.flashOverlay)this.flashOverlay.style.opacity='0';
     if(this.smokeOverlay)this.smokeOverlay.style.opacity='0';
+    if(this.heOverlay)this.heOverlay.style.opacity='0';
   }
 
   resetMatch() {
@@ -3856,7 +4143,8 @@ Player.prototype.respawn=function(pos){
   // REFILL BOTH GRENADE TYPES AFTER EVERY PLAYER RESPAWN
   this.grenadeInventory={
     smoke:GRENADE_CFG.PLAYER_INVENTORY,
-    flash:GRENADE_CFG.PLAYER_INVENTORY
+    flash:GRENADE_CFG.PLAYER_INVENTORY,
+    he:GRENADE_CFG.PLAYER_INVENTORY
   };
 
   if(window.game&&window.game.grenades)
@@ -3874,6 +4162,7 @@ Game.prototype.bindInput=function(){
     if(this.buy&&this.buy.open)return;
     if(e.code==='KeyX'){e.preventDefault();if(this.grenades)this.grenades.selectPlayer('smoke');}
     else if(e.code==='KeyZ'){e.preventDefault();if(this.grenades)this.grenades.selectPlayer('flash');}
+    else if(e.code==='KeyC'){e.preventDefault();if(this.grenades)this.grenades.selectPlayer('he');}
   });
   document.addEventListener('mousedown',e=>{
     if(e.button!==0||document.pointerLockElement!==this.renderer.domElement||this.state!=='Playing')return;
@@ -3928,7 +4217,8 @@ Bot.prototype.respawn=function(){
   // REFILL BOTH GRENADE TYPES AFTER EVERY BOT RESPAWN
   this.grenadeInventory={
     smoke:GRENADE_CFG.BOT_INVENTORY,
-    flash:GRENADE_CFG.BOT_INVENTORY
+    flash:GRENADE_CFG.BOT_INVENTORY,
+    he:GRENADE_CFG.BOT_INVENTORY
   };
 
   this.grenadeBlind=0;
@@ -3962,7 +4252,7 @@ Game.prototype.playerDeath=function(source){
   if(this.grenades)this.grenades.exitPlayerSelection();
   const result=_grenadePlayerDeath.call(this,source);
   if(this.player.dead&&this.player.viewmodels)this.player.viewmodels.forEach(v=>v.visible=false);
-  if(this.player.dead&&this.grenades){this.grenades.playerBlindTime=0;this.grenades.flashOverlay.style.opacity='0';}
+  if(this.player.dead&&this.grenades){this.grenades.playerBlindTime=0;this.grenades.flashOverlay.style.opacity='0';this.grenades.heOverlay.style.opacity='0';this.grenades.heOverlayTimer=0;}
   return result;
 };
 const _grenadeToMenu=Game.prototype.toMenu;
