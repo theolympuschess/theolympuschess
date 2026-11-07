@@ -4988,6 +4988,38 @@ this.player.fireBuffer=0;
       for(const b of [...(this.waveCurrentBots||[]),...(this.wavePlayerProxy?[this.wavePlayerProxy]:[])])if(b.alive)b.protect=0;
       if(this.waveSpectator)this.state='Spectating';else this.state='Playing';
     }
+}else if(this.state==='WaveVictory'){
+
+  this.waveVictoryTimer=Math.max(0,this.waveVictoryTimer-dt);
+
+  // STEP 1: Play victory sound after the 2-second delay.
+  if(this.waveVictoryTimer<=0 && !this.waveVictorySoundPlayed){
+
+    this.waveVictorySoundPlayed=true;
+
+    if(!this.waveVictoryAudio){
+      this.waveVictoryAudio=new Audio('CSGO/victory.mp3');
+      this.waveVictoryAudio.preload='auto';
+    }
+
+    const victory=this.waveVictoryAudio;
+
+    victory.pause();
+    victory.currentTime=0;
+    victory.volume=clamp(this.audio.volume/.65,0,1);
+
+    victory.play().catch(()=>{});
+
+    // STEP 2: Allow the victory sound to finish.
+    this.waveVictoryTimer=1.9;
+  }
+
+  // STEP 3: Start the next wave after the sound.
+  else if(this.waveVictorySoundPlayed && this.waveVictoryTimer<=0){
+
+    this.wavePrepare(this.waveNextNumber,false);
+
+  }
   }else if(this.state==='WaveRestart'){
     this.waveRestartTimer=Math.max(0,this.waveRestartTimer-dt);
     this.ui.el.deathTimer.textContent=Math.max(0,Math.ceil(this.waveRestartTimer));
@@ -5007,13 +5039,26 @@ this.player.fireBuffer=0;
     }
   }
 
-  if((this.state==='Playing'||this.state==='Spectating')&&this.waveFreezeTimer<=0){
-    const alive=(this.waveCurrentBots||[]).some(b=>b.alive);
-    if(!alive&&!this.waveRoundResolved){
-      this.waveRoundResolved=true;
-      this.wavePrepare(Math.min(9999,this.waveNumber+1),false);
-    }
+if((this.state==='Playing'||this.state==='Spectating')&&this.waveFreezeTimer<=0){
+
+  const alive=(this.waveCurrentBots||[]).some(b=>b.alive);
+
+  if(!alive&&!this.waveRoundResolved){
+
+    this.waveRoundResolved=true;
+
+    // Save the next wave number.
+    this.waveNextNumber=Math.min(9999,this.waveNumber+1);
+
+    // Enter victory state.
+    this.state='WaveVictory';
+
+    // Wait 2 seconds before playing victory sound.
+    this.waveVictoryTimer=2.5;
+    this.waveVictorySoundPlayed=false;
+
   }
+}
 
   if(this.waveMode){
     // Show the friendly marker only while the Olympus ally is alive in spectator mode.
