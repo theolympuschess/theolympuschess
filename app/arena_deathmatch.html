@@ -81,6 +81,13 @@ canvas.buy-blur {
   visibility: visible;
 }
 
+
+/* WAVE SURVIVAL HUD */
+#waveHud{position:absolute;left:50%;top:54px;transform:translateX(-50%);min-width:220px;padding:9px 18px;background:rgba(5,10,16,.82);border:1px solid rgba(255,174,78,.45);border-bottom:2px solid #ffad4e;text-align:center;pointer-events:none;display:none;backdrop-filter:blur(5px)}
+#waveHud.active{display:block}
+#waveHud b{display:block;color:#ffbd70;font-size:13px;letter-spacing:3px}
+#waveHud span{display:block;margin-top:4px;color:#d8e5eb;font-size:10px;letter-spacing:1.5px}
+body.wave-survival #rankTop{color:#ffbd70}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","three-mesh-bvh":"https://unpkg.com/three-mesh-bvh@0.7.3/build/index.module.js","cannon-es":"https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"}}
@@ -89,7 +96,7 @@ canvas.buy-blur {
 <body>
 <div id="ui">
   <div id="buyFade"></div>
-  <div id="topbar"><div id="scoreTop">KILLS <b id="playerKills">0</b> &nbsp; DEATHS <b id="playerDeaths">0</b></div><div id="timer">05:00</div><div id="rankTop">IRON SIGHT / FFA</div></div>
+  <div id="topbar"><div id="scoreTop">KILLS <b id="playerKills">0</b> &nbsp; DEATHS <b id="playerDeaths">0</b></div><div id="timer">05:00</div><div id="waveHud"><b id="waveHudTitle">WAVE 1</b><span id="waveHudSub">1 ENEMY REMAINING</span></div><div id="rankTop">IRON SIGHT / FFA</div></div>
   <div id="killfeed"></div>
   <div id="fps">FPS: --</div>
     <div id="buyTimer" class="hidden"></div>
@@ -105,13 +112,21 @@ canvas.buy-blur {
     <div class="eyebrow">MULTIPLAYER SIMULATION // SINGLE-PLAYER BOTS</div>
     <div class="title">Olympus Strike - GO</div><div class="subtitle">ARENA DEATHMATCH</div>
     <div class="tabs">
-      <button class="tab active" data-pane="loadout">LOADOUT</button>
+      <button class="tab active" data-pane="mode">GAME MODE</button>
+      <button class="tab" data-pane="loadout">LOADOUT</button>
       <button class="tab" data-pane="map">MAP</button>
       <button class="tab" data-pane="crosshair">CROSSHAIR</button>
       <button class="tab" data-pane="match">MATCH</button>
       <button class="tab" data-pane="controls">CONTROLS</button>
     </div>
-    <div class="pane active" id="pane-loadout">
+    <div class="pane active" id="pane-mode">
+       <div class="groupTitle">SELECT GAME MODE</div>
+       <div class="chips" id="modeChips"></div>
+       <div class="tiny" id="modeInfo">Choose how you want to fight.</div>
+       <div class="groupTitle" style="margin-top:22px">WAVE SURVIVAL</div>
+       <div class="tiny" style="line-height:1.8">ONE PLAYER AGAINST ENDLESS ENEMY WAVES. WAVE 1 STARTS WITH 1 BOT, THEN 2, 3… UP TO 20. ENEMIES NEVER RESPAWN DURING A WAVE. DEAD BODIES REMAIN UNTIL YOU ARE ELIMINATED. YOUR FAILED WAVE RESTARTS.</div>
+     </div>
+     <div class="pane" id="pane-loadout">
       <div class="groupTitle">PRIMARY WEAPON</div><div class="cards" id="primaryCards"></div>
       <div class="groupTitle">SECONDARY WEAPON</div><div class="cards" id="secondaryCards"></div>
     </div>
@@ -1662,7 +1677,39 @@ hit(head=false,kill=false,soundOverride=null){
     soundOverride || (head ? 'headshot' : 'hit')
   );
 }
-  damage(sourcePos,playerPos){this.el.vignette.style.opacity='1';this.damageTimer=.25;this.el.damageArrow.style.opacity='1';if(sourcePos){const v=sourcePos.clone().sub(playerPos),angle=Math.atan2(-v.x,-v.z)-game.player.yaw;this.el.damageArrow.style.transform=`translate(-50%,-50%) rotate(${-angle*180/Math.PI}deg)`;}this.arrowTimer=.5;}
+  damage(sourcePos, playerPos) {
+  this.el.vignette.style.opacity = '1';
+  this.damageTimer = .25;
+  this.el.damageArrow.style.opacity = '1';
+
+  // Accept both THREE.Vector3 and plain {x, y, z} positions.
+  let attackerPos = null;
+
+  if (sourcePos && sourcePos.isVector3) {
+    attackerPos = sourcePos.clone();
+  } else if (
+    sourcePos &&
+    Number.isFinite(sourcePos.x) &&
+    Number.isFinite(sourcePos.y) &&
+    Number.isFinite(sourcePos.z)
+  ) {
+    attackerPos = new THREE.Vector3(
+      sourcePos.x,
+      sourcePos.y,
+      sourcePos.z
+    );
+  }
+
+  if (attackerPos && playerPos && playerPos.isVector3) {
+    const v = attackerPos.sub(playerPos);
+    const angle = Math.atan2(-v.x, -v.z) - game.player.yaw;
+
+    this.el.damageArrow.style.transform =
+      `translate(-50%,-50%) rotate(${-angle * 180 / Math.PI}deg)`;
+  }
+
+  this.arrowTimer = .5;
+}
   feed(killer,victim){const d=document.createElement('div');d.className='feed';d.innerHTML=`<span class="killer">${killer}</span><span class="arrow">⟶</span><span class="victim">${victim}</span>`;this.el.killfeed.prepend(d);this.feedItems.push({node:d,life:5});while(this.feedItems.length>5){const a=this.feedItems.shift();a.node.remove();}}
   update(dt){if(this.hitTimer>0){this.hitTimer-=dt;if(this.hitTimer<=0)this.el.hitmarker.style.opacity='0';}if(this.damageTimer>0){this.damageTimer-=dt;if(this.damageTimer<=0)this.el.vignette.style.opacity='0';}if(this.arrowTimer>0){this.arrowTimer-=dt;if(this.arrowTimer<=0)this.el.damageArrow.style.opacity='0';}for(let i=this.feedItems.length-1;i>=0;i--){this.feedItems[i].life-=dt;if(this.feedItems[i].life<=0){this.feedItems[i].node.remove();this.feedItems.splice(i,1);}}}
   updateScore(){this.el.playerKills.textContent=game.player.kills;this.el.playerDeaths.textContent=game.player.deaths;}
@@ -1692,7 +1739,8 @@ if(!scoped&&!isSniper){
 class Menu {
   constructor(game){
     this.game=game;
-    this.sel=Object.assign({primary:'ak47',secondary:'deagle',minutes:5,map:'arena',bots:5},loadJSON('ironsight_menu',{}));
+    this.sel=Object.assign({primary:'ak47',secondary:'deagle',minutes:5,map:'arena',bots:5,mode:'dm'},loadJSON('ironsight_menu',{}));
+    if(!['dm','team','wave'].includes(this.sel.mode))this.sel.mode='dm';
     if(!WEAPONS[this.sel.primary]||WEAPONS[this.sel.primary].slot!==0)this.sel.primary='ak47';
     if(!WEAPONS[this.sel.secondary]||WEAPONS[this.sel.secondary].slot!==1)this.sel.secondary='deagle';
     if(!TIMER_OPTIONS.includes(this.sel.minutes))this.sel.minutes=5;
@@ -1701,7 +1749,29 @@ class Menu {
     this.xh=Object.assign({},XH_DEFAULT,loadJSON('ironsight_xhair',{}));
     game.xh=this.xh;
     this.preview=document.getElementById('xhPreview');setupCanvas(this.preview,170);
-    this.buildTabs();this.buildCards('primaryCards',PRIMARIES,'primary');this.buildCards('secondaryCards',SECONDARIES,'secondary');this.buildTimer();this.buildMaps();this.buildBots();this.buildCrosshair();
+    this.buildTabs();this.buildMode();this.buildCards('primaryCards',PRIMARIES,'primary');this.buildCards('secondaryCards',SECONDARIES,'secondary');this.buildTimer();this.buildMaps();this.buildBots();this.buildCrosshair();
+  }
+  buildMode(){
+    const el=document.getElementById('modeChips'),info=document.getElementById('modeInfo');
+    const modes=[
+      ['dm','DEATHMATCH','Free-for-all · configurable bot count and match timer.'],
+      ['team','TEAM DEATHMATCH','Choose a team size and fight on opposite sides.'],
+      ['wave','WAVE SURVIVAL','Endless solo waves · 1 to 20 enemies · no enemy respawns.']
+    ];
+    el.innerHTML='';
+    for(const [id,label,description] of modes){
+      const b=document.createElement('button');b.className='chip';b.dataset.mode=id;b.textContent=label;
+      b.addEventListener('click',()=>{this.sel.mode=id;this.save();refresh();});
+      el.appendChild(b);
+    }
+    const refresh=()=>{
+      [...el.children].forEach(b=>b.classList.toggle('sel',b.dataset.mode===this.sel.mode));
+      info.textContent=modes.find(m=>m[0]===this.sel.mode)?.[2]||modes[0][2];
+      const play=document.getElementById('playBtn'),spec=document.getElementById('spectateBtn');
+      if(play)play.textContent=this.sel.mode==='wave'?'START WAVE 1':'START MATCH';
+      if(spec)spec.textContent=this.sel.mode==='wave'?'SPECTATE WAVE BOTS':'SPECTATE BOTS';
+    };
+    refresh();
   }
   save(){saveJSON('ironsight_menu',this.sel);saveJSON('ironsight_xhair',this.xh);}
   buildTabs(){
@@ -1736,7 +1806,7 @@ class Menu {
     this.mark(el,'map');
   }
   setMapStatus(id,txt){const e=document.getElementById('mapStatus-'+id);if(e)e.innerHTML=txt?`<span style="width:auto;color:#ffe44d;font-size:9px">${txt}</span>`:'';}
-  refreshPlay(){const b=document.getElementById('playBtn'),ok=this.game.mapReady;b.disabled=!ok;b.textContent=ok?'START MATCH':'LOADING MAP…';b.style.opacity=ok?1:.55;}
+  refreshPlay(){const b=document.getElementById('playBtn'),ok=this.game.mapReady;b.disabled=!ok;b.textContent=ok?(this.sel.mode==='wave'?'START WAVE 1':'START MATCH'):'LOADING MAP…';b.style.opacity=ok?1:.55;}
   buildBots(){
     const sl=document.getElementById('botSlider'),out=document.getElementById('botOut'),info=document.getElementById('botInfo');
     const upd=()=>{out.textContent=this.sel.bots;info.textContent=`${this.sel.bots} BOT${this.sel.bots>1?'S':''} · FREE-FOR-ALL · MOST KILLS WHEN THE CLOCK ENDS WINS`;};
@@ -2000,10 +2070,19 @@ if(e.code==='KeyQ'){
       if(e.code==='KeyB'){if(!e.repeat&&this.state==='Playing')this.toggleBuy();return;}
       if(this.buy.open&&this.state==='Playing'&&/^Digit[1-9]$/.test(e.code)){if(!e.repeat)this.buyKey(+e.code.slice(5));return;}
       if(this.state==='Playing'){if(e.code==='Digit1')this.player.switchWeapon(0);if(e.code==='Digit2')this.player.switchWeapon(1);if(e.code==='KeyR')this.player.reload();}
-      this.player.setKey(e.code,true);
+      if(this.state!=='WaveFreeze'){
+  this.player.setKey(e.code,true);
+}
     });
     window.addEventListener('keyup',e=>{this.player.setKey(e.code,false);if(e.code==='Tab'){this.ui.scoreShown=false;this.ui.show('scoreboard',false);}});
-    document.addEventListener('mousemove',e=>{if(document.pointerLockElement===this.renderer.domElement&&this.state==='Playing')this.player.addMouse(e.movementX,e.movementY);});
+    document.addEventListener('mousemove',e=>{
+  if(
+    document.pointerLockElement===this.renderer.domElement &&
+    (this.state==='Playing'||this.state==='WaveFreeze')
+  ){
+    this.player.addMouse(e.movementX,e.movementY);
+  }
+});
     document.addEventListener('mousedown',e=>{if(document.pointerLockElement!==this.renderer.domElement||this.state!=='Playing')return;if(e.button===0){this.player.mouseDown=true;this.player.fireBuffer=.25;}if(e.button===2)this.player.toggleScope();});
     document.addEventListener('mouseup',e=>{if(e.button===0)this.player.mouseDown=false;});
     document.addEventListener('contextmenu',e=>e.preventDefault());
@@ -3913,13 +3992,44 @@ const visualStrength = clamp(
     );
 }
     }
-    for(const bot of g.bots) {
-      if(!bot.alive)continue;
-      const eye=new THREE.Vector3(bot.pos.x,bot.pos.y+1.45,bot.pos.z);
-      const forward=new THREE.Vector3(-Math.sin(bot.yaw),0,-Math.cos(bot.yaw));
-      const amount=this.exposureAt(eye,forward,position);
-      if(amount>.075)bot.grenadeBlind=Math.max(bot.grenadeBlind||0,.18+GRENADE_CFG.FLASH_MAX_BLIND*amount);
-    }
+ 
+// Apply flashbang blindness to all bots, including the Wave Mode Olympus Ally.
+const flashTargets=[...(g.bots||[])];
+
+// The Wave Spectator Ally is not stored inside g.bots.
+if(
+  g.waveMode&&
+  g.wavePlayerProxy&&
+  !flashTargets.includes(g.wavePlayerProxy)
+){
+  flashTargets.push(g.wavePlayerProxy);
+}
+
+for(const bot of flashTargets){
+  if(!bot.alive)continue;
+
+  const eye=new THREE.Vector3(
+    bot.pos.x,
+    bot.pos.y+1.45,
+    bot.pos.z
+  );
+
+  const forward=new THREE.Vector3(
+    -Math.sin(bot.yaw),
+    0,
+    -Math.cos(bot.yaw)
+  );
+
+  const amount=this.exposureAt(eye,forward,position);
+
+  if(amount>.075){
+    bot.grenadeBlind=Math.max(
+      bot.grenadeBlind||0,
+      .18+GRENADE_CFG.FLASH_MAX_BLIND*amount
+    );
+  }
+}
+
   }
 
   applyPlayerBlind(duration,strength) {
@@ -4410,6 +4520,631 @@ Bot.prototype.respawn = function() {
 // ============================================================
 
 // ============================================================
+
+// ============================================================
+// 10h. WAVE SURVIVAL — isolated mode extension
+// Deathmatch, Team Deathmatch and the existing spectator mode are left intact.
+// ============================================================
+const WAVE_CFG = { MAX_ENEMIES:20, FREEZE_SECONDS:5, PLAYER_SIDE:'red', ENEMY_SIDE:'blue' };
+const _waveOriginalBotUpdate = Bot.prototype.update;
+const _waveOriginalBotDie = Bot.prototype.die;
+const _waveOriginalChooseTarget = Bot.prototype.chooseTarget;
+const _waveOriginalStartMatch = Game.prototype.startMatch;
+const _waveOriginalStartSpectator = Game.prototype.startSpectator;
+const _waveOriginalPlayerDeath = Game.prototype.playerDeath;
+const _waveOriginalGameUpdate = Game.prototype.update;
+const _waveOriginalPause = Game.prototype.pause;
+const _waveOriginalToggleBuy = Game.prototype.toggleBuy;
+const _waveOriginalBuyKey = Game.prototype.buyKey;
+
+function waveModeSelected(g){return !!(g&&g.menu&&g.menu.sel.mode==='wave');}
+function waveShowHUD(g,on){
+  const hud=document.getElementById('waveHud');
+  if(hud)hud.classList.toggle('active',!!on);
+  document.body.classList.toggle('wave-survival',!!on);
+}
+function waveUniquePoints(points){
+  const out=[];
+  for(const p of points||[]){
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.z))continue;
+    if(!out.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<.65))out.push(p.clone());
+  }
+  return out;
+}
+function waveSidePools(g){
+  const map = g.map;
+
+  // IMPORTANT: Use only genuine map spawn points.
+  // Navigation waypoints must never be used as player/bot spawn positions.
+  const all = waveUniquePoints(map.spawnPoints || []);
+
+  if(!all.length){
+    console.warn('[Wave Survival] No valid map spawn points found.');
+    return {red:[], blue:[]};
+  }
+
+  if(all.length < 2){
+    return {red:all, blue:all};
+  }
+
+  let minX=Infinity,maxX=-Infinity;
+  let minZ=Infinity,maxZ=-Infinity;
+
+  for(const p of all){
+    minX=Math.min(minX,p.x);
+    maxX=Math.max(maxX,p.x);
+    minZ=Math.min(minZ,p.z);
+    maxZ=Math.max(maxZ,p.z);
+  }
+
+  const axis=(maxX-minX)>=(maxZ-minZ)?'x':'z';
+  const mid=axis==='x'
+    ? (minX+maxX)/2
+    : (minZ+maxZ)/2;
+
+  let red=all.filter(p=>p[axis]<=mid);
+  let blue=all.filter(p=>p[axis]>mid);
+
+  // Ensure both sides receive actual spawn points.
+  if(!red.length||!blue.length){
+    const sorted=all.slice().sort((a,b)=>a[axis]-b[axis]);
+    const half=Math.ceil(sorted.length/2);
+    red=sorted.slice(0,half);
+    blue=sorted.slice(half);
+  }
+
+  return {
+    red:red.length?red:all,
+    blue:blue.length?blue:all
+  };
+}
+function wavePickSpread(pool,count,avoid=[]){
+  const src=pool&&pool.length?pool:[V()];
+  const chosen=[],remaining=src.slice();
+  while(chosen.length<count){
+    let bestIndex=0,bestScore=-Infinity;
+    for(let i=0;i<remaining.length;i++){
+      const p=remaining[i];
+      let nearest=Infinity;
+      for(const q of [...avoid,...chosen])nearest=Math.min(nearest,p.distanceTo(q));
+      const score=(Number.isFinite(nearest)?nearest:1000)+Math.random()*.1;
+      if(score>bestScore){bestScore=score;bestIndex=i;}
+    }
+    const p=remaining.splice(bestIndex,1)[0]||src[chosen.length%src.length];
+    chosen.push(p.clone());
+    if(!remaining.length&&chosen.length<count)remaining.push(...src.map(x=>x.clone()));
+  }
+  return chosen;
+}
+Game.prototype.waveClearCharacters=function(){
+  if(this.wavePlayerProxy){
+    const marker=this.wavePlayerProxy.waveAllyMarker;
+    if(marker){
+      this.wavePlayerProxy.group.remove(marker);
+      if(marker.material.map)marker.material.map.dispose();
+      marker.material.dispose();
+      this.wavePlayerProxy.waveAllyMarker=null;
+    }
+    RAGDOLLS.release(this.wavePlayerProxy);
+    if(this.wavePlayerProxy.group)this.scene.remove(this.wavePlayerProxy.group);
+    this.wavePlayerProxy=null;
+  }
+  for(const b of this.bots||[]){
+    if(b._foot&&!b._foot.paused)b._foot.pause();
+    RAGDOLLS.release(b);
+    if(b.group)this.scene.remove(b.group);
+  }
+  this.bots=[];
+  this.waveCurrentBots=[];
+};
+Game.prototype.waveUpdateHUD=function(){
+  const title=document.getElementById('waveHudTitle'),sub=document.getElementById('waveHudSub');
+  if(!title||!sub)return;
+  const current=this.waveCurrentBots||[];
+  const alive=current.filter(b=>b.alive).length;
+  title.textContent='WAVE '+this.waveNumber;
+  sub.textContent=this.waveFreezeTimer>0
+    ? 'DEPLOYMENT IN '+Math.ceil(this.waveFreezeTimer)+' SECONDS'
+    : (this.waveSpectator?'BOT PROXY VS '+alive+' ENEMY'+(alive===1?'':'IES'):(alive+' / '+current.length+' ENEMIES REMAINING'));
+};
+Game.prototype.waveSpawnSide=function(side,count,avoid=[]){
+  const pools=waveSidePools(this),pool=pools[side]||this.map.spawnPoints;
+  return wavePickSpread(pool,count,avoid);
+};
+Game.prototype.waveSetPlayerSpawn=function(){
+  const pool=this.waveSpawnSide(WAVE_CFG.PLAYER_SIDE,1)[0]||this.map.spawnPoints[0]||V();
+  const enemy=(waveSidePools(this).blue||[])[0]||this.map.waypoints[0]||V();
+  this.player.respawn(pool);
+  const dx=enemy.x-pool.x,dz=enemy.z-pool.z;
+  this.player.baseYaw=Math.atan2(-dx,-dz);
+  this.player.basePitch=0;this.player.applyFov();
+  this.player.mouseDown=false;this.player.fireBuffer=0;this.player.keys={};
+  this.camera.position.set(this.player.pos.x,this.player.pos.y+CFG.PLAYER.eye,this.player.pos.z);
+  this.camera.rotation.set(0,this.player.baseYaw,0,'YXZ');
+};
+Game.prototype.waveMakeBot=function(pos,isProxy=false){
+  const id=++this.waveBotSerial;
+  const b=new Bot(id,this.scene,this.map,pos);
+  b.setTeam(null);
+  b.protect=0;b.health=100;b.alive=true;b.respawnTimer=Infinity;b.group.visible=true;
+  b.pos.copy(pos);b.pos.y=this.map.floorAt(pos.x,pos.z,pos.y+.4);b.group.position.copy(b.pos);
+  b.state='Chase';b.stateTimer=0;b.shotTimer=rand(.25,.65);
+  b.waypoint=pos.clone();
+  if(isProxy){
+    b.name='Olympus Ally';b.isWaveProxy=true;this.wavePlayerProxy=b;
+
+    // Lightweight green identification tag for the friendly spectator bot.
+    const canvas=document.createElement('canvas');
+    canvas.width=320;canvas.height=80;
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,320,80);
+    ctx.fillStyle='rgba(5,22,15,.86)';
+    ctx.strokeStyle='#45ff9a';ctx.lineWidth=4;
+    ctx.beginPath();ctx.roundRect(5,5,310,70,18);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#45ff9a';ctx.beginPath();ctx.arc(38,40,12,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffffff';ctx.font='bold 29px Arial';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText('OLYMPUS ALLY',62,41);
+    const texture=new THREE.CanvasTexture(canvas);
+    texture.colorSpace=THREE.SRGBColorSpace;
+    const material=new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false});
+    const marker=new THREE.Sprite(material);
+    marker.position.set(0,2.35,0);
+    marker.scale.set(2.45,.62,1);
+    marker.raycast=()=>{};
+    b.group.add(marker);
+    b.waveAllyMarker=marker;
+  }
+  else{this.bots.push(b);this.waveCurrentBots.push(b);}
+  return b;
+};
+Game.prototype.waveCreateEnemies=function(count){
+  const playerPos=this.waveSpectator&&this.wavePlayerProxy?this.wavePlayerProxy.pos:this.player.pos;
+  const positions=this.waveSpawnSide(WAVE_CFG.ENEMY_SIDE,count,[playerPos]);
+  for(let i=0;i<count;i++)this.waveMakeBot(positions[i]||positions[i%positions.length]||this.map.spawnPoints[0]||V());
+};
+Game.prototype.wavePrepare=function(wave,resetCorpses=false){
+  if(resetCorpses)this.waveClearCharacters();
+  this.waveNumber=Math.max(1,Math.min(9999,wave|0));
+  const count=Math.min(WAVE_CFG.MAX_ENEMIES,this.waveNumber);
+  this.waveCurrentBots=[];
+  if(this.waveSpectator){
+    if(resetCorpses||!this.wavePlayerProxy||!this.wavePlayerProxy.alive){
+      const playerPool=this.waveSpawnSide(WAVE_CFG.PLAYER_SIDE,1)[0]||this.map.spawnPoints[0]||V();
+      this.wavePlayerProxy=this.waveMakeBot(playerPool,true);
+    }
+    this.player.dead=true;this.player.health=0;
+    this.waveCreateEnemies(count);
+    this.remaining=86400;
+    this.state='Spectating';
+  }else{
+    this.waveSetPlayerSpawn();
+    this.waveCreateEnemies(count);
+    this.state='WaveFreeze';
+  }
+  this.waveFreezeTimer=WAVE_CFG.FREEZE_SECONDS;
+  this.waveRestartTimer=0;
+  this.waveRoundResolved=false;
+if(this.buy&&this.buy.active)this.endBuy();
+
+// Wave preparation: music plays throughout the 5-second freeze.
+if(!this.waveSpectator){
+  this.audio.play('roundstart');
+  this.renderer.domElement.classList.add('buy-blur');
+}
+
+if(this.grenades)this.grenades.resetMatch();
+  this.player.invuln=this.waveSpectator?0:WAVE_CFG.FREEZE_SECONDS+.1;
+  const timer=document.getElementById('buyTimer');
+  if(timer){
+  timer.className='';
+  timer.innerHTML=`WAVE PREPARATION <b>${WAVE_CFG.FREEZE_SECONDS}</b><small>ENEMIES DEPLOY IN ${WAVE_CFG.FREEZE_SECONDS} SECONDS</small>`;
+}
+  waveShowHUD(this,true);this.waveUpdateHUD();
+};
+Game.prototype.waveStartMatch=function(lock){
+  if(!this.mapReady)return;
+  const sel=this.menu.sel,oldBots=sel.bots,oldTeam=sel.teamSize;
+  this.waveMode=true;this.waveSpectator=false;this.waveBotSerial=0;
+  this.spectatorMatch=false;this.spectator=null;
+  document.body.classList.remove('spectating');
+  sel.bots=1;sel.teamSize=0;
+  try{
+  _waveOriginalStartMatch.call(this,lock);
+
+  // Suppress the normal round-start sound during wave preparation.
+  if(activeRoundStartAudio){
+    activeRoundStartAudio.pause();
+    activeRoundStartAudio.currentTime=0;
+    activeRoundStartAudio=null;
+  }
+}finally{
+  sel.bots=oldBots;
+  if(oldTeam!==undefined)sel.teamSize=oldTeam;
+}
+  this.teamMode=false;this.playerTeam=null;
+  this.waveClearCharacters();
+  this.waveBotSerial=0;this.waveNumber=1;
+  this.wavePrepare(1,true);
+};
+Game.prototype.startMatch=function(lock){
+  if(!waveModeSelected(this)){
+    if(this.waveMode){this.waveClearCharacters();this.waveMode=false;this.waveSpectator=false;waveShowHUD(this,false);}
+    const sel=this.menu.sel,oldTeam=sel.teamSize;
+    if(sel.mode==='dm')sel.teamSize=0;
+    try{return _waveOriginalStartMatch.call(this,lock);}
+    finally{if(oldTeam!==undefined)sel.teamSize=oldTeam;}
+  }
+  return this.waveStartMatch(lock);
+};
+
+// In wave mode every enemy targets only the player (or the spectator's proxy bot).
+
+// Wave Mode targeting: respect flash blindness and smoke occlusion,
+// just like the grenade-aware targeting used in DM and Team Mode.
+Bot.prototype.chooseTarget=function(){
+  const g=window.game;
+
+  if(!g||!g.waveMode)
+    return _waveOriginalChooseTarget.call(this);
+
+  if(g.waveFreezeTimer>0)return null;
+
+  // A flash-blinded bot must not acquire or track a target.
+  if((this.grenadeBlind||0)>0)return null;
+
+  const target=g.waveSpectator?g.wavePlayerProxy:g.player;
+  if(!target||target.dead||target.health<=0)return null;
+
+  const gs=g.grenades;
+
+  // Check distance, normal map visibility, and smoke obstruction together.
+  const canSee=(pos,isPlayer=false)=>{
+    const distance=this.pos.distanceTo(pos);
+
+    if(distance>=this.stat.sight)return false;
+    if(!this.lineClear(pos))return false;
+
+    if(gs){
+      const from=new THREE.Vector3(
+        this.pos.x,
+        this.pos.y+1.35,
+        this.pos.z
+      );
+
+      const to=new THREE.Vector3(
+        pos.x,
+        pos.y+(isPlayer?(g.player.crouching?.78:1.15):1.15),
+        pos.z
+      );
+
+      if(gs.segmentBlockedBySmoke(from,to))return false;
+    }
+
+    return true;
+  };
+
+  // Spectator mode: the friendly Olympus Ally fights the enemy bots.
+  if(this===g.wavePlayerProxy){
+    let best=null;
+    let bestDistance=Infinity;
+
+    for(const b of g.waveCurrentBots||[]){
+      if(!b.alive||(b.grenadeBlind||0)>0)continue;
+
+      const d=this.pos.distanceTo(b.pos);
+      if(d>=bestDistance||!canSee(b.pos))continue;
+
+      bestDistance=d;
+      best={type:'bot',obj:b,name:b.name,pos:b.pos};
+    }
+
+    return best;
+  }
+
+  // Only Wave Mode enemy bots should target the player.
+  if(this.waveIsEnemy===false)return null;
+
+  if(!canSee(target.pos,true))return null;
+
+  return {
+    type:'bot',
+    obj:target,
+    name:target.name||'Player',
+    pos:target.pos
+  };
+};
+
+Bot.prototype.update=function(dt){
+  const g=window.game;
+  if(g&&g.waveMode){
+    if(g.waveFreezeTimer>0)return;
+    if(!this.alive){
+      // Keep every fallen body visible. Ragdolls settle and freeze in place;
+      // fallback rigs remain visible in their final tilted pose.
+      if(!this._rd&&this.dying>0){
+        this.dying-=dt;
+        const t=1-clamp(this.dying/.9,0,1);
+        this.group.rotation.x=Math.min(1,t*2.5)*1.45;
+        if(this.dying<=0)this.group.rotation.x=1.45;
+      }
+      this.respawnTimer=Infinity;
+      return;
+    }
+  }
+  return _waveOriginalBotUpdate.call(this,dt);
+};
+
+Bot.prototype.die=function(attacker){
+  const was=this.alive;
+  const result=_waveOriginalBotDie.call(this,attacker);
+  const g=window.game;
+
+  if(g&&g.waveMode&&was&&!this.alive){
+    this.respawnTimer=Infinity;
+
+    // Immediately stop the dead bot's looping footsteps.
+    if(this._foot){
+      this._foot.pause();
+      this._foot.currentTime=0;
+      this._foot.volume=0;
+    }
+  }
+
+  return result;
+};
+
+
+// A dead human restarts the SAME wave after the normal three-second death screen.
+Game.prototype.playerDeath=function(source){
+  const wave=this.waveMode&&!this.waveSpectator;
+  const result=_waveOriginalPlayerDeath.call(this,source);
+  if(wave&&this.player.dead){
+    this.state='WaveRestart';
+    this.waveRestartTimer=3;
+    const title=document.querySelector('#deathScreen .title');
+    const hint=document.getElementById('stateHint');
+    if(title)title.textContent='WAVE FAILED';
+    if(hint)hint.textContent='RESTARTING WAVE '+this.waveNumber;
+  }
+  return result;
+};
+
+// Wave spectator: a friendly AI bot replaces the human combatant; free camera remains available.
+Game.prototype.startSpectator=function(lock=true){
+  if(!waveModeSelected(this)){
+    if(this.waveMode){this.waveClearCharacters();this.waveMode=false;this.waveSpectator=false;waveShowHUD(this,false);}
+    const sel=this.menu.sel,oldTeam=sel.teamSize;
+    if(sel.mode==='dm')sel.teamSize=0;
+    try{return _waveOriginalStartSpectator.call(this,lock);}
+    finally{if(oldTeam!==undefined)sel.teamSize=oldTeam;}
+  }
+  const sel=this.menu.sel,oldTeam=sel.teamSize,oldBots=sel.bots;
+  this.waveMode=true;this.waveSpectator=true;this.waveBotSerial=0;
+  sel.bots=1;sel.teamSize=0;
+  try{_waveOriginalStartSpectator.call(this,lock);}finally{sel.bots=oldBots;if(oldTeam!==undefined)sel.teamSize=oldTeam;}
+  this.teamMode=false;this.playerTeam=null;
+  this.waveClearCharacters();this.waveBotSerial=0;this.waveNumber=1;
+  this.wavePrepare(1,true);
+  this.spectatorMatch=true;this.player.dead=true;this.player.health=0;
+  this.remaining=86400;this.state='Spectating';
+  const hud=document.getElementById('spectatorHud');
+  if(hud){hud.querySelector('b').textContent='WAVE SURVIVAL · BOT PROXY';hud.querySelector('span').textContent='WASD MOVE · MOUSE LOOK · SPACE UP · CTRL DOWN · SHIFT BOOST · TAB SCOREBOARD · ESC MENU';}
+};
+
+Game.prototype.pause=function(){
+  if(this.waveMode&&this.state==='WaveFreeze'){
+    this.pausedFrom='WaveFreeze';this.state='Paused';this.player.mouseDown=false;this.player.keys={};
+    this.ui.show('pauseScreen',true);if(document.pointerLockElement)document.exitPointerLock();return;
+  }
+  if(this.waveMode&&this.state==='WaveRestart'){
+    this.pausedFrom='WaveRestart';this.state='Paused';this.ui.show('pauseScreen',true);if(document.pointerLockElement)document.exitPointerLock();return;
+  }
+  return _waveOriginalPause.call(this);
+};
+Game.prototype.toggleBuy=function(){if(this.waveMode)return;return _waveOriginalToggleBuy.call(this);};
+Game.prototype.buyKey=function(n){if(this.waveMode)return;return _waveOriginalBuyKey.call(this,n);};
+
+Game.prototype.update=function(dt){
+  const before=this.state;
+  const result=_waveOriginalGameUpdate.call(this,dt);
+  // Keep camera rotation responsive during Wave Survival freeze.
+if(this.waveMode && this.state==='WaveFreeze' && this.player){
+
+  const p=this.player;
+
+  // Mouse look works, but player position remains frozen.
+  this.camera.position.set(
+    p.pos.x,
+    p.pos.y+p.eyeH,
+    p.pos.z
+  );
+
+  this.camera.rotation.set(
+    clamp(p.basePitch+p.recoilPitch,-1.48,1.48),
+    p.baseYaw,
+    0,
+    'YXZ'
+  );
+}
+  if(!this.waveMode)return result;
+
+  if(this.state==='WaveFreeze'||this.state==='WaveRestart')RAGDOLLS.update(dt);
+  if(this.waveFreezeTimer>0){
+    this.waveFreezeTimer=Math.max(0,this.waveFreezeTimer-dt);
+    const timer=document.getElementById('buyTimer');
+    if(timer){timer.className='';timer.innerHTML=`WAVE PREPARATION <b>${Math.ceil(this.waveFreezeTimer)}</b><small>ENEMIES DEPLOY IN ${Math.ceil(this.waveFreezeTimer)} SECONDS</small>`;}
+    if(this.waveFreezeTimer<=0){
+    // Wave begins: play round-start sound and fade it out smoothly.
+// Wave begins: fade out preparation music and remove blur.
+fadeOutRoundStart(800);
+this.renderer.domElement.classList.remove('buy-blur');
+
+// Clear any movement input accumulated during preparation.
+this.player.keys={};
+this.player.mouseDown=false;
+this.player.fireBuffer=0;
+      const t=document.getElementById('buyTimer');if(t)t.className='hidden';
+      this.player.invuln=0;
+      for(const b of [...(this.waveCurrentBots||[]),...(this.wavePlayerProxy?[this.wavePlayerProxy]:[])])if(b.alive)b.protect=0;
+      if(this.waveSpectator)this.state='Spectating';else this.state='Playing';
+    }
+  }else if(this.state==='WaveRestart'){
+    this.waveRestartTimer=Math.max(0,this.waveRestartTimer-dt);
+    this.ui.el.deathTimer.textContent=Math.max(0,Math.ceil(this.waveRestartTimer));
+    if(this.waveRestartTimer<=0){
+      this.ui.show('deathScreen',false);
+      const title=document.querySelector('#deathScreen .title');if(title)title.textContent='RESPAWNING';
+      this.wavePrepare(this.waveNumber,true);
+      if(document.pointerLockElement===null)this.requestLock();
+    }
+  }
+
+  if(this.waveSpectator&&this.wavePlayerProxy&&this.state==='Spectating'&&this.waveFreezeTimer<=0){
+    this.wavePlayerProxy.update(dt);
+    if(!this.wavePlayerProxy.alive){
+      this.waveRestartTimer=(this.waveRestartTimer||3)-dt;
+      if(this.waveRestartTimer<=0)this.wavePrepare(this.waveNumber,true);
+    }
+  }
+
+  if((this.state==='Playing'||this.state==='Spectating')&&this.waveFreezeTimer<=0){
+    const alive=(this.waveCurrentBots||[]).some(b=>b.alive);
+    if(!alive&&!this.waveRoundResolved){
+      this.waveRoundResolved=true;
+      this.wavePrepare(Math.min(9999,this.waveNumber+1),false);
+    }
+  }
+
+  if(this.waveMode){
+    // Show the friendly marker only while the Olympus ally is alive in spectator mode.
+    if(this.wavePlayerProxy&&this.wavePlayerProxy.waveAllyMarker){
+      this.wavePlayerProxy.waveAllyMarker.visible=!!(this.waveSpectator&&this.wavePlayerProxy.alive);
+    }
+    this.waveUpdateHUD();
+    const timer=document.getElementById('timer');
+    if(timer)timer.textContent='WAVE '+this.waveNumber;
+    if(this.ui.scoreShown)this.ui.updateScoreboard();
+  }
+  return result;
+};
+
+// ============================================================
+// WAVE SURVIVAL - DEDICATED TAB SCOREBOARD
+// ============================================================
+const _waveNormalScoreboard = UIManager.prototype.updateScoreboard;
+
+UIManager.prototype.updateScoreboard = function(){
+
+  if(!game.waveMode){
+    return _waveNormalScoreboard.call(this);
+  }
+
+  const enemies = game.waveCurrentBots || [];
+
+  const alive = enemies.filter(b=>b.alive).length;
+  const total = enemies.length;
+  const eliminated = total-alive;
+
+  let phase = 'IN PROGRESS';
+
+  if(game.state==='WaveFreeze'){
+    phase = 'PREPARATION · '+Math.ceil(game.waveFreezeTimer)+'s';
+  }
+  else if(game.state==='WaveRestart'){
+    phase = 'WAVE FAILED · RESTARTING';
+  }
+  else if(game.waveRoundResolved){
+    phase = 'WAVE COMPLETED';
+  }
+  else if(game.state==='Spectating' && game.waveSpectator){
+    phase = 'SPECTATOR · ALLY BATTLE';
+  }
+
+  let html = `
+    <tr>
+      <td colspan="4" style="
+        color:#ffbd70;
+        font-weight:900;
+        letter-spacing:2px;
+        text-align:center;
+        padding:12px;
+        background:rgba(255,173,78,.09);
+      ">
+        WAVE ${game.waveNumber}
+        &nbsp; · &nbsp;
+        ${alive} / ${total} ENEMIES REMAINING
+        <div style="font-size:10px;color:#d8e5eb;margin-top:5px">
+          ${phase}
+          &nbsp; · &nbsp;
+          ${eliminated} ELIMINATED
+        </div>
+      </td>
+    </tr>
+  `;
+
+  if(game.waveSpectator && game.wavePlayerProxy){
+    const ally=game.wavePlayerProxy;
+
+    html+=`
+      <tr>
+        <td style="color:#45ff9a;font-weight:900">OLYMPUS ALLY</td>
+        <td>${ally.kills||0}</td>
+        <td>${ally.deaths||0}</td>
+        <td style="color:${ally.alive?'#7ce6b1':'#ff6573'}">
+          ${ally.alive?'ACTIVE':'ELIMINATED'}
+        </td>
+      </tr>
+    `;
+  }else{
+    const p=game.player;
+
+    html+=`
+      <tr>
+        <td style="font-weight:900">YOU</td>
+        <td>${p.kills||0}</td>
+        <td>${p.deaths||0}</td>
+        <td style="color:${p.dead?'#ff6573':'#7ce6b1'}">
+          ${p.dead?'ELIMINATED':'ACTIVE'}
+        </td>
+      </tr>
+    `;
+  }
+
+  enemies.forEach((b,index)=>{
+    const status=b.alive?'ACTIVE':'ELIMINATED';
+
+    html+=`
+      <tr>
+        <td>${b.name||'Enemy '+(index+1)}</td>
+        <td>${b.kills||0}</td>
+        <td>${b.deaths||0}</td>
+        <td style="color:${b.alive?'#7ce6b1':'#ff6573'}">
+          ${status}
+        </td>
+      </tr>
+    `;
+  });
+
+  this.el.scoreRows.innerHTML=html;
+};
+
+const _waveOriginalEndMatch=Game.prototype.endMatch;
+Game.prototype.endMatch=function(){
+  if(this.waveMode)return;
+  return _waveOriginalEndMatch.call(this);
+};
+const _waveOriginalRenderBuy=Game.prototype.renderBuy;
+Game.prototype.renderBuy=function(){if(this.waveMode)return;return _waveOriginalRenderBuy.call(this);};
+const _waveOriginalToMenu=Game.prototype.toMenu;
+Game.prototype.toMenu=function(){
+  if(this.waveMode){this.waveClearCharacters();this.waveMode=false;this.waveSpectator=false;this.waveFreezeTimer=0;this.waveRestartTimer=0;waveShowHUD(this,false);}
+  const result=_waveOriginalToMenu.call(this);
+  const timer=document.getElementById('buyTimer');if(timer)timer.className='hidden';
+  const title=document.querySelector('#deathScreen .title');if(title)title.textContent='RESPAWNING';
+  return result;
+};
+
+// Restore normal menu presentation when a non-wave spectator or match is started.
 // ============================================================
 // 11. BOOTSTRAP
 // ============================================================
