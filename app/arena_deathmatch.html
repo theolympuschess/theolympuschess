@@ -1740,7 +1740,7 @@ class Menu {
   constructor(game){
     this.game=game;
     this.sel=Object.assign({primary:'ak47',secondary:'deagle',minutes:5,map:'arena',bots:5,mode:'dm'},loadJSON('ironsight_menu',{}));
-    if(!['dm','team','wave'].includes(this.sel.mode))this.sel.mode='dm';
+    if(!['dm','team','wave','elim'].includes(this.sel.mode))this.sel.mode='dm';
     if(!WEAPONS[this.sel.primary]||WEAPONS[this.sel.primary].slot!==0)this.sel.primary='ak47';
     if(!WEAPONS[this.sel.secondary]||WEAPONS[this.sel.secondary].slot!==1)this.sel.secondary='deagle';
     if(!TIMER_OPTIONS.includes(this.sel.minutes))this.sel.minutes=5;
@@ -5191,6 +5191,556 @@ Game.prototype.toMenu=function(){
 
 // Restore normal menu presentation when a non-wave spectator or match is started.
 // ============================================================
+// ============================================================
+// 10i. OLYMPUS ELIMINATION — isolated T vs CT round mode
+// Insert this block immediately BEFORE the "11. BOOTSTRAP" comment.
+// ============================================================
+
+const ELIM_SIDE = { red: 'COUNTER-TERRORISTS', blue: 'TERRORISTS' };
+const ELIM_ROUND_CHOICES = Array.from({length:18},(_,i)=>i+3); // 3–20
+
+// Menu: keep all existing modes and add the separate elimination option.
+Menu.prototype.buildMode = function(){
+  const el=document.getElementById('modeChips'),info=document.getElementById('modeInfo');
+  const modes=[
+    ['dm','DEATHMATCH','Free-for-all · configurable bot count and match timer.'],
+    ['team','TEAM DEATHMATCH','Team-based kill race · continuous respawns.'],
+    ['wave','WAVE SURVIVAL','Endless solo waves · enemies do not respawn during a wave.'],
+    ['elim','OLYMPUS ELIMINATION','T vs CT · one life per round · win by surviving.']
+  ];
+  el.innerHTML='';
+  const refresh=()=>{
+    [...el.children].forEach(b=>b.classList.toggle('sel',b.dataset.mode===this.sel.mode));
+    info.textContent=(modes.find(m=>m[0]===this.sel.mode)||modes[0])[2];
+    const play=document.getElementById('playBtn'),spec=document.getElementById('spectateBtn');
+    if(play)play.textContent=this.sel.mode==='wave'?'START WAVE 1':'START MATCH';
+    if(spec)spec.textContent=this.sel.mode==='wave'?'SPECTATE WAVE BOTS':(this.sel.mode==='elim'?'SPECTATE ELIMINATION':'SPECTATE BOTS');
+    if(window.__refreshElimMenu)window.__refreshElimMenu();
+  };
+  for(const [id,label] of modes){
+    const b=document.createElement('button');b.className='chip';b.dataset.mode=id;b.textContent=label;
+    b.addEventListener('click',()=>{this.sel.mode=id;if(id==='elim'&&(!this.sel.teamSize||this.sel.teamSize<1))this.sel.teamSize=5;this.save();refresh();});el.appendChild(b);
+  }
+  refresh();
+};
+
+// Match tab: retain the existing team-size/side controls and add elimination-only round settings.
+Menu.prototype.buildTeams = function(){
+  const sel=this.sel;
+  sel.teamSize=Number.isInteger(+sel.teamSize)&&+sel.teamSize>=0&&+sel.teamSize<=10?+sel.teamSize:0;
+  if(sel.mode==='elim'&&sel.teamSize===0)sel.teamSize=5;
+  if(sel.team!=='red'&&sel.team!=='blue')sel.team='red';
+  sel.rounds=ELIM_ROUND_CHOICES.includes(+sel.rounds)?+sel.rounds:5;
+  sel.roundMinutes=[3,5].includes(+sel.roundMinutes)?+sel.roundMinutes:3;
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`
+    <div class="groupTitle" style="margin-top:18px">TEAM SIZE</div><div class="chips" id="elimTeamSizes"></div>
+    <div id="elimSidePick"><div class="groupTitle" style="margin-top:14px">YOUR SIDE</div><div class="chips" id="elimSideChips"></div></div>
+    <div id="elimRoundSettings" style="display:none">
+      <div class="groupTitle" style="margin-top:18px">TOTAL ROUNDS</div><div class="chips" id="elimRoundChips"></div>
+      <div class="groupTitle" style="margin-top:14px">ROUND DURATION</div><div class="chips" id="elimDurationChips"></div>
+      <div class="tiny">Each player and bot has one life per round. The surviving side wins the round. Bodies remain until the next round.</div>
+    </div>`;
+  document.getElementById('timerChips').insertAdjacentElement('afterend',wrap);
+  const sizeEl=wrap.querySelector('#elimTeamSizes'),sideEl=wrap.querySelector('#elimSideChips'),roundEl=wrap.querySelector('#elimRoundChips'),durEl=wrap.querySelector('#elimDurationChips');
+  const add=(el,label,key,value)=>{const b=document.createElement('button');b.className='chip';b.textContent=label;b.dataset.value=value;b.addEventListener('click',()=>{sel[key]=value;this.save();refresh();});el.appendChild(b);};
+  for(let n=0;n<=10;n++)add(sizeEl,n?`${n}V${n}`:'FREE FOR ALL','teamSize',n);
+  add(sideEl,'COUNTER-TERRORIST','team','red');add(sideEl,'TERRORIST','team','blue');
+  for(const n of ELIM_ROUND_CHOICES)add(roundEl,`${n} ROUNDS`,'rounds',n);
+  for(const n of [3,5])add(durEl,`${n} MIN`,'roundMinutes',n);
+  const refresh=()=>{
+    [...sizeEl.children].forEach(b=>b.classList.toggle('sel',+b.dataset.value===+sel.teamSize));
+    [...sideEl.children].forEach(b=>{const on=b.dataset.value===sel.team;b.classList.toggle('sel',on);});
+    [...roundEl.children].forEach(b=>b.classList.toggle('sel',+b.dataset.value===+sel.rounds));
+    [...durEl.children].forEach(b=>b.classList.toggle('sel',+b.dataset.value===+sel.roundMinutes));
+    const elim=sel.mode==='elim',team=sel.mode==='team';
+    wrap.querySelector('#elimSidePick').style.display=(elim||team)&&sel.teamSize>0?'block':'none';
+    wrap.querySelector('#elimRoundSettings').style.display=elim?'block':'none';
+    const sl=document.getElementById('botSlider'),info=document.getElementById('botInfo');
+    if(elim|| (team&&sel.teamSize>0)){
+      sl.disabled=true;sl.style.opacity=.4;
+      info.textContent=elim?`${sel.teamSize}V${sel.teamSize} · ${sel.rounds} ROUNDS · ${sel.roundMinutes} MINUTES PER ROUND`:`${sel.teamSize}V${sel.teamSize} · CONTINUOUS RESPAWNS · MOST KILLS WINS`;
+    }else{sl.disabled=false;sl.style.opacity=1;sl.dispatchEvent(new Event('input'));}
+  };
+  window.__refreshElimMenu=refresh;refresh();
+};
+
+// HUD for round number and score; created dynamically so the original HTML layout stays intact.
+(function(){
+  const style=document.createElement('style');
+  style.textContent=`#elimHud{position:fixed;z-index:5;top:52px;left:50%;transform:translateX(-50%);padding:8px 16px;background:rgba(5,10,16,.84);border:1px solid rgba(102,232,255,.4);border-bottom:2px solid var(--cyan);text-align:center;white-space:nowrap;pointer-events:none;display:none;font-size:11px;font-weight:900;letter-spacing:1.5px}#elimHud b{color:var(--cyan)}#elimHud small{display:block;color:#b8cbd5;font-size:9px;margin-top:4px}body.spectating #elimHud{display:block}`;
+  document.head.appendChild(style);
+  const hud=document.createElement('div');hud.id='elimHud';hud.innerHTML='<b>OLYMPUS ELIMINATION</b><small>ROUND 1 · CT 0 — 0 T</small>';
+  document.getElementById('ui').appendChild(hud);
+})();
+
+const _elimBaseSetTeam=Bot.prototype.setTeam;
+Bot.prototype.setTeam=function(team){
+  _elimBaseSetTeam.call(this,team);
+  const g=window.game;if(!g||!g.elimMode)return;
+  this.team=team||null;
+  // Remove the existing Team Deathmatch emissive tint; Elimination uses natural character materials.
+  for(const m of this._tint||[]){if(m.emissive&&m.userData._e!==undefined){m.emissive.setHex(m.userData._e);m.emissiveIntensity=m.userData._ei||0;}}
+  if(this._mark&&team){
+    const observer=!!g.elimSpectator||(!!g.player?.dead&&!!g.spectatorMatch);
+    this._mark.material.color.setHex(team==='red'?TEAM_COL.red:TEAM_COL.blue);
+    this._mark.visible=observer||team===g.playerTeam;
+    this._mark.material.depthTest=false;this._mark.renderOrder=999;this._mark.material.needsUpdate=true;
+  }else if(this._mark)this._mark.visible=false;
+};
+
+// Block the navigation watchdog's emergency respawn during a live elimination round.
+const _elimBaseBotRespawn=Bot.prototype.respawn;
+Bot.prototype.respawn=function(){
+  const g=window.game;
+  if(g&&g.elimMode&&g.elimPhase==='live'&&this._elimRoundSpawned&&this.alive)return;
+  const result=_elimBaseBotRespawn.call(this);
+  if(g&&g.elimMode&&g.elimPhase==='live')this._elimRoundSpawned=true;
+  return result;
+};
+
+function elimRefreshMarkers(g){
+  const observer=!!g.elimSpectator||(!!g.player?.dead&&!!g.spectatorMatch);
+  for(const b of g.bots){if(!b._mark||!b.team)continue;b._mark.visible=observer||b.team===g.playerTeam;b._mark.material.color.setHex(b.team==='red'?TEAM_COL.red:TEAM_COL.blue);b._mark.material.depthTest=false;b._mark.renderOrder=999;}
+}
+function elimAliveCounts(g){
+  const c={red:0,blue:0};
+  for(const b of g.bots)if(b.alive&&b.team)c[b.team]++;
+  if(!g.elimSpectator&&!g.player.dead&&g.playerTeam)c[g.playerTeam]++;
+  return c;
+}
+// Spread all 20 possible combatants across their correct half of a map. Mesh-map
+// navigation waypoints supplement the authored spawn points, which is important for 10v10.
+function elimTeamSpawnCandidates(g,team){
+  const map=g.map,base=g.teamSpawns(team)||[],all=(map.spawnPoints||[]);
+  let axis='x',mid=0;
+  if(all.length){
+    const xs=all.map(p=>p.x),zs=all.map(p=>p.z);
+    axis=(Math.max(...xs)-Math.min(...xs)) >= (Math.max(...zs)-Math.min(...zs))?'x':'z';
+    mid=(Math.min(...all.map(p=>p[axis]))+Math.max(...all.map(p=>p[axis])))/2;
+  }
+  const candidates=[];
+  const add=p=>{
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.z))return;
+    if(all.length>3&&((team==='red'&&p[axis]>mid+.25)||(team==='blue'&&p[axis]<mid-.25)))return;
+    if(candidates.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<.8))return;
+    const y=map.floorAt(p.x,p.z,(p.y||0)+.5);
+    if(!Number.isFinite(y)||y< -100)return;
+    candidates.push(V(p.x,y,p.z));
+  };
+  base.forEach(add);
+  if(Array.isArray(map.waypoints))map.waypoints.forEach(add);
+  if(!candidates.length)base.forEach(add);
+  return candidates;
+}
+function elimChooseSpawn(g,team,occupied){
+  const pool=elimTeamSpawnCandidates(g,team);
+  if(!pool.length)return (g.teamSpawns(team)||g.map.spawnPoints)[0]||V();
+  let best=pool[0],score=-Infinity;
+  for(const p of pool){
+    let nearest=Infinity;
+    for(const q of occupied)nearest=Math.min(nearest,Math.hypot(p.x-q.x,p.z-q.z));
+    if(!Number.isFinite(nearest))nearest=1000;
+    const value=nearest+Math.random()*.2;
+    if(value>score){score=value;best=p;}
+  }
+  return best;
+}
+function elimDistributeSpawns(g,includePlayer){
+  const occupied={red:[],blue:[]};
+  for(const b of g.bots){
+    if(!b.team)continue;
+    const p=elimChooseSpawn(g,b.team,occupied[b.team]);
+    b.pos.copy(p);b.pos.y=g.map.floorAt(p.x,p.z,p.y+.4);b.vel.set(0,0,0);
+    b.group.position.copy(b.pos);b.group.visible=true;
+    b._path=null;b._pGoal=null;b._stuckN=0;b._sp=null;
+    occupied[b.team].push(b.pos.clone());
+  }
+  if(includePlayer&&!g.elimSpectator&&g.playerTeam){
+    const p=elimChooseSpawn(g,g.playerTeam,occupied[g.playerTeam]);
+    g.player.respawn(p);g.player.mouseDown=false;g.player.keys={};g.player.fireBuffer=0;
+  }
+}
+
+function elimHudUpdate(g){
+  const h=document.getElementById('elimHud');if(!h)return;
+  h.style.display=g.elimMode?'block':'none';
+  if(!g.elimMode)return;
+  const w=g.elimRoundWins||{red:0,blue:0},phase=g.elimPhase==='intermission'?'NEXT ROUND IN '+Math.ceil(g.elimIntermission)+'s':(g.elimPhase==='finished'?'MATCH COMPLETE':'ROUND LIVE');
+  h.innerHTML=`<b>ROUND ${Math.min(g.elimRound,g.elimTotalRounds)} / ${g.elimTotalRounds}</b><small>CT ${w.red} — ${w.blue} T &nbsp; · &nbsp; ${phase}</small>`;
+  const secs=Math.max(0,Math.ceil(g.elimRemaining||0));
+  document.getElementById('timer').textContent=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+  const rank=document.getElementById('rankTop');if(rank)rank.textContent=`CT ${w.red} — ${w.blue} T`;
+}
+
+// Dead bots are frozen in their death pose/ragdoll. They are never hidden or respawned until the next round.
+const _elimBaseBotUpdate=Bot.prototype.update;
+Bot.prototype.update=function(dt){
+  const g=window.game;
+  if(g&&g.elimMode){
+    if(g.elimPhase!=='live')return;
+    if(!this.alive){
+      if(!this._rd&&this.dying>0){this.dying=Math.max(0,this.dying-dt);const t=1-this.dying/.9;this.group.rotation.x=Math.min(1,t*2.5)*1.45;if(this.dying<=0)this.group.rotation.x=1.45;}
+      if(this._foot&&!this._foot.paused){this._foot.pause();this._foot.currentTime=0;}
+      return;
+    }
+  }
+  return _elimBaseBotUpdate.call(this,dt);
+};
+
+function elimEnterSpectator(g){
+  g.player.dead=true;g.player.health=0;g.player.mouseDown=false;g.player.keys={};g.player.fireBuffer=0;
+  g.spectatorMatch=true;g.spectator={keys:{},yaw:0,pitch:0,sensitivity:.0022};
+  const center=g.map.isMesh?g.map.bounds.getCenter(V()):g.map.orbit.center.clone();
+  const base=g.map.isMesh?(g.map.orbit?.pos||center):center;
+  g.camera.position.copy(base).add(V(0,Math.max(10,g.map.isMesh?Math.max(g.map.size.x,g.map.size.z)*.12:12),12));
+  g.camera.lookAt(center);g.spectator.yaw=g.camera.rotation.y;g.spectator.pitch=g.camera.rotation.x;
+  g.state='Spectating';document.body.classList.add('spectating');
+  _spectatorShow('spectatorHud',true);_spectatorShow('deathScreen',false);
+  const hud=document.getElementById('spectatorHud');if(hud){hud.querySelector('b').textContent='ELIMINATION · SPECTATOR';hud.querySelector('span').textContent='WASD MOVE · MOUSE LOOK · SPACE UP · CTRL DOWN · SHIFT BOOST · TAB SCOREBOARD · ESC MENU';}
+}
+
+function elimStartRound(g){
+  RAGDOLLS.clearAll();
+  g.elimPhase='live';g.elimRemaining=g.elimRoundMinutes*60;g.remaining=g.elimRemaining;
+  if(g.buy&&g.buy.active)g.endBuy();
+  if(g.grenades)g.grenades.resetMatch();
+  // Clear old round corpses and restore every bot on its assigned side.
+  for(const b of g.bots){b.setTeam(b.team);b.respawn();b.protect=1.35;b.group.visible=true;}
+  if(!g.elimSpectator){
+    const pool=g.teamSpawns(g.playerTeam),occupied=g.bots.filter(b=>b.alive&&b.team===g.playerTeam).map(b=>b.pos);
+    let p=pool[0]||g.map.spawnPoints[0];let best=-Infinity;
+    for(const s of pool){let d=Infinity;for(const q of occupied)d=Math.min(d,s.distanceTo(q));if(d>best){best=d;p=s;}}
+    g.player.respawn(p);g.player.kills=g.player.kills||0;g.player.mouseDown=false;g.player.keys={};g.player.fireBuffer=0;
+    g.spectatorMatch=false;g.spectator=null;document.body.classList.remove('spectating');
+    _spectatorShow('spectatorHud',false);_spectatorShow('deathScreen',false);
+    g.state='Playing';if(!document.pointerLockElement)g.requestLock();
+  }else{
+    g.player.dead=true;g.player.health=0;g.spectatorMatch=true;g.state='Spectating';
+  }
+  g.playerTeam=g.elimSpectator?null:g.menu.sel.team;
+  HAND_MATS.sleeve.color.setHex(SLEEVE_COL.solo);
+  for(const b of g.bots)b.setTeam(b.team);
+  g.audio.play('roundstart');
+  setTimeout(()=>fadeOutRoundStart(800),1200);
+  elimRefreshMarkers(g);elimHudUpdate(g);
+}
+
+function elimFinishMatch(g){
+  if(g.elimPhase==='finished')return;
+  g.elimPhase='finished';g.state='MatchOver';g.player.mouseDown=false;g.player.keys={};
+  if(document.pointerLockElement)document.exitPointerLock();
+  document.body.classList.remove('spectating');_spectatorShow('spectatorHud',false);_spectatorShow('deathScreen',false);
+  const w=g.elimRoundWins,win=w.red===w.blue?null:(w.red>w.blue?'red':'blue');
+  g.ui.el.matchWinner.style.color=win?(win==='red'?TEAM_CSS.red:TEAM_CSS.blue):'';
+  g.ui.el.matchWinner.textContent=win?`${ELIM_SIDE[win]} WIN${win===g.playerTeam&&!g.elimSpectator?' — VICTORY':(!g.elimSpectator?' — DEFEAT':'')}`:'MATCH DRAW';
+  g.ui.el.matchSummary.textContent=`FINAL ROUNDS · CT ${w.red} — ${w.blue} T  |  ${g.elimTotalRounds} ROUNDS · ${g.elimRoundMinutes} MIN EACH`;
+  g.ui.show('matchScreen',true);g.ui.show('scoreboard',false);mvpMusic.currentTime=0;mvpMusic.volume=clamp(.5*g.audio.volume/.65,0,1);mvpMusic.play().catch(()=>{});
+  elimHudUpdate(g);
+}
+function elimFinishRound(g,winner){
+  if(g.elimPhase!=='live')return;
+  g.elimPhase='intermission';g.elimIntermission=3;
+  if(winner)g.elimRoundWins[winner]++;
+  g.state='ElimIntermission';g.player.mouseDown=false;g.player.keys={};g.player.fireBuffer=0;
+  if(g.buy&&g.buy.active)g.endBuy();
+  if(winner)g.audio.play('kill');
+  elimHudUpdate(g);
+}
+
+// Start a normal player-controlled Elimination match using the existing Team Mode setup.
+const _elimBaseStartMatch=Game.prototype.startMatch;
+Game.prototype.startMatch=function(lock){
+  if(this.menu.sel.mode!=='elim'){
+    if(this.elimMode){this.elimMode=false;this.elimSpectator=false;this.elimPhase=null;this.teamMode=false;this.playerTeam=null;document.getElementById('elimHud').style.display='none';}
+    return _elimBaseStartMatch.call(this,lock);
+  }
+  const s=this.menu.sel,n=clamp(+s.teamSize||5,1,10);
+  s.teamSize=n;this.elimMode=true;this.elimSpectator=false;
+  this.elimRoundMinutes=[3,5].includes(+s.roundMinutes)?+s.roundMinutes:3;
+  this.elimTotalRounds=clamp(+s.rounds||5,3,20);this.elimRound=1;
+  this.elimRoundWins={red:0,blue:0};this.elimPhase='live';
+  const result=_elimBaseStartMatch.call(this,lock); // existing wrappers create N vs N and preserve loadout/buy/grenade logic
+  this.elimRemaining=this.elimRoundMinutes*60;this.remaining=this.elimRemaining;
+  this.elimIntermission=0;this.elimSpectator=false;this.teamMode=true;this.playerTeam=s.team;
+  elimDistributeSpawns(this,true);
+  HAND_MATS.sleeve.color.setHex(SLEEVE_COL.solo);
+  for(const b of this.bots){b._elimRoundSpawned=true;b.setTeam(b.team);}
+  elimRefreshMarkers(this);elimHudUpdate(this);
+  return result;
+};
+
+// Bots-only spectator entry: reuse the existing spectator camera and team assignment.
+const _elimBaseStartSpectator=Game.prototype.startSpectator;
+Game.prototype.startSpectator=function(lock=true){
+  if(this.menu.sel.mode!=='elim'){
+    if(this.elimMode){this.elimMode=false;this.elimSpectator=false;this.elimPhase=null;this.teamMode=false;this.playerTeam=null;document.getElementById('elimHud').style.display='none';}
+    return _elimBaseStartSpectator.call(this,lock);
+  }
+  const s=this.menu.sel,n=clamp(+s.teamSize||5,1,10);
+  s.teamSize=n;this.elimMode=true;this.elimSpectator=true;
+  this.elimRoundMinutes=[3,5].includes(+s.roundMinutes)?+s.roundMinutes:3;
+  this.elimTotalRounds=clamp(+s.rounds||5,3,20);this.elimRound=1;
+  this.elimRoundWins={red:0,blue:0};this.elimPhase='live';
+  const result=_elimBaseStartSpectator.call(this,lock); // existing spectator setup creates N CT + N T bots
+  this.elimMode=true;this.elimSpectator=true;this.teamMode=true;this.playerTeam=null;
+  this.audio.play('roundstart');setTimeout(()=>fadeOutRoundStart(800),1200);
+  this.elimRemaining=this.elimRoundMinutes*60;this.remaining=86400;
+  for(let i=0;i<this.bots.length;i++){this.bots[i]._elimRoundSpawned=true;this.bots[i].setTeam(i<n?'red':'blue');}
+  elimDistributeSpawns(this,false);
+  elimRefreshMarkers(this);elimHudUpdate(this);
+  return result;
+};
+
+// A player eliminated during a round becomes a free-camera spectator until the next round.
+const _elimBasePlayerDeath=Game.prototype.playerDeath;
+Game.prototype.playerDeath=function(source){
+  if(!this.elimMode||this.elimPhase!=='live')return _elimBasePlayerDeath.call(this,source);
+  const was=this.player.dead;_elimBasePlayerDeath.call(this,source);
+  if(!was&&this.player.dead){elimEnterSpectator(this);elimRefreshMarkers(this);}
+};
+
+// Return to the normal player or spectator state at the beginning of each new round.
+function elimBeginNextRound(g){
+  g.elimRound++;
+  RAGDOLLS.clearAll();
+  if(g.grenades)g.grenades.resetMatch();
+  for(const b of g.bots){b._elimRoundSpawned=false;b.respawn();b._elimRoundSpawned=true;b.protect=1.35;b.group.visible=true;b.setTeam(b.team);}
+  elimDistributeSpawns(g,!g.elimSpectator);
+  if(!g.elimSpectator){
+    g.spectatorMatch=false;g.spectator=null;document.body.classList.remove('spectating');
+    _spectatorShow('spectatorHud',false);_spectatorShow('deathScreen',false);
+    g.state='Playing';if(!document.pointerLockElement)g.requestLock();
+  }else{
+    g.player.dead=true;g.player.health=0;g.spectatorMatch=true;g.state='Spectating';
+  }
+  g.playerTeam=g.elimSpectator?null:g.menu.sel.team;
+  HAND_MATS.sleeve.color.setHex(SLEEVE_COL.solo);
+  g.elimPhase='live';g.elimRemaining=g.elimRoundMinutes*60;g.remaining=g.elimSpectator?86400:g.elimRemaining;
+  g.elimIntermission=0;
+  if(g.buy&&g.buy.active)g.endBuy();
+  g.audio.play('roundstart');
+  if(!g.elimSpectator)g.startBuy();
+  else setTimeout(()=>fadeOutRoundStart(800),1200);
+  for(const b of g.bots)b.setTeam(b.team);
+  elimRefreshMarkers(g);elimHudUpdate(g);
+}
+
+// The existing spectator update decrements its own match clock. Keep that clock separate
+// from this mode's per-round clock so the spectator's legacy endMatch timer cannot fire.
+const _elimBaseGameUpdate=Game.prototype.update;
+Game.prototype.update=function(dt){
+  if(!this.elimMode)return _elimBaseGameUpdate.call(this,dt);
+  if(this.elimPhase==='live'){
+    this.remaining=this.elimSpectator||this.state==='Spectating'?86400:86400;
+    const result=_elimBaseGameUpdate.call(this,dt);
+    this.elimRemaining=Math.max(0,this.elimRemaining-dt);
+    this.remaining=this.elimRemaining;
+    const alive=elimAliveCounts(this);
+    if(alive.red===0&&alive.blue===0)elimFinishRound(this,null);
+    else if(alive.red===0)elimFinishRound(this,'blue');
+    else if(alive.blue===0)elimFinishRound(this,'red');
+    else if(this.elimRemaining<=0)elimFinishRound(this,null); // time expiry with survivors = draw
+    elimRefreshMarkers(this);elimHudUpdate(this);
+    if(this.ui.scoreShown)this.ui.updateScoreboard();
+    return result;
+  }
+  const result=_elimBaseGameUpdate.call(this,dt);
+  if(this.elimPhase==='intermission'){
+    RAGDOLLS.update(dt);this.elimIntermission=Math.max(0,this.elimIntermission-dt);
+    if(this.elimIntermission<=0){
+      if(this.elimRound>=this.elimTotalRounds)elimFinishMatch(this);
+      else elimBeginNextRound(this);
+    }
+  }
+  elimHudUpdate(this);if(this.ui.scoreShown)this.ui.updateScoreboard();
+  return result;
+};
+
+// Dedicated round scoreboard: CT/T teams and eliminated/active states, without model tinting.
+const _elimBaseScoreboard=UIManager.prototype.updateScoreboard;
+UIManager.prototype.updateScoreboard=function(){
+  if(!game.elimMode)return _elimBaseScoreboard.call(this);
+  const rows=[];
+  if(!game.elimSpectator)rows.push({name:'YOU',team:game.playerTeam,k:game.player.kills,d:game.player.deaths,alive:!game.player.dead});
+  for(const b of game.bots)rows.push({name:b.name,team:b.team,k:b.kills,d:b.deaths,alive:b.alive});
+  let html=`<tr><td colspan="4" style="text-align:center;color:#66e8ff;font-weight:900">ROUND ${game.elimRound}/${game.elimTotalRounds} · CT ${game.elimRoundWins.red} — ${game.elimRoundWins.blue} T</td></tr>`;
+  for(const team of ['red','blue']){
+    html+=`<tr><td colspan="4" style="font-weight:900;letter-spacing:2px;color:${TEAM_CSS[team]}">${ELIM_SIDE[team]}</td></tr>`;
+    rows.filter(r=>r.team===team).sort((a,b)=>b.k-a.k).forEach(r=>{html+=`<tr><td>${r.name}</td><td>${r.k}</td><td>${r.d}</td><td style="color:${r.alive?'#7ce6b1':'#ff6573'}">${r.alive?'ALIVE':'ELIMINATED'}</td></tr>`;});
+  }
+  this.el.scoreRows.innerHTML=html;
+};
+
+// Cleanly leave the mode when returning to the menu or starting any other mode.
+const _elimBaseToMenu=Game.prototype.toMenu;
+Game.prototype.toMenu=function(){
+  if(this.elimMode){this.elimMode=false;this.elimSpectator=false;this.elimPhase=null;this.teamMode=false;this.playerTeam=null;this.spectatorMatch=false;this.spectator=null;document.body.classList.remove('spectating');const h=document.getElementById('elimHud');if(h)h.style.display='none';for(const b of this.bots)b.setTeam(null);}
+  return _elimBaseToMenu.call(this);
+};
+
+const _elimBaseEndMatch=Game.prototype.endMatch;
+Game.prototype.endMatch=function(){if(this.elimMode)return elimFinishMatch(this);return _elimBaseEndMatch.call(this);};
+
+// ============================================================
+// 10j. ELIMINATION FIXES — footsteps, team-side separation, live markers, round audio
+// ============================================================
+
+// A dead player must never keep the local looping footsteps alive while free-spectating.
+function elimStopPlayerFootsteps(){
+  setFootsteps(false);
+  if(!footAudio.paused){footAudio.pause();footAudio.currentTime=0;}
+}
+const _elimFixEnterSpectator=elimEnterSpectator;
+elimEnterSpectator=function(g){
+  elimStopPlayerFootsteps();
+  return _elimFixEnterSpectator(g);
+};
+
+// Stop bot footsteps immediately on death, not on the next AI update tick.
+const _elimFixBotDie=Bot.prototype.die;
+Bot.prototype.die=function(attacker){
+  const was=this.alive;
+  const result=_elimFixBotDie.call(this,attacker);
+  const g=window.game;
+  if(g&&g.elimMode&&was&&!this.alive){
+    if(this._foot){this._foot.pause();this._foot.currentTime=0;this._foot.volume=0;}
+    if(this._mark)this._mark.visible=false;
+  }
+  return result;
+};
+
+// Use the actual map bounds (not just the authored spawn list) to define two opposite
+// halves. Mesh maps have a full connected navigation sample; use it to find valid spots.
+function elimMapSplit(g){
+  const m=g.map;
+  let minX,maxX,minZ,maxZ;
+  if(m.isMesh&&m.bounds){
+    minX=m.bounds.min.x;maxX=m.bounds.max.x;minZ=m.bounds.min.z;maxZ=m.bounds.max.z;
+  }else{
+    const pts=[...(m.spawnPoints||[]),...(m.waypoints||[])];
+    if(!pts.length)return {axis:'x',mid:0,min:-30,max:30};
+    minX=Math.min(...pts.map(p=>p.x));maxX=Math.max(...pts.map(p=>p.x));
+    minZ=Math.min(...pts.map(p=>p.z));maxZ=Math.max(...pts.map(p=>p.z));
+  }
+  const axis=(maxX-minX)>=(maxZ-minZ)?'x':'z';
+  return {axis,mid:axis==='x'?(minX+maxX)/2:(minZ+maxZ)/2,min:axis==='x'?minX:minZ,max:axis==='x'?maxX:maxZ};
+}
+elimTeamSpawnCandidates = function(g,team){
+  const m=g.map,split=elimMapSplit(g),sign=team==='red'?-1:1;
+  const source=[...(m.waypoints||[]),...(m.spawnPoints||[]),...(m.navNodes||[])];
+  const unique=[];
+  for(const p of source){
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.z))continue;
+    if(unique.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<1.1))continue;
+    unique.push(p);
+  }
+  const side=unique.filter(p=>(p[split.axis]-split.mid)*sign>=.35);
+  const candidates=[];
+  for(const p of side){
+    const y=m.floorAt(p.x,p.z,(p.y||0)+.5);
+    if(!Number.isFinite(y)||y< -100)continue;
+    if(m.isMesh&&m.blockedAt(p.x,y+.05,p.z,1.82,.42))continue;
+    candidates.push(V(p.x,y,p.z));
+  }
+  // If a map's sampled points are unevenly distributed, split its complete walkable
+  // navigation pool by its median coordinate. This still guarantees opposite halves.
+  if(!candidates.length){
+    const ordered=unique.slice().sort((a,b)=>a[split.axis]-b[split.axis]);
+    const cut=Math.floor(ordered.length/2);
+    const fallback=team==='red'?ordered.slice(0,cut):ordered.slice(cut);
+    for(const p of fallback){const y=m.floorAt(p.x,p.z,(p.y||0)+.5);if(Number.isFinite(y)&&y>-100)candidates.push(V(p.x,y,p.z));}
+  }
+  return candidates;
+};
+
+// Spawn every bot and the human on its side, with maximum-distance placement within that side.
+elimDistributeSpawns = function(g,includePlayer){
+  const occupied={red:[],blue:[]};
+  const ordered=g.bots.slice().sort((a,b)=>a.team===b.team?0:(a.team==='red'?-1:1));
+  for(const b of ordered){
+    if(!b.team)continue;
+    const pool=elimTeamSpawnCandidates(g,b.team);
+    let p=pool[0]||g.map.spawnPoints[0]||V();let best=-Infinity;
+    for(const s of pool){let d=Infinity;for(const q of occupied[b.team])d=Math.min(d,Math.hypot(s.x-q.x,s.z-q.z));if(!Number.isFinite(d))d=1000;if(d>best){best=d;p=s;}}
+    b.pos.copy(p);b.pos.y=g.map.floorAt(p.x,p.z,p.y+.4);b.vel.set(0,0,0);
+    b.group.position.copy(b.pos);b.group.visible=true;b._path=null;b._pGoal=null;b._stuckN=0;b._sp=null;
+    occupied[b.team].push(b.pos.clone());
+  }
+  if(includePlayer&&!g.elimSpectator&&g.playerTeam){
+    const pool=elimTeamSpawnCandidates(g,g.playerTeam);
+    let p=pool[0]||g.map.spawnPoints[0]||V();let best=-Infinity;
+    for(const s of pool){let d=Infinity;for(const q of occupied[g.playerTeam])d=Math.min(d,Math.hypot(s.x-q.x,s.z-q.z));if(!Number.isFinite(d))d=1000;if(d>best){best=d;p=s;}}
+    g.player.respawn(p);g.player.mouseDown=false;g.player.keys={};g.player.fireBuffer=0;
+  }
+};
+
+// Markers are visibility aids for living combatants only. Spectators see both living sides.
+elimRefreshMarkers = function(g){
+  const observer=!!g.elimSpectator||(!!g.player?.dead&&!!g.spectatorMatch);
+  for(const b of g.bots){
+    if(!b._mark)continue;
+    b._mark.visible=!!b.alive&&!!b.team&&(observer||b.team===g.playerTeam);
+    if(b.team){b._mark.material.color.setHex(b.team==='red'?TEAM_COL.red:TEAM_COL.blue);b._mark.material.depthTest=false;b._mark.renderOrder=999;b._mark.material.needsUpdate=true;}
+  }
+};
+const _elimFixSetTeam=Bot.prototype.setTeam;
+Bot.prototype.setTeam=function(team){
+  const r=_elimFixSetTeam.call(this,team);
+  if(window.game?.elimMode&&this._mark)this._mark.visible=!!this.alive&&!!team&&(
+    !!window.game.elimSpectator||!!(window.game.player?.dead&&window.game.spectatorMatch)||team===window.game.playerTeam
+  );
+  return r;
+};
+
+// Do not let the buy-menu helpers fade the elimination round-start track. In this mode
+// the track fades only when the player actually begins moving or jumping.
+for(const method of ['startBuy','endBuy','cancelBuy']){
+  const original=Game.prototype[method];
+  if(typeof original!=='function')continue;
+  Game.prototype[method]=function(...args){
+    if(!this.elimMode)return original.apply(this,args);
+    const keep=activeRoundStartAudio;activeRoundStartAudio=null;
+    try{return original.apply(this,args);}finally{activeRoundStartAudio=keep;}
+  };
+}
+function elimArmRoundMusic(g){g._elimRoundStartFading=false;}
+const _elimFixStartMatch=Game.prototype.startMatch;
+Game.prototype.startMatch=function(lock){
+  const r=_elimFixStartMatch.call(this,lock);
+  if(this.elimMode)elimArmRoundMusic(this);
+  return r;
+};
+
+const _elimFixGameUpdate=Game.prototype.update;
+Game.prototype.update=function(dt){
+  const r=_elimFixGameUpdate.call(this,dt);
+  if(this.elimMode){
+    if(this.player.dead||this.state==='Spectating'||this.elimSpectator)elimStopPlayerFootsteps();
+    else if(this.elimPhase==='live'&&!this._elimRoundStartFading&&activeRoundStartAudio&&!activeRoundStartAudio.paused){
+      const p=this.player,k=p.keys||{};
+      const moving=Math.hypot(p.vel?.x||0,p.vel?.z||0)>.35;
+      const input=!!(k.KeyW||k.KeyA||k.KeyS||k.KeyD||k.ArrowUp||k.ArrowDown||k.ArrowLeft||k.ArrowRight||k.Space);
+      const jumping=(p.vel?.y||0)>.35||!!(k.Space||k.Spacebar);
+      if(moving||input||jumping){this._elimRoundStartFading=true;fadeOutRoundStart(900);}
+    }
+    elimRefreshMarkers(this);
+  }
+  return r;
+};
+
+const _elimFixBeginNextRound=elimBeginNextRound;
+elimBeginNextRound=function(g){
+  const r=_elimFixBeginNextRound(g);
+  elimArmRoundMusic(g);
+  return r;
+};
+
+// ============================================================
+// END OLYMPUS ELIMINATION
+// ============================================================
+
+
 // 11. BOOTSTRAP
 // ============================================================
 await preloadAssets();
