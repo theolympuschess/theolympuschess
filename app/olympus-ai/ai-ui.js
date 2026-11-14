@@ -51,7 +51,7 @@ window.addEventListener(
   const header = createElement("div", "oai-header");
   const headingWrap = createElement("div", "oai-heading-wrap");
   headingWrap.append(
-    createElement("div", "oai-title", "✦ Olympus AI"),
+    createElement("div", "oai-title", "✨ Olympus AI"),
     createElement("div", "oai-subtitle", "Your academy dashboard assistant")
   );
 
@@ -83,7 +83,7 @@ window.addEventListener(
     panel.classList.toggle("is-open", open);
     panel.setAttribute("aria-hidden", String(!open));
     launcher.setAttribute("aria-expanded", String(open));
-    launcher.textContent = open ? "✦ Close AI" : "✦ Olympus AI";
+    launcher.textContent = open ? "✨ Close AI" : "✨ Olympus AI";
     if (open) input.focus();
   }
 
