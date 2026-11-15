@@ -81,6 +81,65 @@ function escapeMarkdown(value) {
   return clean(value).replace(/[\r\n]+/g, " ");
 }
 
+// ======================================================
+// 📅 FORMAT CLASS SCHEDULE — MATCH MAINUI CALENDAR
+// ======================================================
+
+const SCHEDULE_WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];
+
+function formatScheduleWeekday(value) {
+  const raw = clean(value);
+
+  if (!raw) return "Unknown";
+
+  const day = Number(raw);
+
+  if (
+    Number.isInteger(day) &&
+    day >= 0 &&
+    day < SCHEDULE_WEEKDAYS.length
+  ) {
+    return SCHEDULE_WEEKDAYS[day];
+  }
+
+  return SCHEDULE_WEEKDAYS.find(
+    name => name.toLowerCase() === raw.toLowerCase()
+  ) || raw;
+}
+
+function formatScheduleTime(timeValue) {
+  if (!timeValue) return "—";
+
+  const parts = String(timeValue).trim().split(":");
+
+  if (parts.length < 2) return timeValue;
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 || hour > 23 ||
+    minute < 0 || minute > 59
+  ) {
+    return timeValue;
+  }
+
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-IN");
 }
@@ -621,8 +680,13 @@ async function getScheduleAnswer(question = "") {
     `• Username: **${escapeMarkdown(profile.username)}**`,
     `• Batch: **${escapeMarkdown(batch || "Not recorded")}**`,
     "",
-    "**Class schedule**",
-    ...(schedule.length ? schedule.map(row => `• ${escapeMarkdown(row.weekday)} — ${escapeMarkdown(row.class_time)}`) : ["No individual class schedule rows were found."])
+   "**Class schedule (Indian Standard Time)**",
+"",
+...(schedule.length
+  ? schedule.map(row =>
+      `• ${formatScheduleWeekday(row.weekday)} • ${formatScheduleTime(row.class_time)}`
+    )
+  : ["No individual class schedule rows were found."])
   ].join("\n");
 }
 
