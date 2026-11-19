@@ -6,7 +6,9 @@
 <meta name="theme-color" content="#0a0f24">
 <title>Olympus Chess Academy — Login</title>
 <style>
-:root{--bg:#0a0f24;--ink:#16204a;--gold:#ffd23f;--gold2:#f0a81d;--cream:#fff6d6;--text:#f6f7ff;--soft:#aeb8d8;--rose:#ff8fa3;--red:#ff7c82}
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+@property --pull{syntax:'<length>';inherits:true;initial-value:0px}
+:root{--bg:#0a0f24;--ink:#16204a;--gold:#ffd23f;--gold2:#f0a81d;--cream:#fff6d6;--text:#f6f7ff;--soft:#b9c2e6;--rose:#ff8fa3;--red:#ff7c82;--lx:clamp(4px,5vw,80px);--s:1}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%;background:var(--bg)}
 body{min-height:100dvh;overflow-x:hidden;color:var(--text);font-family:"Baloo 2","Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif}
@@ -71,6 +73,7 @@ button,input{font:inherit}
 .tagline{font-size:clamp(1.9rem,6vw,3.2rem);font-weight:800;line-height:1;text-align:center;margin:6px 0 0;animation:slow 1.6s 5.3s both cubic-bezier(.2,.8,.2,1)}
 .tagline em{font-style:normal;color:var(--gold)}
 @keyframes slow{from{opacity:0;transform:translateY(26px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
 /* ---------- MASCOT ---------- */
 .stage{position:relative;width:210px;height:190px;margin-top:6px;margin-bottom:-52px;z-index:3;pointer-events:none;animation:drop 1.3s 5.5s both cubic-bezier(.3,1.5,.5,1)}
@@ -135,60 +138,168 @@ button,input{font:inherit}
 .fx{position:absolute;top:34%;font-size:1.5rem;pointer-events:none;animation:fxUp 1.4s ease-out forwards}
 @keyframes fxUp{to{transform:translate(var(--x),-120px) scale(1.5);opacity:0}}
 
+/* zzz while sleeping */
+.zzz{position:absolute;right:14px;top:22px;width:80px;height:100px;opacity:0;pointer-events:none;transition:opacity .4s}
+.stage.sleep .zzz{opacity:1}
+.zzz span{position:absolute;left:0;top:60px;font-weight:800;color:#cfe0ff;text-shadow:0 0 12px rgba(150,190,255,.95),0 0 26px rgba(120,160,255,.6);opacity:0;animation:zz 3.2s ease-in infinite}
+.zzz span:nth-child(1){font-size:1.1rem;animation-delay:0s}
+.zzz span:nth-child(2){font-size:1.5rem;animation-delay:1.05s}
+.zzz span:nth-child(3){font-size:1.95rem;animation-delay:2.1s}
+@keyframes zz{0%{transform:translate(0,0) scale(.5) rotate(-8deg);opacity:0}20%{opacity:1}100%{transform:translate(38px,-92px) scale(1.25) rotate(14deg);opacity:0}}
+
 .sound-btn{position:fixed;top:14px;right:14px;z-index:20;width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,210,63,.45);background:rgba(16,24,64,.8);color:var(--cream);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:transform .15s,border-color .2s}
 .sound-btn:hover{transform:scale(1.08);border-color:var(--gold)}
 .sound-btn:focus-visible{outline:3px solid rgba(255,210,63,.5);outline-offset:2px}
+
+/* ---------- LAMP + ROOM LIGHT ---------- */
+.cone{position:fixed;z-index:-1;pointer-events:none;mix-blend-mode:screen;
+ left:calc(var(--lx) + 60px*var(--s) - 170px*var(--s));top:calc(148px*var(--s));width:calc(340px*var(--s));height:82vh;
+ clip-path:polygon(46% 0,54% 0,100% 100%,0 100%);
+ background:linear-gradient(180deg,rgba(255,226,130,.5),rgba(255,210,63,.16) 50%,transparent 95%);
+ transform-origin:50% 0;animation:fadeIn 1.6s 5.4s both,coneFlick 5s 7s ease-in-out infinite;transition:opacity .8s}
+@keyframes coneFlick{50%{filter:brightness(1.18)}}
+body.lights-off .cone{opacity:0!important;animation:none}
+
+.room-dark{position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;transition:opacity 1.1s ease;
+ background:radial-gradient(circle at 50% 45%,rgba(4,6,24,.78),rgba(1,2,8,.96) 80%)}
+body.lights-off .room-dark{opacity:1}
+
+.lamp{position:fixed;z-index:8;top:0;left:var(--lx);width:120px;height:300px;transform:scale(var(--s));transform-origin:0 0;animation:fadeIn 1.6s 5.4s both}
+.swing{position:absolute;inset:0;transform-origin:60px 0;animation:sway 6s ease-in-out infinite}
+.swing.tug{animation:tug 1.5s ease-out}
+@keyframes sway{0%,100%{transform:rotate(-1.4deg)}50%{transform:rotate(1.4deg)}}
+@keyframes tug{0%{transform:rotate(0)}18%{transform:rotate(-7deg)}40%{transform:rotate(5deg)}60%{transform:rotate(-3deg)}80%{transform:rotate(1.5deg)}100%{transform:rotate(0)}}
+.wire{position:absolute;left:59px;top:0;width:3px;height:92px;background:linear-gradient(#aeb8d8,#6d7aa6)}
+.shade{position:absolute;left:0;top:88px;width:120px;height:60px;overflow:visible;transition:filter .8s;filter:drop-shadow(0 6px 10px rgba(0,0,0,.4))}
+body.lights-off .shade{filter:brightness(.3) saturate(.7)}
+body.lights-off .card{filter:brightness(.75)}
+.bulb{position:absolute;left:46px;top:138px;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fffbe0,#ffd23f 60%,#f0a81d);box-shadow:0 0 36px 14px rgba(255,210,63,.7),0 0 80px 30px rgba(255,190,60,.3);transition:background .7s,box-shadow .7s;animation:bulbPulse 3s ease-in-out infinite}
+@keyframes bulbPulse{50%{box-shadow:0 0 44px 18px rgba(255,220,90,.85),0 0 96px 38px rgba(255,190,60,.38)}}
+body.lights-off .bulb{background:#3a4272;box-shadow:none;animation:none}
+.rope{position:absolute;left:85px;top:138px;width:30px;display:flex;flex-direction:column;align-items:center;background:none;border:0;padding:0 4px;cursor:grab;touch-action:none;color:inherit;
+ -webkit-tap-highlight-color:transparent;transition:--pull .55s cubic-bezier(.3,1.8,.5,1)}
+.rope.drag{transition:none;cursor:grabbing}
+.rope:focus-visible{outline:3px solid rgba(255,210,63,.6);outline-offset:3px;border-radius:12px}
+.cord{display:block;width:3px;height:calc(112px + var(--pull));background:linear-gradient(#ffe9a0,#f0a81d);border-radius:2px}
+.bead{display:block;width:22px;height:22px;border-radius:50%;border:2px solid #16204a;background:radial-gradient(circle at 35% 30%,#fff6d6,#ffd23f 55%,#f0a81d);box-shadow:0 0 14px rgba(255,210,63,.8)}
+.rope:hover .bead{box-shadow:0 0 22px rgba(255,226,120,1)}
+body.lights-off .bead{animation:beadGlow 1.4s ease-in-out infinite alternate}
+@keyframes beadGlow{from{box-shadow:0 0 10px rgba(255,210,63,.5)}to{box-shadow:0 0 30px 6px rgba(255,226,120,1)}}
+.hint{position:absolute;left:112px;top:226px;white-space:nowrap;padding:5px 11px;border-radius:12px;background:var(--cream);color:var(--ink);font-weight:800;font-size:.78rem;box-shadow:0 6px 16px rgba(0,0,0,.4);animation:hintBob 1.6s ease-in-out infinite;pointer-events:none;transition:opacity .4s}
+.hint.gone{opacity:0;animation:none}
+@keyframes hintBob{50%{transform:translate(4px,6px)}}
+
 /* ---------- CARD ---------- */
-.card{position:relative;width:min(100%,430px);padding:64px 30px 28px;border-radius:30px;border:2px solid rgba(255,210,63,.45);overflow:hidden;
- background:linear-gradient(160deg,rgba(26,38,90,.95),rgba(11,17,46,.97));box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 6px rgba(255,210,63,.06),inset 0 0 60px rgba(255,210,63,.04);
- animation:slow 1.8s 5.6s both cubic-bezier(.2,.8,.2,1)}
-.card::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.07;background:conic-gradient(#fff 25%,transparent 0 50%,#fff 0 75%,transparent 0) 0 0/28px 28px}
-.card.error-pulse{animation:cardError .35s}
-@keyframes cardError{25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
-.card h2{font-size:2rem;text-align:center;line-height:1.1}
+.card{--r1:#ffd23f;--r2:#ff8fa3;--r3:#9b8cff;--r4:#5fd4ff;
+ position:relative;width:min(100%,430px);padding:64px 30px 28px;border-radius:30px;border:0;overflow:hidden;
+ background:
+  radial-gradient(120% 70% at 0% 0%,rgba(255,210,63,.22),transparent 55%),
+  radial-gradient(90% 60% at 100% 100%,rgba(255,143,163,.2),transparent 60%),
+  linear-gradient(155deg,rgba(66,58,160,.93),rgba(34,40,112,.95) 48%,rgba(92,56,122,.92));
+ box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 60px rgba(255,210,63,.12),0 0 120px rgba(155,140,255,.14),inset 0 0 60px rgba(255,226,150,.06);
+ animation:slow 1.8s 5.6s both cubic-bezier(.2,.8,.2,1);transition:box-shadow .5s}
+.card::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;background:conic-gradient(#fff 25%,transparent 0 50%,#fff 0 75%,transparent 0) 0 0/28px 28px}
+.card::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:2.5px;pointer-events:none;z-index:3;
+ background:conic-gradient(from var(--a),var(--r1),var(--r2),var(--r3),var(--r4),var(--r1));
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+ animation:spinA 6s linear infinite}
+@keyframes spinA{to{--a:360deg}}
+.card.bad{--r1:#ff4d5a;--r2:#ff9aa5;--r3:#ff4d5a;--r4:#7a1020;box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 70px rgba(255,80,90,.45)}
+.card.good{--r1:#7dffb0;--r2:#ffd23f;--r3:#7dffb0;--r4:#fff6d6;box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 90px rgba(125,255,176,.45),0 0 140px rgba(255,210,63,.3)}
+.card>*{position:relative;z-index:1}
+.card>.blob,.card>.spot,.card>.flash,.card>.motes{position:absolute;pointer-events:none;z-index:0}
+.blob{width:240px;height:240px;border-radius:50%;filter:blur(46px);opacity:.55}
+.blob.b1{left:-70px;top:-60px;background:rgba(255,210,63,.55);animation:drift1 9s ease-in-out infinite alternate}
+.blob.b2{right:-80px;bottom:-70px;background:rgba(255,120,170,.5);animation:drift2 11s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(90px,70px) scale(1.2)}}
+@keyframes drift2{to{transform:translate(-80px,-60px) scale(1.15)}}
+.spot{inset:0;background:radial-gradient(240px circle at var(--mx,50%) var(--my,0%),rgba(255,230,150,.2),transparent 60%)}
+.flash{inset:0;opacity:0;background:radial-gradient(circle at 50% 50%,rgba(255,90,100,.4),transparent 70%)}
+.card.bad>.flash{animation:flashA .9s ease-out}
+.card.good>.flash{background:radial-gradient(circle at 50% 50%,rgba(125,255,176,.45),rgba(255,210,63,.2) 50%,transparent 75%);animation:flashA 1.4s ease-out}
+@keyframes flashA{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+.motes{inset:0;overflow:hidden}
+.mote{position:absolute;bottom:-12px;width:5px;height:5px;border-radius:50%;background:#fff3b0;box-shadow:0 0 10px 3px rgba(255,210,63,.75);opacity:0;animation:moteUp var(--d) ease-in-out infinite;animation-delay:var(--l)}
+@keyframes moteUp{0%{opacity:0;transform:translate(0,0)}15%{opacity:.9}85%{opacity:.7}100%{opacity:0;transform:translate(var(--x),-520px)}}
+
+.card h2{font-size:2rem;text-align:center;line-height:1.1;text-shadow:0 0 22px rgba(255,210,63,.45);background:linear-gradient(90deg,#fff6d6,#ffd23f,#ffb3c6,#fff6d6);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:titleFlow 7s linear infinite}
+@keyframes titleFlow{to{background-position:250% 0}}
 .sub{text-align:center;color:var(--soft);margin:6px 0 20px;font-size:.92rem}
-.error-message{display:none;margin-bottom:14px;padding:11px 14px;border-radius:14px;border:1px solid rgba(255,124,130,.35);background:rgba(255,90,100,.1);color:#ffb0b4;font-size:.86rem;animation:slow .3s both}
+.error-message{display:none;margin-bottom:14px;padding:11px 14px 11px 38px;border-radius:14px;border:1px solid rgba(255,124,130,.5);background:rgba(255,90,100,.16);color:#ffc2c6;font-size:.86rem;animation:errIn .5s both cubic-bezier(.3,1.6,.5,1)}
+.error-message::before{content:"\26A0";position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:1.1rem;color:#ff9aa0;animation:wig .5s ease-in-out 3}
+@keyframes errIn{from{opacity:0;transform:translateY(-14px) scale(.9)}to{opacity:1;transform:none}}
 .form-group{margin-bottom:15px;position:relative}
-label{display:block;margin-bottom:6px;font-weight:700;font-size:.85rem;color:var(--cream);transition:color .2s}
-.form-group:focus-within label{color:var(--gold)}
+label{display:block;margin-bottom:6px;font-weight:700;font-size:.85rem;color:var(--cream);transition:color .2s,transform .2s}
+.form-group:focus-within label{color:var(--gold);transform:translateX(4px)}
 .input-wrap{position:relative}
 .input-wrap .ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);pointer-events:none;display:flex}
-.input-wrap .ico img{width:26px;height:26px;object-fit:contain;filter:drop-shadow(0 0 4px rgba(255,210,63,.5))}
-input{width:100%;height:54px;padding:0 16px 0 46px;border-radius:16px;border:2px solid rgba(255,255,255,.12);outline:none;background:rgba(5,9,28,.75);color:var(--text);font-size:1rem;transition:.2s}
-input:hover{border-color:rgba(255,255,255,.25)}
-input:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,210,63,.14),0 0 24px rgba(255,210,63,.15);transform:translateY(-1px)}
-input::placeholder{color:#6d7aa6}
-input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 0 0 1000px #0f1738 inset}
+.input-wrap .ico img{width:26px;height:26px;object-fit:contain;filter:drop-shadow(0 0 4px rgba(255,210,63,.5));transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.form-group:focus-within .ico img{transform:scale(1.2) rotate(-8deg)}
+input{width:100%;height:54px;padding:0 16px 0 46px;border-radius:16px;border:2px solid rgba(255,226,150,.28);outline:none;background:rgba(255,255,255,.08);color:var(--text);font-size:1rem;transition:.25s}
+input:hover{border-color:rgba(255,226,150,.5);background:rgba(255,255,255,.11)}
+input:focus{border-color:var(--gold);background:rgba(255,255,255,.13);box-shadow:0 0 0 4px rgba(255,210,63,.18),0 0 28px rgba(255,210,63,.28);transform:translateY(-2px)}
+input::placeholder{color:#9aa6d6}
+input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 0 0 1000px #2c2f78 inset}
+.form-group.bad input{border-color:var(--red);background:rgba(255,90,100,.12);box-shadow:0 0 0 4px rgba(255,90,100,.2),0 0 26px rgba(255,90,100,.3);animation:inShake .5s}
+.form-group.bad label{color:#ff9aa0}
+.form-group.bad .ico img{animation:wig .4s ease-in-out 2}
+@keyframes inShake{20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.card.good input{border-color:#7dffb0;box-shadow:0 0 0 4px rgba(125,255,176,.15),0 0 22px rgba(125,255,176,.25)}
 .password-input{padding-right:54px}
-.password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:none;border-radius:10px;background:transparent;color:#8e9bc6;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
-.password-toggle:hover,.password-toggle[aria-pressed="true"]{color:var(--gold);background:rgba(255,255,255,.06)}
+.password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:none;border-radius:10px;background:transparent;color:#b4bfea;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
+.password-toggle:hover,.password-toggle[aria-pressed="true"]{color:var(--gold);background:rgba(255,255,255,.1)}
 .password-toggle:focus-visible,#loginBtn:focus-visible{outline:3px solid rgba(255,210,63,.5);outline-offset:2px}
 .eye{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .loading{display:none;align-items:center;justify-content:center;gap:9px;margin:4px 0 12px;color:var(--gold);font-weight:700;font-size:.9rem}
 .spinner{display:flex;animation:spin 1s linear infinite}
 .spinner img{width:24px;height:24px}
 @keyframes spin{to{transform:rotate(360deg)}}
-#loginBtn{position:relative;width:100%;height:58px;border:none;border-radius:18px;overflow:hidden;cursor:pointer;font-weight:800;font-size:1.05rem;color:#2a1a00;
- background:linear-gradient(180deg,#ffe36e,#f5b120);box-shadow:0 6px 0 #b9780c,0 16px 30px rgba(255,190,40,.25);transition:transform .15s,box-shadow .15s,filter .15s}
-#loginBtn::before{content:"";position:absolute;top:-40%;left:-80px;width:60px;height:180%;transform:skewX(-22deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transition:left .6s}
-#loginBtn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.05);box-shadow:0 8px 0 #b9780c,0 20px 34px rgba(255,190,40,.3)}
-#loginBtn:hover:not(:disabled)::before{left:calc(100% + 60px)}
-#loginBtn:active:not(:disabled){transform:translateY(5px);box-shadow:0 1px 0 #b9780c}
-#loginBtn:disabled{cursor:not-allowed;color:#d7d9e2;background:linear-gradient(180deg,#5a6075,#454a5c);box-shadow:0 6px 0 #2d3140}
-.secure{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:15px;border-top:1px dashed rgba(255,255,255,.12);color:#8a97c2;font-size:.76rem}
+#loginBtn{position:relative;width:100%;height:58px;border:none;border-radius:18px;overflow:hidden;cursor:pointer;font-weight:800;font-size:1.05rem;color:#2d1646;
+ background:linear-gradient(100deg,#ffd23f,#ffb347,#ff8fa3,#b79cff,#ffd23f);background-size:300% 100%;
+ box-shadow:0 6px 0 #a35a1c,0 16px 34px rgba(255,170,90,.38),0 0 30px rgba(255,143,163,.25);
+ animation:btnFlow 6s linear infinite,btnGlow 3s ease-in-out infinite;transition:transform .15s,box-shadow .15s,filter .15s}
+@keyframes btnFlow{to{background-position:300% 0}}
+@keyframes btnGlow{50%{filter:brightness(1.08) saturate(1.1)}}
+#loginBtn::before{content:"";position:absolute;top:-40%;left:-80px;width:60px;height:180%;transform:skewX(-22deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);animation:btnSweep 3.6s ease-in-out infinite}
+@keyframes btnSweep{0%,55%{left:-80px}100%{left:calc(100% + 60px)}}
+#loginBtn:hover:not(:disabled){transform:translateY(-3px) scale(1.01);filter:brightness(1.07);box-shadow:0 9px 0 #a35a1c,0 22px 40px rgba(255,170,90,.45),0 0 40px rgba(255,143,163,.35)}
+#loginBtn:active:not(:disabled){transform:translateY(5px);box-shadow:0 1px 0 #a35a1c}
+#loginBtn:disabled{cursor:not-allowed;color:#e6e0f2;background:linear-gradient(100deg,#6a5fa8,#8a63a8,#6a5fa8);background-size:200% 100%;box-shadow:0 6px 0 #3b3270;animation:btnFlow 2s linear infinite}
+#loginBtn:disabled::before{display:none}
+#loginBtn.err{background:linear-gradient(180deg,#ff7c82,#e0354a);color:#fff;box-shadow:0 6px 0 #8c1426,0 16px 30px rgba(255,80,90,.4);animation:inShake .5s}
+#loginBtn.ok:disabled{cursor:default;color:#0d3a22;background:linear-gradient(100deg,#7dffb0,#ffe36e,#7dffb0);background-size:250% 100%;box-shadow:0 6px 0 #2f8f5b,0 0 40px rgba(125,255,176,.6);animation:btnFlow 2s linear infinite,okPop .7s cubic-bezier(.3,1.6,.5,1)}
+@keyframes okPop{0%{transform:scale(.9)}60%{transform:scale(1.07)}100%{transform:scale(1)}}
+.secure{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:15px;border-top:1px dashed rgba(255,255,255,.2);color:#b4bfea;font-size:.76rem}
 .secure img{width:28px;height:28px;object-fit:contain;flex:0 0 auto}
 
+.knight-run{display:none}
+
 /* ---------- CHECKMATE ---------- */
-.mate{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:rgba(4,6,26,.86);backdrop-filter:blur(6px);text-align:center}
-.mate.on{display:flex;animation:slow .6s both}
+.mate{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;flex-direction:column;gap:6px;text-align:center;overflow:hidden;
+ background:radial-gradient(circle at 50% 42%,rgba(80,60,170,.92),rgba(8,10,40,.96) 70%);backdrop-filter:blur(6px)}
+.mate.on{display:flex;animation:fadeIn .6s both}
+.mate .m-rays{position:absolute;width:1300px;height:1300px;left:50%;top:42%;margin:-650px 0 0 -650px;border-radius:50%;
+ background:repeating-conic-gradient(from 0deg,rgba(255,226,130,.2) 0 5deg,transparent 5deg 20deg);
+ -webkit-mask-image:radial-gradient(circle,#000,transparent 62%);mask-image:radial-gradient(circle,#000,transparent 62%);animation:raysSpin 14s linear infinite}
+.mate .ring{position:absolute;left:50%;top:42%;width:140px;height:140px;margin:-70px 0 0 -70px;border-radius:50%;border:3px solid rgba(255,226,130,.85);opacity:0;animation:ringOut 2.4s ease-out infinite}
+.mate .ring.r2{animation-delay:.8s}.mate .ring.r3{animation-delay:1.6s}
+@keyframes ringOut{from{opacity:.9;transform:scale(.4)}to{opacity:0;transform:scale(4.4)}}
+.mate>*:not(.m-rays):not(.ring){position:relative;z-index:1}
 .mate .k{animation:jump .8s ease-in-out infinite}
 .mate .k img{width:130px;display:block;filter:drop-shadow(0 0 30px rgba(255,210,63,.9))}
-.mate h3{font-size:clamp(2rem,7vw,3.4rem)}
+.mate h3{font-size:clamp(2rem,7vw,3.4rem);text-shadow:0 0 26px rgba(255,210,63,.7)}
+.mate h3 span{display:inline-block;opacity:0;animation:letterPop .6s calc(var(--i)*.07s + .3s) both cubic-bezier(.3,1.7,.5,1)}
+@keyframes letterPop{from{opacity:0;transform:translateY(40px) scale(.4) rotate(-20deg)}to{opacity:1;transform:none}}
 .mate p{color:var(--soft)}
+.mate .bar{width:min(70vw,240px);height:8px;margin-top:12px;border-radius:8px;background:rgba(255,255,255,.14);overflow:hidden}
+.mate .bar i{display:block;height:100%;width:0;border-radius:8px;background:linear-gradient(90deg,#7dffb0,#ffd23f,#ff8fa3);box-shadow:0 0 14px rgba(255,210,63,.8);animation:barFill 2.2s .2s ease-in-out forwards}
+@keyframes barFill{to{width:100%}}
 .confetti{position:fixed;top:-60px;z-index:95;pointer-events:none;filter:drop-shadow(0 0 6px rgba(255,210,63,.8));animation:fall var(--t) ease-in forwards}
 @keyframes fall{to{transform:translate3d(var(--x),110vh,0) rotate(720deg)}}
+.spk{position:fixed;z-index:96;pointer-events:none;font-size:1.3rem;color:#ffe36e;text-shadow:0 0 12px rgba(255,210,63,.9);animation:spk 1.2s ease-out forwards}
+@keyframes spk{from{opacity:1;transform:translate(0,0) scale(.4)}to{opacity:0;transform:translate(var(--x),var(--y)) scale(1.6) rotate(200deg)}}
 
-@media(max-width:480px){.card{padding:62px 20px 22px;border-radius:24px}.knight-run{font-size:2.4rem}.stage{transform:scale(.88)}}
+@media(max-width:480px){.card{padding:62px 20px 22px;border-radius:24px}.knight-run{font-size:2.4rem}.stage{transform:scale(.88)}:root{--s:.72}}
 @media(max-height:760px){.tagline{font-size:1.7rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}.intro{display:none}}
 </style>
@@ -198,6 +309,7 @@ input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 
 
   <div class="floor" aria-hidden="true"></div>
   <div class="glow" aria-hidden="true"></div>
+  <div class="cone" aria-hidden="true"></div>
   <div class="drift" id="drift" aria-hidden="true"></div>
   <div class="knight-run" aria-hidden="true"><b><img src="assets/pieces/wN.png" alt=""></b></div>
 
@@ -215,9 +327,10 @@ input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 
   </div>
   <h1 class="tagline">Think Deeper. <em>Rise Higher.</em></h1>
 
-  <!-- Pip the Pawn: eyes follow you, covers eyes for password, celebrates on win -->
+  <!-- Pip the Pawn: eyes follow you, covers eyes for password, celebrates on win, sleeps when the lamp is off -->
   <div class="stage" id="stage" aria-hidden="true">
     <div class="bubble" id="bubble"></div>
+    <div class="zzz"><span>Z</span><span>Z</span><span>Z</span></div>
     <svg class="pip" viewBox="0 0 200 190">
       <ellipse cx="100" cy="182" rx="62" ry="9" fill="#000" opacity=".35"/>
       <path d="M58 178 Q60 140 78 122 H122 Q140 140 142 178 Z" fill="#fff0b8" stroke="#16204a" stroke-width="4" stroke-linejoin="round"/>
@@ -240,12 +353,18 @@ input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 
   </div>
 
   <section class="card" id="loginCard">
+    <div class="blob b1" aria-hidden="true"></div>
+    <div class="blob b2" aria-hidden="true"></div>
+    <div class="spot" aria-hidden="true"></div>
+    <div class="motes" id="motes" aria-hidden="true"></div>
+    <div class="flash" aria-hidden="true"></div>
+
     <h2>Welcome Back</h2>
     <p class="sub">Say hi to Pip, then make your first move.</p>
 
     <div class="error-message" id="errorMessage" role="alert"></div>
 
-    <div class="form-group">
+    <div class="form-group" id="groupUser">
       <label for="username">Username</label>
       <div class="input-wrap">
         <span class="ico" aria-hidden="true"><img src="assets/pieces/wP.png" alt=""></span>
@@ -253,7 +372,7 @@ input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 
       </div>
     </div>
 
-    <div class="form-group">
+    <div class="form-group" id="groupPass">
       <label for="password">Password</label>
       <div class="input-wrap">
         <span class="ico" aria-hidden="true"><img src="assets/pieces/wR.png" alt=""></span>
@@ -272,10 +391,34 @@ input:-webkit-autofill{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 
   </section>
 </main>
 
+<!-- room darkness (lamp off) -->
+<div class="room-dark" aria-hidden="true"></div>
+
+<!-- hanging lamp: pull the rope to switch the room light -->
+<div class="lamp" id="lamp">
+  <div class="swing" id="swing">
+    <div class="wire"></div>
+    <span class="bulb"></span>
+    <svg class="shade" viewBox="0 0 120 60" aria-hidden="true">
+      <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe36e"/><stop offset="1" stop-color="#f0a81d"/></linearGradient></defs>
+      <circle cx="60" cy="6" r="5" fill="#ffd23f" stroke="#16204a" stroke-width="3"/>
+      <path d="M16 56 C18 24 38 10 60 10 C82 10 102 24 104 56 Z" fill="url(#sg)" stroke="#16204a" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M30 48 C34 30 46 22 56 20" fill="none" stroke="#fff6d6" stroke-width="4" stroke-linecap="round" opacity=".6"/>
+      <rect x="12" y="52" width="96" height="8" rx="4" fill="#ff8fa3" stroke="#16204a" stroke-width="3"/>
+    </svg>
+    <button class="rope" id="rope" type="button" aria-pressed="false" aria-label="Pull the lamp rope to turn the lights off"><span class="cord"></span><span class="bead"></span></button>
+  </div>
+  <div class="hint" id="lampHint">Pull me!</div>
+</div>
+
 <button class="sound-btn" id="soundBtn" type="button" aria-label="Mute sounds" aria-pressed="false">🔊</button>
 
 <div class="mate" id="mate" aria-live="polite">
-  <div class="k"><img src="assets/pieces/wK.png" alt=""></div><h3>Checkmate!</h3><p>Welcome to Olympus. Setting up your board...</p>
+  <div class="m-rays"></div><span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>
+  <div class="k"><img src="assets/pieces/wK.png" alt=""></div>
+  <h3><span style="--i:0">C</span><span style="--i:1">h</span><span style="--i:2">e</span><span style="--i:3">c</span><span style="--i:4">k</span><span style="--i:5">m</span><span style="--i:6">a</span><span style="--i:7">t</span><span style="--i:8">e</span><span style="--i:9">!</span></h3>
+  <p>Welcome to Olympus. Setting up your board...</p>
+  <div class="bar"><i></i></div>
 </div>
 
 <script type="module">
@@ -291,11 +434,16 @@ const errorMsg = document.getElementById('errorMessage');
 const loading = document.getElementById('loading');
 const passwordToggle = document.getElementById('passwordToggle');
 const loginCard = document.getElementById('loginCard');
+const groupUser = document.getElementById('groupUser');
+const groupPass = document.getElementById('groupPass');
 
 /* visual-only references */
 const stage = document.getElementById('stage');
 const pupils = document.getElementById('pupils');
 const mate = document.getElementById('mate');
+
+/* lamp state: false = lights ON (default) */
+let lampOff = false;
 
 /* =========================================================
    SHOW ERROR MESSAGE
@@ -307,13 +455,49 @@ function showError(message) {
   loginBtn.disabled = false;
   loginBtn.textContent = 'Enter Olympus →';
 
-  /* Visual-only feedback */
-  loginCard.classList.remove('error-pulse');
-  void loginCard.offsetWidth;
-  loginCard.classList.add('error-pulse');
+  /* Visual-only feedback: shake, red glow, red fields */
+  badFeedback(message);
   mood('sad');
-  say(/Invalid/.test(message) ? 'Hey! That\u2019s a wrong password!' :
-      /enter both/.test(message) ? 'Fill in both boxes, champ!' : 'Oops! Something went wrong.', 3200);
+  if (lampOff) {
+    say('Zzz... mumble... wrong password... zzz', 3000);
+  } else {
+    say(/Invalid/.test(message) ? 'Hey! That\u2019s a wrong password!' :
+        /enter both/.test(message) ? 'Fill in both boxes, champ!' : 'Oops! Something went wrong.', 3200);
+  }
+}
+
+function badFeedback(message) {
+  /* card shake (Web Animations so the entrance animation is untouched) */
+  loginCard.animate([
+    { transform: 'translateX(0)' }, { transform: 'translateX(-14px) rotate(-.8deg)' },
+    { transform: 'translateX(12px) rotate(.7deg)' }, { transform: 'translateX(-9px)' },
+    { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }
+  ], { duration: 600, easing: 'ease-in-out' });
+  loginCard.classList.remove('bad');
+  void loginCard.offsetWidth;
+  loginCard.classList.add('bad');
+  clearTimeout(badFeedback.t);
+  badFeedback.t = setTimeout(() => loginCard.classList.remove('bad'), 1800);
+
+  /* which fields glow red */
+  [groupUser, groupPass].forEach(g => g.classList.remove('bad'));
+  void groupUser.offsetWidth;
+  if (/enter both/.test(message)) {
+    if (!usernameInput.value.trim()) groupUser.classList.add('bad');
+    if (!passwordInput.value.trim()) groupPass.classList.add('bad');
+  } else {
+    groupUser.classList.add('bad');
+    groupPass.classList.add('bad');
+  }
+
+  loginBtn.classList.remove('err');
+  void loginBtn.offsetWidth;
+  loginBtn.classList.add('err');
+  setTimeout(() => loginBtn.classList.remove('err'), 900);
+}
+function clearBad() {
+  groupUser.classList.remove('bad');
+  groupPass.classList.remove('bad');
 }
 
 /* =========================================================
@@ -324,6 +508,7 @@ function showLoading() {
   loading.style.display = 'flex';
   loginBtn.disabled = true;
   loginBtn.textContent = 'Please wait...';
+  clearBad();
   mood('');
 }
 
@@ -410,8 +595,8 @@ loginBtn.addEventListener('click', async () => {
   const success = await loginUser(username, password);
 
   if (success) {
-    celebrate();   /* visual-only; short checkmate moment, then same redirect */
-    setTimeout(() => { window.location.href = 'mainUI.html'; }, 1800);
+    celebrate();   /* visual-only; checkmate moment, then same redirect */
+    setTimeout(() => { window.location.href = 'mainUI.html'; }, 2800);
   }
 });
 
@@ -419,8 +604,8 @@ passwordInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') loginBtn.click();
 });
 
-usernameInput.addEventListener('input', () => { errorMsg.style.display = 'none'; });
-passwordInput.addEventListener('input', () => { errorMsg.style.display = 'none'; });
+usernameInput.addEventListener('input', () => { errorMsg.style.display = 'none'; clearBad(); });
+passwordInput.addEventListener('input', () => { errorMsg.style.display = 'none'; clearBad(); });
 
 passwordToggle.addEventListener('click', () => {
   const passwordVisible = passwordInput.type === 'text';
@@ -437,6 +622,7 @@ window.onload = () => { usernameInput.focus(); };
    PIP THE PAWN  (presentation only)
    ========================================================= */
 function mood(state) {
+  if (lampOff && state !== 'sleep') return;   /* Pip stays asleep while the lights are off */
   stage.classList.remove('sad', 'win', 'o', 'mad', 'sleep');
   if (state) stage.classList.add(state);
 }
@@ -470,7 +656,7 @@ usernameInput.addEventListener('focus', () => {
 
 /* covers eyes while the password is private */
 passwordInput.addEventListener('focus', () => {
-  stage.classList.add('hide');
+  if (!lampOff) stage.classList.add('hide');
   stage.classList.toggle('peek', passwordInput.type === 'text');
   if (passwordInput.type === 'text') lookAtPassword();
   mood('');
@@ -518,6 +704,7 @@ const POKES = [
   ['Gotcha! You found me!','dance','','\u2665']
 ];
 const ANGRY = ['STOP POKING ME!!','That\u2019s it! I\u2019m calling the arbiter!','Resign already!','Touch-move rule! No more pokes!'];
+const SLEEPY = ['Zzz... five more minutes...','Zzz... turn the light on...','Mmm... pawn to e4... zzz','Shhh... I am dreaming of queens...'];
 let bag = [], bubbleT, moodT, animT, idleT, clicks = [], total = 0, asleep = false;
 
 function say(text, ms = 2600) {
@@ -556,9 +743,15 @@ function wake() {
 }
 function resetIdle() {
   clearTimeout(idleT);
+  if (lampOff) return;
   idleT = setTimeout(() => { asleep = true; mood('sleep'); say('Zzz...', 0); }, 15000);
 }
 function react() {
+  if (lampOff) {            /* sleeping because the lights are off */
+    say(SLEEPY[Math.floor(Math.random() * SLEEPY.length)], 2600);
+    animate('squish');
+    return;
+  }
   if (asleep) { wake(); return; }
   const now = Date.now();
   clicks = clicks.filter(t => now - t < 4000);
@@ -583,7 +776,7 @@ function react() {
 /* Pip waves hello right after the intro, when the card appears */
 function stopWave() { stage.classList.remove('wave', 'hi'); }
 function waveHello() {
-  if (asleep || total || document.activeElement === passwordInput) return;
+  if (lampOff || asleep || total || document.activeElement === passwordInput) return;
   stage.classList.add('wave', 'hi');
   pupils.style.transform = 'translate(0, 0)';
   animate('hop');
@@ -598,9 +791,108 @@ pip.addEventListener('pointerdown', react);
 resetIdle();
 
 /* gentle reactions to what the student is doing */
-usernameInput.addEventListener('focus', () => { if (!total) say('Who goes there? Type your name!'); }, { once: true });
-passwordInput.addEventListener('focus', () => say('I\u2019m not looking... promise!', 2200), { once: true });
-passwordToggle.addEventListener('click', () => { if (passwordInput.type === 'text') say('Okay, I peeked a little!', 2200); });
+usernameInput.addEventListener('focus', () => { if (!total && !lampOff) say('Who goes there? Type your name!'); }, { once: true });
+passwordInput.addEventListener('focus', () => { if (!lampOff) say('I\u2019m not looking... promise!', 2200); }, { once: true });
+passwordToggle.addEventListener('click', () => { if (passwordInput.type === 'text' && !lampOff) say('Okay, I peeked a little!', 2200); });
+
+/* =========================================================
+   LAMP  (pull the rope: lights off + Pip sleeps, pull again: lights on + Pip says hi)
+   Default = lights ON
+   ========================================================= */
+const ropeBtn = document.getElementById('rope');
+const swing = document.getElementById('swing');
+const lampHint = document.getElementById('lampHint');
+
+function tug() {
+  swing.classList.remove('tug');
+  void swing.offsetWidth;
+  swing.classList.add('tug');
+  clearTimeout(tug.t);
+  tug.t = setTimeout(() => swing.classList.remove('tug'), 1500);
+}
+
+function setLamp(on, silent) {
+  if (on === !lampOff) return;
+  lampOff = !on;
+  document.body.classList.toggle('lights-off', lampOff);
+  ropeBtn.setAttribute('aria-pressed', String(lampOff));
+  ropeBtn.setAttribute('aria-label', lampOff ? 'Pull the lamp rope to turn the lights on' : 'Pull the lamp rope to turn the lights off');
+  lampHint.classList.add('gone');
+
+  if (lampOff) {
+    /* lights out: Pip falls asleep with Zzz */
+    stopWave();
+    stage.classList.remove('hide', 'peek');
+    clearTimeout(moodT);
+    clearTimeout(idleT);
+    asleep = true;
+    mood('sleep');
+    say('Goodnight... zzz', 2200);
+  } else {
+    /* lights on: Pip wakes up and says hi */
+    asleep = false;
+    clearTimeout(moodT);
+    mood('');
+    resetIdle();
+    stage.classList.add('wave', 'hi');
+    pupils.style.transform = 'translate(0, 0)';
+    animate('hop');
+    if (!silent) say('Hey! Lights on, Yippee!!', 3000);
+    setTimeout(stopWave, 3000);
+    if (document.activeElement === passwordInput) stage.classList.add('hide');
+  }
+}
+
+let dragY = null;
+ropeBtn.addEventListener('pointerdown', (e) => {
+  dragY = e.clientY;
+  ropeBtn.setPointerCapture(e.pointerId);
+  ropeBtn.classList.add('drag');
+  e.preventDefault();
+});
+ropeBtn.addEventListener('pointermove', (e) => {
+  if (dragY === null) return;
+  const dy = Math.max(0, Math.min(54, e.clientY - dragY));
+  ropeBtn.style.setProperty('--pull', dy + 'px');
+});
+function endDrag(commit) {
+  if (dragY === null) return;
+  dragY = null;
+  ropeBtn.classList.remove('drag');
+  ropeBtn.style.setProperty('--pull', '0px');
+  if (commit) { tug(); setLamp(lampOff); }
+}
+ropeBtn.addEventListener('pointerup', () => endDrag(true));
+ropeBtn.addEventListener('pointercancel', () => endDrag(false));
+/* keyboard (Enter / Space) fires click with detail 0 */
+ropeBtn.addEventListener('click', (e) => {
+  if (e.detail !== 0) return;
+  ropeBtn.style.setProperty('--pull', '34px');
+  setTimeout(() => ropeBtn.style.setProperty('--pull', '0px'), 160);
+  tug();
+  setLamp(lampOff);
+});
+
+/* =========================================================
+   CARD EXTRAS: pointer spotlight + floating light motes
+   ========================================================= */
+loginCard.addEventListener('pointermove', (e) => {
+  const r = loginCard.getBoundingClientRect();
+  loginCard.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+  loginCard.style.setProperty('--my', (e.clientY - r.top) + 'px');
+});
+(function buildMotes() {
+  const box = document.getElementById('motes');
+  for (let i = 0; i < 14; i++) {
+    const m = document.createElement('span');
+    m.className = 'mote';
+    m.style.left = Math.random() * 100 + '%';
+    m.style.setProperty('--d', 7 + Math.random() * 7 + 's');
+    m.style.setProperty('--l', -Math.random() * 10 + 's');
+    m.style.setProperty('--x', (-40 + Math.random() * 80) + 'px');
+    box.appendChild(m);
+  }
+})();
 
 /* =========================================================
    SOUND  (only the login.mp3 music; the speaker button mutes it)
@@ -665,24 +957,58 @@ const pieceSrc = (n) => `assets/pieces/${n}.png`;
    SUCCESS CELEBRATION
    ========================================================= */
 function celebrate() {
+  if (lampOff) setLamp(true, true);      /* wake Pip so he can celebrate */
+  stopWave();
   stage.classList.remove('hide', 'peek');
   mood('win');
   fadeOutMusic();
   say('Checkmate! You did it!', 0);
   loading.style.display = 'none';
-  mate.classList.add('on');
-  for (let i = 0; i < 38; i++) {
-    const c = document.createElement('img');
-    c.className = 'confetti';
-    c.alt = '';
-    c.src = pieceSrc(PIECES[i % PIECES.length]);
-    c.style.left = Math.random() * 100 + 'vw';
-    c.style.width = 26 + Math.random() * 30 + 'px';
-    c.style.setProperty('--x', (-80 + Math.random() * 160) + 'px');
-    c.style.setProperty('--t', 1.6 + Math.random() * 1.4 + 's');
-    c.style.animationDelay = Math.random() * .5 + 's';
-    document.body.appendChild(c);
+
+  /* card turns green-gold with a glow flash */
+  loginCard.classList.remove('bad');
+  loginCard.classList.add('good');
+  loginBtn.classList.add('ok');
+  loginBtn.disabled = true;
+  loginBtn.textContent = '\u2713 Welcome, champion!';
+  loginCard.animate([
+    { transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(.99)' }, { transform: 'scale(1)' }
+  ], { duration: 700, easing: 'ease-out' });
+
+  /* star sparkles burst from the card */
+  const r = loginCard.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  for (let i = 0; i < 30; i++) {
+    const s = document.createElement('span');
+    s.className = 'spk';
+    s.textContent = i % 3 ? '\u2726' : '\u2605';
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    s.style.color = ['#ffe36e', '#7dffb0', '#ff8fa3', '#fff6d6'][i % 4];
+    const ang = Math.random() * Math.PI * 2, dist = 120 + Math.random() * 220;
+    s.style.setProperty('--x', Math.cos(ang) * dist + 'px');
+    s.style.setProperty('--y', Math.sin(ang) * dist + 'px');
+    s.style.animationDelay = Math.random() * .25 + 's';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1700);
   }
+
+  /* then the full checkmate screen */
+  setTimeout(() => {
+    mate.classList.add('on');
+    for (let i = 0; i < 46; i++) {
+      const c = document.createElement('img');
+      c.className = 'confetti';
+      c.alt = '';
+      c.src = pieceSrc(PIECES[i % PIECES.length]);
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.width = 26 + Math.random() * 30 + 'px';
+      c.style.setProperty('--x', (-80 + Math.random() * 160) + 'px');
+      c.style.setProperty('--t', 1.8 + Math.random() * 1.6 + 's');
+      c.style.animationDelay = Math.random() * .8 + 's';
+      document.body.appendChild(c);
+    }
+  }, 700);
 }
 
 /* =========================================================
