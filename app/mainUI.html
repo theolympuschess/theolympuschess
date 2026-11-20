@@ -42708,6 +42708,15 @@ right:0;
 </button>
 
 <button
+  class="nav-btn"
+  data-tab="attackDetection"
+  id="attackDetectionNavBtn"
+>
+  ⚔️
+  Attack Detection
+</button>
+
+<button
   type="button"
   class="nav-btn"
   id="chessFnafGameBtn"
@@ -74329,6 +74338,919 @@ winClose?.addEventListener("click", function() {
 })();
 
 </script>
+<!-- =========================================================
+     1) NAV BUTTON  (paste inside your nav / sidebar)
+========================================================= -->
+
+
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT  (paste with your other sections)
+     Piece images are loaded from:  assets/pieces/wK.png  wQ.png  wR.png
+                                    wB.png  wN.png  wP.png
+     If an image is missing the game falls back to a text chess symbol.
+     Everything is prefixed with "ad-" so it can never clash with another game.
+     Progress (rating, points, levels, current puzzle) is saved in the
+     browser (localStorage), so a refresh never loses anything.
+========================================================= -->
+
+<style>
+  #ad-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;}
+  @media (max-width:1100px){#ad-layout{grid-template-columns:1fr;}}
+
+  .ad-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:16px;box-sizing:border-box;}
+  .ad-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .ad-stat-row strong{color:#fff;font-variant-numeric:tabular-nums;}
+
+  /* ---------- GAME CARD ---------- */
+  #ad-game{--rgb:167,139,250;border-radius:18px;padding:22px 20px;box-sizing:border-box;
+    background:linear-gradient(135deg,rgba(var(--rgb),0.16),rgba(20,24,42,0.97) 58%);
+    border:1px solid rgba(var(--rgb),0.35);transition:border-color .25s, box-shadow .25s;}
+  #ad-game.ad-good{--rgb:52,211,153;border-color:rgba(52,211,153,0.8);box-shadow:0 14px 40px rgba(52,211,153,0.15);}
+  #ad-game.ad-bad{--rgb:251,113,133;border-color:rgba(251,113,133,0.8);box-shadow:0 14px 40px rgba(251,113,133,0.15);}
+
+  .ad-question{margin:0 0 16px;color:#fff;font-size:26px;font-weight:900;line-height:1.25;}
+  .ad-question em{font-style:normal;color:#a78bfa;}
+
+  .ad-top{display:flex;align-items:flex-start;gap:14px;}
+  .ad-mascot{flex:0 0 auto;width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;
+    background:radial-gradient(circle at 35% 25%,rgba(255,255,255,0.35),transparent 50%),linear-gradient(145deg,#c084fc,#7c3aed);box-shadow:0 8px 20px rgba(124,58,237,0.35);}
+  .ad-bubble{position:relative;flex:1 1 auto;min-width:0;padding:14px 18px;border-radius:18px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.12);
+    color:#fff;font-size:16px;font-weight:900;line-height:1.45;}
+  .ad-bubble::before{content:"";position:absolute;left:-8px;top:20px;width:14px;height:14px;background:#1a1a2e;border-left:1px solid rgba(255,255,255,0.12);border-bottom:1px solid rgba(255,255,255,0.12);transform:rotate(45deg);}
+
+  /* ---------- PIECE > SQUARE ---------- */
+  .ad-stage{display:flex;align-items:center;justify-content:center;gap:18px;padding:34px 0 30px;flex-wrap:wrap;}
+  .ad-piece{width:58px;height:58px;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.5));}
+  .ad-glyph{width:58px;height:58px;display:flex;align-items:center;justify-content:center;font-size:54px;line-height:1;color:#fff;}
+  .ad-sq{font-family:"Courier New",ui-monospace,monospace;font-size:68px;font-weight:900;line-height:1;letter-spacing:-3px;color:#f4f4ff;}
+  .ad-sq.ad-target{color:#e9e7ff;}
+  .ad-chev{font-size:34px;font-weight:900;color:#8b90ab;line-height:1;}
+  .ad-stage.ad-pop .ad-sq{animation:adHop .4s;}
+  .ad-stage.ad-shake .ad-sq{animation:adShake .4s;}
+  @keyframes adShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+  @keyframes adHop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @media (max-width:520px){.ad-sq{font-size:48px;letter-spacing:-2px;}.ad-piece,.ad-glyph{width:44px;height:44px;font-size:40px;}.ad-question{font-size:21px;}}
+
+  /* ---------- YES / NO ---------- */
+  .ad-answers{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .ad-ans{padding:22px 10px;border-radius:16px;cursor:pointer;font-size:18px;font-weight:900;color:#fff;transition:transform .1s,background .2s,border-color .2s,opacity .2s;}
+  .ad-ans.ad-no{background:#220f1c;border:2px solid #7f2a3a;}
+  .ad-ans.ad-yes{background:#111712;border:2px solid #3f7a22;}
+  .ad-ans:hover:not(:disabled){transform:translateY(-2px);}
+  .ad-ans.ad-no:hover:not(:disabled){background:#2e1322;border-color:#fb7185;}
+  .ad-ans.ad-yes:hover:not(:disabled){background:#16241a;border-color:#4ade80;}
+  .ad-ans:active:not(:disabled){transform:scale(0.98);}
+  .ad-ans:disabled{cursor:default;}
+  .ad-ans.ad-dim{opacity:.38;}
+  .ad-ans.ad-right{background:rgba(52,211,153,0.22);border-color:#34d399;opacity:1;}
+  .ad-ans.ad-wrong{background:rgba(251,113,133,0.22);border-color:#fb7185;opacity:1;}
+  .ad-ans:focus-visible,.ad-next:focus-visible,.ad-lv:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+
+  .ad-feedback{display:none;margin-top:18px;padding:14px 16px;border-radius:14px;font-size:14px;line-height:1.65;font-weight:700;color:#e4e7f5;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);}
+  .ad-feedback b{display:block;font-size:17px;font-weight:900;margin-bottom:4px;color:#fb7185;}
+  .ad-feedback code{font-family:"Courier New",ui-monospace,monospace;color:#ffd700;font-weight:900;}
+  .ad-next{display:none;width:100%;margin-top:14px;padding:15px;border-radius:14px;border:none;cursor:pointer;font-size:16px;font-weight:900;color:#0b0e1c;
+    background:linear-gradient(145deg,#ffd700,#f59e0b);box-shadow:0 8px 20px rgba(255,215,0,0.25);}
+  .ad-next:active{transform:scale(0.98);}
+  .ad-hintbar{text-align:center;margin-top:16px;color:#8b90ab;font-size:12px;font-weight:700;}
+
+  /* ---------- RIGHT PANEL ---------- */
+  #ad-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px;}
+  @media (max-width:1100px){#ad-side{position:static;}}
+
+  #ad-rating{position:relative;border-radius:18px;padding:20px;box-sizing:border-box;
+    background:linear-gradient(160deg,rgba(255,215,0,0.20),rgba(20,24,42,0.97) 60%);border:1px solid rgba(255,215,0,0.45);box-shadow:0 20px 55px rgba(0,0,0,0.25);}
+  .ad-big{font-size:64px;line-height:1;font-weight:900;color:#ffd700;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-1px;margin:6px 0 4px;}
+  .ad-delta{position:absolute;right:22px;top:46px;font-size:26px;font-weight:900;opacity:0;pointer-events:none;}
+  .ad-delta.ad-up{color:#34d399;animation:adFloat 1s ease-out;}
+  .ad-delta.ad-down{color:#fb7185;animation:adFloat 1s ease-out;}
+  @keyframes adFloat{0%{opacity:0;transform:translateY(14px)}20%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+  .ad-rank{text-align:center;color:#fff;font-size:17px;font-weight:900;}
+  .ad-bar{height:8px;border-radius:99px;background:rgba(255,255,255,0.08);margin-top:12px;overflow:hidden;}
+  .ad-bar-fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#b8860b,#ffd700);transition:width .4s;}
+  .ad-next-rank{margin-top:8px;text-align:center;color:#aeb3cf;font-size:12px;font-weight:700;}
+  .ad-stats{display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);}
+
+  .ad-levels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+  .ad-lv{padding:10px 8px;border-radius:10px;cursor:pointer;text-align:left;color:#aeb3cf;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);line-height:1.35;}
+  .ad-lv:last-child:nth-child(odd){grid-column:1 / -1;}
+  .ad-lv b{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:900;}
+  .ad-lv span{display:block;font-size:11px;font-weight:700;opacity:.8;}
+  .ad-lv.ad-on{color:#ffd700;background:rgba(255,215,0,0.12);border-color:rgba(255,215,0,0.5);}
+  .ad-lv img{width:20px;height:20px;object-fit:contain;}
+
+  .ad-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:4px;}
+  .ad-card p{margin:0;color:#c8ccdf;font-size:13px;line-height:1.65;font-weight:600;}
+  .ad-rule{display:grid;gap:7px;margin-top:10px;}
+  .ad-rule div{padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;}
+  .ad-rule b{color:#ffd700;}
+
+  .ad-saved{margin-top:10px;text-align:center;color:#6f7491;font-size:11px;font-weight:700;}
+
+  @media (prefers-reduced-motion:reduce){.ad-stage.ad-pop .ad-sq,.ad-stage.ad-shake .ad-sq,.ad-delta.ad-up,.ad-delta.ad-down{animation:none;}}
+</style>
+
+<section
+  class="section hidden"
+  id="attackDetection-section"
+>
+
+  <div
+    id="ad-shell"
+    style="width:100%;max-width:1480px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">⚔️</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Attack Detection</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            A piece stands on one square. Can it attack the other square? Answer Yes or No!
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="adSkipBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ⏭ New Puzzle
+        </button>
+      </div>
+
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div style="display:flex;gap:12px;padding:16px;margin-bottom:20px;border-radius:16px;background:rgba(120,184,135,0.09);border:1px solid rgba(120,184,135,0.16);">
+      <div style="font-size:22px;line-height:1;">🎯</div>
+      <div>
+        <strong style="display:block;color:#fff;font-size:14px;margin-bottom:5px;">How do you play?</strong>
+        <div style="color:#aeb3cf;font-size:13px;line-height:1.6;font-weight:600;">
+          The board is empty, so nothing blocks the piece. If the piece can reach the second square in one move, answer
+          <b style="color:#34d399;">Yes</b>, otherwise answer <b style="color:#fb7185;">No</b>.
+          A right answer gives <b style="color:#34d399;">rating + points</b> and the next puzzle appears by itself.
+          A wrong answer stops the run, shows you the right answer and takes away <b style="color:#fb7185;">-1 rating</b>.
+          Everything is saved automatically.
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="ad-layout">
+
+      <!-- GAME -->
+      <div id="ad-game">
+
+        <h3 class="ad-question" id="adQuestion">Can the rook attack this square?</h3>
+
+        <div class="ad-top">
+          <div class="ad-mascot" id="adMascot">🦉</div>
+          <div class="ad-bubble" id="adBubble"></div>
+        </div>
+
+        <div class="ad-stage" id="adStage">
+          <span id="adPieceBox"></span>
+          <span class="ad-sq" id="adFrom">h6</span>
+          <span class="ad-chev">›</span>
+          <span class="ad-sq ad-target" id="adTo">f1</span>
+        </div>
+
+        <div class="ad-answers">
+          <button type="button" class="ad-ans ad-no" id="adNo">No</button>
+          <button type="button" class="ad-ans ad-yes" id="adYes">Yes</button>
+        </div>
+
+        <div class="ad-feedback" id="adFeedback" aria-live="polite"></div>
+        <button type="button" class="ad-next" id="adNext">🔄 Restart now</button>
+
+        <div class="ad-hintbar" id="adHintBar">Keys: N = No · Y = Yes (or ← and →) · a wrong answer stops the run</div>
+
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div id="ad-side">
+
+        <div id="ad-rating">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">YOUR RATING</div>
+          <div class="ad-big" id="adRating">500</div>
+          <div class="ad-delta" id="adDelta"></div>
+          <div class="ad-rank" id="adRank">♟️ Pawn</div>
+          <div class="ad-bar"><div class="ad-bar-fill" id="adRankFill"></div></div>
+          <div class="ad-next-rank" id="adNextRank"></div>
+
+          <div class="ad-stats">
+            <div class="ad-stat-row"><span>⭐ Points</span><strong id="adPoints">0</strong></div>
+            <div class="ad-stat-row"><span>🔥 Run (in a row)</span><strong id="adStreak">0</strong></div>
+            <div class="ad-stat-row"><span>🏆 Best run</span><strong id="adBest">0</strong></div>
+            <div class="ad-stat-row"><span>✅ Right / ❌ Wrong</span><strong id="adRW">0 / 0</strong></div>
+            <div class="ad-stat-row"><span>🎯 Accuracy</span><strong id="adAcc">0%</strong></div>
+          </div>
+        </div>
+
+        <div class="ad-card">
+          <div class="ad-title">🎚 Level (choose a piece)</div>
+          <div class="ad-levels" id="adLevels"></div>
+          <p style="margin-top:10px;" id="adLevelText"></p>
+        </div>
+
+        <div class="ad-card">
+          <div class="ad-title">📖 How pieces attack</div>
+          <div class="ad-rule">
+            <div><b>King</b> · one step in any direction</div>
+            <div><b>Rook</b> · straight lines (same file or rank)</div>
+            <div><b>Bishop</b> · diagonal lines</div>
+            <div><b>Queen</b> · straight lines and diagonals</div>
+            <div><b>Pawn</b> · one step diagonally forward (white, upward)</div>
+            <div><b>Knight</b> · an L-shape: 2 squares + 1 square</div>
+          </div>
+        </div>
+
+        <div class="ad-card" style="padding:12px 16px;">
+          <button type="button" id="adResetBtn"
+            style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(251,113,133,0.35);background:rgba(251,113,133,0.10);color:#fb7185;font-weight:800;cursor:pointer;">
+            Reset my progress
+          </button>
+          <div class="ad-saved" id="adSaved"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</section>
+
+<script>
+
+/* =========================================================
+   ⚔️ OLYMPUS ATTACK DETECTION
+   ---------------------------------------------------------
+   Completely isolated. No libraries, no sound.
+
+   - A white piece stands on a square of an EMPTY board.
+     Can it attack the second square? Answer Yes or No.
+   - Levels = pieces: King, Rook, Bishop, Queen, Pawn, Knight
+     and Random (a different piece every puzzle).
+   - Right answer: the next puzzle appears automatically.
+   - Wrong answer: the run stops, the right answer is shown,
+     press "Restart now" to continue.
+   - Right: + rating, + points (+ streak bonus)
+   - Wrong: -1 rating, -5 points (never below 0)
+   - Everything is saved in the browser, including the puzzle
+     you are working on.
+   - Keys: Y / → = Yes, N / ← = No, Enter / Space = restart
+========================================================= */
+
+(function () {
+
+  "use strict";
+
+  /* =========================================================
+     CONFIGURATION
+  ========================================================= */
+
+  const STORE_KEY = "olympusAttackDetection_v1";
+  const PIECE_PATH = "assets/pieces/";   // wK.png wQ.png wR.png wB.png wN.png wP.png
+  const START_RATING = 500;
+  const RATING_WRONG = 1;
+  const POINTS_WRONG = 5;
+  const BONUS_PER_STREAK = 2;
+  const BONUS_MAX = 10;
+  const AUTO_NEXT_MS = 700;               // pause before the next puzzle after a right answer
+  const YES_CHANCE = 0.5;
+  const NEAR_CHANCE = 0.5;                // for "No" puzzles: how often the target is a close (tricky) square
+
+  const FILES = "abcdefgh";
+
+  /* gain = rating for a right answer (points are 5 + gain x 5) */
+  const PIECES = {
+    K: { word: "king",   glyph: "♚", gain: 1, hint: "One step in any direction" },
+    R: { word: "rook",   glyph: "♜", gain: 1, hint: "Horizontal and vertical lines" },
+    B: { word: "bishop", glyph: "♝", gain: 2, hint: "Diagonal lines" },
+    Q: { word: "queen",  glyph: "♛", gain: 2, hint: "Lines and diagonals together" },
+    P: { word: "pawn",   glyph: "♟", gain: 2, hint: "One step diagonally forward" },
+    N: { word: "knight", glyph: "♞", gain: 3, hint: "An L-shape: two squares and one" }
+  };
+  const PIECE_IDS = ["K", "R", "B", "Q", "P", "N"];
+
+  /* piece: which piece the level uses (null = random each puzzle) */
+  const LEVELS = [
+    { id: "king",   piece: "K", name: "King" },
+    { id: "rook",   piece: "R", name: "Rook" },
+    { id: "bishop", piece: "B", name: "Bishop" },
+    { id: "queen",  piece: "Q", name: "Queen" },
+    { id: "pawn",   piece: "P", name: "Pawn" },
+    { id: "knight", piece: "N", name: "Knight" },
+    { id: "random", piece: null, name: "Random pieces" }
+  ];
+
+  const RANKS = [
+    { min: 0,   icon: "🌱", name: "Seedling" },
+    { min: 450, icon: "🧭", name: "Explorer" },
+    { min: 500, icon: "♟️", name: "Pawn" },
+    { min: 550, icon: "♞", name: "Knight" },
+    { min: 600, icon: "♝", name: "Bishop" },
+    { min: 650, icon: "♜", name: "Rook" },
+    { min: 700, icon: "♛", name: "Queen" },
+    { min: 750, icon: "♚", name: "King" }
+  ];
+
+  const GOOD_WORDS = ["Super!", "Great!", "Awesome!", "Brilliant!", "You got it!", "Nice one!"];
+
+
+  /* =========================================================
+     ELEMENTS
+  ========================================================= */
+
+  const section = document.getElementById("attackDetection-section");
+  if (!section) return;
+
+  const gameBox = document.getElementById("ad-game");
+  const questionEl = document.getElementById("adQuestion");
+  const mascot = document.getElementById("adMascot");
+  const bubble = document.getElementById("adBubble");
+  const stage = document.getElementById("adStage");
+  const pieceBox = document.getElementById("adPieceBox");
+  const fromEl = document.getElementById("adFrom");
+  const toEl = document.getElementById("adTo");
+  const noBtn = document.getElementById("adNo");
+  const yesBtn = document.getElementById("adYes");
+  const feedback = document.getElementById("adFeedback");
+  const nextBtn = document.getElementById("adNext");
+  const hintBar = document.getElementById("adHintBar");
+  const skipBtn = document.getElementById("adSkipBtn");
+  const resetBtn = document.getElementById("adResetBtn");
+  const levelsEl = document.getElementById("adLevels");
+  const levelText = document.getElementById("adLevelText");
+  const savedEl = document.getElementById("adSaved");
+
+  const ratingEl = document.getElementById("adRating");
+  const deltaEl = document.getElementById("adDelta");
+  const rankEl = document.getElementById("adRank");
+  const rankFill = document.getElementById("adRankFill");
+  const nextRankEl = document.getElementById("adNextRank");
+  const pointsEl = document.getElementById("adPoints");
+  const streakEl = document.getElementById("adStreak");
+  const bestEl = document.getElementById("adBest");
+  const rwEl = document.getElementById("adRW");
+  const accEl = document.getElementById("adAcc");
+
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
+  function num(v, fallback, min) {
+    v = Number(v);
+    if (!isFinite(v)) return fallback;
+    v = Math.floor(v);
+    return v < min ? min : v;
+  }
+
+  function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  function inView() { return section.getClientRects().length > 0; }
+
+  function inBoard(n) { return n >= 1 && n <= 8; }
+
+  function sqName(sq) { return FILES.charAt(sq[0] - 1) + sq[1]; }
+
+  function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+  function levelIndex(id) {
+    for (let i = 0; i < LEVELS.length; i++) if (LEVELS[i].id === id) return i;
+    return -1;
+  }
+
+  function rankFor(rating) {
+    let idx = 0;
+    for (let i = 0; i < RANKS.length; i++) if (rating >= RANKS[i].min) idx = i;
+    return idx;
+  }
+
+  /* can this WHITE piece, standing on "from" of an empty board, attack "to"? */
+  function attacks(p, from, to) {
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (ax === 0 && ay === 0) return false;
+    switch (p) {
+      case "K": return Math.max(ax, ay) === 1;
+      case "R": return ax === 0 || ay === 0;
+      case "B": return ax === ay;
+      case "Q": return ax === 0 || ay === 0 || ax === ay;
+      case "N": return ax * ay === 2;
+      case "P": return dy === 1 && ax === 1;
+    }
+    return false;
+  }
+
+  function parseCur(c) {
+    if (!c || typeof c !== "object") return null;
+    if (!PIECES[c.p]) return null;
+    if (!Array.isArray(c.f) || c.f.length !== 2 || !Array.isArray(c.t) || c.t.length !== 2) return null;
+    const f = [Math.floor(Number(c.f[0])), Math.floor(Number(c.f[1]))];
+    const t = [Math.floor(Number(c.t[0])), Math.floor(Number(c.t[1]))];
+    if (!inBoard(f[0]) || !inBoard(f[1]) || !inBoard(t[0]) || !inBoard(t[1])) return null;
+    if (f[0] === t[0] && f[1] === t[1]) return null;
+    if (c.p === "P" && (f[1] < 2 || f[1] > 7)) return null;
+    return { l: typeof c.l === "string" ? c.l : "", p: c.p, f: f, t: t };
+  }
+
+
+  /* =========================================================
+     STATE  (saved in the browser)
+  ========================================================= */
+
+  function emptyLv() {
+    const lv = {};
+    LEVELS.forEach(function (L) { lv[L.id] = { c: 0, w: 0 }; });
+    return lv;
+  }
+
+  function defaults() {
+    return { rating: START_RATING, points: 0, correct: 0, wrong: 0, streak: 0, best: 0, level: "rook", lv: emptyLv(), cur: null };
+  }
+
+  function readLv(src, target) {
+    LEVELS.forEach(function (L) {
+      const s = src && src[L.id];
+      target[L.id] = { c: num(s && s.c, 0, 0), w: num(s && s.w, 0, 0) };
+    });
+  }
+
+  function load() {
+    const s = defaults();
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        s.rating = num(d.rating, START_RATING, 0);
+        s.points = num(d.points, 0, 0);
+        s.correct = num(d.correct, 0, 0);
+        s.wrong = num(d.wrong, 0, 0);
+        s.streak = num(d.streak, 0, 0);
+        s.best = num(d.best, 0, 0);
+        s.level = levelIndex(d.level) >= 0 ? d.level : "rook";
+        readLv(d.lv, s.lv);
+        s.cur = parseCur(d.cur);
+      }
+    } catch (err) { /* storage blocked: play without saving */ }
+    return s;
+  }
+
+  let canSave = true;
+
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      canSave = true;
+    } catch (err) { canSave = false; }
+    savedEl.textContent = canSave ? "💾 Progress saved on this device" : "⚠️ Saving is blocked in this browser";
+  }
+
+  const state = load();
+
+  let q = null;            // current puzzle
+  let locked = false;      // true after answering
+  let autoTimer = null;    // pause before the next puzzle
+  let resetTimer = null;
+  const failedImg = {};    // pieces whose image could not be loaded -> use a text symbol
+
+
+  /* =========================================================
+     PIECE IMAGES  (assets/pieces/wK.png ...)
+  ========================================================= */
+
+  function pieceNode(p, cls, size) {
+    const word = PIECES[p].word;
+    if (!failedImg[p]) {
+      const img = document.createElement("img");
+      img.className = cls;
+      img.alt = "White " + word;
+      img.draggable = false;
+      if (size) { img.style.width = size + "px"; img.style.height = size + "px"; }
+      img.onerror = function () {
+        failedImg[p] = true;
+        const g = glyphNode(p, cls, size);
+        if (img.parentNode) img.parentNode.replaceChild(g, img);
+      };
+      img.src = PIECE_PATH + "w" + p + ".png";
+      return img;
+    }
+    return glyphNode(p, cls, size);
+  }
+
+  function glyphNode(p, cls, size) {
+    const s = document.createElement("span");
+    s.className = cls === "ad-piece" ? "ad-glyph" : "";
+    s.textContent = PIECES[p].glyph + "\uFE0E";
+    s.setAttribute("role", "img");
+    s.setAttribute("aria-label", "White " + PIECES[p].word);
+    if (size) { s.style.fontSize = Math.round(size * 0.9) + "px"; s.style.lineHeight = "1"; s.style.color = "#fff"; }
+    return s;
+  }
+
+
+  /* =========================================================
+     PUZZLES
+  ========================================================= */
+
+  function generate(L) {
+
+    const p = L.piece || pick(PIECE_IDS);
+
+    for (let tries = 0; tries < 300; tries++) {
+
+      const f = [1 + Math.floor(Math.random() * 8), p === "P" ? 2 + Math.floor(Math.random() * 6) : 1 + Math.floor(Math.random() * 8)];
+      const wantYes = Math.random() < YES_CHANCE;
+
+      let yesPool = [], noPool = [], nearPool = [];
+
+      for (let x = 1; x <= 8; x++) {
+        for (let y = 1; y <= 8; y++) {
+          if (x === f[0] && y === f[1]) continue;
+          if (attacks(p, f, [x, y])) yesPool.push([x, y]);
+          else {
+            noPool.push([x, y]);
+            if (Math.max(Math.abs(x - f[0]), Math.abs(y - f[1])) <= 2) nearPool.push([x, y]);
+          }
+        }
+      }
+
+      let pool;
+      if (wantYes) pool = yesPool;
+      else pool = (nearPool.length && Math.random() < NEAR_CHANCE) ? nearPool : noPool;
+      if (!pool.length) continue;
+
+      const t = pick(pool);
+
+      if (q && q.p === p && q.from[0] === f[0] && q.from[1] === f[1] && q.to[0] === t[0] && q.to[1] === t[1]) continue;
+
+      return { l: L.id, p: p, f: f, t: t };
+    }
+    return { l: L.id, p: "R", f: [8, 6], t: [6, 1] };
+  }
+
+  function explain(p, a, b, yes) {
+
+    const A = sqName(a), B = sqName(b);
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    const gap = plural(ax, "file") + " and " + plural(ay, "rank");
+
+    switch (p) {
+      case "R":
+        if (yes) return dx === 0 ? A + " and " + B + " are on the same file (" + FILES.charAt(a[0] - 1) + "), so the rook slides straight there."
+                                 : A + " and " + B + " are on the same rank (" + a[1] + "), so the rook slides straight there.";
+        return A + " and " + B + " share neither a file nor a rank, so a rook cannot reach it.";
+
+      case "B":
+        if (yes) return A + " to " + B + " is a diagonal: " + gap + " apart, an equal gap.";
+        return "A bishop needs the same gap in files and ranks, but here it is " + gap + ".";
+
+      case "Q":
+        if (yes) {
+          if (dx === 0) return "Same file (" + FILES.charAt(a[0] - 1) + "): the queen moves straight like a rook.";
+          if (dy === 0) return "Same rank (" + a[1] + "): the queen moves straight like a rook.";
+          return "A diagonal with an equal gap of " + ax + ": the queen moves like a bishop.";
+        }
+        return "Not on the same file or rank, and the gaps (" + gap + ") are not equal, so it is not on a diagonal either.";
+
+      case "N":
+        if (yes) return "The gap is " + ax + " × " + ay + " squares, which is a perfect knight L-shape.";
+        return "The gap is " + ax + " × " + ay + ". A knight needs exactly 1 × 2 or 2 × 1.";
+
+      case "K":
+        if (yes) return B + " is just one step away from " + A + ".";
+        return B + " is " + plural(Math.max(ax, ay), "square") + " away from " + A + ". A king only reaches 1 square.";
+
+      case "P":
+        if (yes) return "A white pawn attacks one step diagonally forward, and " + B + " is exactly that square.";
+        if (dy === 1) return B + " is one rank up, but " + plural(ax, "file") + " across. A pawn attacks only 1 file to the side.";
+        return "A white pawn only attacks the two squares diagonally forward (one rank up). " + B + " is not one of them.";
+    }
+    return "";
+  }
+
+  function newQuestion(resume) {
+
+    clearTimeout(autoTimer);
+    autoTimer = null;
+
+    const L = LEVELS[levelIndex(state.level)];
+
+    let c = resume ? state.cur : null;
+    if (c && L.piece && c.p !== L.piece) c = null;
+    if (c && !L.piece && c.l !== L.id) c = null;
+    if (!c) c = generate(L);
+
+    q = {
+      level: L,
+      p: c.p,
+      from: c.f,
+      to: c.t,
+      yes: attacks(c.p, c.f, c.t)
+    };
+
+    state.cur = { l: L.id, p: c.p, f: c.f, t: c.t };
+    save();
+
+    locked = false;
+
+    const word = PIECES[q.p].word;
+    questionEl.innerHTML = "Can the <em>" + word + "</em> attack this square?";
+
+    pieceBox.innerHTML = "";
+    pieceBox.appendChild(pieceNode(q.p, "ad-piece"));
+    fromEl.textContent = sqName(q.from);
+    toEl.textContent = sqName(q.to);
+
+    stage.className = "ad-stage";
+    gameBox.classList.remove("ad-good", "ad-bad");
+    mascot.textContent = "🦉";
+    bubble.textContent = PIECES[q.p].hint;
+
+    noBtn.disabled = false;
+    yesBtn.disabled = false;
+    noBtn.className = "ad-ans ad-no";
+    yesBtn.className = "ad-ans ad-yes";
+
+    feedback.style.display = "none";
+    nextBtn.style.display = "none";
+    hintBar.style.display = "block";
+  }
+
+
+  /* =========================================================
+     ANSWERING
+  ========================================================= */
+
+  function answer(saidYes) {
+
+    if (locked || !q) return;
+    locked = true;
+
+    const right = saidYes === q.yes;
+    const P = PIECES[q.p];
+    const oldRating = state.rating;
+    const oldPoints = state.points;
+
+    if (right) {
+      state.correct++;
+      state.streak++;
+      if (state.streak > state.best) state.best = state.streak;
+      state.lv[q.level.id].c++;
+      state.rating += P.gain;
+      state.points += 5 + P.gain * 5 + Math.min(BONUS_MAX, (state.streak - 1) * BONUS_PER_STREAK);
+    } else {
+      state.wrong++;
+      state.streak = 0;
+      state.lv[q.level.id].w++;
+      state.rating = Math.max(0, state.rating - RATING_WRONG);
+      state.points = Math.max(0, state.points - POINTS_WRONG);
+    }
+
+    state.cur = null;      // this puzzle is finished
+    save();
+
+    const dRating = state.rating - oldRating;
+    const dPoints = state.points - oldPoints;
+
+    gameBox.classList.add(right ? "ad-good" : "ad-bad");
+    stage.classList.add(right ? "ad-pop" : "ad-shake");
+
+    /* colour the buttons */
+    const chosen = saidYes ? yesBtn : noBtn;
+    const other = saidYes ? noBtn : yesBtn;
+    const correctBtn = q.yes ? yesBtn : noBtn;
+    noBtn.disabled = true;
+    yesBtn.disabled = true;
+    correctBtn.classList.add("ad-right");
+    if (!right) chosen.classList.add("ad-wrong");
+    if (right) other.classList.add("ad-dim");
+
+    renderStats();
+    renderLevels();
+    showDelta(dRating);
+
+    if (right) {
+
+      mascot.textContent = "🎉";
+      bubble.textContent = pick(GOOD_WORDS) + " +" + dRating + " rating · +" + dPoints + " points" + (state.streak >= 3 ? " · 🔥 " + state.streak + " in a row" : "");
+      autoTimer = setTimeout(function () { newQuestion(false); }, AUTO_NEXT_MS);
+
+    } else {
+
+      mascot.textContent = "😅";
+      bubble.textContent = "Run stopped. Let's see the right answer.";
+
+      feedback.innerHTML =
+        "<b>Wrong! The right answer is " + (q.yes ? "Yes" : "No") + ".</b>" +
+        "A white " + P.word + " on <code>" + sqName(q.from) + "</code> " + (q.yes ? "CAN" : "can NOT") + " attack <code>" + sqName(q.to) + "</code>.<br>" +
+        explain(q.p, q.from, q.to, q.yes) + "<br>" +
+        dRating + " rating · " + dPoints + " points · your run ended";
+      feedback.style.display = "block";
+
+      nextBtn.style.display = "block";
+      hintBar.style.display = "none";
+    }
+  }
+
+
+  /* =========================================================
+     UI
+  ========================================================= */
+
+  function renderStats() {
+
+    ratingEl.textContent = state.rating;
+    pointsEl.textContent = state.points;
+    streakEl.textContent = state.streak;
+    bestEl.textContent = state.best;
+    rwEl.textContent = state.correct + " / " + state.wrong;
+
+    const total = state.correct + state.wrong;
+    accEl.textContent = total ? Math.round((state.correct / total) * 100) + "%" : "0%";
+
+    const i = rankFor(state.rating);
+    const cur = RANKS[i];
+    const nxt = RANKS[i + 1];
+
+    rankEl.textContent = cur.icon + " " + cur.name;
+
+    if (nxt) {
+      const pct = ((state.rating - cur.min) / (nxt.min - cur.min)) * 100;
+      rankFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+      nextRankEl.textContent = (nxt.min - state.rating) + " more to become " + nxt.icon + " " + nxt.name;
+    } else {
+      rankFill.style.width = "100%";
+      nextRankEl.textContent = "Top rank reached! You are a King! 👑";
+    }
+  }
+
+  function showDelta(d) {
+    deltaEl.className = "ad-delta";
+    void deltaEl.offsetWidth;
+    if (d === 0) return;
+    deltaEl.textContent = d > 0 ? "+" + d : "" + d;
+    deltaEl.classList.add(d > 0 ? "ad-up" : "ad-down");
+  }
+
+  function buildLevels() {
+    const frag = document.createDocumentFragment();
+    LEVELS.forEach(function (L) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ad-lv";
+      b.dataset.l = L.id;
+      frag.appendChild(b);
+    });
+    levelsEl.appendChild(frag);
+  }
+
+  function renderLevels() {
+    const btns = levelsEl.children;
+    for (let i = 0; i < btns.length; i++) {
+      const L = LEVELS[i];
+      const s = state.lv[L.id];
+      btns[i].classList.toggle("ad-on", L.id === state.level);
+      btns[i].innerHTML = "";
+
+      const b = document.createElement("b");
+      if (L.piece) b.appendChild(pieceNode(L.piece, "ad-lvimg", 20));
+      else b.appendChild(document.createTextNode("🎲"));
+      b.appendChild(document.createTextNode(" " + L.name));
+
+      const sp = document.createElement("span");
+      sp.textContent = "✅ " + s.c + " · ❌ " + s.w;
+
+      btns[i].appendChild(b);
+      btns[i].appendChild(sp);
+    }
+
+    const L = LEVELS[levelIndex(state.level)];
+    const s = state.lv[L.id];
+    levelText.textContent = (L.piece
+      ? L.name + ": " + PIECES[L.piece].hint + ". +" + PIECES[L.piece].gain + " rating per right answer. "
+      : "Random pieces: a different piece every puzzle, so you must know all the rules. Rating depends on the piece. ") +
+      "You solved " + s.c + " and missed " + s.w + " here.";
+  }
+
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+
+  yesBtn.addEventListener("click", function () { answer(true); yesBtn.blur(); });
+  noBtn.addEventListener("click", function () { answer(false); noBtn.blur(); });
+
+  nextBtn.addEventListener("click", function () { newQuestion(false); nextBtn.blur(); });
+
+  skipBtn.addEventListener("click", function () { newQuestion(false); skipBtn.blur(); });
+
+  levelsEl.addEventListener("click", function (e) {
+    const b = e.target.closest ? e.target.closest(".ad-lv") : null;
+    if (!b || b.dataset.l === state.level) return;
+    state.level = b.dataset.l;
+    save();
+    renderLevels();
+    newQuestion(false);
+    b.blur();
+  });
+
+  resetBtn.addEventListener("click", function () {
+    if (resetTimer === null) {
+      resetBtn.textContent = "Tap again to confirm reset";
+      resetTimer = setTimeout(function () {
+        resetBtn.textContent = "Reset my progress";
+        resetTimer = null;
+      }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetTimer = null;
+    resetBtn.textContent = "Reset my progress";
+    const keepLevel = state.level;
+    Object.assign(state, defaults());
+    state.level = keepLevel;
+    save();
+    renderStats();
+    renderLevels();
+    newQuestion(false);
+  });
+
+  document.addEventListener("keydown", function (e) {
+
+    if (!inView()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+    if (k === "y" || k === "ArrowRight") { e.preventDefault(); answer(true); }
+    else if (k === "n" || k === "ArrowLeft") { e.preventDefault(); answer(false); }
+    else if ((k === "Enter" || k === " ") && locked && !(e.target.closest && e.target.closest("button"))) {
+      e.preventDefault();
+      newQuestion(false);          // restart now (or skip the short pause after a right answer)
+    }
+  });
+
+  /* keep rating / points in sync if the game is open in two tabs */
+  window.addEventListener("storage", function (e) {
+    if (e.key !== STORE_KEY || !e.newValue) return;
+    try {
+      const d = JSON.parse(e.newValue);
+      state.rating = num(d.rating, START_RATING, 0);
+      state.points = num(d.points, 0, 0);
+      state.correct = num(d.correct, 0, 0);
+      state.wrong = num(d.wrong, 0, 0);
+      state.streak = num(d.streak, 0, 0);
+      state.best = num(d.best, 0, 0);
+      readLv(d.lv, state.lv);
+      renderStats();
+      renderLevels();
+    } catch (err) { /* ignore */ }
+  });
+
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+
+  buildLevels();
+  renderStats();
+  renderLevels();
+  newQuestion(true);       // resumes the saved puzzle if there is one
+
+
+  /* =========================================================
+     OPTIONAL PUBLIC API
+  ========================================================= */
+
+  window.AttackDetectionGame = {
+    getState: function () {
+      return {
+        rating: state.rating,
+        points: state.points,
+        correct: state.correct,
+        wrong: state.wrong,
+        bestRun: state.best,
+        level: state.level
+      };
+    }
+  };
+
+})();
+
+</script>
+
 
 <!-- =========================================================
      1) NAV BUTTON  (paste inside your nav / sidebar)
@@ -186351,8 +187273,8 @@ const lockedTabs = [
   "legalMove","chessFnaf", "meditationZone",   "snakes", "ironSight",
   "legalChecks", "squareColorZone", "diagonalQuiz" ,  "moveQuiz",
   "puzzlerush", "routeQuiz",  "quadrantQuiz", "gapCounting",
-  "guessElo",
-"puzzlebattle",
+  "guessElo", "attackDetection",
+"puzzlebattle", 
 "puzzletrainer",
 "computer",
 "quiz",
@@ -259298,7 +260220,8 @@ style="
      '[data-tab=  "diagonalQuiz" ]',
       '[data-tab= "moveQuiz" ]',
       '[data-tab=  "routeQuiz" ]',
-      '[data-tab= "gapCounting" ]',
+      '[data-tab= "attackDetection" ]',
+       '[data-tab= "gapCounting" ]',
       '[data-tab=  "quadrantQuiz" ]',
       '[data-tab="coordtrain"]',
       '[data-tab="boardfreeze"]',
