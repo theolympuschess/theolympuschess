@@ -42717,6 +42717,15 @@ right:0;
 </button>
 
 <button
+  class="nav-btn"
+  data-tab="attackRelations"
+  id="attackRelationsNavBtn"
+>
+  🎀
+  Attack Relations
+</button>
+
+<button
   type="button"
   class="nav-btn"
   id="chessFnafGameBtn"
@@ -70334,6 +70343,818 @@ winClose?.addEventListener("click", function() {
 
 })();
 
+</script>
+<!-- =========================================================
+     1) NAV BUTTON  (paste inside your nav / sidebar)
+========================================================= -->
+
+
+
+
+<!-- =========================================================
+     2) CSS + SECTION HTML + JAVASCRIPT
+     Piece images are loaded from:  assets/pieces/wK.png  wQ.png  wR.png
+                                    wB.png  wN.png  wP.png
+     If an image is missing the game falls back to a text chess symbol.
+     Everything is prefixed with "ard-" so it can never clash.
+========================================================= -->
+
+<style>
+  #ard-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start;}
+  @media (max-width:1100px){#ard-layout{grid-template-columns:1fr;}}
+
+  .ard-card{background:rgba(20,24,42,0.96);border:1px solid rgba(255,215,0,0.14);border-radius:16px;padding:16px;box-sizing:border-box;}
+  .ard-stat-row{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}
+  .ard-stat-row strong{color:#fff;font-variant-numeric:tabular-nums;}
+
+  /* ---------- GAME CARD ---------- */
+  #ard-game{
+    --rgb:167,139,250;
+    border-radius:18px;
+    padding:22px 20px;
+    box-sizing:border-box;
+    background:linear-gradient(135deg,rgba(var(--rgb),0.16),rgba(20,24,42,0.97) 58%);
+    border:1px solid rgba(var(--rgb),0.35);
+    transition:border-color .25s, box-shadow .25s, background .25s;
+  }
+  #ard-game.ard-good{
+    --rgb:52,211,153;
+    border-color:rgba(52,211,153,0.85);
+    box-shadow:0 14px 40px rgba(52,211,153,0.25), inset 0 0 20px rgba(52,211,153,0.08);
+  }
+  #ard-game.ard-bad{
+    --rgb:251,113,133;
+    border-color:rgba(251,113,133,0.85);
+    box-shadow:0 14px 40px rgba(251,113,133,0.25), inset 0 0 20px rgba(251,113,133,0.08);
+  }
+
+  .ard-question{margin:0 0 16px;color:#fff;font-size:24px;font-weight:900;line-height:1.25;}
+  
+  .ard-top{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;}
+  .ard-mascot{
+    flex:0 0 auto;width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;
+    background:radial-gradient(circle at 35% 25%,rgba(255,255,255,0.35),transparent 50%),linear-gradient(145deg,#c084fc,#7c3aed);
+    box-shadow:0 8px 20px rgba(124,58,237,0.35);
+    transition:transform .2s;
+  }
+  .ard-bubble{
+    position:relative;flex:1 1 auto;min-width:0;padding:14px 18px;border-radius:18px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.12);
+    color:#fff;font-size:15px;font-weight:900;line-height:1.45;
+  }
+  .ard-bubble::before{
+    content:"";position:absolute;left:-8px;top:20px;width:14px;height:14px;background:#1a1a2e;
+    border-left:1px solid rgba(255,255,255,0.12);border-bottom:1px solid rgba(255,255,255,0.12);transform:rotate(45deg);
+  }
+
+  /* ---------- PIECE LIST ---------- */
+  .ard-piece-list{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;}
+  .ard-piece-item{display:flex;align-items:center;gap:10px;color:#fff;font-family:"Courier New",ui-monospace,monospace;font-size:32px;font-weight:900;letter-spacing:-1px;}
+  .ard-piece-icon{width:44px;height:44px;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.5));}
+  .ard-glyph{width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:40px;line-height:1;color:#fff;}
+
+  /* ---------- PAIR BUTTONS ---------- */
+  .ard-pairs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;}
+  @media(max-width:600px){.ard-pairs{grid-template-columns:1fr;}}
+  
+  .ard-pair-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);color:#fff;font-size:16px;font-weight:800;
+    transition:all .18s;
+  }
+  .ard-pair-btn:hover:not(:disabled){background:rgba(255,255,255,0.1);border-color:rgba(167,139,250,0.4);transform:translateY(-1px);}
+  .ard-pair-btn.ard-selected{border-color:#a78bfa;background:rgba(167,139,250,0.18);box-shadow:0 0 15px rgba(167,139,250,0.25);}
+  
+  .ard-pair-btn.ard-right{
+    border-color:#34d399 !important;
+    background:rgba(52,211,153,0.22) !important;
+    color:#34d399 !important;
+    box-shadow:0 0 16px rgba(52,211,153,0.3) !important;
+  }
+  .ard-pair-btn.ard-wrong{
+    border-color:#fb7185 !important;
+    background:rgba(251,113,133,0.22) !important;
+    color:#fb7185 !important;
+    box-shadow:0 0 16px rgba(251,113,133,0.3) !important;
+  }
+  .ard-pair-btn.ard-dim{
+    opacity:.35 !important;
+    border-color:rgba(255,255,255,0.08) !important;
+  }
+  .ard-pair-btn:disabled{cursor:default;}
+
+  .ard-pair-icon{width:24px;height:24px;object-fit:contain;}
+  .ard-pair-glyph{font-size:22px;line-height:1;}
+
+  /* ---------- ACTIONS ---------- */
+  .ard-confirm{
+    width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;font-size:18px;font-weight:900;color:#fff;
+    background:linear-gradient(145deg,#7c3aed,#6d28d9);box-shadow:0 8px 20px rgba(124,58,237,0.3);
+    transition:transform .12s, background .2s, box-shadow .2s;
+  }
+  .ard-confirm:hover:not(:disabled){transform:translateY(-2px);}
+  .ard-confirm:active:not(:disabled){transform:scale(0.98);}
+  .ard-confirm:disabled{opacity:.5;cursor:default;transform:none;box-shadow:none;}
+
+  .ard-feedback{
+    display:none;margin-top:18px;padding:14px 16px;border-radius:14px;font-size:14px;line-height:1.65;font-weight:700;
+    color:#e4e7f5;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);transition:all .2s;
+  }
+  .ard-feedback b{display:block;font-size:17px;font-weight:900;margin-bottom:4px;}
+  
+  /* ---------- RIGHT PANEL ---------- */
+  #ard-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px;}
+  @media (max-width:1100px){#ard-side{position:static;}}
+
+  #ard-rating{
+    position:relative;border-radius:18px;padding:20px;box-sizing:border-box;
+    background:linear-gradient(160deg,rgba(255,215,0,0.20),rgba(20,24,42,0.97) 60%);border:1px solid rgba(255,215,0,0.45);
+    box-shadow:0 20px 55px rgba(0,0,0,0.25);
+  }
+  .ard-big{font-size:64px;line-height:1;font-weight:900;color:#ffd700;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-1px;margin:6px 0 4px;}
+  .ard-delta{position:absolute;right:22px;top:46px;font-size:26px;font-weight:900;opacity:0;pointer-events:none;}
+  .ard-delta.ard-up{color:#34d399;animation:ardFloat 1s ease-out;}
+  .ard-delta.ard-down{color:#fb7185;animation:ardFloat 1s ease-out;}
+  @keyframes ardFloat{0%{opacity:0;transform:translateY(14px)}20%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+  .ard-rank{text-align:center;color:#fff;font-size:17px;font-weight:900;}
+  .ard-bar{height:8px;border-radius:99px;background:rgba(255,255,255,0.08);margin-top:12px;overflow:hidden;}
+  .ard-bar-fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#b8860b,#ffd700);transition:width .4s;}
+  .ard-next-rank{margin-top:8px;text-align:center;color:#aeb3cf;font-size:12px;font-weight:700;}
+  .ard-stats{display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);}
+
+  .ard-levels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+  .ard-lv{padding:10px 8px;border-radius:10px;cursor:pointer;text-align:left;color:#aeb3cf;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);line-height:1.35;}
+  .ard-lv:last-child:nth-child(odd){grid-column:1 / -1;}
+  .ard-lv b{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:900;}
+  .ard-lv span{display:block;font-size:11px;font-weight:700;opacity:.8;margin-top:4px;}
+  .ard-lv.ard-on{color:#ffd700;background:rgba(255,215,0,0.12);border-color:rgba(255,215,0,0.5);}
+
+  .ard-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:4px;}
+  .ard-card p{margin:0;color:#c8ccdf;font-size:13px;line-height:1.65;font-weight:600;}
+  .ard-saved{margin-top:10px;text-align:center;color:#6f7491;font-size:11px;font-weight:700;}
+
+  @media (prefers-reduced-motion:reduce){.ard-delta.ard-up,.ard-delta.ard-down{animation:none;}}
+</style>
+
+<section
+  class="section hidden"
+  id="attackRelations-section"
+>
+  <div
+    id="ard-shell"
+    style="width:100%;max-width:1480px;margin:0 auto;padding:20px;box-sizing:border-box;"
+  >
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">🎯</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Attack Relations Drill</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Spot which piece attacks which. Endless puzzles!
+          </p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="ardSkipBtn"
+          style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ⏭ Skip Puzzle
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="ard-layout">
+      <!-- GAME -->
+      <div id="ard-game">
+        <h3 class="ard-question" id="ardQuestion">Select all pairs where one piece attacks the other</h3>
+
+        <div class="ard-top">
+          <div class="ard-mascot" id="ardMascot">🦉</div>
+          <div class="ard-bubble" id="ardBubble">Place each piece in your head, then look for who attacks whom.</div>
+        </div>
+
+        <div class="ard-piece-list" id="ardPieceList">
+          <!-- Pieces injected here -->
+        </div>
+
+        <div class="ard-pairs" id="ardPairs">
+          <!-- Pair buttons injected here -->
+        </div>
+
+        <button type="button" class="ard-confirm" id="ardConfirmBtn">
+          ✓ CONFIRM
+        </button>
+
+        <div class="ard-feedback" id="ardFeedback" aria-live="polite"></div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div id="ard-side">
+        <div id="ard-rating">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">YOUR RATING</div>
+          <div class="ard-big" id="ardRating">500</div>
+          <div class="ard-delta" id="ardDelta"></div>
+          <div class="ard-rank" id="ardRank">♟️ Pawn</div>
+          <div class="ard-bar"><div class="ard-bar-fill" id="ardRankFill"></div></div>
+          <div class="ard-next-rank" id="ardNextRank"></div>
+
+          <div class="ard-stats">
+            <div class="ard-stat-row"><span>⭐ Points</span><strong id="ardPoints">0</strong></div>
+            <div class="ard-stat-row"><span>🔥 Run (in a row)</span><strong id="ardStreak">0</strong></div>
+            <div class="ard-stat-row"><span>🏆 Best run</span><strong id="ardBest">0</strong></div>
+            <div class="ard-stat-row"><span>✅ Right / ❌ Wrong</span><strong id="ardRW">0 / 0</strong></div>
+            <div class="ard-stat-row"><span>🎯 Accuracy</span><strong id="ardAcc">0%</strong></div>
+          </div>
+        </div>
+
+        <div class="ard-card">
+          <div class="ard-title">🎚 Level (Difficulty)</div>
+          <div class="ard-levels" id="ardLevels">
+            <!-- Levels injected -->
+          </div>
+          <p style="margin-top:10px;" id="ardLevelText"></p>
+        </div>
+
+        <div class="ard-card">
+          <div class="ard-title">📖 How pieces attack</div>
+          <div style="margin-top:10px;display:grid;gap:7px;">
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>King</b> · one step in any direction</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>Rook</b> · straight lines (same file or rank, blocked by pieces)</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>Bishop</b> · diagonal lines (blocked by pieces)</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>Queen</b> · straight lines and diagonals (blocked by pieces)</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>Pawn</b> · one step diagonally forward (ranks 2–7)</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>Knight</b> · an L-shape: 2 squares + 1 square (jumps)</div>
+          </div>
+        </div>
+
+        <div class="ard-card" style="padding:12px 16px;">
+          <button type="button" id="ardResetBtn"
+            style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(251,113,133,0.35);background:rgba(251,113,133,0.10);color:#fb7185;font-weight:800;cursor:pointer;">
+            Reset my progress
+          </button>
+          <div class="ard-saved" id="ardSaved"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* =========================================================
+   🎯 ATTACK RELATIONS DRILL (UNLIMITED MODE)
+========================================================= */
+(function () {
+  "use strict";
+
+  const STORE_KEY = "olympusAttackRelations_v2";
+  const PIECE_PATH = "assets/pieces/";
+  const START_RATING = 500;
+  
+  const FILES = "abcdefgh";
+  const PIECES = {
+    K: { word: "King",   glyph: "♚" },
+    Q: { word: "Queen",  glyph: "♛" },
+    R: { word: "Rook",   glyph: "♜" },
+    B: { word: "Bishop", glyph: "♝" },
+    N: { word: "Knight", glyph: "♞" },
+    P: { word: "Pawn",   glyph: "♟" }
+  };
+
+  const LEVELS = [
+    { id: "easy",   name: "Easy",   pieces: 3, gain: 1 },
+    { id: "medium", name: "Medium", pieces: 4, gain: 2 },
+    { id: "hard",   name: "Hard",   pieces: 5, gain: 3 },
+    { id: "expert", name: "Expert", pieces: 6, gain: 4 }
+  ];
+
+  const RANKS = [
+    { min: 0,   icon: "🌱", name: "Seedling" },
+    { min: 450, icon: "🧭", name: "Explorer" },
+    { min: 500, icon: "♟️", name: "Pawn" },
+    { min: 550, icon: "♞", name: "Knight" },
+    { min: 600, icon: "♝", name: "Bishop" },
+    { min: 650, icon: "♜", name: "Rook" },
+    { min: 700, icon: "♛", name: "Queen" },
+    { min: 750, icon: "♚", name: "King" }
+  ];
+
+  // DOM Elements
+  const section = document.getElementById("attackRelations-section");
+  if (!section) return;
+
+  const gameBox = document.getElementById("ard-game");
+  const questionEl = document.getElementById("ardQuestion");
+  const mascot = document.getElementById("ardMascot");
+  const bubble = document.getElementById("ardBubble");
+  const pieceListEl = document.getElementById("ardPieceList");
+  const pairsEl = document.getElementById("ardPairs");
+  const confirmBtn = document.getElementById("ardConfirmBtn");
+  const feedback = document.getElementById("ardFeedback");
+  const skipBtn = document.getElementById("ardSkipBtn");
+  const resetBtn = document.getElementById("ardResetBtn");
+  const levelsEl = document.getElementById("ardLevels");
+  const levelText = document.getElementById("ardLevelText");
+  const savedEl = document.getElementById("ardSaved");
+
+  const ratingEl = document.getElementById("ardRating");
+  const deltaEl = document.getElementById("ardDelta");
+  const rankEl = document.getElementById("ardRank");
+  const rankFill = document.getElementById("ardRankFill");
+  const nextRankEl = document.getElementById("ardNextRank");
+  const pointsEl = document.getElementById("ardPoints");
+  const streakEl = document.getElementById("ardStreak");
+  const bestEl = document.getElementById("ardBest");
+  const rwEl = document.getElementById("ardRW");
+  const accEl = document.getElementById("ardAcc");
+
+  // Helpers
+  function num(v, fallback, min) { v = Number(v); if (!isFinite(v)) return fallback; v = Math.floor(v); return v < min ? min : v; }
+  function inView() { return section.getClientRects().length > 0; }
+  function sqName(sq) { return FILES.charAt(sq[0] - 1) + sq[1]; }
+  function rankFor(rating) { let idx = 0; for (let i = 0; i < RANKS.length; i++) if (rating >= RANKS[i].min) idx = i; return idx; }
+
+  /* =========================================================
+     ACCURATE CHESS ATTACK LOGIC (WITH PATH BLOCKING)
+  ========================================================= */
+
+  // Check if ray between sq1 and sq2 is clear of intervening pieces
+  function isRayClear(sq1, sq2, pieces) {
+    const dx = sq2[0] - sq1[0];
+    const dy = sq2[1] - sq1[1];
+    const stepX = Math.sign(dx);
+    const stepY = Math.sign(dy);
+
+    let curX = sq1[0] + stepX;
+    let curY = sq1[1] + stepY;
+
+    while (curX !== sq2[0] || curY !== sq2[1]) {
+      for (let i = 0; i < pieces.length; i++) {
+        const s = pieces[i].sq;
+        if (s[0] === curX && s[1] === curY) {
+          return false; // Path blocked by intervening piece!
+        }
+      }
+      curX += stepX;
+      curY += stepY;
+    }
+    return true;
+  }
+
+  // Can piece p1 on sq1 attack sq2?
+  function canAttack(p1, sq1, sq2, pieces) {
+    const dx = sq2[0] - sq1[0];
+    const dy = sq2[1] - sq1[1];
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+
+    if (ax === 0 && ay === 0) return false;
+
+    switch (p1) {
+      case "K":
+        return Math.max(ax, ay) === 1;
+
+      case "R":
+        return (ax === 0 || ay === 0) && isRayClear(sq1, sq2, pieces);
+
+      case "B":
+        return (ax === ay) && isRayClear(sq1, sq2, pieces);
+
+      case "Q":
+        return (ax === 0 || ay === 0 || ax === ay) && isRayClear(sq1, sq2, pieces);
+
+      case "N":
+        return ax * ay === 2; // Knights jump over pieces
+
+      case "P":
+        // White pawn attacks one step diagonally forward (rank + 1, file ± 1)
+        return dy === 1 && ax === 1;
+    }
+    return false;
+  }
+
+  // Does either piece attack the other?
+  function attacksEither(p1, sq1, p2, sq2, pieces) {
+    return canAttack(p1, sq1, sq2, pieces) || canAttack(p2, sq2, sq1, pieces);
+  }
+
+  /* =========================================================
+     STATE & STORAGE
+  ========================================================= */
+  function defaults() {
+    return { rating: START_RATING, points: 0, correct: 0, wrong: 0, streak: 0, best: 0, level: "easy" };
+  }
+
+  function load() {
+    const s = defaults();
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        s.rating = num(d.rating, START_RATING, 0);
+        s.points = num(d.points, 0, 0);
+        s.correct = num(d.correct, 0, 0);
+        s.wrong = num(d.wrong, 0, 0);
+        s.streak = num(d.streak, 0, 0);
+        s.best = num(d.best, 0, 0);
+        s.level = d.level || "easy";
+      }
+    } catch (err) {}
+    return s;
+  }
+
+  let canSave = true;
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); canSave = true; } catch (err) { canSave = false; }
+    savedEl.textContent = canSave ? "💾 Progress saved" : "⚠️ Saving blocked";
+  }
+
+  const state = load();
+  let q = null;
+  let selectedPairs = new Set();
+  let isAnswered = false;
+  let autoNextTimer = null;
+  let currentLevel = LEVELS.find(l => l.id === state.level) || LEVELS[0];
+  const failedImg = {};
+
+  /* =========================================================
+     PIECE VISUALS
+  ========================================================= */
+  function pieceNode(p, cls, size) {
+    if (!failedImg[p]) {
+      const img = document.createElement("img");
+      img.className = cls;
+      img.alt = "White " + PIECES[p].word;
+      img.draggable = false;
+      if (size) { img.style.width = size + "px"; img.style.height = size + "px"; }
+      img.onerror = function () {
+        failedImg[p] = true;
+        const g = glyphNode(p, cls, size);
+        if (img.parentNode) img.parentNode.replaceChild(g, img);
+      };
+      img.src = PIECE_PATH + "w" + p + ".png";
+      return img;
+    }
+    return glyphNode(p, cls, size);
+  }
+
+  function glyphNode(p, cls, size) {
+    const s = document.createElement("span");
+    s.className = cls === "ard-piece-icon" ? "ard-glyph" : (cls === "ard-pair-icon" ? "ard-pair-glyph" : "");
+    s.textContent = PIECES[p].glyph + "\uFE0E";
+    if (size) { s.style.fontSize = Math.round(size * 0.9) + "px"; s.style.lineHeight = "1"; s.style.color = "#fff"; }
+    return s;
+  }
+
+  /* =========================================================
+     PUZZLE GENERATION (UNLIMITED, NO PAWNS ON RANK 8 OR 1)
+  ========================================================= */
+  function generatePuzzle(numPieces) {
+    let selected = [];
+    let valid = false;
+
+    for (let attempt = 0; attempt < 500 && !valid; attempt++) {
+      selected = [];
+      const usedSquares = new Set();
+      let hasKing = false;
+
+      for (let i = 0; i < numPieces; i++) {
+        let p, sq;
+        let tries = 0;
+        do {
+          // At most 1 King per puzzle for chess accuracy
+          const availablePieces = hasKing 
+            ? ["Q", "R", "B", "N", "P"] 
+            : ["K", "Q", "R", "B", "N", "P"];
+          p = availablePieces[Math.floor(Math.random() * availablePieces.length)];
+          
+          const file = 1 + Math.floor(Math.random() * 8);
+          // Pawns can NEVER be on rank 8 or rank 1 (ranks 2-7 only)
+          const rank = (p === "P")
+            ? (2 + Math.floor(Math.random() * 6)) // strictly 2 to 7
+            : (1 + Math.floor(Math.random() * 8)); // 1 to 8 for others
+
+          sq = [file, rank];
+          tries++;
+        } while (usedSquares.has(sq.join(',')) && tries < 100);
+
+        if (p === "K") hasKing = true;
+        usedSquares.add(sq.join(','));
+        selected.push({ p, sq });
+      }
+
+      // Check that at least one attacking pair exists in this puzzle
+      let hasAttack = false;
+      for (let i = 0; i < selected.length; i++) {
+        for (let j = i + 1; j < selected.length; j++) {
+          if (attacksEither(selected[i].p, selected[i].sq, selected[j].p, selected[j].sq, selected)) {
+            hasAttack = true;
+            break;
+          }
+        }
+        if (hasAttack) break;
+      }
+
+      if (hasAttack) {
+        valid = true;
+      }
+    }
+    return selected;
+  }
+
+  function loadNewPuzzle() {
+    clearTimeout(autoNextTimer);
+    autoNextTimer = null;
+    isAnswered = false;
+    selectedPairs.clear();
+    
+    // Reset UI to neutral state
+    questionEl.textContent = "Select all pairs where one piece attacks the other";
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "✓ CONFIRM";
+    confirmBtn.style.background = "linear-gradient(145deg,#7c3aed,#6d28d9)";
+    confirmBtn.style.color = "#fff";
+    
+    gameBox.classList.remove("ard-good", "ard-bad");
+    feedback.style.display = "none";
+    feedback.style.background = "rgba(255,255,255,0.05)";
+    feedback.style.borderColor = "rgba(255,255,255,0.10)";
+    
+    mascot.textContent = "🦉";
+    bubble.textContent = "Place each piece in your head, then look for who attacks whom.";
+
+    // Generate fresh unlimited puzzle
+    q = generatePuzzle(currentLevel.pieces);
+
+    // Render Piece List
+    pieceListEl.innerHTML = "";
+    q.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "ard-piece-item";
+      div.appendChild(pieceNode(item.p, "ard-piece-icon"));
+      div.appendChild(document.createTextNode(sqName(item.sq)));
+      pieceListEl.appendChild(div);
+    });
+
+    // Render Pairs
+    pairsEl.innerHTML = "";
+    for (let i = 0; i < q.length; i++) {
+      for (let j = i + 1; j < q.length; j++) {
+        const p1 = q[i], p2 = q[j];
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ard-pair-btn";
+        btn.dataset.pair = `${i}-${j}`;
+        
+        btn.appendChild(pieceNode(p1.p, "ard-pair-icon"));
+        btn.appendChild(document.createTextNode(sqName(p1.sq)));
+        btn.appendChild(document.createTextNode(" ↔ "));
+        btn.appendChild(pieceNode(p2.p, "ard-pair-icon"));
+        btn.appendChild(document.createTextNode(sqName(p2.sq)));
+
+        btn.addEventListener("click", () => {
+          if (isAnswered) return;
+          if (selectedPairs.has(btn.dataset.pair)) {
+            selectedPairs.delete(btn.dataset.pair);
+            btn.classList.remove("ard-selected");
+          } else {
+            selectedPairs.add(btn.dataset.pair);
+            btn.classList.add("ard-selected");
+          }
+        });
+
+        pairsEl.appendChild(btn);
+      }
+    }
+  }
+
+  /* =========================================================
+     EVALUATION (GREEN ON CORRECT, RED ON WRONG, 1.5S NEXT)
+  ========================================================= */
+  function evaluateAnswer() {
+    if (isAnswered) {
+      clearTimeout(autoNextTimer);
+      autoNextTimer = null;
+      loadNewPuzzle();
+      return;
+    }
+
+    isAnswered = true;
+
+    let correctCount = 0;
+    let totalAttackingPairs = 0;
+    let wrongSelections = 0;
+
+    for (let i = 0; i < q.length; i++) {
+      for (let j = i + 1; j < q.length; j++) {
+        const pairId = `${i}-${j}`;
+        const isAttack = attacksEither(q[i].p, q[i].sq, q[j].p, q[j].sq, q);
+        const btn = pairsEl.querySelector(`[data-pair="${pairId}"]`);
+        const isSelected = selectedPairs.has(pairId);
+
+        if (isAttack) {
+          totalAttackingPairs++;
+          // Any correct attacking pair is shown as GREEN
+          btn.classList.add("ard-right");
+          btn.classList.remove("ard-selected");
+          if (isSelected) {
+            correctCount++;
+          }
+        } else {
+          if (isSelected) {
+            wrongSelections++;
+            // Any incorrect pair selected by user is shown as RED
+            btn.classList.add("ard-wrong");
+            btn.classList.remove("ard-selected");
+          } else {
+            // Non-attacking unselected pair is dimmed
+            btn.classList.add("ard-dim");
+          }
+        }
+        btn.disabled = true;
+      }
+    }
+
+    const isPerfect = (correctCount === totalAttackingPairs && wrongSelections === 0);
+
+    const oldRating = state.rating;
+    const oldPoints = state.points;
+
+    if (isPerfect) {
+      state.correct++;
+      state.streak++;
+      if (state.streak > state.best) state.best = state.streak;
+      state.rating += currentLevel.gain;
+      state.points += 5 + currentLevel.gain * 5 + Math.min(10, (state.streak - 1) * 2);
+
+      // Card glows GREEN
+      gameBox.classList.add("ard-good");
+      gameBox.classList.remove("ard-bad");
+
+      mascot.textContent = "🎉";
+      bubble.textContent = `Perfect! +${currentLevel.gain} rating · +${5 + currentLevel.gain * 5} points`;
+
+      // Feedback box GREEN tint
+      feedback.style.display = "block";
+      feedback.style.background = "rgba(52,211,153,0.15)";
+      feedback.style.borderColor = "rgba(52,211,153,0.3)";
+      feedback.innerHTML = `<b style="color:#34d399;">Correct!</b> You found all attacking pairs. Great job!`;
+
+      // Confirm button becomes GREEN "Next Puzzle" mode
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Next Puzzle →";
+      confirmBtn.style.background = "linear-gradient(145deg,#34d399,#10b981)";
+      confirmBtn.style.color = "#042f2e";
+
+    } else {
+      state.wrong++;
+      state.streak = 0;
+      state.rating = Math.max(0, state.rating - 1);
+      state.points = Math.max(0, state.points - 5);
+
+      // Card glows RED
+      gameBox.classList.add("ard-bad");
+      gameBox.classList.remove("ard-good");
+
+      mascot.textContent = "😅";
+      bubble.textContent = "Run stopped. Let's see the right pairs.";
+
+      // Feedback box RED tint
+      feedback.style.display = "block";
+      feedback.style.background = "rgba(251,113,133,0.15)";
+      feedback.style.borderColor = "rgba(251,113,133,0.3)";
+      feedback.innerHTML = `<b style="color:#fb7185;">Not quite!</b> Correct attacking pairs shown in green; incorrect picks in red. -1 rating.`;
+
+      // Confirm button becomes RED "Next Puzzle" mode
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Next Puzzle →";
+      confirmBtn.style.background = "linear-gradient(145deg,#fb7185,#e11d48)";
+      confirmBtn.style.color = "#fff";
+    }
+
+    const dRating = state.rating - oldRating;
+    showDelta(dRating);
+    save();
+    renderStats();
+
+    // Feedback stays for 1.5 seconds then automatically goes to the next puzzle (for both right & wrong answers)
+    clearTimeout(autoNextTimer);
+    autoNextTimer = setTimeout(() => {
+      loadNewPuzzle();
+    }, 1500);
+  }
+
+  /* =========================================================
+     STATS & LEVELS RENDERING
+  ========================================================= */
+  function renderStats() {
+    ratingEl.textContent = state.rating;
+    pointsEl.textContent = state.points;
+    streakEl.textContent = state.streak;
+    bestEl.textContent = state.best;
+    rwEl.textContent = state.correct + " / " + state.wrong;
+    const total = state.correct + state.wrong;
+    accEl.textContent = total ? Math.round((state.correct / total) * 100) + "%" : "0%";
+
+    const i = rankFor(state.rating);
+    const cur = RANKS[i];
+    const nxt = RANKS[i + 1];
+    rankEl.textContent = cur.icon + " " + cur.name;
+    if (nxt) {
+      const pct = ((state.rating - cur.min) / (nxt.min - cur.min)) * 100;
+      rankFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+      nextRankEl.textContent = (nxt.min - state.rating) + " more to become " + nxt.icon + " " + nxt.name;
+    } else {
+      rankFill.style.width = "100%";
+      nextRankEl.textContent = "Top rank reached! 👑";
+    }
+  }
+
+  function renderLevels() {
+    levelsEl.innerHTML = "";
+    LEVELS.forEach(L => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ard-lv" + (L.id === state.level ? " ard-on" : "");
+      b.innerHTML = `<b>${L.name}</b><span>${L.pieces} pieces</span>`;
+      b.addEventListener("click", () => {
+        if (state.level === L.id) return;
+        state.level = L.id;
+        currentLevel = L;
+        save();
+        renderLevels();
+        renderStats();
+        loadNewPuzzle();
+      });
+      levelsEl.appendChild(b);
+    });
+    levelText.textContent = `${currentLevel.name} mode: Find the attacking pairs among ${currentLevel.pieces} pieces. Infinite puzzles!`;
+  }
+
+  function showDelta(d) {
+    deltaEl.className = "ard-delta";
+    void deltaEl.offsetWidth;
+    if (d === 0) return;
+    deltaEl.textContent = d > 0 ? "+" + d : "" + d;
+    deltaEl.classList.add(d > 0 ? "ard-up" : "ard-down");
+  }
+
+  /* =========================================================
+     EVENT LISTENERS
+  ========================================================= */
+  confirmBtn.addEventListener("click", () => {
+    evaluateAnswer();
+  });
+
+  skipBtn.addEventListener("click", () => {
+    loadNewPuzzle();
+  });
+
+  let resetTimer = null;
+  resetBtn.addEventListener("click", () => {
+    if (resetTimer === null) {
+      resetBtn.textContent = "Tap again to confirm reset";
+      resetTimer = setTimeout(() => {
+        resetBtn.textContent = "Reset my progress";
+        resetTimer = null;
+      }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetTimer = null;
+    resetBtn.textContent = "Reset my progress";
+    const keepLevel = state.level;
+    Object.assign(state, defaults());
+    state.level = keepLevel;
+    currentLevel = LEVELS.find(l => l.id === keepLevel) || LEVELS[0];
+    save();
+    renderStats();
+    renderLevels();
+    loadNewPuzzle();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (!inView()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    if (e.key === "Enter" || e.key === " ") {
+      if (e.target && e.target.classList && e.target.classList.contains("ard-pair-btn")) {
+        return; // Allow native toggle on focused pair button
+      }
+      e.preventDefault();
+      evaluateAnswer();
+    }
+  });
+
+  /* =========================================================
+     INITIALIZE
+  ========================================================= */
+  renderStats();
+  renderLevels();
+  loadNewPuzzle();
+
+})();
 </script>
 <!-- =========================================================
      1) NAV BUTTON  (paste inside your nav / sidebar)
@@ -187273,7 +188094,7 @@ const lockedTabs = [
   "legalMove","chessFnaf", "meditationZone",   "snakes", "ironSight",
   "legalChecks", "squareColorZone", "diagonalQuiz" ,  "moveQuiz",
   "puzzlerush", "routeQuiz",  "quadrantQuiz", "gapCounting",
-  "guessElo", "attackDetection",
+  "guessElo", "attackDetection", "attackRelations",
 "puzzlebattle", 
 "puzzletrainer",
 "computer",
@@ -260221,6 +261042,7 @@ style="
       '[data-tab= "moveQuiz" ]',
       '[data-tab=  "routeQuiz" ]',
       '[data-tab= "attackDetection" ]',
+       '[data-tab= "attackRelations" ]',
        '[data-tab= "gapCounting" ]',
       '[data-tab=  "quadrantQuiz" ]',
       '[data-tab="coordtrain"]',
