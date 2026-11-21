@@ -42741,6 +42741,15 @@ right:0;
 </button>
 
 <button
+  class="nav-btn"
+  data-tab="learnNotation"
+  id="learnNotationNavBtn"
+>
+  📖
+  Learn Notation
+</button>
+
+<button
   type="button"
   class="nav-btn"
   id="chessFnafGameBtn"
@@ -71613,6 +71622,709 @@ const LEVELS = [
 </script>
 
 
+<!-- =============================================================
+ OLYMPUS LEARN NOTATION — COMBINED EDITION
+ Copy the complete block into your academy page, replacing the old
+ Learn Notation module. Uses isolated ln3-* classes and IDs.
+ Uses local piece sprites from assets/pieces/ with Unicode fallback.
+ ============================================================= -->
+
+<!-- NAVIGATION BUTTON: place beside your other .nav-btn buttons -->
+
+
+<style>
+#learnNotation-section, #learnNotation-section * { box-sizing: border-box; }
+#learnNotation-section { color:#e8eaf5; }
+#learnNotation-section.hidden { display:none; }
+#ln3-shell { width:100%; max-width:1500px; margin:0 auto; padding:20px; }
+#ln3-layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:20px; align-items:start; }
+#ln3-layout > * { min-width:0; }
+@media(max-width:1120px){#ln3-layout{grid-template-columns:1fr;} #ln3-side{position:static!important;}}
+#ln3-game, .ln3-card { background:rgba(20,24,42,.96); border:1px solid rgba(255,215,0,.14); border-radius:18px; padding:20px; }
+#ln3-game { --ln3-rgb:56,189,248; background:linear-gradient(135deg,rgba(var(--ln3-rgb),.14),rgba(20,24,42,.98) 58%); border-color:rgba(var(--ln3-rgb),.38); transition:background .22s,border-color .22s,box-shadow .22s; }
+#ln3-game.ln3-good { --ln3-rgb:52,211,153; border-color:rgba(52,211,153,.95); box-shadow:0 0 0 2px rgba(52,211,153,.12),0 14px 42px rgba(52,211,153,.22),inset 0 0 24px rgba(52,211,153,.08); }
+#ln3-game.ln3-bad { --ln3-rgb:251,113,133; border-color:rgba(251,113,133,.95); box-shadow:0 0 0 2px rgba(251,113,133,.12),0 14px 42px rgba(251,113,133,.22),inset 0 0 24px rgba(251,113,133,.08); }
+.ln3-header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.ln3-heading{display:flex;align-items:center;gap:13px;min-width:0;}
+.ln3-heading-icon{font-size:40px;line-height:1;}
+.ln3-heading h2{margin:0;color:#fff;font-size:26px;font-weight:900;}
+.ln3-heading p{margin:5px 0 0;color:#aeb3cf;font-size:13px;line-height:1.5;font-weight:600;}
+.ln3-tag{color:#aeb3cf;font-size:11px;letter-spacing:.8px;font-weight:900;text-transform:uppercase;}
+#ln3-welcome{padding:30px 24px;border:1px solid rgba(255,255,255,.15);border-radius:15px;background:rgba(10,13,25,.35);}
+#ln3-welcome p{color:#aeb3cf;line-height:1.7;font-size:14px;margin:0 0 18px;}
+.ln3-start{width:100%;padding:15px 18px;border:0;border-radius:10px;cursor:pointer;background:#3294e8;color:#fff;font-size:16px;font-weight:900;transition:filter .15s,transform .15s;}
+.ln3-start:hover{filter:brightness(1.08);transform:translateY(-1px);}
+#ln3-play{display:none;}
+.ln3-progress-row{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#aeb3cf;font-size:12px;font-weight:800;margin-bottom:8px;}
+.ln3-progress-track{width:100%;height:8px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.07);margin-bottom:18px;}
+#ln3-progress-fill{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#2dd4bf);transition:width .25s;}
+.ln3-board-zone{display:flex;flex-direction:column;align-items:center;gap:12px;margin:4px 0 18px;}
+.ln3-board-wrap{width:min(100%,520px);aspect-ratio:1/1;position:relative;margin:0 auto;overflow:hidden;border-radius:14px;border:2px solid rgba(255,255,255,.17);background:#b58863;box-shadow:0 16px 42px rgba(0,0,0,.40);}
+#ln3-board{position:absolute;inset:0;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);overflow:hidden;}
+.ln3-square{position:relative;min-width:0;min-height:0;}
+.ln3-light{background:#f0d9b5;}.ln3-dark{background:#b58863;}
+.ln3-square.ln3-from{box-shadow:inset 0 0 0 4px rgba(250,204,21,.9);}
+.ln3-square.ln3-to{box-shadow:inset 0 0 0 4px rgba(52,211,153,.95);}
+.ln3-coord{position:absolute;z-index:2;font-size:clamp(8px,1.25vw,11px);line-height:1;font-weight:900;pointer-events:none;opacity:.92;}
+.ln3-rank{top:3px;left:4px;}.ln3-file{right:4px;bottom:3px;}
+.ln3-light .ln3-coord{color:#b58863;}.ln3-dark .ln3-coord{color:#f0d9b5;}
+.ln3-piece-layer{position:absolute;width:12.5%;height:12.5%;left:0;top:0;z-index:4;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:left .58s cubic-bezier(.2,.75,.25,1),top .58s cubic-bezier(.2,.75,.25,1),opacity .18s;}
+.ln3-piece{display:block;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif;font-size:clamp(28px,6.1vw,66px);line-height:1;user-select:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.42));}
+.ln3-piece-image{display:block;width:88%;height:88%;object-fit:contain;user-select:none;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.38));}
+.ln3-piece.ln3-white{color:#fff;text-shadow:0 1px 2px #111,0 0 2px #111;}.ln3-piece.ln3-black{color:#11131b;text-shadow:0 1px 1px rgba(255,255,255,.35);}
+.ln3-board-controls{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;}
+.ln3-btn{border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:10px 16px;background:rgba(255,255,255,.09);color:#fff;font-size:13px;font-weight:900;cursor:pointer;transition:filter .15s,transform .12s;}
+.ln3-btn:hover:not(:disabled){background:rgba(255,255,255,.16);}.ln3-btn:active:not(:disabled){transform:scale(.97);}.ln3-btn:disabled{opacity:.45;cursor:default;}
+.ln3-btn.ln3-skip{border-color:rgba(255,215,0,.25);background:rgba(255,215,0,.1);color:#ffd700;}
+#ln3-move-status{color:#aeb3cf;font-size:12px;font-weight:700;text-align:center;min-height:16px;}
+.ln3-question-box{margin-top:8px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(8,11,23,.42);}
+#ln3-question-type{color:#7dd3fc;font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+#ln3-prompt{color:#fff;font-size:18px;line-height:1.45;font-weight:850;margin:0 0 14px;text-align:center;}
+#ln3-symbol{display:none;width:fit-content;min-width:100px;min-height:88px;margin:0 auto 16px;padding:10px 20px;border-radius:15px;border:1px solid rgba(125,211,252,.35);background:rgba(125,211,252,.10);color:#fff;font-size:42px;font-weight:900;text-align:center;align-items:center;justify-content:center;white-space:pre-wrap;}
+#ln3-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ln3-choice{min-width:0;min-height:58px;padding:13px 14px;border:1px solid rgba(255,255,255,.17);border-bottom:3px solid rgba(255,255,255,.14);border-radius:11px;background:rgba(255,255,255,.055);color:#f4f5fb;cursor:pointer;text-align:center;font-family:"Courier New",monospace;font-size:19px;font-weight:900;overflow-wrap:anywhere;transition:background .15s,border-color .15s,transform .12s,box-shadow .15s;}
+.ln3-choice.ln3-text-choice{font-family:inherit;font-size:14px;line-height:1.35;text-align:left;}
+.ln3-choice.ln3-symbol-option{font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif;font-size:24px;letter-spacing:0;text-align:center;}
+.ln3-board-zone.ln3-symbol-mode{margin:0 0 8px;}
+.ln3-choice:hover:not(:disabled){background:rgba(125,211,252,.14);border-color:rgba(125,211,252,.55);transform:translateY(-1px);}
+.ln3-choice:disabled{cursor:default;opacity:1;}
+.ln3-choice.ln3-correct{border-color:rgba(52,211,153,.95);background:rgba(52,211,153,.2);color:#a7f3d0;box-shadow:0 0 15px rgba(52,211,153,.25);}
+.ln3-choice.ln3-wrong{border-color:rgba(251,113,133,.95);background:rgba(251,113,133,.18);color:#fecdd3;box-shadow:0 0 15px rgba(251,113,133,.2);}
+#ln3-feedback{display:none;margin-top:14px;padding:14px 16px;border-radius:13px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e4e7f5;font-size:14px;font-weight:750;line-height:1.6;}
+#ln3-feedback strong{display:block;font-size:17px;margin-bottom:3px;}
+#ln3-feedback.ln3-fb-good{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.12);}#ln3-feedback.ln3-fb-good strong{color:#6ee7b7;}
+#ln3-feedback.ln3-fb-bad{border-color:rgba(251,113,133,.38);background:rgba(251,113,133,.12);}#ln3-feedback.ln3-fb-bad strong{color:#fda4af;}
+#ln3-continue{display:none;width:100%;margin-top:12px;padding:14px;border:0;border-radius:12px;background:linear-gradient(145deg,#fb7185,#e11d48);color:#fff;font-size:15px;font-weight:900;cursor:pointer;}
+#ln3-side{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px;}
+#ln3-rating{position:relative;border-radius:18px;padding:20px;background:linear-gradient(160deg,rgba(255,215,0,.20),rgba(20,24,42,.97) 60%);border:1px solid rgba(255,215,0,.45);box-shadow:0 20px 55px rgba(0,0,0,.25);}
+.ln3-big{color:#ffd700;font-size:62px;line-height:1;font-weight:900;text-align:center;font-variant-numeric:tabular-nums;margin:8px 0 4px;}
+.ln3-delta{position:absolute;right:22px;top:44px;font-size:24px;font-weight:900;opacity:0;pointer-events:none;}.ln3-delta.ln3-up{color:#34d399;animation:ln3Float 1s ease-out;}.ln3-delta.ln3-down{color:#fb7185;animation:ln3Float 1s ease-out;}
+@keyframes ln3Float{0%{opacity:0;transform:translateY(12px)}20%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+.ln3-rank{color:#fff;text-align:center;font-size:17px;font-weight:900;}.ln3-bar{height:8px;margin-top:12px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.08);}#ln3-rank-fill{width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#b8860b,#ffd700);transition:width .35s;}
+#ln3-next-rank{margin-top:8px;color:#aeb3cf;text-align:center;font-size:12px;font-weight:700;}
+.ln3-stats{display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);}.ln3-stat{display:flex;justify-content:space-between;gap:10px;color:#aeb3cf;font-size:13px;font-weight:700;}.ln3-stat strong{color:#fff;font-variant-numeric:tabular-nums;}
+.ln3-title{color:#ffd700;font-size:15px;font-weight:900;margin-bottom:8px;}.ln3-card p{margin:0;color:#c8ccdf;font-size:13px;line-height:1.65;font-weight:600;}
+#ln3-levels{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}.ln3-level{padding:10px 8px;border-radius:10px;cursor:pointer;text-align:left;color:#aeb3cf;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);line-height:1.35;}.ln3-level b{display:block;font-size:13px;font-weight:900;}.ln3-level span{display:block;font-size:11px;font-weight:700;opacity:.8;}.ln3-level.ln3-active{color:#ffd700;background:rgba(255,215,0,.12);border-color:rgba(255,215,0,.5);}
+.ln3-mini-list{display:grid;gap:7px;margin-top:10px;}.ln3-mini-list div{padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.045);color:#d9dced;font-size:12px;line-height:1.45;}.ln3-mini-list b{color:#fff;}
+#ln3-saved{margin-top:9px;text-align:center;color:#8b90ab;font-size:11px;font-weight:700;line-height:1.45;}
+#ln3-reset{width:100%;padding:10px;border:1px solid rgba(251,113,133,.35);border-radius:10px;background:rgba(251,113,133,.10);color:#fb7185;font-weight:800;cursor:pointer;}
+.ln3-note{color:#8790ab;font-size:11px;line-height:1.5;margin-top:8px;}
+@media(max-width:620px){#ln3-shell{padding:10px;}#ln3-game,.ln3-card{padding:14px;}.ln3-heading h2{font-size:21px;}.ln3-heading-icon{font-size:32px;}#ln3-choices{grid-template-columns:1fr;}.ln3-choice{min-height:49px;font-size:17px;}#ln3-symbol{font-size:34px;}.ln3-big{font-size:52px;}}
+@media(prefers-reduced-motion:reduce){#ln3-game,.ln3-choice,.ln3-piece-layer,#ln3-progress-fill,.ln3-delta{transition:none!important;animation:none!important;}}
+</style>
+
+<section class="section hidden" id="learnNotation-section">
+  <div id="ln3-shell">
+    <div class="ln3-header">
+      <div class="ln3-heading"><div class="ln3-heading-icon">📖</div><div><h2>Learn Notation</h2><p>Watch a move, master algebraic notation, and learn chess symbols through interactive questions.</p></div></div>
+      <div class="ln3-tag">The Olympus Chess Academy</div>
+    </div>
+    <div id="ln3-layout">
+      <main id="ln3-game">
+        <div id="ln3-welcome">
+          <p>Train your chess notation skills with fresh, legally generated positions. Watch the move animate on the board, replay it whenever you need, and choose the correct notation. You will also get questions about positional, move-evaluation, and game symbols.</p>
+          <button type="button" class="ln3-start" id="ln3-start">▶ Start Training</button>
+        </div>
+        <div id="ln3-play">
+          <div class="ln3-progress-row"><span id="ln3-count">QUESTION 1</span><span id="ln3-kind">MOVE NOTATION</span></div>
+          <div class="ln3-progress-track"><div id="ln3-progress-fill"></div></div>
+          <div class="ln3-board-zone" id="ln3-board-zone">
+            <div class="ln3-board-wrap" id="ln3-board-wrap"><div id="ln3-board" aria-label="Chessboard showing a legal position and animated move"></div></div>
+            <div class="ln3-board-controls">
+              <button type="button" class="ln3-btn" id="ln3-replay">↻ Replay Move</button>
+              <button type="button" class="ln3-btn ln3-skip" id="ln3-skip">⏭ New Question</button>
+            </div>
+            <div id="ln3-move-status" aria-live="polite">Your new position is being prepared.</div>
+          </div>
+          <div class="ln3-question-box">
+            <div id="ln3-question-type">ALGEBRAIC NOTATION</div>
+            <p id="ln3-prompt">Select the correct notation for the move shown:</p>
+            <div id="ln3-symbol" aria-hidden="true"></div>
+            <div id="ln3-choices"></div>
+          </div>
+          <div id="ln3-feedback" aria-live="polite"></div>
+          <button type="button" id="ln3-continue">Continue Puzzle →</button>
+        </div>
+      </main>
+      <aside id="ln3-side">
+        <div id="ln3-rating">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;text-align:center;">YOUR RATING</div>
+          <div class="ln3-big" id="ln3-rating-value">500</div><div class="ln3-delta" id="ln3-delta"></div>
+          <div class="ln3-rank" id="ln3-rank">♟️ Pawn</div>
+          <div class="ln3-bar"><div id="ln3-rank-fill"></div></div><div id="ln3-next-rank"></div>
+          <div class="ln3-stats">
+            <div class="ln3-stat"><span>⭐ Points</span><strong id="ln3-points">0</strong></div>
+            <div class="ln3-stat"><span>🔥 Streak</span><strong id="ln3-streak">0</strong></div>
+            <div class="ln3-stat"><span>🏆 Best streak</span><strong id="ln3-best">0</strong></div>
+            <div class="ln3-stat"><span>✅ Correct / ❌ Wrong</span><strong id="ln3-rw">0 / 0</strong></div>
+            <div class="ln3-stat"><span>🎯 Accuracy</span><strong id="ln3-accuracy">0%</strong></div>
+            <div class="ln3-stat"><span>♟ Move questions</span><strong id="ln3-move-stats">0 / 0</strong></div>
+            <div class="ln3-stat"><span>🔣 Symbol questions</span><strong id="ln3-symbol-stats">0 / 0</strong></div>
+          </div>
+        </div>
+        <div class="ln3-card"><div class="ln3-title">🎚 Difficulty</div><div id="ln3-levels"></div><p id="ln3-level-text" style="margin-top:10px;"></p></div>
+        <div class="ln3-card"><div class="ln3-title">🧠 What you will learn</div><div class="ln3-mini-list">
+          <div><b>Algebraic notation</b> — pawn moves, piece moves, captures, castling, promotion, check and checkmate.</div>
+          <div><b>Move evaluation</b> — brilliant moves, good moves, interesting moves, inaccuracies, mistakes and blunders.</div>
+          <div><b>Position evaluation</b> — equal positions, advantages for both sides, unclear positions and compensation.</div>
+          <div><b>Positional & game symbols</b> — initiative, attack, counterplay, development, space, zugzwang and more.</div>
+        </div></div>
+        <div class="ln3-card"><button type="button" id="ln3-reset">Reset my progress</button><div id="ln3-saved">Progress is saved on this device.</div><div class="ln3-note">Position history uses IndexedDB where available. Browser storage can still be cleared by the user or limited by browser quota.</div></div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  if (window.__OLYMPUS_LEARN_NOTATION_V3__) return;
+  const section = document.getElementById("learnNotation-section");
+  if (!section) return;
+  window.__OLYMPUS_LEARN_NOTATION_V3__ = true;
+
+  /* ===================== CONFIGURATION ===================== */
+  const STORE_KEY = "olympusLearnNotation_v1";
+  const LEGACY_SEEN_KEY = "olympusLearnNotation_seenPositions_v1";
+  const HISTORY_DB = "olympusLearnNotationHistory_v3";
+  const HISTORY_STORE = "positions";
+  const START_RATING = 500;
+  const RATING_CORRECT = 2;
+  const RATING_WRONG = 1;
+  const POINTS_CORRECT = 10;
+  const POINTS_WRONG = 5;
+  const BONUS_PER_STREAK = 2;
+  const BONUS_MAX = 10;
+  const SIGN_CHANCE = 0.34;
+  const FILES = "abcdefgh";
+  const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  // Filenames in this folder are case-sensitive: wK.png, bK.png, wQ.png, etc.
+  // The path is relative to the main academy page (index.html).
+  const PIECE_ASSET_PATH = "assets/pieces/";
+  const PIECE_GLYPHS = {
+    w:{K:"♔",Q:"♕",R:"♖",B:"♗",N:"♘",P:"♙"},
+    b:{K:"♚",Q:"♛",R:"♜",B:"♝",N:"♞",P:"♟"}
+  };
+  const RANKS = [
+    {min:0,icon:"🌱",name:"Seedling"},{min:450,icon:"🧭",name:"Explorer"},
+    {min:500,icon:"♟️",name:"Pawn"},{min:550,icon:"♞",name:"Knight"},
+    {min:600,icon:"♝",name:"Bishop"},{min:650,icon:"♜",name:"Rook"},
+    {min:700,icon:"♛",name:"Queen"},{min:750,icon:"♚",name:"King"}
+  ];
+  const LEVELS = [
+    {id:"easiest",icon:"🌱",name:"Easiest",minPlies:0,maxPlies:3,gain:1},
+    {id:"easier",icon:"🌿",name:"Easier",minPlies:3,maxPlies:7,gain:1},
+    {id:"normal",icon:"🌳",name:"Normal",minPlies:7,maxPlies:12,gain:2},
+    {id:"harder",icon:"🔥",name:"Harder",minPlies:12,maxPlies:18,gain:2},
+    {id:"hardest",icon:"⚡",name:"Hardest",minPlies:18,maxPlies:25,gain:3},
+    {id:"legend",icon:"👑",name:"Legend",minPlies:25,maxPlies:35,gain:3}
+  ];
+  /* Full sign bank based on the supplied reference screenshots. */
+  const SYMBOLS = [
+    {symbol:"□",name:"Only move",group:"Positional & Game Symbols"},
+    {symbol:"TN / N",name:"Novelty",group:"Positional & Game Symbols"},
+    {symbol:"x",name:"Capture marker",group:"Algebraic Notation Symbols"},
+    {symbol:"O-O",name:"Kingside castling",group:"Algebraic Notation Symbols"},
+    {symbol:"O-O-O",name:"Queenside castling",group:"Algebraic Notation Symbols"},
+    {symbol:"e.p.",name:"En passant",group:"Algebraic Notation Symbols"},
+    {symbol:"=Q",name:"Promotion to a queen",group:"Algebraic Notation Symbols"},
+    {symbol:"1-0",name:"White wins",group:"Game Result Symbols"},
+    {symbol:"0-1",name:"Black wins",group:"Game Result Symbols"},
+    {symbol:"½-½",name:"Draw",group:"Game Result Symbols"},
+    {symbol:"↑",name:"Initiative",group:"Positional & Game Symbols"},
+    {symbol:"→",name:"Attack",group:"Positional & Game Symbols"},
+    {symbol:"⇄",name:"Counterplay",group:"Positional & Game Symbols"},
+    {symbol:"↻ / ↑↑",name:"Development",group:"Positional & Game Symbols"},
+    {symbol:"○",name:"Space",group:"Positional & Game Symbols"},
+    {symbol:"⊕",name:"Time trouble (zeitnot)",group:"Positional & Game Symbols"},
+    {symbol:"⊙",name:"Zugzwang",group:"Positional & Game Symbols"},
+    {symbol:"△",name:"With the idea",group:"Positional & Game Symbols"},
+    {symbol:"▽",name:"Countering",group:"Positional & Game Symbols"},
+    {symbol:"+",name:"Check",group:"Positional & Game Symbols"},
+    {symbol:"++",name:"Double check",group:"Positional & Game Symbols"},
+    {symbol:"#",name:"Checkmate",group:"Positional & Game Symbols"},
+    {symbol:"!!",name:"Brilliant move",group:"Move Evaluation Symbols"},
+    {symbol:"!",name:"Good move",group:"Move Evaluation Symbols"},
+    {symbol:"!?",name:"Interesting move",group:"Move Evaluation Symbols"},
+    {symbol:"?!",name:"Dubious move / inaccuracy",group:"Move Evaluation Symbols"},
+    {symbol:"?",name:"Mistake",group:"Move Evaluation Symbols"},
+    {symbol:"??",name:"Blunder",group:"Move Evaluation Symbols"},
+    {symbol:"=",name:"Equal position",group:"Position Evaluation Symbols"},
+    {symbol:"+/= or ±",name:"Slight advantage for White",group:"Position Evaluation Symbols"},
+    {symbol:"=/+ or ∓",name:"Slight advantage for Black",group:"Position Evaluation Symbols"},
+    {symbol:"+/-",name:"Clear advantage for White",group:"Position Evaluation Symbols"},
+    {symbol:"-/+",name:"Clear advantage for Black",group:"Position Evaluation Symbols"},
+    {symbol:"+-",name:"Decisive advantage for White",group:"Position Evaluation Symbols"},
+    {symbol:"-+",name:"Decisive advantage for Black",group:"Position Evaluation Symbols"},
+    {symbol:"∞",name:"Unclear position",group:"Position Evaluation Symbols"},
+    {symbol:"=/∞ or ∞=",name:"Compensation",group:"Position Evaluation Symbols"}
+  ];
+  const GOOD_WORDS = ["Super!","Brilliant!","You got it!","Nice one!","Spot on!","Great work!"];
+  const BAD_WORDS = ["Oops!","Not quite!","Almost!","Good try — keep practising!"];
+
+  /* ===================== SMALL HELPERS ===================== */
+  const rnd = n => Math.floor(Math.random()*n);
+  const pick = a => a[rnd(a.length)];
+  const shuffle = a => { const x=a.slice(); for(let i=x.length-1;i>0;i--){const j=rnd(i+1);[x[i],x[j]]=[x[j],x[i]];} return x; };
+  const isWhite = ch => ch === ch.toUpperCase();
+  const colorOf = ch => isWhite(ch) ? "w" : "b";
+  const sqName = sq => FILES[sq&15] + (8-(sq>>4));
+  const sqFromName = n => (8-Number(n[1]))*16+(n.charCodeAt(0)-97);
+  const uciOf = m => sqName(m.f)+sqName(m.t)+(m.pr?m.pr.toLowerCase():"");
+  const levelIndex = id => LEVELS.findIndex(l=>l.id===id);
+  const positionKey = fen => fen.split(" ").slice(0,4).join(" ");
+  function safeGet(key,fallback){try{const x=JSON.parse(localStorage.getItem(key));return x==null?fallback:x;}catch(e){return fallback;}}
+  function int(v,fallback,min=0){const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.floor(n)):fallback;}
+
+  /* ===================== FULL MINI CHESS ENGINE (0x88) ===================== */
+  const D_N=[-33,-31,-18,-14,14,18,31,33], D_B=[-17,-15,15,17], D_R=[-16,-1,1,16], D_K=[-17,-16,-15,-1,1,15,16,17];
+  function fromFen(fen){
+    const p=fen.split(" "),b=new Array(128).fill(null);let kw=-1,kb=-1;
+    p[0].split("/").forEach((row,r)=>{let c=0;for(const ch of row){if(ch>="1"&&ch<="8")c+=Number(ch);else{const sq=r*16+c;b[sq]=ch;if(ch==="K")kw=sq;if(ch==="k")kb=sq;c++;}}});
+    const cs=p[2]||"-",rights=(cs.includes("K")?1:0)|(cs.includes("Q")?2:0)|(cs.includes("k")?4:0)|(cs.includes("q")?8:0);
+    const ep=p[3]&&p[3]!=="-"?sqFromName(p[3]):-1;
+    return {b,t:p[1]||"w",c:rights,ep,hm:Number(p[4])||0,fm:Number(p[5])||1,kw,kb};
+  }
+  function fenOf(s){
+    const rows=[];for(let r=0;r<8;r++){let row="",empty=0;for(let c=0;c<8;c++){const p=s.b[r*16+c];if(p){if(empty){row+=empty;empty=0;}row+=p;}else empty++;}if(empty)row+=empty;rows.push(row);}
+    const rights=(s.c&1?"K":"")+(s.c&2?"Q":"")+(s.c&4?"k":"")+(s.c&8?"q":"");
+    return rows.join("/")+" "+s.t+" "+(rights||"-")+" "+(s.ep>=0?sqName(s.ep):"-")+" "+s.hm+" "+s.fm;
+  }
+  function attacked(s,sq,by){
+    const b=s.b,P=by==="w"?"P":"p",N=by==="w"?"N":"n",K=by==="w"?"K":"k",B=by==="w"?"B":"b",R=by==="w"?"R":"r",Q=by==="w"?"Q":"q";
+    const pd=by==="w"?[15,17]:[-15,-17];
+    for(const d of pd){const x=sq+d;if(!(x&0x88)&&b[x]===P)return true;}
+    for(const d of D_N){const x=sq+d;if(!(x&0x88)&&b[x]===N)return true;}
+    for(const d of D_K){const x=sq+d;if(!(x&0x88)&&b[x]===K)return true;}
+    for(const d of D_B){let x=sq+d;while(!(x&0x88)){const p=b[x];if(p){if(p===B||p===Q)return true;break;}x+=d;}}
+    for(const d of D_R){let x=sq+d;while(!(x&0x88)){const p=b[x];if(p){if(p===R||p===Q)return true;break;}x+=d;}}
+    return false;
+  }
+  function pseudo(s){
+    const b=s.b,us=s.t,out=[];
+    const push=(f,t,p,cap,fl)=>{
+      if(p.toUpperCase()==="P"&&((t>>4)===0||(t>>4)===7)){for(const pr of "QRBN")out.push({f,t,p,cap,pr,fl:fl||null});}
+      else out.push({f,t,p,cap,pr:null,fl:fl||null});
+    };
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+      const f=r*16+c,p=b[f];if(!p||colorOf(p)!==us)continue;const type=p.toUpperCase();
+      if(type==="P"){
+        const dir=us==="w"?-16:16,start=us==="w"?6:1;let t=f+dir;
+        if(!b[t]){push(f,t,p,null,null);if(r===start&&!b[t+dir])push(f,t+dir,p,null,"dp");}
+        for(const d of [dir-1,dir+1]){t=f+d;if(t&0x88)continue;const q=b[t];if(q&&colorOf(q)!==us&&q.toUpperCase()!=="K")push(f,t,p,q,null);else if(!q&&t===s.ep)push(f,t,p,us==="w"?"p":"P","ep");}
+      }else if(type==="N"||type==="K"){
+        for(const d of (type==="N"?D_N:D_K)){const t=f+d;if(t&0x88)continue;const q=b[t];if(!q)push(f,t,p,null,null);else if(colorOf(q)!==us&&q.toUpperCase()!=="K")push(f,t,p,q,null);}
+      }else{
+        const dirs=type==="B"?D_B:type==="R"?D_R:D_K;
+        for(const d of dirs){let t=f+d;while(!(t&0x88)){const q=b[t];if(!q)push(f,t,p,null,null);else{if(colorOf(q)!==us&&q.toUpperCase()!=="K")push(f,t,p,q,null);break;}t+=d;}}
+      }
+    }
+    const them=us==="w"?"b":"w",base=us==="w"?112:0,king=us==="w"?"K":"k",rook=us==="w"?"R":"r",kr=us==="w"?1:4,qr=us==="w"?2:8;
+    if(b[base+4]===king&&!attacked(s,base+4,them)){
+      if((s.c&kr)&&!b[base+5]&&!b[base+6]&&b[base+7]===rook&&!attacked(s,base+5,them)&&!attacked(s,base+6,them))out.push({f:base+4,t:base+6,p:king,cap:null,pr:null,fl:"ck"});
+      if((s.c&qr)&&!b[base+3]&&!b[base+2]&&!b[base+1]&&b[base]===rook&&!attacked(s,base+3,them)&&!attacked(s,base+2,them))out.push({f:base+4,t:base+2,p:king,cap:null,pr:null,fl:"cq"});
+    }
+    return out;
+  }
+  function make(s,m){
+    const b=s.b,mover=s.t,u={ep:s.ep,c:s.c,hm:s.hm,kw:s.kw,kb:s.kb};
+    b[m.t]=m.pr?(mover==="w"?m.pr:m.pr.toLowerCase()):m.p;b[m.f]=null;
+    if(m.fl==="ep")b[m.t+(mover==="w"?16:-16)]=null;
+    if(m.fl==="ck"){b[m.t-1]=b[m.t+1];b[m.t+1]=null;}
+    if(m.fl==="cq"){b[m.t+1]=b[m.t-2];b[m.t-2]=null;}
+    if(m.p==="K"){s.kw=m.t;s.c&=~3;}if(m.p==="k"){s.kb=m.t;s.c&=~12;}
+    if(m.f===119||m.t===119)s.c&=~1;if(m.f===112||m.t===112)s.c&=~2;if(m.f===7||m.t===7)s.c&=~4;if(m.f===0||m.t===0)s.c&=~8;
+    s.ep=m.fl==="dp"?(m.f+m.t)/2:-1;s.hm=(m.p.toUpperCase()==="P"||m.cap)?0:s.hm+1;s.t=mover==="w"?"b":"w";if(mover==="b")s.fm++;
+    return u;
+  }
+  function unmake(s,m,u){
+    const b=s.b,mover=s.t==="w"?"b":"w";s.t=mover;if(mover==="b")s.fm--;
+    b[m.f]=m.p;b[m.t]=null;
+    if(m.fl==="ep")b[m.t+(mover==="w"?16:-16)]=m.cap;else if(m.cap)b[m.t]=m.cap;
+    if(m.fl==="ck"){b[m.t+1]=b[m.t-1];b[m.t-1]=null;}if(m.fl==="cq"){b[m.t-2]=b[m.t+1];b[m.t+1]=null;}
+    s.ep=u.ep;s.c=u.c;s.hm=u.hm;s.kw=u.kw;s.kb=u.kb;
+  }
+  function legal(s){const us=s.t,them=us==="w"?"b":"w",out=[];for(const m of pseudo(s)){const u=make(s,m);if(!attacked(s,us==="w"?s.kw:s.kb,them))out.push(m);unmake(s,m,u);}return out;}
+  function inCheck(s){return attacked(s,s.t==="w"?s.kw:s.kb,s.t==="w"?"b":"w");}
+  function san(s,m,moves){
+    let out="";if(m.fl==="ck")out="O-O";else if(m.fl==="cq")out="O-O-O";else{
+      const type=m.p.toUpperCase();if(type!=="P"){
+        out=type;const others=moves.filter(o=>o!==m&&o.p===m.p&&o.t===m.t);
+        if(others.length){const sameFile=others.some(o=>(o.f&15)===(m.f&15)),sameRank=others.some(o=>(o.f>>4)===(m.f>>4));if(!sameFile)out+=FILES[m.f&15];else if(!sameRank)out+=8-(m.f>>4);else out+=sqName(m.f);}
+      }
+      if(m.cap){if(type==="P")out+=FILES[m.f&15];out+="x";}out+=sqName(m.t);if(m.pr)out+="="+m.pr;
+    }
+    const u=make(s,m);if(inCheck(s))out+=legal(s).length?"+":"#";unmake(s,m,u);return out;
+  }
+
+  /* ===================== PERSISTENT POSITION HISTORY ===================== */
+  let historyDBPromise=null;
+  let historyReadyPromise=Promise.resolve();
+  const sessionSeen=new Set();
+  const legacySeen=safeGet(LEGACY_SEEN_KEY,[]);
+  let historyMode="opening";
+  function setHistoryStatus(message){const el=document.getElementById("ln3-saved");if(el)el.textContent=message;}
+  function openHistoryDB(){
+    if(historyDBPromise)return historyDBPromise;
+    historyDBPromise=new Promise((resolve,reject)=>{
+      if(!window.indexedDB){reject(new Error("IndexedDB unavailable"));return;}
+      const req=window.indexedDB.open(HISTORY_DB,1);
+      req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(HISTORY_STORE))db.createObjectStore(HISTORY_STORE,{keyPath:"key"});};
+      req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>db.close();resolve(db);};
+      req.onerror=()=>reject(req.error||new Error("Cannot open position history"));
+      req.onblocked=()=>reject(new Error("Position history database is blocked"));
+    });
+    return historyDBPromise;
+  }
+  async function migrateLegacyHistory(){
+    if(!Array.isArray(legacySeen)||!legacySeen.length)return;
+    try{
+      if(localStorage.getItem("olympusLearnNotation_historyMigrated_v3"))return;
+      const db=await openHistoryDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(HISTORY_STORE,"readwrite"),store=tx.objectStore(HISTORY_STORE);
+        legacySeen.forEach(key=>{if(typeof key==="string"&&key)store.put({key,created:Date.now(),source:"legacy"});});
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error("Migration aborted"));
+      });
+      try{localStorage.setItem("olympusLearnNotation_historyMigrated_v3","1");}catch(e){}
+    }catch(e){/* Current-session uniqueness still works without migration. */}
+  }
+  function reservePositionFallback(key){
+    const fallback=new Set(Array.isArray(legacySeen)?legacySeen:[]);
+    if(fallback.has(key)||sessionSeen.has(key))return false;
+    sessionSeen.add(key);fallback.add(key);
+    try{localStorage.setItem(LEGACY_SEEN_KEY,JSON.stringify(Array.from(fallback)));}catch(err){}
+    historyMode="session fallback";
+    return true;
+  }
+  async function reservePosition(key){
+    if(sessionSeen.has(key))return false;
+    if(historyMode==="session fallback")return reservePositionFallback(key);
+    try{
+      const db=await openHistoryDB();
+      const added=await new Promise((resolve,reject)=>{
+        let duplicate=false;
+        const tx=db.transaction(HISTORY_STORE,"readwrite"),store=tx.objectStore(HISTORY_STORE),req=store.add({key,created:Date.now()});
+        req.onerror=event=>{if(req.error&&req.error.name==="ConstraintError"){duplicate=true;event.preventDefault();event.stopPropagation();} };
+        tx.oncomplete=()=>resolve(!duplicate);tx.onerror=()=>reject(tx.error||req.error);tx.onabort=()=>reject(tx.error||req.error||new Error("History write aborted"));
+      });
+      if(added)sessionSeen.add(key);
+      return added;
+    }catch(e){return reservePositionFallback(key);}
+  }
+  async function initHistory(){
+    try{
+      await openHistoryDB();await migrateLegacyHistory();historyMode="indexeddb";
+      // Request persistent storage without making game startup depend on the browser's decision.
+      if(navigator.storage&&navigator.storage.persist){try{const persistPromise=navigator.storage.persist();if(persistPromise&&persistPromise.catch)persistPromise.catch(()=>{});}catch(e){}}
+      setHistoryStatus("💾 Progress saved · position history uses IndexedDB on this browser");
+    }catch(e){historyMode="session fallback";setHistoryStatus("⚠️ IndexedDB unavailable · avoiding repeats during this session; browser fallback may be limited");}
+  }
+
+  /* ===================== UNIQUE RANDOM LEGAL POSITIONS ===================== */
+  async function makeRandomBoardMove(){
+    if(historyReadyPromise)await historyReadyPromise;
+    const L=LEVELS[levelIndex(state.level)];
+    // Position space is enormous; attempts are bounded for responsiveness,
+    // but there is deliberately no return to a fixed start-position fallback.
+    for(let attemptNo=0;attemptNo<320;attemptNo++){
+      const s=fromFen(START_FEN),plies=L.minPlies+rnd(L.maxPlies-L.minPlies+1);
+      let finished=false;
+      for(let i=0;i<plies;i++){const ms=legal(s);if(!ms.length){finished=true;break;}make(s,pick(ms));}
+      if(finished)continue;
+      const moves=legal(s);if(!moves.length)continue;
+      const beforeFen=fenOf(s),key=positionKey(beforeFen);
+      const move=pick(moves),correct=san(s,move,moves);
+      if(!correct)continue;
+      const reserved=await reservePosition(key);
+      if(!reserved)continue;
+      const afterState={b:s.b.slice(),t:s.t,c:s.c,ep:s.ep,hm:s.hm,fm:s.fm,kw:s.kw,kb:s.kb};
+      make(afterState,move);
+      return {beforeFen,afterFen:fenOf(afterState),uci:uciOf(move),correct,flags:move.fl||"",positionKey:key};
+    }
+    // If 320 collisions occur (extraordinarily unlikely), keep searching in
+    // short batches rather than showing a repeated hard-coded puzzle.
+    return makeRandomBoardMoveRetry();
+  }
+  async function makeRandomBoardMoveRetry(){
+    for(let batch=0;batch<12;batch++){
+      const s=fromFen(START_FEN),plies=8+rnd(45);let dead=false;
+      for(let i=0;i<plies;i++){const ms=legal(s);if(!ms.length){dead=true;break;}make(s,pick(ms));}
+      if(dead)continue;const ms=legal(s);if(!ms.length)continue;
+      const beforeFen=fenOf(s),key=positionKey(beforeFen),m=pick(ms),correct=san(s,m,ms);
+      if(!correct||!(await reservePosition(key)))continue;
+      make(s,m);return {beforeFen,afterFen:fenOf(s),uci:uciOf(m),correct,flags:m.fl||"",positionKey:key};
+    }
+    throw new Error("Could not create a fresh legal chess position. Check browser storage and try again.");
+  }
+
+  /* ===================== RANDOMIZED FOUR-CHOICE ANSWERS ===================== */
+  function moveDistractors(correct){
+    const out=[];const add=x=>{if(x&&x!==correct&&!out.includes(x))out.push(x);};
+    if(correct==="O-O"||correct==="O-O-O"){
+      add(correct.replace(/O/g,"0"));add(correct.toLowerCase());add(correct==="O-O"?"O-O-O":"O-O");add(correct.replace(/-/g,""));add(correct.replace(/O/g,"o"));
+    }else{
+      if(/^[KQRBN]/.test(correct))add(correct[0].toLowerCase()+correct.slice(1));
+      if(/^[a-h]/.test(correct)){add(correct.toUpperCase());add("P"+correct);add("p"+correct);}
+      else{add(correct[0].toLowerCase()+correct.slice(1));add(correct[0]+" "+correct.slice(1));}
+      const sq=correct.match(/[a-h][1-8](?=[+#]?$)/);
+      if(sq){const files=FILES.split("").filter(f=>f!==sq[0][0]);const ranks="12345678".split("").filter(r=>r!==sq[0][1]);add(correct.replace(sq[0],pick(files)+sq[0][1]));add(correct.replace(sq[0],sq[0][0]+pick(ranks)));}
+      if(correct.includes("x"))add(correct.replace("x",""));else if(/^[KQRBN]/.test(correct))add(correct[0]+"x"+correct.slice(1));
+      if(/[+#]$/.test(correct))add(correct.replace(/[+#]$/,""));else add(correct+"+");
+      add(correct.replace(/x/g,"X"));
+    }
+    const fillers=[correct+"?",correct+"!",correct+"??",correct.replace(/([a-h][1-8])/," $1"),"("+correct+")"];
+    for(const x of fillers)add(x);
+    while(out.length<3){const candidate=correct+" ".repeat(out.length+1);add(candidate);}
+    return shuffle([correct].concat(out.slice(0,3)));
+  }
+  function makeMoveQuestion(moveData){
+    const choices=moveDistractors(moveData.correct);
+    return Object.assign({},moveData,{type:"move",group:"Algebraic Notation",prompt:"Select the correct algebraic notation for the move just played:",choices,correctIndex:choices.indexOf(moveData.correct),correctText:moveData.correct});
+  }
+  function makeSymbolQuestion(){
+    // Symbol questions are standalone: they do not generate or display an unrelated chess position.
+    const item=pick(SYMBOLS),askName=Math.random()<.72;
+    if(askName){
+      const wrong=shuffle(SYMBOLS.filter(s=>s.name!==item.name)).slice(0,3).map(s=>s.name);
+      const choices=shuffle([item.name].concat(wrong));
+      return {type:"symbol-name",group:item.group,prompt:"What is the name or meaning of this chess symbol?",symbolDisplay:item.symbol,choices,correctIndex:choices.indexOf(item.name),correctText:item.name};
+    }
+    const wrong=shuffle(SYMBOLS.filter(s=>s.name!==item.name)).slice(0,3).map(s=>s.symbol);
+    const choices=shuffle([item.symbol].concat(wrong));
+    return {type:"symbol-find",group:item.group,prompt:"Which symbol represents: "+item.name+"?",symbolDisplay:"",choices,correctIndex:choices.indexOf(item.symbol),correctText:item.symbol};
+  }
+  async function generateQuestion(){
+    // Choose the question category first. Only move-notation questions consume a unique board position.
+    if(Math.random()<SIGN_CHANCE)return makeSymbolQuestion();
+    const moveData=await makeRandomBoardMove();
+    return makeMoveQuestion(moveData);
+  }
+
+  /* ===================== STATE / LOCAL PROGRESS ===================== */
+  function baseState(){return {rating:START_RATING,points:0,correct:0,wrong:0,streak:0,best:0,moveCorrect:0,moveWrong:0,symbolCorrect:0,symbolWrong:0,level:"normal",cur:null};}
+  function validQuestion(q){
+    if(!q||typeof q!=="object"||!["move","symbol-name","symbol-find"].includes(q.type))return false;
+    if(!Array.isArray(q.choices)||q.choices.length!==4||new Set(q.choices).size!==4)return false;
+    if(!Number.isInteger(q.correctIndex)||q.correctIndex<0||q.correctIndex>=4)return false;
+    const expected=q.type==="move"?q.correct:q.correctText;
+    if(typeof expected!=="string"||q.choices[q.correctIndex]!==expected)return false;
+    if(q.type==="move")return typeof q.beforeFen==="string"&&typeof q.afterFen==="string"&&typeof q.uci==="string";
+    return typeof q.group==="string"&&typeof q.prompt==="string"&&(q.type!=="symbol-name"||typeof q.symbolDisplay==="string");
+  }
+  function loadState(){
+    const s=baseState(),d=safeGet(STORE_KEY,null);if(!d||typeof d!=="object")return s;
+    s.rating=int(d.rating,START_RATING);s.points=int(d.points,0);s.correct=int(d.correct,0);s.wrong=int(d.wrong,0);s.streak=int(d.streak,0);s.best=int(d.best,0);
+    s.moveCorrect=int(d.moveCorrect,0);s.moveWrong=int(d.moveWrong,0);s.symbolCorrect=int(d.symbolCorrect,0);s.symbolWrong=int(d.symbolWrong,0);
+    s.level=levelIndex(d.level)>=0?d.level:"normal";
+    // Migrate the DeepSeek variant's shared score fields if present.
+    if(d.lv&&typeof d.lv==="object"){s.moveCorrect=Math.max(s.moveCorrect,int(d.lv.normal&&d.lv.normal.c,0));s.moveWrong=Math.max(s.moveWrong,int(d.lv.normal&&d.lv.normal.w,0));}
+    s.cur=validQuestion(d.cur)?d.cur:null;return s;
+  }
+  const state=loadState();
+  let currentQuestion=state.cur,hasStarted=false,locked=true,answered=false,animating=false;
+  let autoNextTimer=null,animationTimer=null,replayToken=0,resetTimer=null,questionToken=0;
+  const welcomeEl=document.getElementById("ln3-welcome"),playEl=document.getElementById("ln3-play"),startBtn=document.getElementById("ln3-start"),boardEl=document.getElementById("ln3-board");
+  const boardZoneEl=document.getElementById("ln3-board-zone"),boardWrapEl=document.getElementById("ln3-board-wrap");
+  const replayBtn=document.getElementById("ln3-replay"),skipBtn=document.getElementById("ln3-skip"),moveStatus=document.getElementById("ln3-move-status"),countEl=document.getElementById("ln3-count"),kindEl=document.getElementById("ln3-kind"),progressFill=document.getElementById("ln3-progress-fill");
+  const questionTypeEl=document.getElementById("ln3-question-type"),promptEl=document.getElementById("ln3-prompt"),symbolEl=document.getElementById("ln3-symbol"),choicesEl=document.getElementById("ln3-choices"),feedbackEl=document.getElementById("ln3-feedback"),continueBtn=document.getElementById("ln3-continue"),gameEl=document.getElementById("ln3-game");
+  const ratingEl=document.getElementById("ln3-rating-value"),deltaEl=document.getElementById("ln3-delta"),rankEl=document.getElementById("ln3-rank"),rankFillEl=document.getElementById("ln3-rank-fill"),nextRankEl=document.getElementById("ln3-next-rank"),pointsEl=document.getElementById("ln3-points"),streakEl=document.getElementById("ln3-streak"),bestEl=document.getElementById("ln3-best"),rwEl=document.getElementById("ln3-rw"),accuracyEl=document.getElementById("ln3-accuracy"),moveStatsEl=document.getElementById("ln3-move-stats"),symbolStatsEl=document.getElementById("ln3-symbol-stats"),levelsEl=document.getElementById("ln3-levels"),levelTextEl=document.getElementById("ln3-level-text"),savedEl=document.getElementById("ln3-saved"),resetBtn=document.getElementById("ln3-reset");
+  function saveState(){try{localStorage.setItem(STORE_KEY,JSON.stringify(state));savedEl.textContent=historyMode==="indexeddb"?"💾 Progress saved · unique position history stored in IndexedDB":"💾 Progress saved on this device · position history is session-based in fallback mode";}catch(e){savedEl.textContent="⚠️ Progress saving is blocked by browser storage settings.";}}
+  function renderStats(){
+    ratingEl.textContent=state.rating;pointsEl.textContent=state.points;streakEl.textContent=state.streak;bestEl.textContent=state.best;rwEl.textContent=state.correct+" / "+state.wrong;
+    const total=state.correct+state.wrong;accuracyEl.textContent=total?Math.round(state.correct/total*100)+"%":"0%";
+    moveStatsEl.textContent=state.moveCorrect+" / "+state.moveWrong;symbolStatsEl.textContent=state.symbolCorrect+" / "+state.symbolWrong;
+    let idx=0;for(let i=0;i<RANKS.length;i++)if(state.rating>=RANKS[i].min)idx=i;const cur=RANKS[idx],next=RANKS[idx+1];rankEl.textContent=cur.icon+" "+cur.name;
+    if(next){rankFillEl.style.width=Math.max(0,Math.min(100,((state.rating-cur.min)/(next.min-cur.min))*100))+"%";nextRankEl.textContent=(next.min-state.rating)+" more to become "+next.icon+" "+next.name;}
+    else{rankFillEl.style.width="100%";nextRankEl.textContent="Top rank reached! 👑";}
+  }
+  function showDelta(delta){deltaEl.className="ln3-delta";void deltaEl.offsetWidth;if(!delta)return;deltaEl.textContent=delta>0?"+"+delta:String(delta);deltaEl.classList.add(delta>0?"ln3-up":"ln3-down");}
+  function renderLevels(){
+    levelsEl.innerHTML="";LEVELS.forEach(L=>{const b=document.createElement("button");b.type="button";b.className="ln3-level"+(L.id===state.level?" ln3-active":"");b.dataset.level=L.id;b.innerHTML="<b>"+L.icon+" "+L.name+"</b><span>"+L.minPlies+"–"+L.maxPlies+" setup moves · +"+L.gain+" rating</span>";levelsEl.appendChild(b);});
+    const L=LEVELS[levelIndex(state.level)];levelTextEl.textContent=L.name+": random legal positions after "+L.minPlies+"–"+L.maxPlies+" setup moves. +"+L.gain+" rating per correct answer.";
+  }
+
+  /* ===================== BOARD DISPLAY + ANIMATED MOVE ===================== */
+  function glyphFor(piece){return PIECE_GLYPHS[colorOf(piece)][piece.toUpperCase()];}
+  function pieceLayer(sq){return boardEl.querySelector('.ln3-piece-layer[data-square="'+sqName(sq)+'"]');}
+  function makePieceVisual(piece){
+    const side=colorOf(piece),type=piece.toUpperCase();
+    const img=document.createElement("img");
+    img.className="ln3-piece-image";
+    img.alt=(side==="w"?"White ":"Black ")+({K:"king",Q:"queen",R:"rook",B:"bishop",N:"knight",P:"pawn"}[type]||"chess piece");
+    img.draggable=false;
+    img.decoding="async";
+    img.src=PIECE_ASSET_PATH+side+type+".png";
+    img.onerror=function(){
+      const fallback=document.createElement("span");
+      fallback.className="ln3-piece "+(side==="w"?"ln3-white":"ln3-black");
+      fallback.textContent=glyphFor(piece);
+      img.replaceWith(fallback);
+    };
+    return img;
+  }
+  function renderBoard(fen,fromName=null,toName=null){
+    const s=fromFen(fen);boardEl.innerHTML="";
+    for(let row=0;row<8;row++)for(let col=0;col<8;col++){
+      const sq=row*16+col,cell=document.createElement("div"),name=sqName(sq);
+      cell.className="ln3-square "+(((row+col)%2===0)?"ln3-light":"ln3-dark");if(name===fromName)cell.classList.add("ln3-from");if(name===toName)cell.classList.add("ln3-to");cell.dataset.square=name;
+      if(col===0){const r=document.createElement("span");r.className="ln3-coord ln3-rank";r.textContent=String(8-row);cell.appendChild(r);}
+      if(row===7){const f=document.createElement("span");f.className="ln3-coord ln3-file";f.textContent=FILES[col];cell.appendChild(f);}boardEl.appendChild(cell);
+    }
+    for(let sq=0;sq<128;sq++){if(sq&0x88){sq+=7;continue;}const p=s.b[sq];if(!p)continue;const layer=document.createElement("div");layer.className="ln3-piece-layer";layer.dataset.square=sqName(sq);layer.style.left=((sq&15)*12.5)+"%";layer.style.top=((sq>>4)*12.5)+"%";layer.appendChild(makePieceVisual(p));boardEl.appendChild(layer);}
+  }
+  function stopAnimation(){if(animationTimer!==null){clearTimeout(animationTimer);animationTimer=null;}replayToken++;animating=false;}
+  function playMoveAnimation(q,onDone){
+    stopAnimation();const token=++replayToken;animating=true;locked=true;replayBtn.disabled=true;choicesEl.querySelectorAll("button").forEach(b=>b.disabled=true);
+    const from=q.uci.slice(0,2),to=q.uci.slice(2,4),before=fromFen(q.beforeFen),fromSq=sqFromName(from),toSq=sqFromName(to);
+    renderBoard(q.beforeFen,from,to);moveStatus.textContent="Move animation playing…";
+    animationTimer=setTimeout(()=>{
+      if(token!==replayToken)return;
+      const mover=pieceLayer(fromSq),capturedAt=q.flags==="ep"?toSq+(before.t==="w"?16:-16):toSq;
+      if(q.flags==="ep"||before.b[toSq]){const captured=pieceLayer(capturedAt);if(captured)captured.remove();}
+      if(mover){mover.style.left=((toSq&15)*12.5)+"%";mover.style.top=((toSq>>4)*12.5)+"%";}
+      if(q.flags==="ck"||q.flags==="cq"){
+        const rank=from[1],rookFrom=sqFromName((q.flags==="ck"?"h":"a")+rank),rookTo=(q.flags==="ck"?"f":"d")+rank,rook=pieceLayer(rookFrom);
+        if(rook){rook.style.left=((rookTo.charCodeAt(0)-97)*12.5)+"%";rook.style.top=((8-Number(rookTo[1]))*12.5)+"%";}
+      }
+      moveStatus.textContent="Move played. Choose its correct notation.";
+      animationTimer=setTimeout(()=>{
+        if(token!==replayToken)return;renderBoard(q.afterFen,null,to);animationTimer=null;animating=false;replayBtn.disabled=false;
+        if(!answered){locked=false;choicesEl.querySelectorAll("button").forEach(b=>b.disabled=false);}
+        moveStatus.textContent="Move shown · Replay it any time.";if(typeof onDone==="function")onDone();
+      },620);
+    },140);
+  }
+
+  /* ===================== GENERATE QUESTION ===================== */
+  function renderQuestion(){
+    if(!currentQuestion)return;
+    answered=false;locked=true;stopAnimation();
+    gameEl.classList.remove("ln3-good","ln3-bad");
+    feedbackEl.style.display="none";feedbackEl.className="";feedbackEl.innerHTML="";
+    continueBtn.style.display="none";
+    countEl.textContent="QUESTION "+(state.correct+state.wrong+1);
+    progressFill.style.width=(((state.correct+state.wrong)%10+1)*10)+"%";
+
+    const isMove=currentQuestion.type==="move";
+    boardWrapEl.style.display=isMove?"block":"none";
+    replayBtn.style.display=isMove?"inline-flex":"none";
+    replayBtn.disabled=!isMove;
+    moveStatus.style.display=isMove?"block":"none";
+    boardZoneEl.classList.toggle("ln3-symbol-mode",!isMove);
+    if(!isMove){boardEl.innerHTML="";}
+
+    if(isMove){
+      kindEl.textContent="MOVE NOTATION";
+      questionTypeEl.textContent="♟ ALGEBRAIC NOTATION";
+      promptEl.textContent=currentQuestion.prompt;
+      symbolEl.style.display="none";
+      symbolEl.textContent="";
+    }else{
+      kindEl.textContent="SYMBOL IDENTIFICATION";
+      questionTypeEl.textContent=currentQuestion.group.toUpperCase();
+      promptEl.textContent=currentQuestion.prompt;
+      if(currentQuestion.type==="symbol-name"){
+        symbolEl.style.display="flex";
+        symbolEl.textContent=currentQuestion.symbolDisplay;
+      }else{
+        symbolEl.style.display="none";
+        symbolEl.textContent="";
+      }
+    }
+
+    choicesEl.innerHTML="";
+    currentQuestion.choices.forEach((choice,index)=>{
+      const b=document.createElement("button");
+      b.type="button";
+      b.className="ln3-choice"+(isMove?"":(currentQuestion.type==="symbol-find"?" ln3-symbol-option":" ln3-text-choice"));
+      b.dataset.index=String(index);
+      b.textContent=choice;
+      choicesEl.appendChild(b);
+    });
+
+    if(isMove){
+      moveStatus.textContent="Watch the move carefully.";
+      playMoveAnimation(currentQuestion,()=>{if(!answered)moveStatus.textContent="Move shown · Replay it any time.";});
+    }else{
+      // No board animation is used for symbol-definition questions, so answers are immediately available.
+      animating=false;
+      locked=false;
+      moveStatus.textContent="";
+    }
+  }
+  async function newQuestion(){
+    if(autoNextTimer!==null){clearTimeout(autoNextTimer);autoNextTimer=null;}
+    stopAnimation();
+    const token=++questionToken;
+    locked=true;skipBtn.disabled=true;replayBtn.disabled=true;
+    boardWrapEl.style.display="none";replayBtn.style.display="none";moveStatus.style.display="none";
+    promptEl.textContent="Preparing the next question…";
+    choicesEl.innerHTML="";feedbackEl.style.display="none";continueBtn.style.display="none";
+    gameEl.classList.remove("ln3-good","ln3-bad");
+    try{
+      const next=await generateQuestion();
+      if(token!==questionToken)return;
+      currentQuestion=next;state.cur=next;saveState();renderQuestion();
+    }catch(err){
+      if(token!==questionToken)return;
+      promptEl.textContent="Unable to create a new question.";
+      moveStatus.style.display="block";
+      moveStatus.textContent=err&&err.message?err.message:"Please try New Question again.";
+      locked=true;
+    }finally{if(token===questionToken)skipBtn.disabled=false;}
+  }
+
+  /* ===================== ANSWERING / RATING ===================== */
+  function answerQuestion(index){
+    if(locked||answered||!currentQuestion||animating)return;const q=currentQuestion;answered=true;locked=true;replayBtn.disabled=true;const correct=index===q.correctIndex,oldRating=state.rating,oldPoints=state.points;
+    const buttons=Array.from(choicesEl.querySelectorAll("button"));buttons.forEach((b,i)=>{b.disabled=true;if(i===q.correctIndex)b.classList.add("ln3-correct");else if(i===index&&!correct)b.classList.add("ln3-wrong");});
+    const isMove=q.type==="move";const L=LEVELS[levelIndex(state.level)];
+    if(correct){state.correct++;state.streak++;state.best=Math.max(state.best,state.streak);state.rating+=RATING_CORRECT+(L.gain-2);state.points+=POINTS_CORRECT+Math.min(BONUS_MAX,(state.streak-1)*BONUS_PER_STREAK);if(isMove)state.moveCorrect++;else state.symbolCorrect++;
+      gameEl.classList.add("ln3-good");feedbackEl.className="ln3-fb-good";feedbackEl.innerHTML="<strong>✓ Perfect! Correct answer.</strong> +"+(RATING_CORRECT+(L.gain-2))+" rating · +"+(state.points-oldPoints)+" points"+(state.streak>=3?" · 🔥 "+state.streak+" correct in a row!":"")+"<br><span>Next question in 2 seconds…</span>";feedbackEl.style.display="block";continueBtn.style.display="none";
+      saveState();renderStats();showDelta(state.rating-oldRating);state.cur=null;saveState();
+      if(autoNextTimer!==null)clearTimeout(autoNextTimer);autoNextTimer=setTimeout(()=>{autoNextTimer=null;newQuestion();},2000);
+    }else{state.wrong++;state.streak=0;state.rating=Math.max(0,state.rating-RATING_WRONG);state.points=Math.max(0,state.points-POINTS_WRONG);if(isMove)state.moveWrong++;else state.symbolWrong++;
+      gameEl.classList.add("ln3-bad");feedbackEl.className="ln3-fb-bad";const answer=q.type==="move"?q.correct:q.correctText;feedbackEl.innerHTML="<strong>✕ "+pick(BAD_WORDS)+"</strong>Correct answer: <b></b><br>-"+RATING_WRONG+" rating · -"+POINTS_WRONG+" points. Press Continue Puzzle when you are ready.";const b=feedbackEl.querySelector("b");if(b)b.textContent=answer;feedbackEl.style.display="block";continueBtn.style.display="block";
+      state.cur=null;saveState();renderStats();showDelta(state.rating-oldRating);
+    }
+  }
+
+  /* ===================== EVENTS ===================== */
+  startBtn.addEventListener("click",()=>{hasStarted=true;welcomeEl.style.display="none";playEl.style.display="block";if(currentQuestion&&validQuestion(currentQuestion))renderQuestion();else newQuestion();});
+  choicesEl.addEventListener("click",e=>{const b=e.target.closest("button[data-index]");if(b&&!b.disabled)answerQuestion(Number(b.dataset.index));});
+  replayBtn.addEventListener("click",()=>{if(!currentQuestion||currentQuestion.type!=="move"||answered||animating)return;playMoveAnimation(currentQuestion);});
+  skipBtn.addEventListener("click",()=>{if(!skipBtn.disabled)newQuestion();});
+  continueBtn.addEventListener("click",()=>{continueBtn.style.display="none";newQuestion();});
+  levelsEl.addEventListener("click",e=>{const b=e.target.closest("button[data-level]");if(!b||b.dataset.level===state.level)return;state.level=b.dataset.level;state.cur=null;renderLevels();saveState();if(hasStarted)newQuestion();});
+  resetBtn.addEventListener("click",()=>{
+    if(resetTimer===null){resetBtn.textContent="Tap again to confirm reset";resetTimer=setTimeout(()=>{resetBtn.textContent="Reset my progress";resetTimer=null;},3000);return;}
+    clearTimeout(resetTimer);resetTimer=null;resetBtn.textContent="Reset my progress";const keepLevel=state.level;Object.assign(state,baseState());state.level=keepLevel;currentQuestion=null;answered=false;locked=true;questionToken++;if(autoNextTimer!==null){clearTimeout(autoNextTimer);autoNextTimer=null;}stopAnimation();saveState();renderStats();renderLevels();if(hasStarted)newQuestion();else{playEl.style.display="none";welcomeEl.style.display="block";choicesEl.innerHTML="";boardEl.innerHTML="";feedbackEl.style.display="none";continueBtn.style.display="none";}
+  });
+  document.addEventListener("keydown",e=>{
+    if(!section.getClientRects().length||!hasStarted||locked||answered||animating)return;if(e.ctrlKey||e.metaKey||e.altKey)return;
+    const tag=e.target&&e.target.tagName;if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT")return;
+    if(/^[1-4]$/.test(e.key)){const index=Number(e.key)-1;if(choicesEl.children[index])answerQuestion(index);}
+    if((e.key==="Enter"||e.key===" ")&&continueBtn.style.display!=="none"){e.preventDefault();continueBtn.click();}
+  });
+  window.addEventListener("storage",e=>{if(e.key!==STORE_KEY||!e.newValue)return;try{const d=JSON.parse(e.newValue);state.rating=int(d.rating,START_RATING);state.points=int(d.points,0);state.correct=int(d.correct,0);state.wrong=int(d.wrong,0);state.streak=int(d.streak,0);state.best=int(d.best,0);state.moveCorrect=int(d.moveCorrect,0);state.moveWrong=int(d.moveWrong,0);state.symbolCorrect=int(d.symbolCorrect,0);state.symbolWrong=int(d.symbolWrong,0);renderStats();}catch(err){}});
+
+  /* Optional fallback for preview pages; the academy's data-tab router can
+     continue handling this button as usual. */
+  const navButton=document.getElementById("learnNotationNavBtn");
+  if(navButton)navButton.addEventListener("click",()=>{const target=document.getElementById("learnNotation-section");if(target&&target.classList.contains("hidden")){document.querySelectorAll(".section").forEach(el=>el.classList.add("hidden"));target.classList.remove("hidden");}});
+
+  /* ===================== INITIALIZE ===================== */
+  renderStats();renderLevels();savedEl.textContent="Loading persistent position history…";historyReadyPromise=initHistory();
+  if(currentQuestion&&!validQuestion(currentQuestion)){currentQuestion=null;state.cur=null;saveState();}
+  window.OlympusLearnNotation={
+    getState:()=>({rating:state.rating,points:state.points,correct:state.correct,wrong:state.wrong,streak:state.streak,bestStreak:state.best,moveCorrect:state.moveCorrect,moveWrong:state.moveWrong,symbolCorrect:state.symbolCorrect,symbolWrong:state.symbolWrong,level:state.level}),
+    getCurrentQuestion:()=>currentQuestion?({type:currentQuestion.type,choices:currentQuestion.choices.slice(),correctIndex:currentQuestion.correctIndex,correctAnswer:currentQuestion.type==="move"?currentQuestion.correct:currentQuestion.correctText,uci:currentQuestion.uci,positionKey:currentQuestion.positionKey,group:currentQuestion.group||null}):null,
+    newQuestion:()=>{if(hasStarted&&!answered)newQuestion();},
+    getPositionHistoryMode:()=>historyMode
+  };
+})();
+</script>
 
 
 
@@ -190506,7 +191218,7 @@ const lockedTabs = [
   "legalChecks", "squareColorZone", "diagonalQuiz" ,  "moveQuiz",
   "puzzlerush", "routeQuiz",  "quadrantQuiz", "gapCounting",
   "guessElo", "attackDetection", "attackRelations", "visualizeMoves", 
-"puzzlebattle", "visualizeMovesHard",
+"puzzlebattle", "visualizeMovesHard", "learnNotation",
 "puzzletrainer",
 "computer",
 "quiz",
@@ -263472,6 +264184,7 @@ style="
     ],
 
 training: [
+  '[data-tab= "learnNotation" ]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
