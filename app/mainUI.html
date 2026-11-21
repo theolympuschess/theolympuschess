@@ -42746,7 +42746,19 @@ right:0;
   id="learnNotationNavBtn"
 >
   📖
-  Learn Notation
+  Learn <span style="font-size: 1.35em; color: #ded010; font-weight: 900;">Notaion</span> 
+</button>
+
+<button
+  class="nav-btn"
+  data-tab="matePuzzles"
+  id="matePuzzlesNavBtn"
+>
+  🧩
+  Checkmate in <span style="font-size: 1.35em; color: #44e635; font-weight: 900;">1</span> 
+  <span style="font-size: 1.35em; color: #1666de; font-weight: 900;">2</span> 
+  <span style="font-size: 1.35em; color: #b620e8; font-weight: 900;">3</span> 
+  <span style="font-size: 1.35em; color: #f53845; font-weight: 900;">4</span> 
 </button>
 
 <button
@@ -70370,6 +70382,1851 @@ winClose?.addEventListener("click", function() {
 </script>
 
 
+<style>
+  #mp-shell *, #mp-shell *::before, #mp-shell *::after { box-sizing: border-box; }
+  #mp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+  #mp-layout > * { min-width: 0; }
+  @media (max-width: 1150px) { #mp-layout { grid-template-columns: 1fr; } }
+
+  .mp-card { background: rgba(20, 24, 42, 0.96); border: 1px solid rgba(255, 215, 0, 0.14); border-radius: 16px; padding: 16px; }
+  .mp-stat-row { display: flex; justify-content: space-between; gap: 10px; color: #aeb3cf; font-size: 13px; font-weight: 700; }
+  .mp-stat-row strong { color: #fff; font-variant-numeric: tabular-nums; }
+
+  /* ---------- GAME CARD ---------- */
+  #mp-game {
+    --rgb: 167, 139, 250;
+    min-width: 0; border-radius: 18px; padding: 24px 22px;
+    background: linear-gradient(135deg, rgba(var(--rgb), 0.16), rgba(20, 24, 42, 0.97) 58%);
+    border: 1px solid rgba(var(--rgb), 0.35);
+    transition: border-color .25s, box-shadow .25s, background .25s;
+  }
+  #mp-game.mp-good { --rgb: 52, 211, 153; border-color: rgba(52, 211, 153, 0.85); box-shadow: 0 14px 40px rgba(52, 211, 153, 0.25), inset 0 0 20px rgba(52, 211, 153, 0.08); }
+  #mp-game.mp-bad  { --rgb: 251, 113, 133; border-color: rgba(251, 113, 133, 0.85); box-shadow: 0 14px 40px rgba(251, 113, 133, 0.25), inset 0 0 20px rgba(251, 113, 133, 0.08); }
+
+  .mp-question { margin: 0 0 16px; color: #fff; font-size: 24px; font-weight: 900; line-height: 1.25; }
+
+  .mp-top { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+  .mp-mascot {
+    flex: 0 0 auto; width: 62px; height: 62px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px;
+    background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.35), transparent 50%), linear-gradient(145deg, #c084fc, #7c3aed);
+    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35);
+  }
+  .mp-bubble { position: relative; flex: 1 1 auto; min-width: 0; padding: 14px 18px; border-radius: 18px; background: #1a1a2e; border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 15px; font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
+  .mp-bubble::before { content: ""; position: absolute; left: -8px; top: 20px; width: 14px; height: 14px; background: #1a1a2e; border-left: 1px solid rgba(255, 255, 255, 0.12); border-bottom: 1px solid rgba(255, 255, 255, 0.12); transform: rotate(45deg); }
+
+  .mp-tip-box { display: flex; gap: 12px; padding: 14px 16px; margin-bottom: 18px; border-radius: 14px; background: rgba(124, 58, 237, 0.12); border: 1px solid rgba(124, 58, 237, 0.28); }
+  .mp-tip-icon { font-size: 20px; line-height: 1; color: #ffd700; }
+  .mp-tip-text { color: #c8ccdf; font-size: 13px; line-height: 1.55; font-weight: 600; }
+  .mp-tip-text b { color: #fff; }
+
+  /* ---------- STAGE: board | workspace ---------- */
+  .mp-stage-split { display: block; margin-bottom: 8px; }
+
+  .mp-board-col { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: min(100%, 84vh); margin: 0 auto; }
+  .mp-board-box { position: relative; width: 100%; aspect-ratio: 1 / 1; margin: 0 auto; border-radius: 18px; overflow: hidden; box-shadow: 0 16px 45px rgba(0, 0, 0, 0.45); background: #14172a; border: 2px solid rgba(167, 139, 250, 0.35); }
+  .mp-board-box.mp-shake { animation: mpShake .38s ease-in-out; }
+  @keyframes mpShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+
+  .mp-chessboard { width: 100%; height: 100%; container-type: size; display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); user-select: none; touch-action: manipulation; }
+  .mp-sq { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; }
+  .mp-sq.mp-light { background: #dcd3fc; }
+  .mp-sq.mp-dark  { background: #7c52d8; }
+  .mp-sq.mp-last::after { content: ""; position: absolute; inset: 0; background: rgba(255, 215, 0, 0.38); pointer-events: none; }
+  .mp-sq.mp-sel::after { content: ""; position: absolute; inset: 0; background: rgba(255, 215, 0, 0.62); box-shadow: inset 0 0 0 3px #ffd700; pointer-events: none; }
+  .mp-sq.mp-check::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, rgba(251, 113, 133, 0.95) 0%, rgba(251, 113, 133, 0.45) 55%, transparent 80%); pointer-events: none; }
+  .mp-sq.mp-hint::after { content: ""; position: absolute; inset: 0; background: rgba(52, 211, 153, 0.5); box-shadow: inset 0 0 0 4px #34d399; pointer-events: none; }
+  .mp-sq.mp-wrongsq::after { content: ""; position: absolute; inset: 0; background: rgba(251, 113, 133, 0.6); box-shadow: inset 0 0 0 4px #fb7185; pointer-events: none; }
+  .mp-sq.mp-okmate::after { content: ""; position: absolute; inset: 0; background: rgba(52, 211, 153, 0.5); box-shadow: inset 0 0 0 4px #34d399; pointer-events: none; }
+  .mp-sq.mp-target::before { content: ""; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(20, 24, 42, 0.38); z-index: 3; pointer-events: none; }
+  .mp-sq.mp-target.mp-cap::before { width: 88%; height: 88%; background: transparent; border: 5px solid rgba(20, 24, 42, 0.38); }
+  .mp-sq.mp-target:hover { box-shadow: inset 0 0 0 3px rgba(255, 215, 0, 0.9); }
+  .mp-coord-file, .mp-coord-rank { position: absolute; font-size: 11px; font-weight: 900; line-height: 1; pointer-events: none; user-select: none; z-index: 4; }
+  .mp-coord-file { bottom: 3px; right: 4px; }
+  .mp-coord-rank { top: 3px; left: 4px; }
+  .mp-sq.mp-light .mp-coord-file, .mp-sq.mp-light .mp-coord-rank { color: #7c52d8; }
+  .mp-sq.mp-dark .mp-coord-file, .mp-sq.mp-dark .mp-coord-rank { color: #dcd3fc; }
+  .mp-piece { position: relative; z-index: 2; width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45)); user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .mp-glyph { position: relative; z-index: 2; font-size: 42px; font-size: 9.5cqw; line-height: 1; user-select: none; pointer-events: none; }
+  .mp-glyph.mp-white-glyph { color: #fff; filter: drop-shadow(0 2px 4px #000); }
+  .mp-glyph.mp-black-glyph { color: #1e1e24; filter: drop-shadow(0 1px 2px #fff); }
+
+  .mp-loading { position: absolute; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; color: #aeb3cf; font-size: 15px; font-weight: 800; background: radial-gradient(circle at 50% 40%, rgba(124, 58, 237, 0.2), rgba(12, 15, 29, 0.97) 75%); }
+  .mp-loading.mp-on { display: flex; }
+  .mp-spinner { width: 46px; height: 46px; border-radius: 50%; border: 5px solid rgba(167, 139, 250, 0.25); border-top-color: #a78bfa; animation: mpSpin .9s linear infinite; }
+  @keyframes mpSpin { to { transform: rotate(360deg); } }
+
+  /* ---------- GENERATION PROGRESS ---------- */
+  .mp-gen-progress { display: none; width: min(100%, 360px); margin-top: 2px; text-align: left; }
+  .mp-gen-progress.mp-visible { display: block; }
+  .mp-gen-progress-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; color: #e8e9f5; font-size: 12px; font-weight: 900; }
+  .mp-gen-progress-stage { color: #c4b5fd; font-weight: 700; text-align: right; flex: 1 1 auto; }
+  .mp-gen-progress-pct { color: #fff; font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+  .mp-gen-progress-track { position: relative; width: 100%; height: 12px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.10); }
+  .mp-gen-progress-fill { width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7c3aed, #a78bfa, #ffd700); transition: width .16s linear; }
+  .mp-gen-progress-meta { margin-top: 8px; color: #e4e7f5; font-size: 11px; font-weight: 800; line-height: 1.45; text-align: center; }
+  .mp-gen-progress-estimate { margin-top: 3px; color: #aeb3cf; font-size: 10.5px; font-weight: 600; line-height: 1.45; text-align: center; }
+
+  .mp-auto-next { display: inline-flex; align-items: center; gap: 9px; min-height: 42px; padding: 7px 11px; border-radius: 11px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.055); color: #e8e9f5; cursor: pointer; text-align: left; transition: border-color .18s, background .18s; }
+  .mp-auto-next:hover { background: rgba(255,255,255,.09); border-color: rgba(167,139,250,.5); }
+  .mp-auto-next-track { position: relative; flex: 0 0 38px; width: 38px; height: 22px; border-radius: 999px; background: #555b70; transition: background .18s; }
+  .mp-auto-next-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); transition: transform .18s; }
+  .mp-auto-next[aria-checked="true"] .mp-auto-next-track { background: #7c3aed; }
+  .mp-auto-next[aria-checked="true"] .mp-auto-next-thumb { transform: translateX(16px); }
+  .mp-auto-next-copy { display: flex; flex-direction: column; gap: 2px; }
+  .mp-auto-next-title { color: #fff; font-size: 12px; line-height: 1.15; font-weight: 900; white-space: nowrap; }
+  .mp-auto-next-status { color: #aeb3cf; font-size: 10px; line-height: 1.2; font-weight: 700; white-space: nowrap; }
+
+  .mp-action-btn { width: 100%; margin: 0; padding: 16px; border-radius: 14px; border: none; cursor: pointer; font-size: 18px; font-weight: 900; color: #fff; background: linear-gradient(145deg, #7c3aed, #6d28d9); box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35); transition: transform .12s, background .2s, box-shadow .2s; }
+  .mp-action-btn:hover:not(:disabled) { transform: translateY(-2px); }
+  .mp-action-btn:active:not(:disabled) { transform: scale(0.98); }
+  .mp-action-btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+
+  /* ---------- WORKSPACE ---------- */
+  .mp-workspace { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .mp-guide-box { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 14px; padding: 16px; color: #c8ccdf; font-size: 14px; line-height: 1.6; font-weight: 600; }
+  .mp-guide-box b { color: #ffd700; }
+  .mp-turn-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; font-size: 13px; font-weight: 900; }
+  .mp-turn-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #8b90ab; }
+  .mp-turn-dot.mp-w { background: #fff; } .mp-turn-dot.mp-b { background: #1e1e24; }
+
+  .mp-bottom-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .mp-sub-btn { background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; padding: 12px 10px; color: #aeb3cf; font-size: 13px; font-weight: 800; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .mp-sub-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; border-color: rgba(255, 255, 255, 0.25); }
+  .mp-sub-btn:disabled { opacity: .45; cursor: default; }
+
+  .mp-feedback { display: none; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.6; font-weight: 700; color: #e4e7f5; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.10); }
+  .mp-feedback b.mp-fb-title { display: block; font-size: 16px; font-weight: 900; margin-bottom: 3px; }
+
+  /* ---------- STATS PANEL ---------- */
+  #mp-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
+  @media (max-width: 1150px) { #mp-side { position: static; } }
+  #mp-rating { position: relative; border-radius: 18px; padding: 20px; background: linear-gradient(160deg, rgba(255, 215, 0, 0.20), rgba(20, 24, 42, 0.97) 60%); border: 1px solid rgba(255, 215, 0, 0.45); box-shadow: 0 20px 55px rgba(0, 0, 0, 0.25); }
+  .mp-big { font-size: 64px; line-height: 1; font-weight: 900; color: #ffd700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: -1px; margin: 6px 0 4px; }
+  .mp-delta { position: absolute; right: 22px; top: 46px; font-size: 26px; font-weight: 900; opacity: 0; pointer-events: none; }
+  .mp-delta.mp-up { color: #34d399; animation: mpFloat 1s ease-out; }
+  .mp-delta.mp-down { color: #fb7185; animation: mpFloat 1s ease-out; }
+  @keyframes mpFloat { 0% { opacity: 0; transform: translateY(14px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px); } }
+  .mp-rank { text-align: center; color: #fff; font-size: 17px; font-weight: 900; }
+  .mp-bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); margin-top: 12px; overflow: hidden; }
+  .mp-bar-fill { height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #b8860b, #ffd700); transition: width .4s; }
+  .mp-next-rank { margin-top: 8px; text-align: center; color: #aeb3cf; font-size: 12px; font-weight: 700; }
+  .mp-stats { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+
+  .mp-levels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .mp-lv { padding: 10px 8px; border-radius: 10px; cursor: pointer; text-align: left; color: #aeb3cf; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); line-height: 1.35; transition: all .15s; }
+  .mp-lv b { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 900; }
+  .mp-lv span { display: block; font-size: 11px; font-weight: 700; opacity: .8; margin-top: 4px; }
+  .mp-lv.mp-on { color: #ffd700; background: rgba(255, 215, 0, 0.12); border-color: rgba(255, 215, 0, 0.5); }
+
+  .mp-title { color: #ffd700; font-size: 15px; font-weight: 900; margin-bottom: 4px; }
+  .mp-card p { margin: 0; color: #c8ccdf; font-size: 13px; line-height: 1.65; font-weight: 600; }
+  .mp-saved { margin-top: 10px; text-align: center; color: #6f7491; font-size: 11px; font-weight: 700; }
+
+  /* ---------- POPUPS (promotion + confirm): small centered cards ---------- */
+  .mp-pop-overlay { position: fixed !important; inset: 0 !important; z-index: 99999 !important; display: none !important; align-items: center !important; justify-content: center !important; padding: 16px !important; margin: 0 !important; width: auto !important; height: auto !important; background: rgba(8, 10, 20, 0.72) !important; backdrop-filter: blur(4px); }
+  .mp-pop-overlay.mp-open { display: flex !important; }
+  .mp-pop { display: block !important; position: relative !important; width: 100% !important; max-width: 320px !important; height: auto !important; max-height: none !important; margin: 0 !important; padding: 18px 18px 16px !important; border-radius: 16px !important; text-align: center !important; background: linear-gradient(160deg, rgba(124, 58, 237, 0.28), #141830 62%) !important; border: 1px solid rgba(167, 139, 250, 0.5) !important; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55) !important; animation: mpPop .18s ease-out; box-sizing: border-box !important; transform: none !important; }
+  .mp-pop * { box-sizing: border-box; }
+  @keyframes mpPop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .mp-pop-icon { display: block; font-size: 28px; line-height: 1; margin-bottom: 6px; }
+  .mp-pop-title { display: block; color: #fff; font-size: 16px; font-weight: 900; margin-bottom: 6px; }
+  .mp-pop-text { display: block; color: #c8ccdf; font-size: 12.5px; font-weight: 600; line-height: 1.5; }
+  .mp-pop-text b { color: #ffd700; }
+  .mp-pop-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .mp-pop-btn { display: block; width: 100%; padding: 10px 8px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #c8ccdf; font-size: 13px; font-weight: 800; cursor: pointer; transition: all .15s; }
+  .mp-pop-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .mp-pop-yes { background: linear-gradient(145deg, #7c3aed, #6d28d9); border: none; color: #fff; }
+  .mp-promo-grid { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .mp-promo-btn { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 12px; cursor: pointer; background: #dcd3fc; border: 3px solid transparent; container-type: size; transition: transform .12s, border-color .12s; }
+  .mp-promo-btn:nth-child(even) { background: #7c52d8; }
+  .mp-promo-btn:hover { transform: translateY(-2px) scale(1.05); border-color: #ffd700; }
+  .mp-promo-btn img { width: 92%; height: 92%; object-fit: contain; pointer-events: none; }
+  .mp-promo-btn .mp-glyph { font-size: 36px; font-size: 62cqw; }
+
+  @media (prefers-reduced-motion: reduce) { .mp-delta.mp-up, .mp-delta.mp-down, .mp-board-box.mp-shake, .mp-spinner { animation: none; } }
+</style>
+
+<section class="section hidden" id="matePuzzles-section">
+  <div id="mp-shell" style="width:100%;max-width:1480px;margin:0 auto;padding:20px;">
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">🧩</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Mate Puzzles</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Find the forced checkmate. Endless puzzles, from Mate in 1 to Mate in 4!
+          </p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="mp-auto-next" id="mpAutoNextToggle" role="switch" aria-checked="false" aria-label="Automatically load the next puzzle after solving: off">
+          <span class="mp-auto-next-track" aria-hidden="true"><span class="mp-auto-next-thumb"></span></span>
+          <span class="mp-auto-next-copy"><span class="mp-auto-next-title">AUTO NEXT</span><span class="mp-auto-next-status" id="mpAutoNextStatus">Off · click Next manually</span></span>
+        </button>
+        <button type="button" id="mpSkipBtn" style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+          ⏭ Skip Puzzle
+        </button>
+      </div>
+    </div>
+
+    <div id="mp-layout">
+      <!-- GAME -->
+      <div id="mp-game">
+        <h3 class="mp-question" id="mpHeader">Preparing a fresh puzzle…</h3>
+
+        <div class="mp-tip-box">
+          <div class="mp-tip-icon">💡</div>
+          <div class="mp-tip-text"><b>Pro tip:</b> Look at every check first. Forcing moves leave the enemy king the fewest escapes.</div>
+        </div>
+
+        <div class="mp-top">
+          <div class="mp-mascot" id="mpMascot">🦇</div>
+          <div class="mp-bubble" id="mpBubble">Building a new position…</div>
+        </div>
+
+        <div class="mp-stage-split" id="mpStage">
+          <!-- BOARD + BUTTON -->
+          <div class="mp-board-col">
+            <div class="mp-board-box" id="mpBoardBox">
+              <div class="mp-chessboard" id="mpChessboard"></div>
+              <div class="mp-loading mp-on" id="mpLoading">
+                <div class="mp-spinner"></div>
+                <div id="mpLoadingText">Building a brand-new puzzle…</div>
+                <div class="mp-gen-progress" id="mpGenProgress" aria-live="polite">
+                  <div class="mp-gen-progress-head"><span>ENGINE SEARCH</span><span class="mp-gen-progress-stage" id="mpGenProgressStage">Starting…</span><span class="mp-gen-progress-pct" id="mpGenProgressPct">0%</span></div>
+                  <div class="mp-gen-progress-track" id="mpGenProgressTrack" role="progressbar" aria-label="Actual Stockfish nodes used in the current one-million-node search cycle" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="mp-gen-progress-fill" id="mpGenProgressFill"></div></div>
+                  <div class="mp-gen-progress-meta" id="mpGenProgressMeta">Elapsed 00:00 · 0 positions checked · 0 nodes searched</div>
+                  <div class="mp-gen-progress-estimate" id="mpGenProgressEstimate">Measuring actual Stockfish search work on this device…</div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="mp-action-btn" id="mpActionBtn" style="display:none;">Next Puzzle →</button>
+
+            <!-- CONTROLS UNDER THE BOARD -->
+            <div class="mp-workspace">
+              <div class="mp-bottom-bar">
+                <button type="button" class="mp-sub-btn" id="mpHintBtn">💡 HINT</button>
+                <button type="button" class="mp-sub-btn" id="mpSolutionBtn">🔍 SHOW SOLUTION</button>
+                <button type="button" class="mp-sub-btn" id="mpSubSkipBtn">⏭ SKIP</button>
+              </div>
+              <div class="mp-feedback" id="mpFeedback" aria-live="polite"></div>
+              <div class="mp-guide-box" id="mpGuideBox"><b>Getting ready…</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS PANEL -->
+      <div id="mp-side">
+        <div id="mp-rating">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">YOUR RATING</div>
+          <div class="mp-big" id="mpRating">500</div>
+          <div class="mp-delta" id="mpDelta"></div>
+          <div class="mp-rank" id="mpRank">♟️ Pawn</div>
+          <div class="mp-bar"><div class="mp-bar-fill" id="mpRankFill"></div></div>
+          <div class="mp-next-rank" id="mpNextRank"></div>
+          <div class="mp-stats">
+            <div class="mp-stat-row"><span>⭐ Points</span><strong id="mpPoints">0</strong></div>
+            <div class="mp-stat-row"><span>🔥 Run (in a row)</span><strong id="mpStreak">0</strong></div>
+            <div class="mp-stat-row"><span>🏆 Best run</span><strong id="mpBest">0</strong></div>
+            <div class="mp-stat-row"><span>✅ Right / ❌ Wrong</span><strong id="mpRW">0 / 0</strong></div>
+            <div class="mp-stat-row"><span>🎯 Accuracy</span><strong id="mpAcc">0%</strong></div>
+          </div>
+        </div>
+
+        <div class="mp-card">
+          <div class="mp-title">🎚 Puzzle Type (Mate In…)</div>
+          <div class="mp-levels" id="mpLevels"></div>
+          <p style="margin-top:10px;" id="mpLevelText"></p>
+        </div>
+
+        <div class="mp-card">
+          <div class="mp-title">🧠 How to play</div>
+          <div style="margin-top:10px;display:grid;gap:7px;">
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>1. Look</b> · Study the position and find every check.</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>2. Tap</b> · Tap a piece, then tap the square to move it.</div>
+            <div style="padding:8px 11px;border-radius:10px;background:rgba(255,255,255,0.05);color:#e4e7f5;font-size:13px;font-weight:700;line-height:1.5;"><b>3. Mate</b> · Keep finding the best moves until it is checkmate!</div>
+          </div>
+        </div>
+
+        <div class="mp-card" style="padding:12px 16px;">
+          <button type="button" id="mpResetBtn" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(251,113,133,0.35);background:rgba(251,113,133,0.10);color:#fb7185;font-weight:800;cursor:pointer;">Reset my progress</button>
+          <div class="mp-saved" id="mpSaved"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PROMOTION POPUP ===== -->
+    <div class="mp-pop-overlay" id="mpPromoModal">
+      <div class="mp-pop">
+        <div class="mp-pop-icon">👑</div>
+        <div class="mp-pop-title">Promote your pawn</div>
+        <div class="mp-pop-text">Choose the piece you want.</div>
+        <div class="mp-promo-grid" id="mpPromoGrid"></div>
+      </div>
+    </div>
+
+    <!-- ===== HINT / SOLUTION CONFIRM POPUP ===== -->
+    <div class="mp-pop-overlay" id="mpAssistModal">
+      <div class="mp-pop">
+        <div class="mp-pop-icon" id="mpAssistIcon">💡</div>
+        <div class="mp-pop-title" id="mpAssistTitle">Use a hint?</div>
+        <div class="mp-pop-text">If you get help, <b>no rating will change</b> for this puzzle. You can still finish it for practice.</div>
+        <div class="mp-pop-actions">
+          <button type="button" class="mp-pop-btn" id="mpAssistNo">No, I'll try</button>
+          <button type="button" class="mp-pop-btn mp-pop-yes" id="mpAssistYes">Yes, help me</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================
+     CONFIG: change these paths if your folders differ.
+     (Paths are relative to the main page, like assets/pieces/)
+  ========================================================= */
+  const SF_SRC = "stockfish/stockfish-19-lite-single.js";   // the .wasm must sit next to it
+  const PIECE_PATH = "assets/pieces/";
+  const SOUND_PATH = "sounds/";
+
+  const STORE_KEY = "olympusMatePuzzles_v1";
+  const SEEN_KEY = "olympusMatePuzzles_seen_v1";
+  const GEN_STATS_KEY = "olympusMatePuzzles_genStats_v1";
+  const AUTO_NEXT_KEY = "olympusMatePuzzles_autoNext_v1";
+  const AUTO_NEXT_DELAY_MS = 2800;
+  const START_RATING = 500;
+  const BUFFER_TARGET = 2;     // puzzles pre-built in the background per level
+  const GEN_PROGRESS_NODE_BUDGET = 1000000; // one exact, measurable Stockfish-node progress cycle
+
+  const PIECE_GLYPHS = {
+    w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
+    b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" }
+  };
+  const PIECE_NAMES = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+
+  const LEVELS = [
+    { id: 1, name: "Mate in 1",  sub: "Easiest", gain: 1, lo: 1, hi: 1, label: "Mate in 1" },
+    { id: 2, name: "Mate in 2",  sub: "Easier",  gain: 2, lo: 2, hi: 2, label: "Mate in 2" },
+    { id: 3, name: "Mate in 3",  sub: "Normal",  gain: 3, lo: 3, hi: 3, label: "Mate in 3" },
+    { id: 4, name: "Mate in 4",  sub: "Harder",  gain: 4, lo: 4, hi: 4, label: "Mate in 4" }
+  ];
+  const RANKS = [
+    { min: 0,   icon: "🌱", name: "Seedling" },
+    { min: 450, icon: "🧭", name: "Explorer" },
+    { min: 500, icon: "♟️", name: "Pawn" },
+    { min: 550, icon: "♞", name: "Knight" },
+    { min: 600, icon: "♝", name: "Bishop" },
+    { min: 650, icon: "♜", name: "Rook" },
+    { min: 700, icon: "♛", name: "Queen" },
+    { min: 750, icon: "♚", name: "King" }
+  ];
+
+  /*GEN_START*/
+  /* =========================================================
+     CHESS RULES (0x88 board): legal moves, check, mate.
+     Same proven core as the Visualize Moves game, so this file
+     needs no extra chess library.
+  ========================================================= */
+  const FILES = "abcdefgh";
+  const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  const D_N = [-33, -31, -18, -14, 14, 18, 31, 33];
+  const D_B = [-17, -15, 15, 17];
+  const D_R = [-16, -1, 1, 16];
+  const D_K = [-17, -16, -15, -1, 1, 15, 16, 17];
+  const isW = function (ch) { return ch === ch.toUpperCase(); };
+  const colorOf = function (ch) { return isW(ch) ? "w" : "b"; };
+  const sqName = function (sq) { return FILES[sq & 15] + (8 - (sq >> 4)); };
+  const sqFromName = function (n) { return (8 - parseInt(n[1], 10)) * 16 + (n.charCodeAt(0) - 97); };
+
+  function fromFen(fen) {
+    const p = fen.split(" "), b = new Array(128).fill(null);
+    let kw = -1, kb = -1;
+    p[0].split("/").forEach(function (row, r) {
+      let c = 0;
+      for (const ch of row) {
+        if (ch >= "1" && ch <= "8") c += +ch;
+        else { const sq = r * 16 + c; b[sq] = ch; if (ch === "K") kw = sq; if (ch === "k") kb = sq; c++; }
+      }
+    });
+    const cs = p[2] || "-";
+    const c = (cs.includes("K") ? 1 : 0) | (cs.includes("Q") ? 2 : 0) | (cs.includes("k") ? 4 : 0) | (cs.includes("q") ? 8 : 0);
+    const ep = p[3] && p[3] !== "-" ? sqFromName(p[3]) : -1;
+    return { b: b, t: p[1] || "w", c: c, ep: ep, hm: +p[4] || 0, fm: +p[5] || 1, kw: kw, kb: kb };
+  }
+
+  function fenOf(s) {
+    const rows = [];
+    for (let r = 0; r < 8; r++) {
+      let row = "", e = 0;
+      for (let c = 0; c < 8; c++) {
+        const p = s.b[r * 16 + c];
+        if (p) { if (e) { row += e; e = 0; } row += p; } else e++;
+      }
+      if (e) row += e;
+      rows.push(row);
+    }
+    const cs = (s.c & 1 ? "K" : "") + (s.c & 2 ? "Q" : "") + (s.c & 4 ? "k" : "") + (s.c & 8 ? "q" : "");
+    return rows.join("/") + " " + s.t + " " + (cs || "-") + " " + (s.ep >= 0 ? sqName(s.ep) : "-") + " " + s.hm + " " + s.fm;
+  }
+
+  function attacked(s, sq, by) {
+    const b = s.b;
+    const P = by === "w" ? "P" : "p", N = by === "w" ? "N" : "n", K = by === "w" ? "K" : "k";
+    const Bi = by === "w" ? "B" : "b", R = by === "w" ? "R" : "r", Q = by === "w" ? "Q" : "q";
+    const pd = by === "w" ? [15, 17] : [-15, -17];
+    for (const d of pd) { const x = sq + d; if (!(x & 0x88) && b[x] === P) return true; }
+    for (const d of D_N) { const x = sq + d; if (!(x & 0x88) && b[x] === N) return true; }
+    for (const d of D_K) { const x = sq + d; if (!(x & 0x88) && b[x] === K) return true; }
+    for (const d of D_B) {
+      let x = sq + d;
+      while (!(x & 0x88)) { const p = b[x]; if (p) { if (p === Bi || p === Q) return true; break; } x += d; }
+    }
+    for (const d of D_R) {
+      let x = sq + d;
+      while (!(x & 0x88)) { const p = b[x]; if (p) { if (p === R || p === Q) return true; break; } x += d; }
+    }
+    return false;
+  }
+
+  function pseudo(s) {
+    const b = s.b, us = s.t, out = [];
+    const push = function (f, t, p, cap, fl) {
+      if (p.toUpperCase() === "P" && ((t >> 4) === 0 || (t >> 4) === 7)) {
+        for (const pr of "QRBN") out.push({ f: f, t: t, p: p, cap: cap, pr: pr, fl: null });
+      } else out.push({ f: f, t: t, p: p, cap: cap, pr: null, fl: fl || null });
+    };
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const f = r * 16 + c, p = b[f];
+      if (!p || colorOf(p) !== us) continue;
+      const T = p.toUpperCase();
+      if (T === "P") {
+        const dir = us === "w" ? -16 : 16, st = us === "w" ? 6 : 1;
+        let t = f + dir;
+        if (!b[t]) {
+          push(f, t, p, null);
+          if (r === st && !b[t + dir]) push(f, t + dir, p, null, "dp");
+        }
+        for (const d of [dir - 1, dir + 1]) {
+          t = f + d;
+          if (t & 0x88) continue;
+          const q = b[t];
+          if (q && colorOf(q) !== us) push(f, t, p, q);
+          else if (!q && t === s.ep) push(f, t, p, us === "w" ? "p" : "P", "ep");
+        }
+      } else if (T === "N" || T === "K") {
+        for (const d of (T === "N" ? D_N : D_K)) {
+          const t = f + d;
+          if (t & 0x88) continue;
+          const q = b[t];
+          if (!q || colorOf(q) !== us) push(f, t, p, q || null);
+        }
+      } else {
+        for (const d of (T === "B" ? D_B : T === "R" ? D_R : D_K)) {
+          let t = f + d;
+          while (!(t & 0x88)) {
+            const q = b[t];
+            if (!q) push(f, t, p, null);
+            else { if (colorOf(q) !== us) push(f, t, p, q); break; }
+            t += d;
+          }
+        }
+      }
+    }
+    const them = us === "w" ? "b" : "w", base = us === "w" ? 112 : 0;
+    const K = us === "w" ? "K" : "k", R = us === "w" ? "R" : "r";
+    const kr = us === "w" ? 1 : 4, qr = us === "w" ? 2 : 8;
+    if (b[base + 4] === K && !attacked(s, base + 4, them)) {
+      if ((s.c & kr) && !b[base + 5] && !b[base + 6] && b[base + 7] === R && !attacked(s, base + 5, them) && !attacked(s, base + 6, them))
+        out.push({ f: base + 4, t: base + 6, p: K, cap: null, pr: null, fl: "ck" });
+      if ((s.c & qr) && !b[base + 3] && !b[base + 2] && !b[base + 1] && b[base] === R && !attacked(s, base + 3, them) && !attacked(s, base + 2, them))
+        out.push({ f: base + 4, t: base + 2, p: K, cap: null, pr: null, fl: "cq" });
+    }
+    return out;
+  }
+
+  function make(s, m) {
+    const b = s.b, mover = s.t, u = { ep: s.ep, c: s.c, hm: s.hm };
+    b[m.t] = m.pr ? (mover === "w" ? m.pr : m.pr.toLowerCase()) : m.p;
+    b[m.f] = null;
+    if (m.fl === "ep") b[m.t + (mover === "w" ? 16 : -16)] = null;
+    if (m.fl === "ck") { b[m.t - 1] = b[m.t + 1]; b[m.t + 1] = null; }
+    if (m.fl === "cq") { b[m.t + 1] = b[m.t - 2]; b[m.t - 2] = null; }
+    if (m.p === "K") { s.kw = m.t; s.c &= ~3; }
+    if (m.p === "k") { s.kb = m.t; s.c &= ~12; }
+    if (m.f === 119 || m.t === 119) s.c &= ~1;
+    if (m.f === 112 || m.t === 112) s.c &= ~2;
+    if (m.f === 7 || m.t === 7) s.c &= ~4;
+    if (m.f === 0 || m.t === 0) s.c &= ~8;
+    s.ep = m.fl === "dp" ? (m.f + m.t) / 2 : -1;
+    s.hm = (m.p.toUpperCase() === "P" || m.cap) ? 0 : s.hm + 1;
+    s.t = mover === "w" ? "b" : "w";
+    if (mover === "b") s.fm++;
+    return u;
+  }
+
+  function unmake(s, m, u) {
+    const b = s.b, mover = s.t === "w" ? "b" : "w";
+    s.t = mover;
+    if (mover === "b") s.fm--;
+    b[m.f] = m.p;
+    b[m.t] = null;
+    if (m.fl === "ep") b[m.t + (mover === "w" ? 16 : -16)] = m.cap;
+    else if (m.cap) b[m.t] = m.cap;
+    if (m.fl === "ck") { b[m.t + 1] = b[m.t - 1]; b[m.t - 1] = null; }
+    if (m.fl === "cq") { b[m.t - 2] = b[m.t + 1]; b[m.t + 1] = null; }
+    if (m.p === "K") s.kw = m.f;
+    if (m.p === "k") s.kb = m.f;
+    s.ep = u.ep; s.c = u.c; s.hm = u.hm;
+  }
+
+  function legal(s) {
+    const us = s.t, them = us === "w" ? "b" : "w", out = [];
+    for (const m of pseudo(s)) {
+      const u = make(s, m);
+      if (!attacked(s, us === "w" ? s.kw : s.kb, them)) out.push(m);
+      unmake(s, m, u);
+    }
+    return out;
+  }
+
+  function inCheck(s) { return attacked(s, s.t === "w" ? s.kw : s.kb, s.t === "w" ? "b" : "w"); }
+  function uciOf(m) { return sqName(m.f) + sqName(m.t) + (m.pr ? m.pr.toLowerCase() : ""); }
+
+  // Small chess.js-style wrapper used by the whole game
+  function Chess(fen) { this.s = fromFen(fen || START_FEN); this.h = []; }
+  Chess.prototype.fen = function () { return fenOf(this.s); };
+  Chess.prototype.turn = function () { return this.s.t; };
+  Chess.prototype.in_check = function () { return inCheck(this.s); };
+  Chess.prototype.in_checkmate = function () { return inCheck(this.s) && legal(this.s).length === 0; };
+  Chess.prototype.game_over = function () {
+    if (legal(this.s).length === 0 || this.s.hm >= 100) return true;
+    let n = 0;
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (this.s.b[r * 16 + c]) n++;
+    return n <= 2;
+  };
+  Chess.prototype.get = function (name) {
+    const p = this.s.b[sqFromName(name)];
+    return p ? { type: p.toLowerCase(), color: colorOf(p) } : null;
+  };
+  Chess.prototype.board = function () {
+    const out = [];
+    for (let r = 0; r < 8; r++) {
+      const row = [];
+      for (let c = 0; c < 8; c++) {
+        const p = this.s.b[r * 16 + c];
+        row.push(p ? { type: p.toLowerCase(), color: colorOf(p) } : null);
+      }
+      out.push(row);
+    }
+    return out;
+  };
+  function verboseMove(m) {
+    return {
+      from: sqName(m.f), to: sqName(m.t), piece: m.p.toLowerCase(), color: colorOf(m.p),
+      promotion: m.pr ? m.pr.toLowerCase() : undefined,
+      flags: (m.pr ? "p" : "") + (m.fl === "ep" ? "e" : "") + (m.cap ? "c" : "") + (m.fl === "ck" || m.fl === "cq" ? "k" : "")
+    };
+  }
+  // moves({square, verbose}) -> verbose objects; without verbose -> UCI strings
+  Chess.prototype.moves = function (o) {
+    let L = legal(this.s);
+    if (o && o.square) { const f = sqFromName(o.square); L = L.filter(function (m) { return m.f === f; }); }
+    return o && o.verbose ? L.map(verboseMove) : L.map(uciOf);
+  };
+  Chess.prototype.move = function (o) {
+    const from = sqFromName(o.from), to = sqFromName(o.to), promo = (o.promotion || "").toUpperCase();
+    const m = legal(this.s).find(function (x) { return x.f === from && x.t === to && (!x.pr || x.pr === promo); });
+    if (!m) return null;
+    make(this.s, m);
+    const v = verboseMove(m);
+    this.h.push(v);
+    return v;
+  };
+  Chess.prototype.history = function () { return this.h.slice(); };
+
+  /* =========================================================
+     STOCKFISH WRAPPER (one Web Worker, one job at a time)
+  ========================================================= */
+  let engineInstanceSequence = 0;
+  function Engine(url) {
+    const me = this;
+    const engineInstanceId = ++engineInstanceSequence;
+    let searchSequence = 0;
+    let w = null, boot = "boot", cur = null, dead = false, deadErr = null;
+    const q = [];
+    let readyRes, readyRej;
+    me.ready = new Promise(function (res, rej) { readyRes = res; readyRej = rej; });
+    me.ready.catch(function () {});
+
+    function fail(err) {
+      dead = true; deadErr = err;
+      readyRej(err);
+      if (cur) { clearTimeout(cur.timer); cur.reject(err); cur = null; }
+      while (q.length) q.shift().reject(err);
+    }
+
+    function pump() {
+      if (dead || boot !== "idle" || cur || !q.length) return;
+      cur = q.shift();
+      cur.lines = {};
+      w.postMessage("setoption name MultiPV value " + cur.multipv);
+      w.postMessage("position fen " + cur.fen);
+      w.postMessage("go depth " + cur.depth + (cur.movetime ? " movetime " + cur.movetime : ""));
+      const job = cur;
+      job.timer = setTimeout(function () { if (cur === job) w.postMessage("stop"); }, (job.movetime || 5000) + 4000);
+    }
+
+    function parseInfo(line) {
+      // Stockfish reports a cumulative node count for the current UCI search.
+      // Read it independently of score/PV fields so every info line can update progress.
+      const nodeMatch = /\bnodes\s+(\d+)/.exec(line);
+      if (nodeMatch && cur) {
+        const reportedNodes = Number(nodeMatch[1]);
+        if (Number.isFinite(reportedNodes) && reportedNodes > (cur.nodes || 0)) {
+          cur.nodes = reportedNodes;
+          if (typeof cur.onProgress === "function") {
+            try { cur.onProgress({ engineJobId: engineInstanceId + ":" + cur.id, nodes: cur.nodes }); } catch (e) {}
+          }
+        }
+      }
+      if (/ (lowerbound|upperbound)/.test(line)) return;
+      const sc = / score (cp|mate) (-?\d+)/.exec(line);
+      const pv = / pv (.+)$/.exec(line);
+      if (!sc || !pv) return;
+      const mp = / multipv (\d+)/.exec(line), dp = / depth (\d+)/.exec(line);
+      cur.lines[mp ? +mp[1] : 1] = { type: sc[1], val: +sc[2], pv: pv[1].trim().split(/\s+/), depth: dp ? +dp[1] : 0 };
+    }
+
+    try {
+      w = new Worker(url);
+    } catch (e) { fail(e); return; }
+    w.onerror = function () { fail(new Error("Stockfish could not be loaded from " + url)); };
+    w.onmessage = function (e) {
+      const line = String(e.data);
+      if (boot === "boot") { if (line === "uciok") { boot = "isready"; w.postMessage("isready"); } return; }
+      if (boot === "isready") { if (line === "readyok") { boot = "idle"; readyRes(); pump(); } return; }
+      if (!cur) return;
+      if (line.indexOf("info") === 0) parseInfo(line);
+      else if (line.indexOf("bestmove") === 0) {
+        const m = /bestmove (\S+)/.exec(line), job = cur;
+        clearTimeout(job.timer);
+        cur = null;
+        if (typeof job.onProgress === "function") {
+          try { job.onProgress({ engineJobId: engineInstanceId + ":" + job.id, nodes: job.nodes || 0 }); } catch (e) {}
+        }
+        job.resolve({ lines: job.lines, best: m && m[1] !== "(none)" ? m[1] : null, nodes: job.nodes || 0 });
+        pump();
+      }
+    };
+    w.postMessage("uci");
+
+    me.analyze = function (o) {
+      return new Promise(function (resolve, reject) {
+        if (dead) { reject(deadErr); return; }
+        q.push({ fen: o.fen, depth: o.depth || 10, movetime: o.movetime || 0, multipv: o.multipv || 1, resolve: resolve, reject: reject,
+          id: ++searchSequence, nodes: 0, onProgress: typeof o.onProgress === "function" ? o.onProgress : null });
+        pump();
+      });
+    };
+    // abort the running search (it still resolves with what it had)
+    me.stop = function () { if (!dead && cur) w.postMessage("stop"); };
+    me.terminate = function () { dead = true; if (w) w.terminate(); };
+  }
+
+  function analyzeGeneration(eng, options, onProgress, phase) {
+    const request = Object.assign({}, options);
+    request.onProgress = function (info) {
+      if (onProgress) onProgress({
+        phase: phase || "Stockfish searching",
+        engineJobId: info.engineJobId,
+        nodes: info.nodes
+      });
+    };
+    return eng.analyze(request);
+  }
+
+  /* =========================================================
+     PUZZLE GENERATION
+     Play a realistic game (Stockfish at low depth, with a few
+     human-like slips). Whenever the side to move has a FORCED MATE
+     in the wanted range, and the first move is unique, keep it.
+  ========================================================= */
+  const rnd = function (n) { return Math.floor(Math.random() * n); };
+  function moveObj(u) { const o = { from: u.slice(0, 2), to: u.slice(2, 4) }; if (u.length > 4) o.promotion = u[4]; return o; }
+
+  function hashStr(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+
+  let seenArr = [];
+  try { seenArr = JSON.parse(localStorage.getItem(SEEN_KEY)) || []; } catch (e) { seenArr = []; }
+  const seen = new Set(seenArr);
+  function posKey(fen) { return hashStr(fen.split(" ").slice(0, 2).join(" ")); }
+  function remember(h) {
+    seen.add(h); seenArr.push(h);
+    if (seenArr.length > 5000) seenArr = seenArr.slice(-4000);
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(seenArr)); } catch (e) {}
+  }
+
+  // the first line must be a mate in [lo,hi] and no other first move may mate as fast
+  function uniqueMate(lines, lo, hi) {
+    const a = lines[1];
+    if (!a || a.type !== "mate" || a.val < lo || a.val > hi) return 0;
+    const b = lines[2];
+    if (b && b.type === "mate" && b.val > 0 && b.val <= a.val) return 0;
+    return a.val;
+  }
+
+  // replay the engine line and make sure it really ends in checkmate
+  function pvIsMate(fen, pv, m) {
+    if (!pv || pv.length < 2 * m - 1) return false;
+    const t = new Chess(fen);
+    for (let i = 0; i < 2 * m - 1; i++) if (!t.move(moveObj(pv[i]))) return false;
+    return t.in_checkmate();
+  }
+
+  // reject boring / silly starting positions
+  function sensible(g) {
+    let pieces = 0;
+    const bd = g.board();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (bd[r][c]) pieces++;
+    return pieces >= 8 && g.moves().length >= 3;
+  }
+
+  // Turn a found mate (line A, mate in A.val) into a puzzle of the wanted length.
+  // If the mate is longer than needed, walk down the engine line to a position
+  // that is exactly "mate in N", then double-check that its first move is unique.
+  async function candidateFrom(eng, tok, fen, A, lines, lo, hi, onProgress) {
+    if (!A || A.type !== "mate" || A.val < lo || A.val > hi + 4 || A.pv.length < 2 * A.val - 1) return null;
+    const top = Math.min(A.val, hi);
+    const N = lo + rnd(top - lo + 1), k = A.val - N;
+    const t = new Chess(fen);
+    let last = null;
+    for (let i = 0; i < 2 * k; i++) {
+      const mv = t.move(moveObj(A.pv[i]));
+      if (!mv) return null;
+      last = { from: mv.from, to: mv.to };
+    }
+    if (k > 0 && !sensible(t)) return null;
+    let L2 = lines, pv = A.pv;
+    if (k > 0 || !lines[2]) {      // need a 2-line search at this exact position to prove the first move is unique
+      if (onProgress) onProgress({ phase: "Verifying forced mate" });
+      const r = await analyzeGeneration(eng, { fen: t.fen(), depth: Math.min(24, 2 * N + 5), movetime: Math.min(3600, 300 + 250 * N), multipv: 2 }, onProgress, "Verifying forced mate");
+      if (tok.dead) return null;
+      L2 = r.lines; pv = r.lines[1] ? r.lines[1].pv : null;
+    }
+    if (!pv || !uniqueMate(L2, N, N)) return null;
+    return { fen: t.fen(), mate: N, pv: pv, last: last, stepped: k > 0 };
+  }
+
+  async function findPuzzle(eng, lvl, tok, onProgress) {
+    const lo = lvl.lo, hi = lvl.hi;
+    let searchCycle = 0;
+    while (!tok.dead) {
+      searchCycle++;
+      if (onProgress) onProgress({ phase: "Building candidate game" });
+      const g = new Chess();
+      const maxPly = 34 + rnd(30);
+      let ply = 0;
+      while (ply < maxPly && !g.game_over()) {
+        if (tok.dead) return null;
+        const fen = g.fen();
+        if (onProgress) onProgress({ phase: "Checking position " + (ply + 1), position: true, cycle: searchCycle });
+        const early = ply < 6;
+        const r = await analyzeGeneration(eng, { fen: fen, depth: early ? 3 : 4, movetime: early ? 40 : 80, multipv: 3 }, onProgress, "Checking candidate positions");
+        if (tok.dead) return null;
+        const L = r.lines;
+        if (!L[1]) break;
+
+        if (ply >= 7 && sensible(g)) {
+          let c = null;
+          if (hi <= 2) {
+            c = await candidateFrom(eng, tok, fen, L[1], L, lo, hi, onProgress);
+          } else {
+            const hot = (L[1].type === "mate" && L[1].val > 0) || (L[1].type === "cp" && L[1].val >= 250);
+            let found = false, midRes = null;
+            if (hot) {            // cheap mid-depth probe first: only real mates deserve the slow check
+              const mid = await analyzeGeneration(eng, { fen: fen, depth: Math.min(18, 2 * lo + 1 + (hi > lo ? 2 : 0)), movetime: 200 + 90 * lo, multipv: 1 }, onProgress, "Probing mate candidate");
+              if (tok.dead) return null;
+              midRes = mid;
+              const M = mid.lines[1];
+              found = !!(M && M.type === "mate" && M.val >= lo && M.val <= hi + 4);
+            }
+            if (found) c = await candidateFrom(eng, tok, fen, midRes.lines[1], midRes.lines, lo, hi, onProgress);
+          }
+          if (c && pvIsMate(c.fen, c.pv, c.mate)) {
+            const key = posKey(c.fen);
+            if (!seen.has(key)) {
+              remember(key);
+              let last = c.last;
+              if (!c.stepped) {
+                const hist = g.history();
+                last = hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null;
+              }
+              return { fen: c.fen, mate: c.mate, pv: c.pv.slice(0, 2 * c.mate - 1), last: last };
+            }
+          }
+        }
+
+        // choose the next move of the practice game
+        const avail = [1, 2, 3].filter(function (i) { return L[i]; });
+        let u;
+        const roll = Math.random();
+        if (ply < 6) u = L[avail[rnd(avail.length)]].pv[0];
+        else if (ply > 10 && roll < 0.1) { const all = g.moves({ verbose: true }); const mv = all[rnd(all.length)]; u = mv.from + mv.to + (mv.promotion || ""); }
+        else if (L[1].type === "mate" || roll < 0.62 || avail.length === 1) u = L[1].pv[0];
+        else u = L[avail[Math.min(avail.length - 1, 1 + rnd(avail.length - 1))]].pv[0];
+        if (!g.move(moveObj(u))) break;
+        ply++;
+      }
+    }
+    return null;
+  }
+  /*GEN_END*/
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+  const section = document.getElementById("matePuzzles-section");
+  if (!section) return;
+
+  const gameBox = document.getElementById("mp-game");
+  const headerEl = document.getElementById("mpHeader");
+  const mascot = document.getElementById("mpMascot");
+  const bubble = document.getElementById("mpBubble");
+  const boardBox = document.getElementById("mpBoardBox");
+  const boardEl = document.getElementById("mpChessboard");
+  const loadingEl = document.getElementById("mpLoading");
+  const loadingText = document.getElementById("mpLoadingText");
+  const genProgressEl = document.getElementById("mpGenProgress");
+  const genProgressFill = document.getElementById("mpGenProgressFill");
+  const genProgressStage = document.getElementById("mpGenProgressStage");
+  const genProgressPct = document.getElementById("mpGenProgressPct");
+  const genProgressTrack = document.getElementById("mpGenProgressTrack");
+  const genProgressMeta = document.getElementById("mpGenProgressMeta");
+  const genProgressEstimate = document.getElementById("mpGenProgressEstimate");
+  const actionBtn = document.getElementById("mpActionBtn");
+  const autoNextToggle = document.getElementById("mpAutoNextToggle");
+  const autoNextStatus = document.getElementById("mpAutoNextStatus");
+  const guideBox = document.getElementById("mpGuideBox");
+  const feedback = document.getElementById("mpFeedback");
+  const hintBtn = document.getElementById("mpHintBtn");
+  const solutionBtn = document.getElementById("mpSolutionBtn");
+  const subSkipBtn = document.getElementById("mpSubSkipBtn");
+  const skipBtn = document.getElementById("mpSkipBtn");
+  const resetBtn = document.getElementById("mpResetBtn");
+  const levelsEl = document.getElementById("mpLevels");
+  const levelText = document.getElementById("mpLevelText");
+  const savedEl = document.getElementById("mpSaved");
+  const ratingEl = document.getElementById("mpRating");
+  const deltaEl = document.getElementById("mpDelta");
+  const rankEl = document.getElementById("mpRank");
+  const rankFill = document.getElementById("mpRankFill");
+  const nextRankEl = document.getElementById("mpNextRank");
+  const pointsEl = document.getElementById("mpPoints");
+  const streakEl = document.getElementById("mpStreak");
+  const bestEl = document.getElementById("mpBest");
+  const rwEl = document.getElementById("mpRW");
+  const accEl = document.getElementById("mpAcc");
+  const promoModal = document.getElementById("mpPromoModal");
+  const promoGrid = document.getElementById("mpPromoGrid");
+  const assistModal = document.getElementById("mpAssistModal");
+  const assistIcon = document.getElementById("mpAssistIcon");
+  const assistTitle = document.getElementById("mpAssistTitle");
+  const assistYes = document.getElementById("mpAssistYes");
+  const assistNo = document.getElementById("mpAssistNo");
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+  function defaults() { return { rating: START_RATING, points: 0, correct: 0, wrong: 0, streak: 0, best: 0, level: 2 }; }
+
+  function loadState() {
+    const s = defaults();
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        s.rating = Math.max(0, Number(d.rating) || START_RATING);
+        s.points = Math.max(0, Number(d.points) || 0);
+        s.correct = Math.max(0, Number(d.correct) || 0);
+        s.wrong = Math.max(0, Number(d.wrong) || 0);
+        s.streak = Math.max(0, Number(d.streak) || 0);
+        s.best = Math.max(0, Number(d.best) || 0);
+        const savedLevel = LEVELS.find(function (level) { return level.id === Number(d.level); });
+        s.level = savedLevel ? savedLevel.id : (Number(d.level) > 0 ? LEVELS[LEVELS.length - 1].id : 2);
+      }
+    } catch (e) {}
+    return s;
+  }
+
+  function saveState() {
+    let ok = true;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { ok = false; }
+    savedEl.textContent = ok ? "💾 Progress saved on this device" : "⚠️ Saving blocked in this browser";
+  }
+
+  const state = loadState();
+  let currentLevel = LEVELS.find(function (l) { return l.id === state.level; }) || LEVELS[1];
+
+  // Auto Next is an independent UI preference, not part of puzzle/rating state.
+  // Default OFF preserves the trainer's existing manual-next behaviour.
+  let autoNextEnabled = false;
+  try { autoNextEnabled = localStorage.getItem(AUTO_NEXT_KEY) === "1"; } catch (err) {}
+  let autoNextTimer = null;
+  let autoNextCountdown = null;
+  let autoNextDeadline = 0;
+
+  function updateAutoNextUI() {
+    if (!autoNextToggle) return;
+    autoNextToggle.setAttribute("aria-checked", autoNextEnabled ? "true" : "false");
+    autoNextToggle.setAttribute("aria-label", autoNextEnabled ? "Automatically load the next puzzle after solving: on" : "Automatically load the next puzzle after solving: off");
+    if (autoNextStatus) autoNextStatus.textContent = autoNextEnabled ? "On · advances after solving" : "Off · click Next manually";
+  }
+
+  function cancelAutoNext() {
+    if (autoNextTimer) clearTimeout(autoNextTimer);
+    if (autoNextCountdown) clearInterval(autoNextCountdown);
+    autoNextTimer = null;
+    autoNextCountdown = null;
+    autoNextDeadline = 0;
+    if (actionBtn && stage === "feedback" && actionBtn.style.display !== "none") actionBtn.textContent = "Next Puzzle →";
+  }
+
+  function scheduleAutoNext() {
+    cancelAutoNext();
+    if (!autoNextEnabled || stage !== "feedback") return;
+    autoNextDeadline = Date.now() + AUTO_NEXT_DELAY_MS;
+    function updateCountdown() {
+      if (!autoNextEnabled || stage !== "feedback") { cancelAutoNext(); return; }
+      const remaining = Math.max(0, autoNextDeadline - Date.now());
+      actionBtn.textContent = remaining > 0 ? "Next Puzzle (" + Math.ceil(remaining / 1000) + "s) →" : "Loading next puzzle…";
+    }
+    updateCountdown();
+    autoNextCountdown = setInterval(updateCountdown, 160);
+    autoNextTimer = setTimeout(function () {
+      autoNextTimer = null;
+      if (autoNextCountdown) clearInterval(autoNextCountdown);
+      autoNextCountdown = null;
+      autoNextDeadline = 0;
+      if (autoNextEnabled && stage === "feedback") loadPuzzle();
+    }, AUTO_NEXT_DELAY_MS);
+  }
+
+  let g = null;              // live position (chess.js)
+  let puzzle = null;
+  let curPV = null;          // remaining best line, student's move first
+  let movesLeft = 0;         // student moves still needed to mate
+  let stage = "loading";     // loading | solve | feedback
+  let busy = false;
+  let selected = null, targets = [];
+  let lastMove = null, hintSq = null, wrongSq = null, mateSq = null;
+  let flip = false;
+  let failed = false, assisted = false;
+  let mateInfo = null;
+  let fatal = false;
+  let loadToken = 0;
+  const failedImg = {};
+
+  const buffer = {}; LEVELS.forEach(function (l) { buffer[l.id] = []; });
+  const genEngs = [null, null];
+  let playEng = null, genTok = { dead: false };
+  let waiting = false;
+
+  const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  // Retain the existing per-level duration history used by the trainer.
+  let generationStats = {};
+  try {
+    const savedGenStats = JSON.parse(localStorage.getItem(GEN_STATS_KEY) || "{}");
+    if (savedGenStats && typeof savedGenStats === "object") generationStats = savedGenStats;
+    Object.keys(generationStats).forEach(function (levelId) {
+      if (!LEVELS.some(function (level) { return level.id === Number(levelId); })) delete generationStats[levelId];
+    });
+  } catch (err) { generationStats = {}; }
+
+  /* =========================================================
+     GENERATION PROGRESS
+     The percentage is based on real Stockfish UCI `nodes` counts,
+     measured locally on this device. Each 1,000,000-node batch is
+     one measurable work cycle. Total work required for an unknown
+     puzzle cannot be known in advance, so cycles can repeat.
+  ========================================================= */
+  let generationProgressActive = false;
+  let generationProgressCompleted = false;
+  let generationStartedAt = 0;
+  let generationPositionChecks = 0;
+  let generationPhase = "Starting search";
+  let generationTicker = null;
+  let generationNodeCounts = Object.create(null);
+  let generationTotalNodes = 0;
+  let generationCompletedCycles = 0;
+  let generationCycleNumber = 1;
+  let generationCyclePercent = 0;
+  let generationCycleFlashUntil = 0;
+
+  function formatProgressTime(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return (mins ? String(mins).padStart(2, "0") + ":" : "") + String(secs).padStart(2, "0");
+  }
+
+  function updateNodeProgress(info) {
+    if (!info || !info.engineJobId || !Number.isFinite(Number(info.nodes))) return;
+    const key = String(info.engineJobId);
+    const nextNodes = Math.max(0, Number(info.nodes));
+    const previousNodes = generationNodeCounts[key] || 0;
+    if (nextNodes <= previousNodes) return;
+
+    generationNodeCounts[key] = nextNodes;
+    generationTotalNodes += nextNodes - previousNodes;
+
+    const completed = Math.floor(generationTotalNodes / GEN_PROGRESS_NODE_BUDGET);
+    if (completed > generationCompletedCycles) {
+      generationCompletedCycles = completed;
+      generationCycleNumber = completed;
+      generationCyclePercent = 100;
+      generationCycleFlashUntil = Date.now() + 420;
+    } else if (!generationCycleFlashUntil) {
+      generationCycleNumber = completed + 1;
+      generationCyclePercent = (generationTotalNodes % GEN_PROGRESS_NODE_BUDGET) / GEN_PROGRESS_NODE_BUDGET * 100;
+    }
+  }
+
+  function renderGenerationProgress() {
+    if (!generationProgressActive || generationProgressCompleted) return;
+    if (generationCycleFlashUntil && Date.now() >= generationCycleFlashUntil) {
+      generationCycleFlashUntil = 0;
+      generationCycleNumber = generationCompletedCycles + 1;
+      generationCyclePercent = (generationTotalNodes % GEN_PROGRESS_NODE_BUDGET) / GEN_PROGRESS_NODE_BUDGET * 100;
+    }
+
+    const elapsed = Date.now() - generationStartedAt;
+    const pct = Math.max(0, Math.min(100, generationCyclePercent));
+    const wholePct = Math.floor(pct);
+    genProgressStage.textContent = generationPhase + " · cycle " + generationCycleNumber;
+    genProgressPct.textContent = wholePct + "%";
+    genProgressFill.style.width = pct.toFixed(2) + "%";
+    if (genProgressTrack) genProgressTrack.setAttribute("aria-valuenow", String(wholePct));
+    genProgressMeta.textContent = "Elapsed " + formatProgressTime(elapsed) + " · " + generationPositionChecks + " positions checked · " + Math.floor(generationTotalNodes).toLocaleString() + " nodes searched";
+    genProgressEstimate.textContent = wholePct + "% of this cycle · " + GEN_PROGRESS_NODE_BUDGET.toLocaleString() + " actual Stockfish nodes = 100%. A new cycle starts if more searching is needed.";
+  }
+
+  function startGenerationProgress(searchStartedAt) {
+    generationProgressActive = true;
+    generationProgressCompleted = false;
+    generationStartedAt = searchStartedAt && searchStartedAt > 0 ? Math.min(searchStartedAt, Date.now()) : Date.now();
+    generationPositionChecks = 0;
+    generationPhase = "Searching locally";
+    generationNodeCounts = Object.create(null);
+    generationTotalNodes = 0;
+    generationCompletedCycles = 0;
+    generationCycleNumber = 1;
+    generationCyclePercent = 0;
+    generationCycleFlashUntil = 0;
+    genProgressEl.classList.add("mp-visible");
+    genProgressFill.style.width = "0%";
+    genProgressPct.textContent = "0%";
+    if (genProgressTrack) genProgressTrack.setAttribute("aria-valuenow", "0");
+    renderGenerationProgress();
+    if (generationTicker) clearInterval(generationTicker);
+    generationTicker = setInterval(renderGenerationProgress, 100);
+  }
+
+  function updateGenerationProgress(info) {
+    if (!info) return;
+    // Keep node counters even when the loader is hidden, so a background
+    // search can report its current cumulative nodes when the student waits.
+    updateNodeProgress(info);
+    if (info.position) generationPositionChecks++;
+    if (info.phase) generationPhase = info.phase;
+    if (generationProgressActive) renderGenerationProgress();
+  }
+
+  function completeGenerationProgress() {
+    if (!generationProgressActive) return;
+    generationProgressCompleted = true;
+    generationCyclePercent = 100;
+    generationPhase = "Puzzle verified";
+    if (generationTicker) clearInterval(generationTicker);
+    generationTicker = null;
+    genProgressStage.textContent = "Puzzle verified";
+    genProgressPct.textContent = "100%";
+    genProgressFill.style.width = "100%";
+    if (genProgressTrack) genProgressTrack.setAttribute("aria-valuenow", "100");
+    genProgressMeta.textContent = "Elapsed " + formatProgressTime(Date.now() - generationStartedAt) + " · " + Math.floor(generationTotalNodes).toLocaleString() + " nodes searched";
+    genProgressEstimate.textContent = "A valid forced-mate puzzle has been found and verified.";
+  }
+
+  function stopGenerationProgress() {
+    generationProgressActive = false;
+    generationProgressCompleted = false;
+    if (generationTicker) clearInterval(generationTicker);
+    generationTicker = null;
+    if (genProgressEl) genProgressEl.classList.remove("mp-visible");
+  }
+
+  function recordGenerationDuration(levelId, durationMs) {
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return;
+    const key = String(levelId);
+    const previous = generationStats[key];
+    if (!previous || !Number.isFinite(Number(previous.avgMs))) {
+      generationStats[key] = { avgMs: Math.round(durationMs), samples: 1 };
+    } else {
+      const samples = Math.min(50, Math.max(1, Number(previous.samples) || 1));
+      // Smooth recent measurements so one unusually easy/hard puzzle
+      // does not make the estimate jump dramatically.
+      generationStats[key] = {
+        avgMs: Math.round(Number(previous.avgMs) * 0.70 + durationMs * 0.30),
+        samples: Math.min(50, samples + 1)
+      };
+    }
+    try { localStorage.setItem(GEN_STATS_KEY, JSON.stringify(generationStats)); } catch (err) {}
+  }
+
+  /* =========================================================
+     SOUND EFFECTS
+     Files are loaded from sounds/ relative to this HTML file.
+     Move sounds are only played after a move is accepted.
+  ========================================================= */
+  const SOUND_FILES = {
+    check: "check.mp3",
+    move: "move.mp3",
+    castle: "castle.mp3",
+    capture: "capture.mp3",
+    next: "next.mp3",
+    wrong: "wrong.mp3"
+  };
+  const soundPlayers = Object.create(null);
+  let soundPrimer = null;
+  let soundUnlocked = false;
+  let soundsInitialized = false;
+
+  // Create audio objects only when the Mate Puzzles section is first opened.
+  // This avoids audio downloads and decoding during ordinary MainUI startup.
+  function initializePuzzleSounds() {
+    if (soundsInitialized) return;
+    soundsInitialized = true;
+    Object.keys(SOUND_FILES).forEach(function (name) {
+      try {
+        const audio = new Audio(SOUND_PATH + SOUND_FILES[name]);
+        audio.preload = "auto";
+        audio.volume = 0.78;
+        soundPlayers[name] = audio;
+      } catch (err) {}
+    });
+    try {
+      soundPrimer = new Audio(SOUND_PATH + SOUND_FILES.move);
+      soundPrimer.preload = "auto";
+    } catch (err) { soundPrimer = null; }
+  }
+
+  // Prime audio from a genuine user gesture inside the visible puzzle section.
+  function unlockPuzzleSounds() {
+    if (!section.getClientRects().length) return;
+    if (!soundsInitialized) initializePuzzleSounds();
+    if (soundUnlocked || !soundPrimer) return;
+    const primer = soundPrimer;
+    try {
+      primer.muted = true;
+      const result = primer.play();
+      if (result && typeof result.then === "function") {
+        result.then(function () {
+          primer.pause();
+          primer.currentTime = 0;
+          primer.muted = false;
+          soundUnlocked = true;
+        }).catch(function () {
+          primer.muted = false;
+        });
+      } else {
+        primer.pause();
+        primer.currentTime = 0;
+        primer.muted = false;
+        soundUnlocked = true;
+      }
+    } catch (err) {
+      primer.muted = false;
+    }
+  }
+  document.addEventListener("pointerdown", unlockPuzzleSounds, { capture: true });
+  document.addEventListener("keydown", unlockPuzzleSounds, { capture: true });
+
+  function playPuzzleSound(name) {
+    if (!soundsInitialized) initializePuzzleSounds();
+    const audio = soundPlayers[name];
+    if (!audio) return;
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      const result = audio.play();
+      if (result && typeof result.catch === "function") result.catch(function () {});
+    } catch (err) {}
+  }
+
+  // Priority: a checking move, then castling, then a capture, then a normal move.
+  // The same helper is used for human moves and all automatic engine moves.
+  function playChessMoveSound(move, positionAfterMove) {
+    if (!move) return;
+    if (positionAfterMove && positionAfterMove.in_check()) {
+      playPuzzleSound("check");
+    } else if (move.flags && move.flags.indexOf("k") !== -1) {
+      playPuzzleSound("castle");
+    } else if (move.flags && move.flags.indexOf("c") !== -1) {
+      playPuzzleSound("capture");
+    } else {
+      playPuzzleSound("move");
+    }
+  }
+
+  /* =========================================================
+     BOARD RENDERING
+  ========================================================= */
+  function glyphNode(color, type) {
+    const s = document.createElement("span");
+    s.className = "mp-glyph " + (color === "w" ? "mp-white-glyph" : "mp-black-glyph");
+    s.textContent = PIECE_GLYPHS[color][type];
+    return s;
+  }
+
+  function pieceNode(color, type) {
+    const code = color + type.toUpperCase();
+    if (!failedImg[code]) {
+      const img = document.createElement("img");
+      img.className = "mp-piece";
+      img.alt = (color === "w" ? "White " : "Black ") + PIECE_NAMES[type];
+      img.draggable = false;
+      img.onerror = function () {
+        failedImg[code] = true;
+        if (img.parentNode) img.parentNode.replaceChild(glyphNode(color, type), img);
+      };
+      img.src = PIECE_PATH + code + ".png";
+      return img;
+    }
+    return glyphNode(color, type);
+  }
+
+  function kingSquare(game, color) {
+    const bd = game.board();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const p = bd[r][c];
+      if (p && p.type === "k" && p.color === color) return FILES[c] + (8 - r);
+    }
+    return null;
+  }
+
+  function renderBoard(game) {
+    game = game || g;
+    boardEl.innerHTML = "";
+    if (!game) return;
+    const checkSq = game.in_check() ? kingSquare(game, game.turn()) : null;
+    const tmap = {};
+    targets.forEach(function (t) { tmap[t.to] = t; });
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const row = flip ? 7 - r : r, col = flip ? 7 - c : c;
+        const name = FILES[col] + (8 - row);
+        const sq = document.createElement("div");
+        sq.className = "mp-sq " + ((row + col) % 2 === 0 ? "mp-light" : "mp-dark");
+        sq.dataset.sq = name;
+        if (lastMove && (lastMove.from === name || lastMove.to === name)) sq.classList.add("mp-last");
+        if (checkSq === name) sq.classList.add("mp-check");
+        if (selected === name) sq.classList.add("mp-sel");
+        if (hintSq === name) sq.classList.add("mp-hint");
+        if (wrongSq === name) sq.classList.add("mp-wrongsq");
+        if (mateSq === name) sq.classList.add("mp-okmate");
+        if (tmap[name]) { sq.classList.add("mp-target"); if (game.get(name)) sq.classList.add("mp-cap"); else if (tmap[name].flags.indexOf("e") !== -1) sq.classList.add("mp-cap"); }
+        if (c === 0) { const rl = document.createElement("span"); rl.className = "mp-coord-rank"; rl.textContent = "" + (8 - row); sq.appendChild(rl); }
+        if (r === 7) { const fl = document.createElement("span"); fl.className = "mp-coord-file"; fl.textContent = FILES[col]; sq.appendChild(fl); }
+        const p = game.get(name);
+        if (p) sq.appendChild(pieceNode(p.color, p.type));
+        boardEl.appendChild(sq);
+      }
+    }
+  }
+
+  function setLoading(on, text) {
+    loadingEl.classList.toggle("mp-on", on);
+    if (text) loadingText.textContent = text;
+  }
+
+  /* =========================================================
+     ENGINES (generator = background, play = answer checking)
+  ========================================================= */
+  function getPlayEngine() {
+    if (!playEng) playEng = new Engine(SF_SRC);
+    return playEng;
+  }
+
+  function showFatal(err) {
+    fatal = true;
+    stopGenerationProgress();
+    setLoading(true, "⚠️ Could not start the puzzle engine.");
+    bubble.textContent = "Engine error: check the file paths.";
+    mascot.textContent = "😵";
+    headerEl.textContent = "Puzzle engine unavailable";
+    guideBox.innerHTML = "<b>Setup problem</b><br>" + String(err && err.message ? err.message : err).replace(/</g, "&lt;") +
+      "<br><br>Needed: <b>" + SF_SRC + "</b> and the matching <b>.wasm</b> file in the same folder. Run the site from a web server (not by double-clicking the file).";
+  }
+
+  /* =========================================================
+     BACKGROUND PUZZLE BUFFER (infinite supply)
+  ========================================================= */
+  const engBusy = [false, false];
+  const genSearchStartedAt = [0, 0];
+  async function genLoop(i) {
+    if (fatal || engBusy[i] || !genEngs[i]) return;
+    engBusy[i] = true;
+    try {
+      for (;;) {
+        const lvl = currentLevel, tok = genTok;
+        const have = buffer[lvl.id].length;
+        if (!waiting && have >= BUFFER_TARGET) break;
+        if (waiting && have >= 1) break;
+        const searchStartedAt = Date.now();
+        genSearchStartedAt[i] = searchStartedAt;
+        const reportProgress = function (info) {
+          if (tok === genTok && lvl.id === currentLevel.id) updateGenerationProgress(info);
+        };
+        const p = await findPuzzle(genEngs[i], lvl, tok, reportProgress);
+        if (genSearchStartedAt[i] === searchStartedAt) genSearchStartedAt[i] = 0;
+        if (tok.dead || !p) continue;       // level changed meanwhile
+        recordGenerationDuration(lvl.id, Date.now() - searchStartedAt);
+        buffer[lvl.id].push(p);
+        if (waiting) {
+          waiting = false;
+          completeGenerationProgress();
+          await sleep(360);
+          if (!tok.dead && lvl.id === currentLevel.id) startPuzzle(buffer[lvl.id].shift());
+        }
+      }
+    } catch (err) {
+      showFatal(err);
+    }
+    engBusy[i] = false;
+    if (!fatal && (waiting || buffer[currentLevel.id].length < BUFFER_TARGET)) genLoop(i);
+  }
+
+  function fillBuffer() {
+    if (fatal || !genEngs[0]) return;
+    genLoop(0);
+    if (waiting) {                          // student is waiting: use a second engine to find one twice as fast
+      if (!genEngs[1]) genEngs[1] = new Engine(SF_SRC);
+      genLoop(1);
+    }
+  }
+
+  function abortGeneration() {
+    genTok.dead = true;
+    genTok = { dead: false };
+    genSearchStartedAt[0] = 0;
+    genSearchStartedAt[1] = 0;
+    genEngs.forEach(function (e) { if (e) e.stop(); });
+  }
+
+  /* =========================================================
+     GAME FLOW
+  ========================================================= */
+  function resetUi() {
+    gameBox.classList.remove("mp-good", "mp-bad");
+    feedback.style.display = "none";
+    actionBtn.style.display = "none";
+    actionBtn.style.background = "";
+    actionBtn.style.color = "";
+    selected = null; targets = []; hintSq = null; wrongSq = null; mateSq = null;
+    closePromo(); closeAssist();
+    hintBtn.disabled = true; solutionBtn.disabled = true;
+  }
+
+  function loadPuzzle() {
+    if (fatal) return;
+    cancelAutoNext();
+    loadToken++;
+    busy = true;
+    stage = "loading";
+    resetUi();
+    headerEl.textContent = "Preparing a fresh puzzle…";
+    mascot.textContent = "🦇";
+    bubble.textContent = "Building a new position…";
+    guideBox.innerHTML = "<b>Building a brand-new puzzle…</b><br>Stockfish is searching for a real forced mate. Most puzzles take just a few seconds.";
+    const b = buffer[currentLevel.id];
+    if (b.length) {
+      startPuzzle(b.shift());
+      fillBuffer();
+    } else {
+      setLoading(true, "Searching for a " + currentLevel.label.toLowerCase() + "…");
+      boardEl.innerHTML = "";
+      waiting = true;
+      const activeSearchStarts = genSearchStartedAt.filter(function (t) { return t > 0; });
+      startGenerationProgress(activeSearchStarts.length ? Math.min.apply(Math, activeSearchStarts) : Date.now());
+      fillBuffer();
+    }
+  }
+
+  function startPuzzle(p) {
+    stopGenerationProgress();
+    puzzle = p;
+    g = new Chess(p.fen);
+    curPV = p.pv ? p.pv.slice() : null;
+    movesLeft = p.mate;
+    flip = g.turn() === "b";
+    lastMove = p.last;
+    failed = false; assisted = false; mateInfo = null;
+    stage = "solve"; busy = false;
+    resetUi();
+    hintBtn.disabled = false; solutionBtn.disabled = false;
+    setLoading(false);
+
+    const side = g.turn() === "w" ? "White" : "Black";
+    headerEl.textContent = side + " to play: mate in " + p.mate;
+    mascot.textContent = "🤔";
+    bubble.textContent = "Find the forced checkmate in " + p.mate + (p.mate === 1 ? " move." : " moves.");
+    guideBox.innerHTML =
+      '<span class="mp-turn-chip"><span class="mp-turn-dot ' + (g.turn() === "w" ? "mp-w" : "mp-b") + '"></span>' + side + " to move · <b style=\"color:#ffd700;\">Mate in " + p.mate + "</b></span><br><br>" +
+      "<b>How to play:</b> tap one of your pieces, then tap the square you want to move it to. A wrong move snaps back, so try again.";
+    renderBoard();
+  }
+
+  /* ---------- tap-to-move ---------- */
+  boardEl.addEventListener("click", function (e) {
+    const sqEl = e.target.closest(".mp-sq");
+    if (!sqEl) return;
+    onSquare(sqEl.dataset.sq);
+  });
+
+  function onSquare(sq) {
+    if (stage !== "solve" || busy || !g) return;
+    hintSq = null;
+    if (selected && sq !== selected) {
+      const mv = targets.find(function (t) { return t.to === sq; });
+      if (mv) {
+        if (mv.flags.indexOf("p") !== -1) { openPromo(selected, sq); return; }
+        tryMove(selected, sq, null);
+        return;
+      }
+    }
+    const piece = g.get(sq);
+    if (piece && piece.color === g.turn() && selected !== sq) {
+      selected = sq;
+      targets = g.moves({ square: sq, verbose: true });
+    } else { selected = null; targets = []; }
+    renderBoard();
+  }
+
+  /* ---------- promotion popup ---------- */
+  let promoPending = null;
+  function openPromo(from, to) {
+    promoPending = { from: from, to: to };
+    promoGrid.innerHTML = "";
+    const color = g.turn();
+    ["q", "r", "b", "n"].forEach(function (t) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "mp-promo-btn"; b.title = PIECE_NAMES[t];
+      b.appendChild(pieceNode(color, t));
+      b.addEventListener("click", function () {
+        const pp = promoPending;
+        closePromo();
+        if (pp) tryMove(pp.from, pp.to, t);
+      });
+      promoGrid.appendChild(b);
+    });
+    promoModal.classList.add("mp-open");
+  }
+  function closePromo() { promoPending = null; promoModal.classList.remove("mp-open"); }
+  promoModal.addEventListener("click", function (e) {
+    if (e.target === promoModal) { closePromo(); selected = null; targets = []; renderBoard(); }
+  });
+
+  /* ---------- check one move against the puzzle ---------- */
+  async function analyzeNow(fen, R) {
+    return getPlayEngine().analyze({ fen: fen, depth: Math.min(22, 2 * R + 6), movetime: Math.min(4000, 800 + 500 * R), multipv: 1 });
+  }
+
+  async function judge(t, uci) {
+    if (t.in_checkmate()) return { ok: true, mated: true };
+    if (movesLeft === 1) return { ok: false };
+    if (curPV && curPV.length >= 2 && curPV[0] === uci) return { ok: true, afterPV: curPV.slice(1) };
+    // a different move: still fine if it keeps a forced mate in time
+    try {
+      const r = await analyzeNow(t.fen(), movesLeft - 1);
+      const L = r.lines[1];
+      if (L && L.type === "mate" && L.val < 0 && -L.val <= movesLeft - 1) return { ok: true, afterPV: L.pv };
+    } catch (err) {}
+    return { ok: false };
+  }
+
+  async function tryMove(from, to, promo) {
+    busy = true;
+    selected = null; targets = [];
+    const mvObj = { from: from, to: to };
+    if (promo) mvObj.promotion = promo;
+    const t = new Chess(g.fen());
+    const mv = t.move(mvObj);
+    if (!mv) { busy = false; renderBoard(); return; }
+    const uci = from + to + (promo || "");
+    const prevLast = lastMove;
+
+    const fast = t.in_checkmate() || movesLeft === 1 || (curPV && curPV[0] === uci);
+    if (!fast) {                         // show the move while Stockfish double-checks it
+      lastMove = { from: from, to: to };
+      bubble.textContent = "Checking your move…";
+      renderBoard(t);
+    }
+    const v = await judge(t, uci);
+
+    if (!v.ok) {                          // WRONG: show it briefly, then snap back
+      lastMove = prevLast;
+      wrongSq = to;
+      renderBoard(t);
+      onWrong();
+      await sleep(520);
+      wrongSq = null;
+      renderBoard();
+      busy = false;
+      return;
+    }
+
+    g = t; lastMove = { from: from, to: to };
+    playChessMoveSound(mv, g);
+    mateInfo = { piece: mv.piece, to: to };
+    if (v.mated) { renderBoard(); finishPuzzle(); return; }
+
+    renderBoard();
+    mascot.textContent = "😎";
+    bubble.textContent = "Good move! The enemy replies…";
+    await sleep(520);
+    let reply = v.afterPV && v.afterPV[0];
+    let after = v.afterPV ? v.afterPV.slice(1) : null;
+    let replyMove = reply ? g.move(moveObj(reply)) : null;
+    if (!replyMove) {
+      try {
+        const r = await analyzeNow(g.fen(), movesLeft - 1);
+        reply = r.best;
+        after = r.lines[1] ? r.lines[1].pv.slice(1) : null;
+        replyMove = reply ? g.move(moveObj(reply)) : null;
+      } catch (err) {}
+    }
+    if (replyMove) playChessMoveSound(replyMove, g);
+    const hist = g.history({ verbose: true });
+    const lm = hist[hist.length - 1];
+    lastMove = lm ? { from: lm.from, to: lm.to } : lastMove;
+    movesLeft--;
+    curPV = after;
+    renderBoard();
+    mascot.textContent = "🤔";
+    bubble.textContent = "Correct so far! Now mate in " + movesLeft + (movesLeft === 1 ? " move." : " moves.");
+    headerEl.textContent = (g.turn() === "w" ? "White" : "Black") + " to play: mate in " + movesLeft;
+    busy = false;
+  }
+
+  /* ---------- wrong / finished ---------- */
+  function onWrong() {
+    playPuzzleSound("wrong");
+    boardBox.classList.remove("mp-shake"); void boardBox.offsetWidth; boardBox.classList.add("mp-shake");
+    gameBox.classList.add("mp-bad");
+    mascot.textContent = "😅";
+    bubble.textContent = "Not that one. The piece snapped back, try again!";
+    setTimeout(function () { if (stage === "solve") gameBox.classList.remove("mp-bad"); }, 1100);
+    if (!failed) {
+      failed = true;
+      const old = state.rating;
+      state.wrong++;
+      state.streak = 0;
+      if (!assisted) state.rating = Math.max(0, state.rating - 1);
+      state.points = Math.max(0, state.points - 5);
+      showDelta(state.rating - old);
+      saveState(); renderStats();
+      feedback.style.background = "rgba(251,113,133,0.15)";
+      feedback.style.borderColor = "rgba(251,113,133,0.3)";
+      feedback.innerHTML = '<b class="mp-fb-title" style="color:#fb7185;">Not quite.</b>' +
+        (assisted ? "" : "-1 rating. ") + "Keep going: you can still solve this puzzle for practice.";
+      feedback.style.display = "block";
+    }
+  }
+
+  function finishPuzzle() {
+    playPuzzleSound("next");
+    stage = "feedback"; busy = false;
+    hintBtn.disabled = true; solutionBtn.disabled = true;
+    hintSq = null; selected = null; targets = [];
+    mateSq = g ? kingSquare(g, g.turn()) : null;
+    renderBoard();
+
+    const old = state.rating;
+    const gain = currentLevel.gain;
+    const how = mateInfo ? " with the " + PIECE_NAMES[mateInfo.piece] + " on " + mateInfo.to : "";
+    let pts = 0;
+    const clean = !failed && !assisted;
+    if (clean) {
+      state.correct++; state.streak++;
+      if (state.streak > state.best) state.best = state.streak;
+      state.rating += gain;
+      pts = 5 + gain * 5 + Math.min(10, (state.streak - 1) * 2);
+      state.points += pts;
+    }
+    gameBox.classList.add("mp-good"); gameBox.classList.remove("mp-bad");
+    mascot.textContent = clean ? "🎉" : "👍";
+    bubble.textContent = clean ? "Checkmate! +" + gain + " rating · +" + pts + " points" : "Checkmate! (practice, rating unchanged)";
+    feedback.style.background = "rgba(52,211,153,0.15)";
+    feedback.style.borderColor = "rgba(52,211,153,0.3)";
+    feedback.innerHTML = '<b class="mp-fb-title" style="color:#34d399;">Checkmate!</b>Mate in ' + puzzle.mate + how + "." +
+      (clean ? "" : ' <i style="color:#aeb3cf;">Practice mode: no rating gain.</i>') +
+      ' Press <b style="display:inline;color:#ffd700;">Next Puzzle</b> when you are ready.';
+    feedback.style.display = "block";
+    actionBtn.style.display = "block";
+    actionBtn.style.background = "linear-gradient(145deg,#34d399,#10b981)";
+    actionBtn.style.color = "#042f2e";
+    showDelta(state.rating - old);
+    saveState(); renderStats();
+    if (autoNextEnabled) scheduleAutoNext();
+  }
+
+  /* ---------- hint / solution ---------- */
+  let assistKind = null;
+  function openAssist(kind) {
+    if (stage !== "solve" || busy) return;
+    if (assisted) { runAssist(kind); return; }          // already agreed once
+    assistKind = kind;
+    assistIcon.textContent = kind === "hint" ? "💡" : "🔍";
+    assistTitle.textContent = kind === "hint" ? "Use a hint?" : "Show the solution?";
+    assistModal.classList.add("mp-open");
+  }
+  function closeAssist() { assistKind = null; assistModal.classList.remove("mp-open"); }
+
+  async function bestLine() {
+    if (curPV && curPV.length) return curPV;
+    const r = await analyzeNow(g.fen(), movesLeft);
+    curPV = r.lines[1] ? r.lines[1].pv : null;
+    return curPV;
+  }
+
+  async function runAssist(kind) {
+    assisted = true;
+    busy = true;
+    selected = null; targets = [];
+    try {
+      if (kind === "hint") {
+        bubble.textContent = "Thinking…";
+        const pv = await bestLine();
+        if (pv && pv[0]) { hintSq = pv[0].slice(0, 2); bubble.textContent = "Try moving the highlighted piece."; }
+        renderBoard();
+        busy = false;
+        return;
+      }
+      // full solution: play the whole line on the board
+      while (!g.in_checkmate() && stage === "solve") {
+        bubble.textContent = "Here is the solution…";
+        const pv = await bestLine();
+        if (!pv || !pv.length) break;
+        const mv = g.move(moveObj(pv[0]));
+        if (!mv) break;
+        playChessMoveSound(mv, g);
+        lastMove = { from: mv.from, to: mv.to };
+        mateInfo = { piece: mv.piece, to: mv.to };
+        renderBoard();
+        if (g.in_checkmate()) break;
+        await sleep(750);
+        let reply = pv[1];
+        if (!reply) { const r = await analyzeNow(g.fen(), movesLeft - 1); reply = r.best; }
+        const rm = reply ? g.move(moveObj(reply)) : null;
+        if (!rm) break;
+        playChessMoveSound(rm, g);
+        lastMove = { from: rm.from, to: rm.to };
+        movesLeft--;
+        curPV = pv.slice(2);
+        renderBoard();
+        await sleep(750);
+      }
+    } catch (err) {
+      bubble.textContent = "The engine could not help right now.";
+      busy = false;
+      return;
+    }
+    if (g.in_checkmate()) finishPuzzle(); else busy = false;
+  }
+
+  hintBtn.addEventListener("click", function () { openAssist("hint"); });
+  solutionBtn.addEventListener("click", function () { openAssist("solution"); });
+  assistYes.addEventListener("click", function () { const k = assistKind; closeAssist(); if (k) runAssist(k); });
+  assistNo.addEventListener("click", closeAssist);
+  assistModal.addEventListener("click", function (e) { if (e.target === assistModal) closeAssist(); });
+
+  /* =========================================================
+     STATS & LEVELS
+  ========================================================= */
+  function rankFor(rating) {
+    let idx = 0;
+    for (let i = 0; i < RANKS.length; i++) if (rating >= RANKS[i].min) idx = i;
+    return idx;
+  }
+
+  function renderStats() {
+    ratingEl.textContent = state.rating;
+    pointsEl.textContent = state.points;
+    streakEl.textContent = state.streak;
+    bestEl.textContent = state.best;
+    rwEl.textContent = state.correct + " / " + state.wrong;
+    const total = state.correct + state.wrong;
+    accEl.textContent = total ? Math.round((state.correct / total) * 100) + "%" : "0%";
+    const i = rankFor(state.rating), cur = RANKS[i], nxt = RANKS[i + 1];
+    rankEl.textContent = cur.icon + " " + cur.name;
+    if (nxt) {
+      const pct = ((state.rating - cur.min) / (nxt.min - cur.min)) * 100;
+      rankFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+      nextRankEl.textContent = (nxt.min - state.rating) + " more to become " + nxt.icon + " " + nxt.name;
+    } else {
+      rankFill.style.width = "100%";
+      nextRankEl.textContent = "Top rank reached! 👑";
+    }
+  }
+
+  function renderLevels() {
+    levelsEl.innerHTML = "";
+    LEVELS.forEach(function (L) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "mp-lv" + (L.id === state.level ? " mp-on" : "");
+      b.innerHTML = "<b>" + L.name + "</b><span>" + L.sub + " (+" + L.gain + ")</span>";
+      b.addEventListener("click", function () {
+        if (state.level === L.id) return;
+        state.level = L.id;
+        currentLevel = L;
+        saveState();
+        renderLevels();
+        waiting = false;
+        abortGeneration();
+        if (booted) loadPuzzle();
+      });
+      levelsEl.appendChild(b);
+    });
+    levelText.textContent = currentLevel.label + " (" + currentLevel.sub + "): find a forced checkmate" +
+      (currentLevel.hi > currentLevel.lo ? " in " + currentLevel.lo + " to " + currentLevel.hi + " moves" : " in " + currentLevel.lo + (currentLevel.lo === 1 ? " move" : " moves")) +
+      ". +" + currentLevel.gain + " rating per clean solve.";
+  }
+
+  function showDelta(d) {
+    deltaEl.className = "mp-delta";
+    void deltaEl.offsetWidth;
+    if (d === 0) return;
+    deltaEl.textContent = d > 0 ? "+" + d : "" + d;
+    deltaEl.classList.add(d > 0 ? "mp-up" : "mp-down");
+  }
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+  autoNextToggle.addEventListener("click", function () {
+    autoNextEnabled = !autoNextEnabled;
+    try { localStorage.setItem(AUTO_NEXT_KEY, autoNextEnabled ? "1" : "0"); } catch (err) {}
+    updateAutoNextUI();
+    if (autoNextEnabled && stage === "feedback") scheduleAutoNext();
+    else cancelAutoNext();
+  });
+
+  actionBtn.addEventListener("click", function () { if (stage === "feedback") loadPuzzle(); });
+  subSkipBtn.addEventListener("click", function () { if (booted) loadPuzzle(); });
+  skipBtn.addEventListener("click", function () { if (booted) loadPuzzle(); });
+
+  let resetTimer = null;
+  resetBtn.addEventListener("click", function () {
+    if (resetTimer === null) {
+      resetBtn.textContent = "Tap again to confirm reset";
+      resetTimer = setTimeout(function () { resetBtn.textContent = "Reset my progress"; resetTimer = null; }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetTimer = null;
+    resetBtn.textContent = "Reset my progress";
+    const keepLevel = state.level;
+    Object.assign(state, defaults());
+    state.level = keepLevel;
+    currentLevel = LEVELS.find(function (l) { return l.id === keepLevel; }) || LEVELS[1];
+    saveState(); renderStats(); renderLevels();
+    if (booted) loadPuzzle();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (section.getClientRects().length === 0) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (e.key === "Escape") {
+      if (promoModal.classList.contains("mp-open")) { closePromo(); selected = null; targets = []; renderBoard(); }
+      else if (assistModal.classList.contains("mp-open")) closeAssist();
+      else if (selected) { selected = null; targets = []; renderBoard(); }
+      return;
+    }
+    if (stage === "feedback" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); loadPuzzle(); }
+  });
+
+  /* =========================================================
+     INIT: engines start only when the tab is first opened,
+     so this game costs nothing until a student uses it.
+  ========================================================= */
+  let booted = false;
+  let visibilityObserver = null;
+  let visibilityPoll = null;
+  function boot() {
+    if (booted) return;
+    booted = true;
+    if (visibilityObserver) visibilityObserver.disconnect();
+    if (visibilityPoll) clearInterval(visibilityPoll);
+    initializePuzzleSounds();
+    setLoading(true, "Starting Stockfish…");
+    Promise.resolve().then(function () {
+      genEngs[0] = new Engine(SF_SRC);
+      return genEngs[0].ready;
+    }).then(function () {
+      loadPuzzle();
+    }).catch(showFatal);
+  }
+
+  document.body.appendChild(promoModal);
+  document.body.appendChild(assistModal);
+
+  updateAutoNextUI();
+  renderStats();
+  renderLevels();
+  saveState();
+
+  function maybeBoot() {
+    if (!booted && section.getClientRects().length > 0) boot();
+  }
+  try {
+    if (typeof MutationObserver !== "undefined") {
+      visibilityObserver = new MutationObserver(maybeBoot);
+      // MainUI may reveal the section by changing either its own class or a parent tab.
+      for (let node = section; node; node = node.parentElement) {
+        visibilityObserver.observe(node, {
+          attributes: true,
+          attributeFilter: ["class", "style", "hidden", "aria-hidden"]
+        });
+      }
+    }
+  } catch (e) {
+    visibilityObserver = null;
+  }
+  visibilityPoll = setInterval(maybeBoot, 500); // fallback for MainUI tab systems without observed attributes
+  maybeBoot();
+})();
+</script>
+
+
+
 
 <!-- =========================================================
      2) CSS + SECTION HTML + JAVASCRIPT   (all classes prefixed "vm-")
@@ -71620,6 +73477,7 @@ const LEVELS = [
   loadPuzzle();
 })();
 </script>
+
 
 
 <!-- =============================================================
@@ -191218,7 +193076,7 @@ const lockedTabs = [
   "legalChecks", "squareColorZone", "diagonalQuiz" ,  "moveQuiz",
   "puzzlerush", "routeQuiz",  "quadrantQuiz", "gapCounting",
   "guessElo", "attackDetection", "attackRelations", "visualizeMoves", 
-"puzzlebattle", "visualizeMovesHard", "learnNotation",
+"puzzlebattle", "visualizeMovesHard", "learnNotation", "matePuzzles",
 "puzzletrainer",
 "computer",
 "quiz",
@@ -264185,6 +266043,7 @@ style="
 
 training: [
   '[data-tab= "learnNotation" ]',
+   '[data-tab= "matePuzzles" ]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
