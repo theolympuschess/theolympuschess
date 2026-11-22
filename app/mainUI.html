@@ -82527,7 +82527,7 @@ window.CanItMoveGame={
 .bf-sub { font-size:10px;color:#aeb3cf;margin-top:4px; }
 
 #bf-settings {
- display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+ display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
  gap:12px;margin-bottom:14px;
 }
 .bf-setting { min-width:0; }
@@ -82701,6 +82701,41 @@ window.CanItMoveGame={
 }
 #bf-promotion-help { margin-top:9px;color:#aeb3cf;font-size:10px; }
 
+/* ---- VOICE ROW ---- */
+#bf-voice-row{
+ display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap;
+}
+.bf-voice-help{
+ flex:1;min-width:170px;font-size:10px;color:#c9cbe3;line-height:1.7;
+}
+.bf-voice-help b{ color:#ffe7a0; }
+.bf-kbd{
+ display:inline-block;min-width:22px;padding:1px 7px;border-radius:6px;
+ border:1px solid #7c5cd6;border-bottom-width:3px;background:#2a2150;
+ color:#ffd700;font:900 11px ui-monospace,Consolas,monospace;
+ text-align:center;vertical-align:baseline;
+}
+#bf-voice-row2{
+ display:flex;gap:8px;margin-top:9px;align-items:center;flex-wrap:wrap;
+}
+#bf-voice-row2 label{ font-size:10px;color:#aeb3cf;font-weight:900; }
+#bf-voice-lang{
+ background:#101629;color:#fff;padding:6px 8px;
+ border:1px solid #45436d;border-radius:8px;font-size:11px;max-width:100%;
+}
+#bf-voice-status{
+ font-size:10px;color:#aeb3cf;font-weight:800;
+}
+#bf-speak-move.listening{
+ background:linear-gradient(130deg,#ef4444,#b91c1c)!important;
+ border:0!important;color:#fff!important;
+ animation:bfPulse 1s infinite;
+}
+@keyframes bfPulse{
+ 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.6);}
+ 50%{box-shadow:0 0 0 10px rgba(239,68,68,0);}
+}
+
 #bf-rating-panel {
  background:linear-gradient(160deg,rgba(255,215,0,.18),rgba(20,24,42,.97) 60%);
  border:1px solid rgba(255,215,0,.4);
@@ -82819,6 +82854,14 @@ window.CanItMoveGame={
     </div>
 
     <div class="bf-setting">
+     <label>ANNOUNCE ENGINE MOVES</label>
+     <div class="bf-segments">
+      <button type="button" class="active" id="bf-announce-yes">YES</button>
+      <button type="button" id="bf-announce-no">NO</button>
+     </div>
+    </div>
+
+    <div class="bf-setting">
      <label>ENGINE</label>
      <div class="bf-pill" id="bf-elo-label">1600 ELO</div>
      <div id="bf-engine-state">Lazy-loaded · starts when needed</div>
@@ -82841,6 +82884,8 @@ window.CanItMoveGame={
      <div class="bf-sub" style="line-height:1.7">
       The board never displays pieces. Read the legal moves, calculate mentally,
       and select your move. Promotion creates separate Q, R, B and N choices.
+      You can also say your move out loud: press the microphone button, or
+      hold the B key while you speak and release it when you are done.
      </div>
     </div>
    </div>
@@ -82955,6 +83000,34 @@ window.CanItMoveGame={
       <input id="bf-input" type="text" placeholder="SAN or UCI · e.g. Nf3 or e2e4" autocomplete="off" spellcheck="false">
       <button type="button" id="bf-submit">PLAY</button>
      </div>
+
+     <div id="bf-voice-row">
+      <button type="button" class="bf-btn" id="bf-speak-move">🎤 SPEAK MOVE</button>
+      <div class="bf-voice-help">
+       Hold <span class="bf-kbd">B</span> and say your move, then release.<br>
+       Try: <b>“Nc3”</b> · <b>“knight to c3”</b> · <b>“queen takes d7 check”</b> ·
+       <b>“q cross d7”</b> · <b>“exd5”</b> · <b>“castle short”</b> · <b>“e8 queen”</b> · <b>“e8 equals knight”</b>.<br>
+       Saying “check” or “mate” is optional. Say just a piece (<b>“knight”</b>), <b>“takes”</b> or <b>“check”</b> to filter the move list.
+      </div>
+     </div>
+
+     <div id="bf-voice-row2">
+      <label for="bf-voice-lang">VOICE LANGUAGE</label>
+      <select id="bf-voice-lang">
+       <option value="en-US">English (US)</option>
+       <option value="en-IN">English (India)</option>
+       <option value="en-GB">English (UK)</option>
+       <option value="hi-IN">हिन्दी · Hindi</option>
+       <option value="bn-IN">বাংলা · Bengali</option>
+       <option value="es-ES">Español · Spanish</option>
+       <option value="fr-FR">Français · French</option>
+       <option value="de-DE">Deutsch · German</option>
+       <option value="pt-BR">Português · Portuguese</option>
+       <option value="it-IT">Italiano · Italian</option>
+       <option value="ru-RU">Русский · Russian</option>
+      </select>
+      <span id="bf-voice-status"></span>
+     </div>
     </section>
 
    </aside>
@@ -82973,6 +83046,7 @@ window.__OLYMPUS_BLINDFOLD_MAINUI_V1__=true;
 
 const $=id=>root.querySelector("#bf-"+id);
 const STORAGE_KEY="olympusBlindfoldChess_v1";
+const SPEECH_KEY="olympusBlindfoldSpeech_v1";
 const CHESS_SRC="chess.min.js";
 const STOCKFISH_SRC="stockfish/stockfish-19-lite-single.js";
 
@@ -82992,6 +83066,20 @@ let worker=null;
 let engineReady=false;
 let engineReadyPromise=null;
 let activeSearch=null;
+
+// Voice filter used when the user says only a piece name or "takes".
+let voiceFilter=null;
+
+// Speech settings (separate from rating stats so nothing breaks).
+let speechSettings={announce:true,lang:"en-US"};
+try{
+ const s=JSON.parse(localStorage.getItem(SPEECH_KEY)||"null");
+ if(s&&typeof s==="object"){
+  if(s.announce===false)speechSettings.announce=false;
+  if(typeof s.lang==="string"&&s.lang)speechSettings.lang=s.lang;
+ }
+}catch(e){}
+function saveSpeech(){try{localStorage.setItem(SPEECH_KEY,JSON.stringify(speechSettings));}catch(e){}}
 
 // Map engine piece types and colors to your image filenames
 const PIECE_IMAGES = {
@@ -83239,7 +83327,6 @@ function renderBoard(){
      const p = boardMap[square];
      const img = document.createElement("img");
      img.className = "bf-piece-img";
-     // Use the asset path requested
      img.src = "assets/pieces/" + PIECE_IMAGES[p.type][p.color] + ".png";
      img.alt = p.color + p.type;
      sq.appendChild(img);
@@ -83298,7 +83385,12 @@ function renderMoves(){
   el.innerHTML='<div class="bf-empty">🤖 Stockfish is calculating…</div>';
   $("move-count").textContent="ENGINE TURN";return;
  }
- const moves=legalMoves();
+ let moves=legalMoves();
+ if(voiceFilter&&voiceFilter.length){
+  moves=moves.filter(m=>voiceFilter.some(v=>
+   v.from===m.from&&v.to===m.to&&v.promotion===m.promotion
+  ));
+ }
  $("move-count").textContent=moves.length+" LEGAL MOVES";
  if(!moves.length){
   el.innerHTML='<div class="bf-empty">No legal moves available.</div>';return;
@@ -83415,6 +83507,7 @@ function checkGameEnd(){
 
 async function startNewGame(){
  const token=++gameToken;
+ voiceFilter=null;
  if(activeSearch){
   stopEngine();
   try{await new Promise(resolve=>{
@@ -83430,6 +83523,7 @@ async function startNewGame(){
   started=true;gameFinished=false;resultRecorded=false;
   clearResult();$("feedback").textContent="";
   $("feedback").className="";
+  $("voice-status").textContent="";
   flipped=userSide==="b";
   renderAll();
   if(chess.turn()!==userSide)computerMove();
@@ -83439,10 +83533,510 @@ async function startNewGame(){
  }
 }
 
+/* =========================================================
+   SPEECH: MOVE DESCRIPTIONS + ANNOUNCE
+========================================================= */
+function moveToSpeech(move){
+ if(!move)return "";
+ const PN={p:"Pawn",n:"Knight",b:"Bishop",r:"Rook",q:"Queen",k:"King"};
+ let s;
+ if(move.san==="O-O")s="Short castle";
+ else if(move.san==="O-O-O")s="Long castle";
+ else{
+  const mover=PN[move.piece]||"Piece";
+  if(move.captured){
+   s=mover+" takes "+(PN[move.captured]||"piece")+" on "+move.to;
+  }else{
+   s=mover+" to "+move.to;
+  }
+  if(move.promotion){
+   s+=", promotes to "+(PN[move.promotion]||"queen");
+  }
+ }
+ if(checkmate())s+=". Checkmate.";
+ else if(inCheck())s+=". Check.";
+ return s;
+}
+
+function announceEngine(move){
+ if(!speechSettings.announce)return;
+ const phrase=moveToSpeech(move);
+ if(!phrase)return;
+ try{
+  if(typeof window.coachSay==="function")window.coachSay(phrase);
+  else if("speechSynthesis" in window){
+   const u=new SpeechSynthesisUtterance(phrase);
+   window.speechSynthesis.speak(u);
+  }
+ }catch(e){}
+}
+
+/* =========================================================
+   SPEECH: MULTILINGUAL MOVE PARSER
+   All languages are merged into one dictionary, so the
+   parser understands piece names, capture words, castling
+   words and numbers from every supported language at once.
+========================================================= */
+function stripAccents(t){
+ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function buildDict(map){
+ const d={};
+ Object.keys(map).forEach(canon=>{
+  map[canon].split(/\s+/).forEach(w=>{
+   if(w)d[stripAccents(w.toLowerCase())]=canon;
+  });
+ });
+ return d;
+}
+
+const WORDS=buildDict({
+ // ---- PIECES ----
+ knight:"knight knights night nights nite knite nigh neit nait horse horses caballo caballos cavalier cavaliere springer pferd cavalo cavallo cavallino конь коня ghoda ghora घोड़ा घोड़े घोडा ঘোড়া",
+ bishop:"bishop bishops bishup bisop bishopp bisha vishop alfil alfiles fou fous laufer lauefer bispo bispos alfiere слон слона oont unt ऊंट ऊँट उंट উট",
+ rook:"rook rooks brook brooke rock rocks ruk rooke look rok torre torres tour tours turm turme ладья ладью hathi haathi हाथी হাতি",
+ queen:"queen queens quinn quin kween qween dama reina regina dame reine rainha donna ферзь ферзя королева vazir wazir vizier वज़ीर वजीर rani रानी রানী montri mantri মন্ত্রী",
+ king:"king kings kin keen rey roi konig koenig rei re король короля raja rajah राजा রাজা",
+ pawn:"pawn pawns paun porn pond peon peones pion pions bauer pedone peao пешка пешку пешки pyada pyaada प्यादा प्यादे বোড়ে",
+ // ---- CAPTURE ----
+ takes:"takes take taking taken took tax tacks text takers tix captures capture capturing captured cross crosses crossing crossed x ex eats eat kills kill hits hit beats beat captura capturas capturar come comer toma tomas tomar prend prends prendre prise mange manger schlagt schlage schlagen nimmt nehmen prende prendi cattura catturare mangia бьет берет бери maro maaro mara marta मारो मारा मारना मार kato kata kato काटो काटा काट khao खाओ মারো কাটো মার কাট",
+ // ---- CHECK / MATE / PROMOTION WORDS ----
+ check:"check checks checking checked chek cheque czech plus jaque echec schach scacco xeque шах shah শাহ",
+ mate:"mate checkmate checkmates mat matt mates mated schachmatt matto jaquemate мат",
+ promote:"promote promotes promoted promoting promotion promotions equals equal becomes become underpromote underpromotes underpromotion under coronar corona promociona promouvoir umwandlung umwandeln promuove promozione",
+ // ---- CASTLING ----
+ castle:"castle castles castling castled enroque enrocar enroca roque rochade rochieren arrocco arroccare рокировка рокировку",
+ short:"short kingside petit corto curto kurze kurz corta короткая малая chhota chota छोटा",
+ long:"long queenside grand largo longo lange lang lunga длинная большая bada बड़ा",
+ // ---- NUMBERS ----
+ "1":"one un une uno um uma ein eins один odin ek एक এক",
+ "2":"two dos deux dois due zwei два dva do दो দুই",
+ "3":"three tres trois tre drei три tri teen तीन তিন",
+ "4":"four cuatro quatre quatro quattro vier четыре chetyre char चार চার",
+ "5":"five cinco cinq cinque funf пять pyat panch paanch pach पांच पाँच পাঁচ",
+ "6":"six seis sechs sei шесть shest chhe chhah छह छः ছয়",
+ "7":"seven siete sept sete sette sieben семь sem saat सात সাত",
+ "8":"eight ocho huit oito otto acht восемь vosem aath आठ আট"
+});
+
+// Spoken letter names that only count when followed by a number.
+const LETTER_HOMO={
+ bee:"b",be:"b",see:"c",sea:"c",cee:"c",dee:"d",gee:"g",
+ eff:"f",ef:"f",aitch:"h",age:"h",ay:"a",ee:"e",
+ // NATO alphabet
+ alfa:"a",alpha:"a",bravo:"b",charlie:"c",delta:"d",echo:"e",foxtrot:"f",golf:"g",hotel:"h",
+ // Spanish / French / German / Italian letter names
+ ce:"c",de:"d",ge:"g",efe:"f",ache:"h",hache:"h",ha:"h",
+ bi:"b",ci:"c",di:"d",effe:"f",gi:"g",acca:"h",
+ // Russian letter names
+ "а":"a","бэ":"b","цэ":"c","дэ":"d","е":"e","эф":"f","гэ":"g","аш":"h"
+};
+// Spoken piece letters that only count when followed by a square.
+const PIECE_LETTER_HOMO={cue:"q",queue:"q",que:"q",kay:"k",okay:"k",are:"r",arr:"r"};
+// Number homophones that only count right after a file letter.
+const NUM_FOLLOW={for:"4",fore:"4",ate:"8",won:"1",tree:"3",free:"3",to:"2",too:"2"};
+
+const CANON_PIECE={knight:"n",bishop:"b",rook:"r",queen:"q",king:"k",pawn:"p"};
+const PIECE_NAME={p:"pawn",n:"knight",b:"bishop",r:"rook",q:"queen",k:"king"};
+const KNIGHT_MISHEARD={and:1,end:1,an:1,en:1,ann:1};
+
+function tokenizeMove(text){
+ let s=stripAccents(String(text||"").toLowerCase());
+ // Devanagari and Bengali digits -> ASCII
+ s=s.replace(/[\u0966-\u096F]/g,c=>String(c.charCodeAt(0)-0x966))
+    .replace(/[\u09E6-\u09EF]/g,c=>String(c.charCodeAt(0)-0x9E6));
+ s=s.replace(/[^\p{L}\p{M}\p{N}\s]/gu," ").replace(/\s+/g," ").trim();
+ const plain=" "+s+" ";
+ const raw=s?s.split(" "):[];
+ const t=raw.map(w=>WORDS[w]||w);
+
+ const isDig=x=>/^[1-8]$/.test(x||"");
+ const out=[];
+ for(let i=0;i<t.length;i++){
+  let w=t[i];
+  const nx=t[i+1];
+  const nxIsLast=(i+1===t.length-1);
+  if(LETTER_HOMO[w]&&(isDig(nx)||(NUM_FOLLOW[nx]&&nx!=="to"&&nx!=="too")))w=LETTER_HOMO[w];
+  if(/^[a-h]$/.test(w)){
+   if(isDig(nx)){out.push(w+nx);i++;continue;}
+   if(NUM_FOLLOW[nx]&&(nxIsLast||(nx!=="to"&&nx!=="too"))){
+    out.push(w+NUM_FOLLOW[nx]);i++;continue;
+   }
+  }
+  out.push(w);
+ }
+ for(let i=0;i<out.length-1;i++){
+  if(PIECE_LETTER_HOMO[out[i]]&&/^[a-h][1-8]$/.test(out[i+1]))out[i]=PIECE_LETTER_HOMO[out[i]];
+ }
+ // "and c3" / "end c3" is a very common mishearing of "N c3".
+ if(out.length>=2&&KNIGHT_MISHEARD[out[0]]&&/^[a-h][1-8]$/.test(out[1])){
+  out[0]="knight";
+ }
+ return {plain,tokens:out};
+}
+
+function compactText(t){
+ return String(t||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+}
+
+function analyseTokens(tokens){
+ const f={
+  pieces:[],squares:[],hintFiles:[],hintRanks:[],
+  takesIdx:-1,mover:null,promo:null,bIdx:-1,from:null,to:null,
+  promoKeyIdx:-1,wantCheck:false,wantMate:false
+ };
+ tokens.forEach((w,i)=>{
+  let m;
+  if(CANON_PIECE[w]){f.pieces.push({p:CANON_PIECE[w],idx:i});return;}
+  if(w==="takes"){if(f.takesIdx<0)f.takesIdx=i;return;}
+  if(w==="promote"){if(f.promoKeyIdx<0)f.promoKeyIdx=i;return;}
+  if(w==="check"){f.wantCheck=true;return;}
+  if(w==="mate"){f.wantMate=true;f.wantCheck=true;return;}
+  // "xd7" (capture written with x only)
+  if((m=w.match(/^x([a-h][1-8])$/))){
+   if(f.takesIdx<0)f.takesIdx=i;
+   f.squares.push({sq:m[1],idx:i});return;
+  }
+  // "bxc3" can be a bishop capture OR the b-pawn capturing
+  if((m=w.match(/^bx([a-h][1-8])$/))){
+   f.bIdx=i;if(f.takesIdx<0)f.takesIdx=i;
+   f.squares.push({sq:m[1],idx:i});return;
+  }
+  // SAN-like: Nc3, Nbd2, N1d2, Nxe5, Raxd1
+  if((m=w.match(/^([nbrqk])([a-h]|[1-8])?(x)?([a-h][1-8])$/))){
+   f.mover=f.mover||m[1];
+   if(m[2]){if(/[a-h]/.test(m[2]))f.hintFiles.push(m[2]);else f.hintRanks.push(m[2]);}
+   if(m[3]&&f.takesIdx<0)f.takesIdx=i;
+   f.squares.push({sq:m[4],idx:i});return;
+  }
+  // pawn capture: exd5
+  if((m=w.match(/^([a-h])x([a-h][1-8])$/))){
+   f.hintFiles.push(m[1]);if(f.takesIdx<0)f.takesIdx=i;
+   f.squares.push({sq:m[2],idx:i});return;
+  }
+  // UCI: e2e4, e7e8q
+  if((m=w.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/))){
+   f.from=m[1];f.to=m[2];if(m[3])f.promo=m[3];return;
+  }
+  // e8q / e8=q
+  if((m=w.match(/^([a-h][1-8])=?([qrbn])$/))){
+   f.squares.push({sq:m[1],idx:i});f.promo=m[2];return;
+  }
+  if(/^[a-h][1-8]$/.test(w)){f.squares.push({sq:w,idx:i});return;}
+  if(/^[nrqk]$/.test(w)){f.pieces.push({p:w,idx:i,weak:true});return;}
+  if(w==="b"){f.bIdx=i;return;}
+  if(/^[a-h]$/.test(w)){f.hintFiles.push(w);return;}
+  if(/^[1-8]$/.test(w)){f.hintRanks.push(w);return;}
+ });
+ return f;
+}
+
+function parseSpokenMove(transcript){
+ if(!started||gameFinished||engineBusy||!chess||chess.turn()!==userSide)
+  return {type:"none"};
+
+ const legal=legalMoves();
+ if(!legal.length)return {type:"none"};
+
+ // ---- 1) DIRECT SAN MATCH: "Nc3", "NC3", "exd5", "e4", "Qxf7" ----
+ const compactT=compactText(transcript);
+ if(compactT){
+  const keyed=legal.map(m=>({m,k:compactText(m.san)}));
+  let hit=keyed.filter(o=>o.k===compactT);
+  if(hit.length===1)return {type:"move",move:hit[0].m};
+  const noX=compactT.replace(/x/g,"");
+  hit=keyed.filter(o=>o.k.replace(/x/g,"")===noX);
+  if(hit.length===1)return {type:"move",move:hit[0].m};
+ }
+
+ const tk=tokenizeMove(transcript);
+ const tokens=tk.tokens,plain=tk.plain;
+ if(!tokens.length)return {type:"none"};
+
+ // ---- 2) CASTLING ----
+ const ooMatch=/\s(?:o|0|oh|zero)\s(?:o|0|oh|zero)(\s(?:o|0|oh|zero))?\s/.exec(plain);
+ const isCastle=tokens.includes("castle")||!!ooMatch;
+ if(isCastle){
+  let target=null;
+  const longO=(ooMatch&&!!ooMatch[1])||tokens.includes("long")||/queen\s*side/.test(plain);
+  const shortO=tokens.includes("short")||/king\s*side/.test(plain);
+  if(longO)target=legal.find(m=>m.san==="O-O-O");
+  else if(shortO)target=legal.find(m=>m.san==="O-O");
+  else{
+   const castles=legal.filter(m=>m.san==="O-O"||m.san==="O-O-O");
+   if(castles.length===1)target=castles[0];
+  }
+  if(target)return {type:"move",move:target};
+  return {type:"ambiguous",reason:"Castling not available or ambiguous."};
+ }
+
+ // ---- 3) GENERAL MOVE PARSING ----
+ const f=analyseTokens(tokens);
+ const meaningful=f.pieces.length||f.takesIdx>=0||f.squares.length||f.from||f.bIdx>=0||f.promo||f.wantCheck;
+ if(!meaningful)return {type:"none"};
+
+ const noSquares=!f.squares.length&&!f.from;
+
+ // Bare piece name -> show that piece's moves
+ if(noSquares&&!f.promo&&f.takesIdx<0){
+  const p=f.mover||(f.pieces[0]&&f.pieces[0].p)||(f.bIdx>=0?"b":null);
+  if(!p&&!f.wantCheck)return {type:"none"};
+  let opts=legal.filter(m=>!p||m.piece===p);
+  if(f.wantMate)opts=opts.filter(m=>m.san.includes("#"));
+  else if(f.wantCheck)opts=opts.filter(m=>/[+#]/.test(m.san));
+  if(!opts.length)return {type:"ambiguous",reason:p?"No matching moves for that piece.":"No checking moves available."};
+  return {type:"showOptions",piece:p?PIECE_NAME[p]:(f.wantMate?"checkmating":"checking"),moves:opts};
+ }
+ // Bare "takes" -> show all captures
+ if(noSquares&&f.takesIdx>=0&&!f.pieces.length&&f.bIdx<0&&!f.mover&&!f.hintFiles.length){
+  let opts=legal.filter(m=>m.captured||(m.flags||"").includes("e"));
+  if(f.wantMate)opts=opts.filter(m=>m.san.includes("#"));
+  else if(f.wantCheck)opts=opts.filter(m=>/[+#]/.test(m.san));
+  if(!opts.length)return {type:"ambiguous",reason:"No captures available."};
+  return {type:"showOptions",piece:"capture",moves:opts};
+ }
+
+ // Promotion piece: a piece named AFTER the destination square
+ let promo=f.promo;
+ let pieceList=f.pieces.slice();
+ let bIdx=f.bIdx;
+ const lastSq=f.squares.length?f.squares[f.squares.length-1]:null;
+ if(!f.from&&lastSq&&!promo){
+  const hasPromo=legal.some(m=>m.promotion&&m.to===lastSq.sq);
+  if(hasPromo){
+   const cand=pieceList.filter(p=>p.p!=="k"&&p.p!=="p");
+   let pick=null;
+   if(f.promoKeyIdx>=0)pick=cand.find(p=>p.idx>f.promoKeyIdx)||null;
+   if(!pick)pick=cand.find(p=>p.idx>lastSq.idx)||null;
+   if(pick){
+    promo=pick.p;
+    pieceList=pieceList.filter(p=>p!==pick);
+   }else if(bIdx>lastSq.idx||(f.promoKeyIdx>=0&&bIdx>f.promoKeyIdx)){
+    promo="b";bIdx=-1;
+   }
+  }
+ }
+
+ function run(interp,relax){
+  let mover=f.mover||null;
+  const pl=pieceList.slice();
+  const hf=f.hintFiles.slice();
+  const takesIdx=f.takesIdx;
+  if(interp==="piece")pl.push({p:"b",idx:bIdx});
+  if(interp==="file")hf.push("b");
+  pl.sort((a,b)=>a.idx-b.idx);
+
+  if(!mover){
+   const pool=takesIdx>=0?pl.filter(p=>p.idx<takesIdx):pl;
+   const strong=pool.filter(p=>!p.weak);
+   const pick=strong[0]||pool[0];
+   mover=pick?pick.p:null;
+  }
+  let captured=null;
+  if(takesIdx>=0){
+   const after=pl.filter(p=>p.idx>takesIdx);
+   if(after.length)captured=after[0].p;
+  }
+
+  let c=legal.slice();
+  if(f.from&&f.to)c=c.filter(m=>m.from===f.from&&m.to===f.to);
+  else if(f.squares.length>=2){
+   const a=f.squares[0].sq,b=f.squares[1].sq;
+   c=c.filter(m=>m.from===a&&m.to===b);
+  }else if(f.squares.length===1){
+   c=c.filter(m=>m.to===f.squares[0].sq);
+  }
+  if(promo)c=c.filter(m=>m.promotion===promo);
+  if(mover)c=c.filter(m=>m.piece===mover);
+  else if(!f.from&&f.squares.length===1&&!captured&&!(takesIdx>=0&&!hf.length)){
+   const pc=c.filter(m=>m.piece==="p");
+   if(pc.length)c=pc;
+  }
+  if(takesIdx>=0&&!relax)c=c.filter(m=>m.captured||(m.flags||"").includes("e"));
+  if(captured&&!relax)c=c.filter(m=>m.captured===captured);
+
+  // soft hints (only used to break ties)
+  hf.forEach(ch=>{
+   if(c.length>1){const r=c.filter(m=>m.from[0]===ch);if(r.length)c=r;}
+  });
+  f.hintRanks.forEach(rk=>{
+   if(c.length>1){const r=c.filter(m=>m.from[1]===rk);if(r.length)c=r;}
+  });
+  if(f.wantMate&&c.length>1){
+   const r=c.filter(m=>m.san.includes("#"));if(r.length)c=r;
+  }else if(f.wantCheck&&c.length>1){
+   const r=c.filter(m=>/[+#]/.test(m.san));if(r.length)c=r;
+  }
+  return c;
+ }
+
+ let interps;
+ if(bIdx>=0){
+  const hasMover=!!f.mover||pieceList.some(p=>!p.weak);
+  interps=hasMover?["file"]:["piece","file"];
+ }else interps=[null];
+
+ let union=[];
+ for(const relax of [0,1]){
+  union=[];
+  interps.forEach(i=>run(i,relax).forEach(m=>{if(!union.includes(m))union.push(m);}));
+  if(union.length)break;
+ }
+
+ if(union.length===1)return {type:"move",move:union[0]};
+ if(union.length>1){
+  return {type:"ambiguous",reason:"Ambiguous: "+union.map(x=>x.san).join(", "),moves:union};
+ }
+ return {type:"none"};
+}
+
+function showMoveOptions(pieceLabel,moves){
+ if(!moves||!moves.length)return;
+ voiceFilter=moves.slice();
+ renderMoves();
+ const label=pieceLabel==="capture"?"captures":pieceLabel==="move"?"matching moves":(pieceLabel==="checking"||pieceLabel==="checkmating")?(pieceLabel+" moves"):("the "+pieceLabel+"'s moves");
+ $("voice-status").textContent="Showing "+moves.length+" "+label+".";
+}
+
+/* =========================================================
+   SPEECH RECOGNITION WIRING (button + hold B key)
+========================================================= */
+let recognition=null;
+let recognitionActive=false;
+let holdActive=false;
+let heardSomething=false;
+let voiceErrored=false;
+let voiceHandled=false;
+let lastAlts=[];
+
+function handleTranscripts(alternatives){
+ if(!alternatives.length)return false;
+ heardSomething=true;
+ let parseError=null;
+ let bestAmbiguous=null;
+ for(const alt of alternatives){
+  let parsed;
+  try{parsed=parseSpokenMove(alt);}catch(err){console.error("Blindfold voice parser error:",err);parseError=err.message;continue;}
+  if(parsed.type==="move"){
+   playHumanMove({from:parsed.move.from,to:parsed.move.to,promotion:parsed.move.promotion});
+   $("voice-status").textContent="Heard: "+alt+" → "+parsed.move.san;
+   return true;
+  }
+  if(parsed.type==="showOptions"){
+   showMoveOptions(parsed.piece,parsed.moves);
+   $("voice-status").textContent="Heard: "+alt+" → showing options.";
+   return true;
+  }
+  if(parsed.type==="ambiguous"&&!bestAmbiguous){
+   bestAmbiguous=parsed;
+  }
+ }
+ if(bestAmbiguous){
+  $("voice-status").textContent="Heard: "+alternatives[0]+" → "+bestAmbiguous.reason;
+  if(bestAmbiguous.moves)showMoveOptions("move",bestAmbiguous.moves);
+  return true;
+ }
+ if(parseError){$("voice-status").textContent="Heard: "+alternatives[0]+" → parser error: "+parseError;return false;}
+ $("voice-status").textContent="Could not understand: "+alternatives[0];
+ return false;
+}
+
+function initRecognition(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){
+  $("speak-move").disabled=true;
+  $("speak-move").textContent="🎤 NOT SUPPORTED";
+  $("voice-status").textContent="Speech recognition not available in this browser.";
+  return null;
+ }
+ const r=new SR();
+ r.lang=speechSettings.lang||"en-US";
+ r.interimResults=true;
+ r.maxAlternatives=5;
+ r.continuous=false;
+ r.onresult=e=>{
+  for(let i=e.resultIndex;i<e.results.length;i++){
+   const res=e.results[i];
+   const alts=[];
+   for(let j=0;j<res.length;j++)alts.push(res[j].transcript);
+   if(!alts.length)continue;
+   lastAlts=alts;
+   if(!res.isFinal){$("voice-status").textContent="Hearing: "+alts[0];continue;}
+   const done=handleTranscripts(alts);
+   if(done){
+    voiceHandled=true;
+    try{r.stop();}catch(err){}
+    return;
+   }
+  }
+ };
+ r.onerror=e=>{
+  voiceErrored=true;
+  const msgs={
+   "not-allowed":"Microphone permission is blocked. Allow the microphone and try again.",
+   "service-not-allowed":"Microphone permission is blocked. Allow the microphone and try again.",
+   "no-speech":"No speech heard. Hold B, say your move, then release.",
+   "audio-capture":"No microphone found.",
+   "language-not-supported":"This browser does not support that voice language.",
+   "network":"Speech service needs an internet connection."
+  };
+  if(e.error==="aborted")return;
+  $("voice-status").textContent=msgs[e.error]||("Voice error: "+e.error);
+  recognitionActive=false;holdActive=false;
+  $("speak-move").classList.remove("listening");
+ };
+ r.onend=()=>{
+  recognitionActive=false;holdActive=false;
+  $("speak-move").classList.remove("listening");
+  // Fallback: if the browser never marked the result final, use the last thing it heard.
+  if(!voiceHandled&&!heardSomething&&lastAlts.length){
+   const a=lastAlts;lastAlts=[];handleTranscripts(a);return;
+  }
+  if(!heardSomething&&!voiceErrored){
+   $("voice-status").textContent="Didn't catch that. Hold B, speak, then release.";
+  }
+ };
+ return r;
+}
+recognition=initRecognition();
+
+function startVoiceRecognition(hold){
+ if(!recognition){return;}
+ if(!started){$("voice-status").textContent="Start a game first.";return;}
+ if(gameFinished){$("voice-status").textContent="Game over.";return;}
+ if(engineBusy||chess.turn()!==userSide){$("voice-status").textContent="Not your turn.";return;}
+ if(recognitionActive){
+  if(!hold){try{recognition.stop();}catch(e){}}
+  return;
+ }
+ try{window.speechSynthesis&&window.speechSynthesis.cancel();}catch(e){}
+ try{
+  recognition.lang=speechSettings.lang||"en-US";
+  recognition.continuous=!!hold;
+  heardSomething=false;voiceErrored=false;voiceHandled=false;lastAlts=[];
+  holdActive=!!hold;
+  recognition.start();
+  recognitionActive=true;
+  $("speak-move").classList.add("listening");
+  $("voice-status").textContent=hold?"Listening… release B when done.":"Listening… say your move.";
+ }catch(err){
+  holdActive=false;
+  $("voice-status").textContent="Mic error: "+err.message;
+ }
+}
+function stopVoiceRecognition(){
+ if(recognition&&recognitionActive){
+  try{recognition.stop();}catch(e){}
+ }
+}
+
+/* =========================================================
+   ENGINE MOVE LOOP
+========================================================= */
 async function computerMove(){
  if(!started||gameFinished||engineBusy||chess.turn()===userSide)return;
  const token=gameToken;
- engineBusy=true;renderAll();
+ engineBusy=true;voiceFilter=null;renderAll();
  engineLabel("STOCKFISH STARTING","loading");
  try{
   const uci=await requestEngineMove(chess.fen());
@@ -83454,6 +84048,7 @@ async function computerMove(){
   });
   if(!move)throw new Error("Stockfish returned an illegal move: "+uci);
   engineBusy=false;feedback(move);renderAll();
+  announceEngine(move);
   checkGameEnd();renderAll();
  }catch(err){
   if(token!==gameToken)return;
@@ -83468,82 +84063,79 @@ async function computerMove(){
 
 function playHumanMove(input){
  if(!started||gameFinished||engineBusy||chess.turn()!==userSide)return false;
- let moveObj = null;
+ let moveObj=null;
 
- if (typeof input === "string") {
-   const text = input.trim();
-   if (!text) return false;
+ if(typeof input==="string"){
+  const text=input.trim();
+  if(!text)return false;
 
-   const legal = legalMoves();
-   const lowerText = text.toLowerCase();
+  const legal=legalMoves();
+  const lowerText=text.toLowerCase();
 
-   // 1. UCI format (e2e4, e2-e4)
-   const uciMatch = text.match(/^([a-h][1-8])[-]?([a-h][1-8])([qrbn])?$/i);
-   if (uciMatch) {
-     const from = uciMatch[1].toLowerCase();
-     const to = uciMatch[2].toLowerCase();
-     const promo = uciMatch[3] ? uciMatch[3].toLowerCase() : undefined;
-     const found = legal.find(m => m.from === from && m.to === to && (!promo || m.promotion === promo));
-     if (found) moveObj = { from: found.from, to: found.to, promotion: found.promotion };
-   }
+  const uciMatch=text.match(/^([a-h][1-8])[-]?([a-h][1-8])([qrbn])?$/i);
+  if(uciMatch){
+   const from=uciMatch[1].toLowerCase();
+   const to=uciMatch[2].toLowerCase();
+   const promo=uciMatch[3]?uciMatch[3].toLowerCase():undefined;
+   const found=legal.find(m=>m.from===from&&m.to===to&&(!promo||m.promotion===promo));
+   if(found)moveObj={from:found.from,to:found.to,promotion:found.promotion};
+  }
 
-   // 2. Exact SAN match ignoring case
-   if (!moveObj) {
-     const found = legal.find(m => m.san.toLowerCase() === lowerText);
-     if (found) moveObj = { from: found.from, to: found.to, promotion: found.promotion };
-   }
+  if(!moveObj){
+   const found=legal.find(m=>m.san.toLowerCase()===lowerText);
+   if(found)moveObj={from:found.from,to:found.to,promotion:found.promotion};
+  }
 
-   // 3. Destination only (e4) or piece+dest (be4, Ne4)
-   if (!moveObj) {
-     const pieceDestMatch = text.match(/^([kqrbn])?([a-h][1-8])$/i);
-     if (pieceDestMatch) {
-       const piece = pieceDestMatch[1] ? pieceDestMatch[1].toLowerCase() : null;
-       const dest = pieceDestMatch[2].toLowerCase();
-       const movesToDest = legal.filter(m => m.to === dest);
-       if (piece) {
-         const pieceMoves = movesToDest.filter(m => m.piece === piece);
-         if (pieceMoves.length === 1) {
-           moveObj = { from: pieceMoves[0].from, to: pieceMoves[0].to, promotion: pieceMoves[0].promotion };
-         }
-       } else {
-         if (movesToDest.length === 1) {
-           moveObj = { from: movesToDest[0].from, to: movesToDest[0].to, promotion: movesToDest[0].promotion };
-         }
-       }
+  if(!moveObj){
+   const pieceDestMatch=text.match(/^([kqrbn])?([a-h][1-8])$/i);
+   if(pieceDestMatch){
+    const piece=pieceDestMatch[1]?pieceDestMatch[1].toLowerCase():null;
+    const dest=pieceDestMatch[2].toLowerCase();
+    const movesToDest=legal.filter(m=>m.to===dest);
+    if(piece){
+     const pieceMoves=movesToDest.filter(m=>m.piece===piece);
+     if(pieceMoves.length===1){
+      moveObj={from:pieceMoves[0].from,to:pieceMoves[0].to,promotion:pieceMoves[0].promotion};
      }
-   }
-
-   // 4. Try SAN with capitalization (e.g. "Nf3", "O-O")
-   if (!moveObj) {
-     const variants = [text, text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(), text.toUpperCase()];
-     for (const v of variants) {
-       try {
-         const m = chess.move(v);
-         if (m) {
-           moveObj = { from: m.from, to: m.to, promotion: m.promotion };
-           chess.undo();
-           break;
-         }
-       } catch (e) {}
+    }else{
+     if(movesToDest.length===1){
+      moveObj={from:movesToDest[0].from,to:movesToDest[0].to,promotion:movesToDest[0].promotion};
      }
+    }
    }
- } else {
-   moveObj = input;
+  }
+
+  if(!moveObj){
+   const variants=[text,text.charAt(0).toUpperCase()+text.slice(1).toLowerCase(),text.toUpperCase()];
+   for(const v of variants){
+    try{
+     const m=chess.move(v);
+     if(m){
+      moveObj={from:m.from,to:m.to,promotion:m.promotion};
+      chess.undo();
+      break;
+     }
+    }catch(e){}
+   }
+  }
+ }else{
+  moveObj=input;
  }
 
- if (!moveObj) {
-   $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
-   $("feedback").className="bad";
-   return false;
+ if(!moveObj){
+  $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
+  $("feedback").className="bad";
+  return false;
  }
 
- let move = chess.move(moveObj);
- if (!move) {
-   $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
-   $("feedback").className="bad";
-   return false;
+ let move=chess.move(moveObj);
+ if(!move){
+  $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
+  $("feedback").className="bad";
+  return false;
  }
 
+ voiceFilter=null;
  feedback(move);renderAll();
  if(checkGameEnd()){renderAll();return true;}
  setTimeout(()=>{if(!gameFinished&&chess.turn()!==userSide)computerMove();},180);
@@ -83553,6 +84145,7 @@ function playHumanMove(input){
 async function undoOne(){
  if(!started||!history().length)return;
  const token=++gameToken;
+ voiceFilter=null;
  if(activeSearch){
   stopEngine();
   await new Promise(resolve=>{
@@ -83570,6 +84163,7 @@ async function undoOne(){
 async function takeBackTurn(){
  if(!started||!history().length)return;
  const token=++gameToken;
+ voiceFilter=null;
  if(activeSearch){
   stopEngine();
   await new Promise(resolve=>{
@@ -83600,6 +84194,9 @@ function updateSettings(){
   "Stockfish 19 ready · next search uses "+elo()+" Elo.";
 }
 
+/* =========================================================
+   EVENT BINDINGS
+========================================================= */
 $("new").addEventListener("click",startNewGame);
 $("reset-moves").addEventListener("click",startNewGame);
 $("undo").addEventListener("click",undoOne);
@@ -83612,8 +84209,8 @@ $("flip").addEventListener("click",()=>{
 });
 
 $("show-pos").addEventListener("click",()=>{
- showPosition = !showPosition;
- $("show-pos").textContent = showPosition ? "🙈 HIDE POSITION" : "👁 SHOW POSITION";
+ showPosition=!showPosition;
+ $("show-pos").textContent=showPosition?"🙈 HIDE POSITION":"👁 SHOW POSITION";
  renderBoard();
 });
 
@@ -83628,6 +84225,25 @@ $("key-no").addEventListener("click",()=>{
  $("key-no").classList.add("active");
  $("key-yes").classList.remove("active");
  $("keyboard-row").classList.add("bf-hidden");
+});
+
+$("announce-yes").addEventListener("click",()=>{
+ speechSettings.announce=true;saveSpeech();
+ $("announce-yes").classList.add("active");
+ $("announce-no").classList.remove("active");
+});
+$("announce-no").addEventListener("click",()=>{
+ speechSettings.announce=false;saveSpeech();
+ $("announce-no").classList.add("active");
+ $("announce-yes").classList.remove("active");
+});
+
+$("speak-move").addEventListener("click",()=>startVoiceRecognition(false));
+
+$("voice-lang").addEventListener("change",()=>{
+ speechSettings.lang=$("voice-lang").value;saveSpeech();
+ if(recognition)recognition.lang=speechSettings.lang;
+ $("voice-status").textContent="Voice language set to "+$("voice-lang").selectedOptions[0].textContent+".";
 });
 
 $("elo").addEventListener("change",updateSettings);
@@ -83673,6 +84289,30 @@ document.addEventListener("keydown",e=>{
  if(e.key==="Escape")$("input").blur();
 });
 
+/* ---- HOLD B TO SPEAK (push-to-talk) ---- */
+function isTypingTarget(t){
+ return t&&(["INPUT","TEXTAREA","SELECT"].includes(t.tagName)||t.isContentEditable);
+}
+document.addEventListener("keydown",e=>{
+ if(!root.getClientRects().length)return;
+ if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(String(e.key).toLowerCase()!=="b")return;
+ if(isTypingTarget(e.target))return;
+ if(e.repeat){e.preventDefault();return;}
+ e.preventDefault();
+ startVoiceRecognition(true);
+});
+document.addEventListener("keyup",e=>{
+ if(String(e.key).toLowerCase()!=="b")return;
+ if(holdActive){
+  holdActive=false;
+  stopVoiceRecognition();
+ }
+});
+window.addEventListener("blur",()=>{
+ if(holdActive){holdActive=false;stopVoiceRecognition();}
+});
+
 /* MainUI tab router owns navigation. This is only a fallback. */
 const nav=document.getElementById("blindfoldChessNavBtn");
 if(nav){
@@ -83685,17 +84325,34 @@ if(nav){
  });
 }
 
+/* ---- INITIALISE ---- */
+if(speechSettings.announce){
+ $("announce-yes").classList.add("active");
+ $("announce-no").classList.remove("active");
+}else{
+ $("announce-no").classList.add("active");
+ $("announce-yes").classList.remove("active");
+}
+(function(){
+ const sel=$("voice-lang");
+ const has=Array.from(sel.options).some(o=>o.value===speechSettings.lang);
+ sel.value=has?speechSettings.lang:"en-US";
+})();
+
 updateSettings();renderStats();renderBoard();
+
 window.OlympusBlindfoldChess={
  newGame:startNewGame,
  getState:()=>({
   started,side:userSide,rating:stats.rating,points:stats.points,
   wins:stats.wins,losses:stats.losses,draws:stats.draws,
-  fen:chess?chess.fen():null
+  fen:chess?chess.fen():null,
+  announce:speechSettings.announce
  })
 };
 })();
 </script>
+
 
 
 
