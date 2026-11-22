@@ -42761,6 +42761,20 @@ right:0;
   <span style="font-size: 1.35em; color: #f53845; font-weight: 900;">4</span> 
 </button>
 
+
+<button
+  class="nav-btn"
+  data-tab="blindfoldChess"
+  id="blindfoldChessNavBtn"
+>
+  😵
+ 
+    <span style="font-size: 1.35em; color: #1666de; font-weight: 900;">Blindfold</span> 
+     <span style="font-size: 1.35em; color: #f53845; font-weight: 900;">Chess</span> 
+  </span>
+</button>
+
+
 <button
   type="button"
   class="nav-btn"
@@ -80144,6 +80158,1204 @@ return {
      1) NAV BUTTON  (paste inside your nav / sidebar)
 ========================================================= -->
 
+
+<style>
+#blindfoldChess-section,
+#blindfoldChess-section * { box-sizing:border-box; }
+
+#blindfoldChess-section { color:#f4f4fb; }
+#blindfoldChess-section.hidden { display:none; }
+
+#bf-shell { width:100%; max-width:1600px; margin:auto; padding:20px; }
+#bf-shell button,#bf-shell input,#bf-shell select { font:inherit; }
+
+#bf-header {
+ display:flex;align-items:center;justify-content:space-between;
+ gap:14px;flex-wrap:wrap;margin-bottom:18px;
+}
+#bf-header h2 { margin:0;font-size:27px;font-weight:950;color:#fff; }
+#bf-header h2 span { color:#ffd700; }
+#bf-header p { margin:5px 0 0;color:#aeb3cf;font-size:13px; }
+
+.bf-card {
+ min-width:0;padding:16px;border-radius:16px;
+ background:linear-gradient(155deg,rgba(27,33,56,.98),rgba(16,21,39,.98));
+ border:1px solid rgba(167,139,250,.22);
+ box-shadow:0 12px 32px rgba(0,0,0,.2);
+}
+.bf-title { font-size:13px;font-weight:950;color:#f3edff; }
+.bf-sub { font-size:10px;color:#aeb3cf;margin-top:4px; }
+
+#bf-settings {
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+ gap:12px;margin-bottom:14px;
+}
+.bf-setting { min-width:0; }
+.bf-setting label {
+ display:block;color:#aeb3cf;font-size:10px;
+ font-weight:900;margin-bottom:7px;
+}
+.bf-setting select {
+ width:100%;min-width:0;background:#101629;color:#fff;
+ padding:10px;border:1px solid #45436d;border-radius:9px;
+}
+.bf-segments { display:flex;gap:5px; }
+.bf-segments button {
+ flex:1;padding:9px 6px;background:#12172b;
+ color:#c8c9df;border:1px solid #45436d;border-radius:8px;
+ font-size:11px;font-weight:900;cursor:pointer;
+}
+.bf-segments button.active {
+ background:#6d28d9;border-color:#a78bfa;color:#fff;
+}
+
+#bf-option-grid {
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:12px;margin-bottom:14px;
+}
+.bf-option {
+ display:flex;align-items:center;justify-content:space-between;
+ gap:8px;padding:9px 0;border-bottom:1px solid #303650;
+ color:#d4d5e6;font-size:11px;font-weight:700;
+}
+.bf-option input { accent-color:#8b5cf6;width:16px;height:16px; }
+
+#bf-game-grid {
+ display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);
+ gap:14px;align-items:start;
+}
+#bf-board-card { display:flex;flex-direction:column;gap:13px; }
+.bf-headrow {
+ display:flex;justify-content:space-between;align-items:center;
+ gap:10px;flex-wrap:wrap;
+}
+.bf-pill {
+ padding:7px 10px;border:1px solid #5b4886;
+ border-radius:99px;background:#211a3c;
+ color:#d9caff;font-size:10px;font-weight:900;
+}
+#bf-board {
+ width:100%;max-width:min(720px,72vh);aspect-ratio:1;
+ margin:0 auto;display:grid;
+ grid-template-columns:repeat(8,1fr);
+ grid-template-rows:repeat(8,1fr);
+ overflow:hidden;border:4px solid #40305f;
+ border-radius:12px;box-shadow:0 15px 36px #0006;
+}
+.bf-square { position:relative;min-width:0;min-height:0; }
+.bf-square.light { background:#dcd3fc; }
+.bf-square.dark { background:#7955b4; }
+.bf-coord {
+ position:absolute;font-size:clamp(8px,1vw,12px);
+ line-height:1;font-weight:900;opacity:.75;
+}
+.bf-coord.file { left:4px;bottom:3px; }
+.bf-coord.rank { left:4px;top:3px; }
+.bf-square.light .bf-coord { color:#65468b; }
+.bf-square.dark .bf-coord { color:#eee1ff; }
+
+/* ---- PIECE IMAGE RENDERING FOR SHOW POSITION ---- */
+.bf-piece-img {
+ position: absolute;
+ top: 50%; left: 50%;
+ transform: translate(-50%, -50%);
+ width: 85%;
+ height: 85%;
+ object-fit: contain;
+ pointer-events: none;
+ filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));
+}
+
+#bf-board-caption {
+ color:#9da6c5;text-align:center;
+ font-size:10px;font-weight:900;letter-spacing:.12em;
+}
+.bf-actions { display:flex;gap:8px;flex-wrap:wrap; }
+.bf-btn {
+ padding:10px 13px;border-radius:9px;
+ border:1px solid #514675;background:#24203d;
+ color:#e5dcff;font-size:11px;font-weight:900;cursor:pointer;
+}
+.bf-btn:hover:not(:disabled) {
+ background:#3a2b65;border-color:#a78bfa;
+}
+.bf-btn.primary {
+ background:linear-gradient(130deg,#8b5cf6,#6d28d9);
+ color:#fff;border:0;
+}
+.bf-btn.gold {
+ background:linear-gradient(130deg,#facc15,#d97706);
+ color:#251900;border:0;
+}
+.bf-btn.danger { border-color:#8c4655;color:#ffb6c2;background:#301b2a; }
+.bf-btn:disabled { opacity:.4;cursor:not-allowed; }
+
+#bf-status-card {
+ padding:13px;border:1px solid #55438a;
+ border-radius:12px;background:#201b3b;
+}
+#bf-status {
+ color:#d6caff;font-size:12px;font-weight:800;line-height:1.5;
+}
+#bf-feedback {
+ margin-top:6px;color:#aeb3cf;font-size:11px;min-height:16px;
+}
+#bf-feedback.good { color:#34d399; }
+#bf-feedback.bad { color:#fb7185; }
+
+/* ---- FIXED-SIZE, SCROLLABLE NOTATION PANEL ---- */
+#bf-notation {
+ height:240px;
+ overflow-y:auto;
+ overflow-x:hidden;
+ margin-top:10px;
+ padding-right:4px;
+ scrollbar-width:thin;
+ scrollbar-color:#7c5cd6 #1a1f33;
+}
+#bf-notation::-webkit-scrollbar { width:8px; }
+#bf-notation::-webkit-scrollbar-track {
+ background:#1a1f33;border-radius:99px;
+}
+#bf-notation::-webkit-scrollbar-thumb {
+ background:#6d4fae;border-radius:99px;
+}
+#bf-notation::-webkit-scrollbar-thumb:hover { background:#8b6ad6; }
+
+.bf-notation-row {
+ display:grid;grid-template-columns:30px 1fr 1fr;gap:7px;
+ padding:8px 7px;border-bottom:1px solid #303650;
+ font:12px/1.4 ui-monospace,Consolas,monospace;
+}
+.bf-notation-row:nth-child(even) { background:#ffffff08; }
+.bf-notation-no { color:#8790ad; }
+.bf-notation-move { color:#e9e8f6; }
+.bf-notation-move.latest { color:#ffd700;font-weight:950; }
+.bf-empty { padding:20px 5px;color:#848da9;font-size:11px; }
+
+#bf-moves-card { margin-top:0; }
+#bf-possible-moves {
+ display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));
+ gap:8px;margin-top:12px;
+}
+.bf-move {
+ min-width:0;padding:10px 5px;border:1px solid #604c91;
+ border-radius:9px;background:#211b3e;color:#eee8ff;
+ font:900 13px/1.25 "Courier New",monospace;
+ cursor:pointer;transition:background .12s,border-color .12s,transform .12s;
+}
+.bf-move:hover:not(:disabled) {
+ background:#59359b;border-color:#c4a8ff;
+ transform:translateY(-1px);
+}
+.bf-move.promo { border-color:#d4a72d;color:#ffe7a0; }
+.bf-move:disabled { opacity:.4;cursor:not-allowed; }
+#bf-keyboard-row { display:flex;gap:8px;margin-top:12px; }
+#bf-keyboard-row input {
+ flex:1;min-width:0;padding:10px;border-radius:9px;
+ background:#101629;border:1px solid #454b6c;color:#fff;
+}
+#bf-keyboard-row button {
+ padding:9px 13px;background:#6d28d9;
+ color:white;border:0;border-radius:9px;font-weight:900;
+}
+#bf-promotion-help { margin-top:9px;color:#aeb3cf;font-size:10px; }
+
+#bf-rating-panel {
+ background:linear-gradient(160deg,rgba(255,215,0,.18),rgba(20,24,42,.97) 60%);
+ border:1px solid rgba(255,215,0,.4);
+}
+.bf-rating-number {
+ color:#ffd700;font-size:54px;line-height:1;
+ font-weight:950;font-variant-numeric:tabular-nums;
+}
+.bf-rank { font-size:14px;font-weight:900;color:#fff; }
+.bf-track {
+ height:8px;background:#34334c;border-radius:99px;
+ overflow:hidden;margin-top:10px;
+}
+#bf-rating-fill {
+ height:100%;width:0;
+ background:linear-gradient(90deg,#a78bfa,#ffd700);
+ transition:width .3s;
+}
+#bf-next-rank { margin-top:7px;color:#aeb3cf;font-size:10px; }
+#bf-stats {
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:8px;margin-top:14px;
+}
+.bf-stat {
+ padding:10px;border:1px solid #383c5b;
+ border-radius:10px;background:#11172b;
+}
+.bf-stat small {
+ display:block;color:#aeb3cf;font-size:9px;font-weight:900;
+}
+.bf-stat strong {
+ display:block;color:white;font-size:20px;margin-top:4px;
+}
+#bf-result {
+ margin-top:12px;padding:13px;border-radius:11px;
+ background:#191c33;border:1px solid #55438a;
+}
+#bf-result strong { display:block;color:#ffd700;font-size:15px; }
+#bf-result p { color:#c4c5da;font-size:11px;line-height:1.5;margin:5px 0 0; }
+
+#bf-engine-state { color:#aeb3cf;font-size:10px;margin-top:8px; }
+#bf-engine-state.ready { color:#34d399; }
+#bf-engine-state.error { color:#fb7185; }
+
+#bf-shell .bf-hidden { display:none!important; }
+
+@media(max-width:1100px) {
+ #bf-settings { grid-template-columns:repeat(3,minmax(0,1fr)); }
+ #bf-game-grid { grid-template-columns:minmax(0,1fr) minmax(270px,.8fr); }
+ #bf-stats { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+@media(max-width:760px) {
+ #bf-shell { padding:10px; }
+ #bf-settings { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ #bf-option-grid { grid-template-columns:1fr; }
+ #bf-game-grid { grid-template-columns:1fr; }
+ #bf-board { max-width:min(100%,68vh); }
+ #bf-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:440px) {
+ #bf-settings { grid-template-columns:1fr; }
+ #bf-header h2 { font-size:22px; }
+ #bf-actions .bf-btn { flex:1; }
+}
+</style>
+
+<section class="section hidden" id="blindfoldChess-section">
+ <div id="bf-shell">
+
+  <header id="bf-header">
+   <div>
+    <h2>♞ OLYMPUS <span>BLINDFOLD ARENA</span></h2>
+    <p>Visualise the position. Calculate every move. Defeat the engine.</p>
+   </div>
+   <div class="bf-pill">♟ PIECES HIDDEN · STOCKFISH 19</div>
+  </header>
+
+  <div class="bf-card" style="margin-bottom:14px">
+   <div class="bf-title">⚙️ GAME CONFIGURATION</div>
+
+   <div id="bf-settings" style="margin-top:13px">
+    <div class="bf-setting">
+     <label for="bf-elo">STOCKFISH STRENGTH</label>
+     <select id="bf-elo">
+      <option value="1320">1320 · Beginner</option>
+      <option value="1400">1400 · Easy</option>
+      <option value="1600" selected>1600 · Club Player</option>
+      <option value="1800">1800 · Strong Club</option>
+      <option value="2000">2000 · Expert</option>
+      <option value="2200">2200 · Master</option>
+      <option value="2500">2500 · Advanced</option>
+      <option value="2800">2800 · Grandmaster</option>
+      <option value="3100">3100 · Maximum</option>
+     </select>
+    </div>
+
+    <div class="bf-setting">
+     <label>YOU PLAY</label>
+     <div class="bf-segments">
+      <button type="button" class="active" id="bf-white">WHITE</button>
+      <button type="button" id="bf-black">BLACK</button>
+     </div>
+    </div>
+
+    <div class="bf-setting">
+     <label>BOARD ORIENTATION</label>
+     <button type="button" class="bf-btn" id="bf-flip" style="width:100%">↻ FLIP BOARD</button>
+    </div>
+
+    <div class="bf-setting">
+     <label>ENTER MOVES BY KEYBOARD</label>
+     <div class="bf-segments">
+      <button type="button" id="bf-key-yes">YES</button>
+      <button type="button" class="active" id="bf-key-no">NO</button>
+     </div>
+    </div>
+
+    <div class="bf-setting">
+     <label>ENGINE</label>
+     <div class="bf-pill" id="bf-elo-label">1600 ELO</div>
+     <div id="bf-engine-state">Lazy-loaded · starts when needed</div>
+    </div>
+   </div>
+
+   <div id="bf-option-grid">
+    <div>
+     <label class="bf-option"><span>Show checkmate</span><input id="bf-show-mate" type="checkbox"></label>
+     <label class="bf-option"><span>Show check</span><input id="bf-show-check" type="checkbox" checked></label>
+     <label class="bf-option"><span>Show captures</span><input id="bf-show-capture" type="checkbox" checked></label>
+    </div>
+    <div>
+     <label class="bf-option"><span>Show notation</span><input id="bf-show-notation" type="checkbox" checked></label>
+     <label class="bf-option"><span>Sound effects</span><input id="bf-sound" type="checkbox" checked></label>
+     <label class="bf-option"><span>Confirm resignation</span><input id="bf-confirm" type="checkbox" checked></label>
+    </div>
+    <div>
+     <div class="bf-title">HOW TO PLAY</div>
+     <div class="bf-sub" style="line-height:1.7">
+      The board never displays pieces. Read the legal moves, calculate mentally,
+      and select your move. Promotion creates separate Q, R, B and N choices.
+     </div>
+    </div>
+   </div>
+  </div>
+
+  <div id="bf-game-grid">
+
+   <!-- ============ LEFT COLUMN ============ -->
+   <main style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+    <section class="bf-card" id="bf-board-card">
+     <div class="bf-headrow">
+      <div>
+       <div class="bf-title">♟ BLINDFOLD CHESSBOARD</div>
+       <div class="bf-sub">Empty board · coordinates remain visible</div>
+      </div>
+      <span class="bf-pill" id="bf-turn-badge">READY TO START</span>
+     </div>
+
+     <div id="bf-board" aria-label="Blindfold chessboard with no visible pieces"></div>
+     <div id="bf-board-caption">MEMORISE THE POSITION · CALCULATE WITHOUT SEEING THE PIECES</div>
+
+     <div class="bf-actions" id="bf-actions">
+      <button type="button" class="bf-btn primary" id="bf-new">＋ NEW GAME</button>
+      <button type="button" class="bf-btn" id="bf-undo">↶ UNDO LAST</button>
+      <button type="button" class="bf-btn" id="bf-takeback">⟲ TAKE BACK TURN</button>
+      <button type="button" class="bf-btn" id="bf-reset-moves">RESET MOVES</button>
+      <button type="button" class="bf-btn danger" id="bf-resign">RESIGN</button>
+      <button type="button" class="bf-btn" id="bf-show-pos">👁 SHOW POSITION</button>
+     </div>
+
+     <div id="bf-status-card">
+      <div id="bf-status">Choose your colour and press New Game to begin.</div>
+      <div id="bf-feedback"></div>
+     </div>
+    </section>
+
+    <!-- RATING PANEL NOW UNDER THE BOARD -->
+    <section class="bf-card" id="bf-rating-panel">
+     <div class="bf-title">🏆 YOUR BLINDFOLD RATING</div>
+     <div style="display:flex;align-items:end;justify-content:space-between;gap:8px;margin-top:12px">
+      <div class="bf-rating-number" id="bf-rating">1000</div>
+      <div class="bf-rank" id="bf-rank">♞ Knight</div>
+     </div>
+     <div class="bf-track"><div id="bf-rating-fill"></div></div>
+     <div id="bf-next-rank">Keep playing to climb the ranks.</div>
+
+     <div id="bf-stats">
+      <div class="bf-stat"><small>POINTS</small><strong id="bf-points">0</strong></div>
+      <div class="bf-stat"><small>GAMES</small><strong id="bf-games">0</strong></div>
+      <div class="bf-stat"><small>WINS</small><strong id="bf-wins">0</strong></div>
+      <div class="bf-stat"><small>DRAWS</small><strong id="bf-draws">0</strong></div>
+      <div class="bf-stat"><small>LOSSES</small><strong id="bf-losses">0</strong></div>
+      <div class="bf-stat"><small>BEST STREAK</small><strong id="bf-best">0</strong></div>
+      <div class="bf-stat"><small>CURRENT STREAK</small><strong id="bf-streak">0</strong></div>
+      <div class="bf-stat"><small>ACCURACY</small><strong id="bf-accuracy">0%</strong></div>
+     </div>
+     <button type="button" class="bf-btn danger" id="bf-reset-rating" style="width:100%;margin-top:13px">
+      RESET MY RATING
+     </button>
+    </section>
+
+    <section class="bf-card">
+     <div class="bf-title">🤖 STOCKFISH ENGINE</div>
+     <div class="bf-sub" id="bf-engine-detail" style="line-height:1.7">
+      Stockfish 19 is loaded only when the computer needs to move.
+      The worker uses one thread and a 64 MB hash allocation.
+     </div>
+     <div class="bf-actions" style="margin-top:12px">
+      <button type="button" class="bf-btn" id="bf-retry-engine">RETRY ENGINE</button>
+     </div>
+    </section>
+
+    <div class="bf-card bf-hidden" id="bf-result">
+     <strong id="bf-result-title">GAME OVER</strong>
+     <p id="bf-result-text"></p>
+    </div>
+
+   </main>
+
+   <!-- ============ RIGHT COLUMN ============ -->
+   <aside style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+    <section class="bf-card" id="bf-status-side">
+     <div class="bf-title">📜 MOVE NOTATION</div>
+     <div class="bf-sub">Complete game history in algebraic notation</div>
+     <div id="bf-notation">
+      <div class="bf-empty">No moves played yet.</div>
+     </div>
+     <div class="bf-sub" id="bf-ply-count">0 PLY</div>
+    </section>
+
+    <!-- POSSIBLE MOVES NOW DIRECTLY UNDER NOTATION -->
+    <section class="bf-card" id="bf-moves-card">
+     <div class="bf-headrow">
+      <div>
+       <div class="bf-title">♟ POSSIBLE MOVES</div>
+       <div class="bf-sub">Select a legal move. Promotion choices are listed separately.</div>
+      </div>
+      <span class="bf-pill" id="bf-move-count">0 MOVES</span>
+     </div>
+
+     <div id="bf-possible-moves">
+      <div class="bf-empty">Start a new game to see your legal moves.</div>
+     </div>
+
+     <div id="bf-promotion-help">
+      ♕ Queen · ♖ Rook · ♗ Bishop · ♘ Knight
+     </div>
+
+     <div id="bf-keyboard-row" class="bf-hidden">
+      <input id="bf-input" type="text" placeholder="SAN or UCI · e.g. Nf3 or e2e4" autocomplete="off" spellcheck="false">
+      <button type="button" id="bf-submit">PLAY</button>
+     </div>
+    </section>
+
+   </aside>
+  </div>
+ </div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+if(window.__OLYMPUS_BLINDFOLD_MAINUI_V1__)return;
+const root=document.getElementById("blindfoldChess-section");
+if(!root)return;
+window.__OLYMPUS_BLINDFOLD_MAINUI_V1__=true;
+
+const $=id=>root.querySelector("#bf-"+id);
+const STORAGE_KEY="olympusBlindfoldChess_v1";
+const CHESS_SRC="chess.min.js";
+const STOCKFISH_SRC="stockfish/stockfish-19-lite-single.js";
+
+let ChessCtor=window.Chess||null;
+let chess=null;
+let userSide="w";
+let flipped=false;
+let keyboardEnabled=false;
+let started=false;
+let engineBusy=false;
+let gameFinished=false;
+let resultRecorded=false;
+let gameToken=0;
+let showPosition=false;
+
+let worker=null;
+let engineReady=false;
+let engineReadyPromise=null;
+let activeSearch=null;
+
+// Map engine piece types and colors to your image filenames
+const PIECE_IMAGES = {
+ p: { w: "wP", b: "bP" },
+ n: { w: "wN", b: "bN" },
+ b: { w: "wB", b: "bB" },
+ r: { w: "wR", b: "bR" },
+ q: { w: "wQ", b: "bQ" },
+ k: { w: "wK", b: "bK" }
+};
+
+const RANKS=[
+ {min:0,icon:"🌱",name:"Seedling"},
+ {min:800,icon:"♟",name:"Pawn"},
+ {min:1000,icon:"♞",name:"Knight"},
+ {min:1200,icon:"♝",name:"Bishop"},
+ {min:1400,icon:"♜",name:"Rook"},
+ {min:1600,icon:"♛",name:"Queen"},
+ {min:1800,icon:"♚",name:"King"},
+ {min:2200,icon:"👑",name:"Grandmaster"}
+];
+
+function defaults(){
+ return {
+  rating:1000,points:0,games:0,wins:0,draws:0,losses:0,
+  streak:0,best:0
+ };
+}
+let stats=defaults();
+
+try{
+ const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||"null");
+ if(saved&&typeof saved==="object"){
+  Object.keys(stats).forEach(k=>{
+   if(Number.isFinite(Number(saved[k])))stats[k]=Math.max(0,Number(saved[k]));
+  });
+ }
+}catch(e){}
+
+function saveStats(){
+ try{localStorage.setItem(STORAGE_KEY,JSON.stringify(stats));}
+ catch(e){}
+}
+
+function renderStats(){
+ $("rating").textContent=Math.round(stats.rating);
+ $("points").textContent=stats.points;
+ $("games").textContent=stats.games;
+ $("wins").textContent=stats.wins;
+ $("draws").textContent=stats.draws;
+ $("losses").textContent=stats.losses;
+ $("best").textContent=stats.best;
+ $("streak").textContent=stats.streak;
+
+ const total=stats.wins+stats.draws+stats.losses;
+ $("accuracy").textContent=total?Math.round(stats.wins/total*100)+"%":"0%";
+
+ let i=0;
+ for(let n=0;n<RANKS.length;n++)if(stats.rating>=RANKS[n].min)i=n;
+ const cur=RANKS[i],next=RANKS[i+1];
+ $("rank").textContent=cur.icon+" "+cur.name;
+ if(next){
+  $("rating-fill").style.width=Math.max(0,Math.min(100,
+   (stats.rating-cur.min)/(next.min-cur.min)*100
+  ))+"%";
+  $("next-rank").textContent=Math.ceil(next.min-stats.rating)+" rating to "+next.icon+" "+next.name;
+ }else{
+  $("rating-fill").style.width="100%";
+  $("next-rank").textContent="Top rank reached!";
+ }
+}
+
+function loadChessLibrary(){
+ if(ChessCtor)return Promise.resolve(ChessCtor);
+ if(window.Chess){ChessCtor=window.Chess;return Promise.resolve(ChessCtor);}
+ return new Promise((resolve,reject)=>{
+  let script=document.querySelector('script[data-olympus-blindfold-chess]');
+  if(script){
+   script.addEventListener("load",()=>{ChessCtor=window.Chess;if(ChessCtor)resolve(ChessCtor);else reject(new Error("Chess library did not expose Chess."));},{once:true});
+   script.addEventListener("error",()=>reject(new Error("Cannot load chess.min.js.")),{once:true});
+   return;
+  }
+  script=document.createElement("script");
+  script.src=CHESS_SRC;
+  script.async=true;
+  script.dataset.olympusBlindfoldChess="1";
+  script.onload=()=>{
+   ChessCtor=window.Chess||null;
+   if(ChessCtor)resolve(ChessCtor);
+   else reject(new Error("Chess library loaded, but Chess was not found."));
+  };
+  script.onerror=()=>reject(new Error("Cannot load chess.min.js. Check its path."));
+  document.head.appendChild(script);
+ });
+}
+
+function elo(){return Number($("elo").value)||1600;}
+function engineTime(){
+ const e=elo();
+ if(e<=1400)return 150;
+ if(e<=1600)return 250;
+ if(e<=1800)return 360;
+ if(e<=2000)return 500;
+ if(e<=2200)return 650;
+ if(e<=2500)return 850;
+ if(e<=2800)return 1050;
+ return 1300;
+}
+function engineLabel(text,kind){
+ const el=$("engine-state");
+ el.textContent=text;
+ el.className=kind==="ready"?"ready":kind==="error"?"error":"";
+}
+function ensureEngine(){
+ if(engineReady)return Promise.resolve();
+ if(engineReadyPromise)return engineReadyPromise;
+
+ engineReadyPromise=new Promise((resolve,reject)=>{
+  let settled=false;
+  const timeout=setTimeout(()=>{
+   if(!settled){
+    settled=true;engineReadyPromise=null;
+    try{worker&&worker.terminate();}catch(e){}
+    worker=null;
+    reject(new Error("Stockfish initialisation timed out."));
+   }
+  },25000);
+
+  try{worker=new Worker(STOCKFISH_SRC);}
+  catch(err){
+   clearTimeout(timeout);engineReadyPromise=null;
+   reject(new Error("Cannot start Stockfish worker: "+err.message));
+   return;
+  }
+
+  worker.onerror=()=>{
+   engineLabel("ENGINE ERROR","error");
+   if(!settled){
+    settled=true;clearTimeout(timeout);
+    engineReadyPromise=null;engineReady=false;
+    reject(new Error("Stockfish failed to load. Check the JS and WASM paths."));
+   }
+  };
+
+  worker.onmessage=e=>{
+   const line=String(e.data||"");
+   if(line==="uciok"){
+    worker.postMessage("setoption name Threads value 1");
+    worker.postMessage("setoption name Hash value 64");
+    worker.postMessage("isready");
+    return;
+   }
+   if(line==="readyok"&&!settled){
+    settled=true;clearTimeout(timeout);
+    engineReady=true;engineLabel("STOCKFISH READY","ready");
+    $("engine-detail").textContent="Stockfish 19 is ready. Strength: "+elo()+" Elo · one thread · 64 MB hash.";
+    resolve();
+    return;
+   }
+   if(line.startsWith("bestmove")&&activeSearch){
+    const search=activeSearch;
+    activeSearch=null;
+    clearTimeout(search.timer);
+    clearTimeout(search.failsafe);
+    const match=line.match(/^bestmove\s+(\S+)/);
+    search.resolve(match&&match[1]!=="(none)"?match[1]:null);
+   }
+  };
+
+  worker.postMessage("uci");
+ });
+ return engineReadyPromise;
+}
+
+async function requestEngineMove(fen){
+ await ensureEngine();
+ if(activeSearch)throw new Error("Engine is already searching.");
+
+ return new Promise((resolve,reject)=>{
+  const s={resolve,reject,timer:null,failsafe:null};
+  activeSearch=s;
+  try{
+   worker.postMessage("setoption name UCI_LimitStrength value true");
+   worker.postMessage("setoption name UCI_Elo value "+elo());
+   worker.postMessage("position fen "+fen);
+   worker.postMessage("go movetime "+engineTime());
+   s.timer=setTimeout(()=>{
+    if(activeSearch!==s)return;
+    worker.postMessage("stop");
+    s.failsafe=setTimeout(()=>{
+     if(activeSearch===s){
+      activeSearch=null;
+      reject(new Error("Stockfish did not return a move in time."));
+     }
+    },5000);
+   },20000);
+  }catch(err){
+   activeSearch=null;
+   reject(err);
+  }
+ });
+}
+
+function stopEngine(){
+ if(worker&&activeSearch){
+  try{worker.postMessage("stop");}catch(e){}
+ }
+}
+
+function gameOver(){return chess&&(chess.isGameOver?chess.isGameOver():chess.game_over());}
+function checkmate(){return chess&&(chess.isCheckmate?chess.isCheckmate():chess.in_checkmate());}
+function stalemate(){return chess&&(chess.isStalemate?chess.isStalemate():chess.in_stalemate());}
+function draw(){return chess&&(chess.isDraw?chess.isDraw():chess.in_draw());}
+function inCheck(){return chess&&(chess.isCheck?chess.isCheck():chess.in_check());}
+function legalMoves(){return chess?chess.moves({verbose:true}):[];}
+function history(){return chess?chess.history({verbose:true}):[];}
+function sideName(s){return s==="w"?"White":"Black";}
+
+function renderBoard(){
+ const board=$("board");
+ board.innerHTML="";
+ const files=flipped?["h","g","f","e","d","c","b","a"]:["a","b","c","d","e","f","g","h"];
+ const ranks=flipped?[1,2,3,4,5,6,7,8]:[8,7,6,5,4,3,2,1];
+
+ let boardMap = {};
+ if (showPosition && chess) {
+   const rawBoard = chess.board();
+   rawBoard.forEach((rowArr, r) => {
+     rowArr.forEach((piece, c) => {
+       if (piece) {
+         const sq = String.fromCharCode(97 + c) + (8 - r);
+         boardMap[sq] = piece;
+       }
+     });
+   });
+ }
+
+ ranks.forEach((rank,row)=>{
+  files.forEach((file,col)=>{
+   const sq=document.createElement("div");
+   sq.className="bf-square "+((row+col)%2===0?"light":"dark");
+   const square = file + rank;
+
+   if (boardMap[square]) {
+     const p = boardMap[square];
+     const img = document.createElement("img");
+     img.className = "bf-piece-img";
+     // Use the asset path requested
+     img.src = "assets/pieces/" + PIECE_IMAGES[p.type][p.color] + ".png";
+     img.alt = p.color + p.type;
+     sq.appendChild(img);
+   }
+
+   if(row===7){
+    const f=document.createElement("span");
+    f.className="bf-coord file";f.textContent=file;sq.appendChild(f);
+   }
+   if(col===0){
+    const r=document.createElement("span");
+    r.className="bf-coord rank";r.textContent=rank;sq.appendChild(r);
+   }
+   board.appendChild(sq);
+  });
+ });
+}
+
+function renderNotation(){
+ const el=$("notation");el.innerHTML="";
+ const list=history();
+ $("ply-count").textContent=list.length+" PLY";
+ if(!$("show-notation").checked){
+  el.innerHTML='<div class="bf-empty">Notation hidden in settings.</div>';return;
+ }
+ if(!list.length){
+  el.innerHTML='<div class="bf-empty">No moves played yet.</div>';return;
+ }
+ for(let i=0;i<list.length;i+=2){
+  const row=document.createElement("div");
+  row.className="bf-notation-row";
+  const no=document.createElement("span");
+  no.className="bf-notation-no";no.textContent=(Math.floor(i/2)+1)+".";
+  const w=document.createElement("span");
+  w.className="bf-notation-move";w.textContent=list[i].san||"";
+  if(i===list.length-1)w.classList.add("latest");
+  const b=document.createElement("span");
+  b.className="bf-notation-move";b.textContent=list[i+1]?list[i+1].san:"";
+  if(i+1===list.length-1)b.classList.add("latest");
+  row.append(no,w,b);el.appendChild(row);
+ }
+ el.scrollTop=el.scrollHeight;
+}
+
+function renderMoves(){
+ const el=$("possible-moves");el.innerHTML="";
+ if(!started){
+  el.innerHTML='<div class="bf-empty">Start a new game to see your legal moves.</div>';
+  $("move-count").textContent="0 MOVES";return;
+ }
+ if(gameFinished){
+  el.innerHTML='<div class="bf-empty">Game finished. Start a new game to play again.</div>';
+  $("move-count").textContent="GAME OVER";return;
+ }
+ if(engineBusy||chess.turn()!==userSide){
+  el.innerHTML='<div class="bf-empty">🤖 Stockfish is calculating…</div>';
+  $("move-count").textContent="ENGINE TURN";return;
+ }
+ const moves=legalMoves();
+ $("move-count").textContent=moves.length+" LEGAL MOVES";
+ if(!moves.length){
+  el.innerHTML='<div class="bf-empty">No legal moves available.</div>';return;
+ }
+ const icons={q:"♕",r:"♖",b:"♗",n:"♘"};
+ moves.forEach(m=>{
+  const btn=document.createElement("button");
+  btn.type="button";
+  btn.className="bf-move"+(m.promotion?" promo":"");
+  btn.textContent=(m.promotion?icons[m.promotion]+" ":"")+m.san;
+  btn.title="Play "+m.san+(m.promotion?" · promote to "+m.promotion:"");
+  btn.addEventListener("click",()=>playHumanMove({
+   from:m.from,to:m.to,promotion:m.promotion
+  }));
+  el.appendChild(btn);
+ });
+}
+
+function feedback(move){
+ const parts=[];
+ const capture=!!move.captured||(move.flags||"").includes("e");
+ if($("show-capture").checked&&capture)parts.push("Capture!");
+ if($("show-check").checked&&inCheck())parts.push("Check!");
+ if($("show-mate").checked&&checkmate())parts.push("Checkmate!");
+ $("feedback").textContent=parts.join(" · ");
+ $("feedback").className=parts.length?"good":"";
+ if($("sound").checked){
+  let file="move.mp3";
+  if(checkmate())file="next.mp3";
+  else if(capture)file="capture.mp3";
+  else if(inCheck())file="check.mp3";
+  try{
+   const audio=new Audio("sounds/"+file);
+   audio.volume=.7;audio.play().catch(()=>{});
+  }catch(e){}
+ }
+}
+
+function renderStatus(){
+ if(!started){
+  $("turn-badge").textContent="READY";
+  $("status").textContent="Choose your colour and press New Game to begin.";
+  return;
+ }
+ $("turn-badge").textContent=sideName(chess.turn()).toUpperCase()+" TO MOVE";
+ if(gameFinished){
+  $("status").textContent="Game finished.";
+ }else if(engineBusy){
+  $("status").textContent="Stockfish is thinking…";
+ }else if(chess.turn()===userSide){
+  $("status").textContent="Your turn · Select one of the legal moves.";
+ }else{
+  $("status").textContent="Computer to move.";
+ }
+}
+function renderAll(){
+ renderBoard();renderNotation();renderMoves();renderStatus();
+ $("undo").disabled=!started||!history().length;
+ $("takeback").disabled=!started||!history().length;
+ $("reset-moves").disabled=!started;
+ $("resign").disabled=!started||gameFinished;
+}
+
+function showResult(title,message){
+ $("result").classList.remove("bf-hidden");
+ $("result-title").textContent=title;
+ $("result-text").textContent=message;
+}
+function clearResult(){ $("result").classList.add("bf-hidden"); }
+
+function recordResult(score,reason){
+ if(resultRecorded)return;
+ resultRecorded=true;gameFinished=true;engineBusy=false;
+ const expected=1/(1+Math.pow(10,(elo()-stats.rating)/400));
+ const change=Math.round(32*(score-expected));
+ stats.rating=Math.max(100,stats.rating+change);
+ stats.games++;
+ let title,details;
+ if(score===1){
+  stats.wins++;stats.streak++;stats.best=Math.max(stats.best,stats.streak);
+  const points=25+Math.round(elo()/200);
+  stats.points+=points;
+  title="🏆 VICTORY!";
+  details=reason+" +"+change+" rating · +"+points+" points.";
+ }else if(score===0){
+  stats.losses++;stats.streak=0;
+  title="GAME LOST";
+  details=reason+" "+change+" rating.";
+ }else{
+  stats.draws++;stats.streak=0;stats.points+=5;
+  title="🤝 DRAW";
+  details=reason+" "+change+" rating · +5 points.";
+ }
+ showResult(title,details);saveStats();renderStats();renderAll();
+}
+
+function checkGameEnd(){
+ if(checkmate()){
+  const winner=chess.turn()==="w"?"b":"w";
+  recordResult(winner===userSide?1:0,"Checkmate.");
+  return true;
+ }
+ if(stalemate()){
+  recordResult(.5,"Stalemate.");return true;
+ }
+ if(draw()){
+  recordResult(.5,"Draw by repetition, 50-move rule or insufficient material.");return true;
+ }
+ if(gameOver()){
+  recordResult(.5,"Game over.");return true;
+ }
+ return false;
+}
+
+async function startNewGame(){
+ const token=++gameToken;
+ if(activeSearch){
+  stopEngine();
+  try{await new Promise(resolve=>{
+   const check=()=>{if(!activeSearch)resolve();else setTimeout(check,30);};check();
+  });}catch(e){}
+ }
+ if(token!==gameToken)return;
+ engineBusy=false;
+ try{
+  await loadChessLibrary();
+  if(token!==gameToken)return;
+  chess=new ChessCtor();
+  started=true;gameFinished=false;resultRecorded=false;
+  clearResult();$("feedback").textContent="";
+  $("feedback").className="";
+  flipped=userSide==="b";
+  renderAll();
+  if(chess.turn()!==userSide)computerMove();
+ }catch(err){
+  $("status").textContent="Setup error: "+err.message;
+  $("feedback").className="bad";
+ }
+}
+
+async function computerMove(){
+ if(!started||gameFinished||engineBusy||chess.turn()===userSide)return;
+ const token=gameToken;
+ engineBusy=true;renderAll();
+ engineLabel("STOCKFISH STARTING","loading");
+ try{
+  const uci=await requestEngineMove(chess.fen());
+  if(token!==gameToken||gameFinished)return;
+  if(!uci)throw new Error("No legal move returned by Stockfish.");
+  const move=chess.move({
+   from:uci.slice(0,2),to:uci.slice(2,4),
+   promotion:uci.length>4?uci[4].toLowerCase():undefined
+  });
+  if(!move)throw new Error("Stockfish returned an illegal move: "+uci);
+  engineBusy=false;feedback(move);renderAll();
+  checkGameEnd();renderAll();
+ }catch(err){
+  if(token!==gameToken)return;
+  engineBusy=false;
+  engineLabel("ENGINE ERROR","error");
+  $("status").textContent="Engine error: "+err.message;
+  $("feedback").textContent="Check that Stockfish JS and matching WASM are in the configured folder.";
+  $("feedback").className="bad";
+  renderAll();
+ }
+}
+
+function playHumanMove(input){
+ if(!started||gameFinished||engineBusy||chess.turn()!==userSide)return false;
+ let moveObj = null;
+
+ if (typeof input === "string") {
+   const text = input.trim();
+   if (!text) return false;
+
+   const legal = legalMoves();
+   const lowerText = text.toLowerCase();
+
+   // 1. UCI format (e2e4, e2-e4)
+   const uciMatch = text.match(/^([a-h][1-8])[-]?([a-h][1-8])([qrbn])?$/i);
+   if (uciMatch) {
+     const from = uciMatch[1].toLowerCase();
+     const to = uciMatch[2].toLowerCase();
+     const promo = uciMatch[3] ? uciMatch[3].toLowerCase() : undefined;
+     const found = legal.find(m => m.from === from && m.to === to && (!promo || m.promotion === promo));
+     if (found) moveObj = { from: found.from, to: found.to, promotion: found.promotion };
+   }
+
+   // 2. Exact SAN match ignoring case
+   if (!moveObj) {
+     const found = legal.find(m => m.san.toLowerCase() === lowerText);
+     if (found) moveObj = { from: found.from, to: found.to, promotion: found.promotion };
+   }
+
+   // 3. Destination only (e4) or piece+dest (be4, Ne4)
+   if (!moveObj) {
+     const pieceDestMatch = text.match(/^([kqrbn])?([a-h][1-8])$/i);
+     if (pieceDestMatch) {
+       const piece = pieceDestMatch[1] ? pieceDestMatch[1].toLowerCase() : null;
+       const dest = pieceDestMatch[2].toLowerCase();
+       const movesToDest = legal.filter(m => m.to === dest);
+       if (piece) {
+         const pieceMoves = movesToDest.filter(m => m.piece === piece);
+         if (pieceMoves.length === 1) {
+           moveObj = { from: pieceMoves[0].from, to: pieceMoves[0].to, promotion: pieceMoves[0].promotion };
+         }
+       } else {
+         if (movesToDest.length === 1) {
+           moveObj = { from: movesToDest[0].from, to: movesToDest[0].to, promotion: movesToDest[0].promotion };
+         }
+       }
+     }
+   }
+
+   // 4. Try SAN with capitalization (e.g. "Nf3", "O-O")
+   if (!moveObj) {
+     const variants = [text, text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(), text.toUpperCase()];
+     for (const v of variants) {
+       try {
+         const m = chess.move(v);
+         if (m) {
+           moveObj = { from: m.from, to: m.to, promotion: m.promotion };
+           chess.undo();
+           break;
+         }
+       } catch (e) {}
+     }
+   }
+ } else {
+   moveObj = input;
+ }
+
+ if (!moveObj) {
+   $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
+   $("feedback").className="bad";
+   return false;
+ }
+
+ let move = chess.move(moveObj);
+ if (!move) {
+   $("feedback").textContent="Illegal or invalid move. Choose a legal move.";
+   $("feedback").className="bad";
+   return false;
+ }
+
+ feedback(move);renderAll();
+ if(checkGameEnd()){renderAll();return true;}
+ setTimeout(()=>{if(!gameFinished&&chess.turn()!==userSide)computerMove();},180);
+ return true;
+}
+
+async function undoOne(){
+ if(!started||!history().length)return;
+ const token=++gameToken;
+ if(activeSearch){
+  stopEngine();
+  await new Promise(resolve=>{
+   const wait=()=>{if(!activeSearch)resolve();else setTimeout(wait,30);};wait();
+  });
+ }
+ if(token!==gameToken)return;
+ engineBusy=false;
+ chess.undo();gameFinished=false;resultRecorded=false;clearResult();
+ $("feedback").textContent="Last move taken back.";
+ $("feedback").className="";
+ renderAll();
+ if(chess.turn()!==userSide)computerMove();
+}
+async function takeBackTurn(){
+ if(!started||!history().length)return;
+ const token=++gameToken;
+ if(activeSearch){
+  stopEngine();
+  await new Promise(resolve=>{
+   const wait=()=>{if(!activeSearch)resolve();else setTimeout(wait,30);};wait();
+  });
+ }
+ if(token!==gameToken)return;
+ engineBusy=false;
+ let count=0;
+ if(history().length){chess.undo();count++;}
+ if(history().length&&chess.turn()!==userSide){chess.undo();count++;}
+ gameFinished=false;resultRecorded=false;clearResult();
+ $("feedback").textContent=count+" move(s) taken back.";
+ $("feedback").className="";
+ renderAll();
+ if(chess.turn()!==userSide)computerMove();
+}
+
+function setSide(side){
+ userSide=side;
+ $("white").classList.toggle("active",side==="w");
+ $("black").classList.toggle("active",side==="b");
+ startNewGame();
+}
+function updateSettings(){
+ $("elo-label").textContent=elo()+" ELO";
+ if(engineReady)$("engine-detail").textContent=
+  "Stockfish 19 ready · next search uses "+elo()+" Elo.";
+}
+
+$("new").addEventListener("click",startNewGame);
+$("reset-moves").addEventListener("click",startNewGame);
+$("undo").addEventListener("click",undoOne);
+$("takeback").addEventListener("click",takeBackTurn);
+$("white").addEventListener("click",()=>setSide("w"));
+$("black").addEventListener("click",()=>setSide("b"));
+
+$("flip").addEventListener("click",()=>{
+ flipped=!flipped;renderBoard();
+});
+
+$("show-pos").addEventListener("click",()=>{
+ showPosition = !showPosition;
+ $("show-pos").textContent = showPosition ? "🙈 HIDE POSITION" : "👁 SHOW POSITION";
+ renderBoard();
+});
+
+$("key-yes").addEventListener("click",()=>{
+ keyboardEnabled=true;
+ $("key-yes").classList.add("active");
+ $("key-no").classList.remove("active");
+ $("keyboard-row").classList.remove("bf-hidden");
+});
+$("key-no").addEventListener("click",()=>{
+ keyboardEnabled=false;
+ $("key-no").classList.add("active");
+ $("key-yes").classList.remove("active");
+ $("keyboard-row").classList.add("bf-hidden");
+});
+
+$("elo").addEventListener("change",updateSettings);
+$("submit").addEventListener("click",()=>{
+ const input=$("input");
+ if(playHumanMove(input.value))input.value="";
+ input.focus();
+});
+$("input").addEventListener("keydown",e=>{
+ if(e.key==="Enter")$("submit").click();
+});
+$("resign").addEventListener("click",()=>{
+ if(!started||gameFinished)return;
+ if($("confirm").checked&&!confirm("Are you sure you want to resign?"))return;
+ recordResult(0,"You resigned.");
+});
+$("reset-rating").addEventListener("click",()=>{
+ if(!confirm("Reset your blindfold rating and all statistics?"))return;
+ stats=defaults();saveStats();renderStats();
+});
+$("retry-engine").addEventListener("click",async()=>{
+ if(engineBusy)return;
+ if(worker){try{worker.terminate();}catch(e){}}
+ worker=null;engineReady=false;engineReadyPromise=null;
+ engineLabel("ENGINE NOT LOADED","loading");
+ try{await ensureEngine();}catch(err){
+  $("status").textContent=err.message;
+  engineLabel("ENGINE ERROR","error");
+ }
+});
+
+["show-notation","show-check","show-mate","show-capture"].forEach(id=>{
+ $(id).addEventListener("change",()=>{
+  renderNotation();
+  if(started)renderMoves();
+ });
+});
+
+document.addEventListener("keydown",e=>{
+ if(!root.getClientRects().length||!started||gameFinished)return;
+ if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(e.target&&["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName))return;
+ if(e.key==="Escape")$("input").blur();
+});
+
+/* MainUI tab router owns navigation. This is only a fallback. */
+const nav=document.getElementById("blindfoldChessNavBtn");
+if(nav){
+ nav.addEventListener("click",()=>{
+  const target=document.getElementById("blindfoldChess-section");
+  if(target&&target.classList.contains("hidden")){
+   document.querySelectorAll(".section").forEach(s=>s.classList.add("hidden"));
+   target.classList.remove("hidden");
+  }
+ });
+}
+
+updateSettings();renderStats();renderBoard();
+window.OlympusBlindfoldChess={
+ newGame:startNewGame,
+ getState:()=>({
+  started,side:userSide,rating:stats.rating,points:stats.points,
+  wins:stats.wins,losses:stats.losses,draws:stats.draws,
+  fen:chess?chess.fen():null
+ })
+};
+})();
+</script>
 
 
 
@@ -193077,7 +194289,7 @@ const lockedTabs = [
   "puzzlerush", "routeQuiz",  "quadrantQuiz", "gapCounting",
   "guessElo", "attackDetection", "attackRelations", "visualizeMoves", 
 "puzzlebattle", "visualizeMovesHard", "learnNotation", "matePuzzles",
-"puzzletrainer",
+"puzzletrainer", "blindfoldChess",
 "computer",
 "quiz",
 "coordtrain",
@@ -266044,6 +267256,7 @@ style="
 training: [
   '[data-tab= "learnNotation" ]',
    '[data-tab= "matePuzzles" ]',
+    '[data-tab= "blindfoldChess" ]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
