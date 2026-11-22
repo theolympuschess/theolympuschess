@@ -79213,8 +79213,25 @@ return {
 }
 
 #chessDistance-section #cdq-config {
- display:grid;grid-template-columns:260px minmax(0,1fr);
- gap:18px;margin-bottom:15px;
+  display:grid;
+  grid-template-columns:240px 210px minmax(0,1fr);
+  gap:18px;
+  margin-bottom:15px;
+}
+
+#chessDistance-section #cdq-duration {
+  width:100%;
+  padding:12px;
+  border-radius:9px;
+  background:#101629;
+  border:1px solid #514675;
+  color:#fff;
+  outline:none;
+}
+
+#chessDistance-section #cdq-duration:disabled {
+  opacity:.55;
+  cursor:not-allowed;
 }
 #chessDistance-section .cdq-setting label {
  display:block;margin-bottom:7px;
@@ -79633,6 +79650,23 @@ return {
     <div class="cdq-sub">Random selects a different piece for each question.</div>
    </div>
 
+   <div class="cdq-setting">
+  <label for="cdq-duration">⏱ TIME CHALLENGE</label>
+
+  <select id="cdq-duration">
+    <option value="30" selected>30 Seconds</option>
+    <option value="60">1 Minute</option>
+    <option value="120">2 Minutes</option>
+    <option value="180">3 Minutes</option>
+    <option value="240">4 Minutes</option>
+    <option value="300">5 Minutes</option>
+  </select>
+
+  <div class="cdq-sub">
+    Choose your total challenge duration.
+  </div>
+</div>
+
    <div>
     <div class="cdq-title">🎚 DIFFICULTY LEVEL</div>
     <div class="cdq-sub">Each level increases the exact-move challenge.</div>
@@ -79655,7 +79689,9 @@ return {
     <div class="cdq-timer">
      <div class="cdq-timer-top"><span id="cdq-time">30s</span></div>
      <div class="cdq-track"><div id="cdq-timer-fill"></div></div>
-     <div class="cdq-timer-label">30 SECOND CHALLENGE</div>
+    <div class="cdq-timer-label" id="cdq-timer-label">
+  30 SECOND CHALLENGE
+</div>
     </div>
 
     <div class="cdq-question-type" id="cdq-question-type">READY TO PLAY</div>
@@ -79764,7 +79800,17 @@ root.dataset.cdqRuntime="ready";
 const $=id=>root.querySelector("#cdq-"+id);
 const STORE_KEY="olympusChessDistanceChallenge_v1";
 const FILES="abcdefgh";
-const GAME_MS=30000;
+const TIME_OPTIONS = [30, 60, 120, 180, 240, 300];
+
+function getGameDuration() {
+  return state.duration * 1000;
+}
+
+function getDurationLabel(seconds) {
+  return seconds < 60
+    ? seconds + " SECOND CHALLENGE"
+    : (seconds / 60) + " MINUTE CHALLENGE";
+}
 const PIECES=["knight","queen","rook","bishop"];
 
 const LEVELS=[
@@ -79793,23 +79839,35 @@ const BAD=["Not quite!","Keep calculating!","Almost!","Good try!"];
 function defaults(){
  return {
   rating:500,points:0,correct:0,wrong:0,
-  streak:0,best:0,level:1,piece:"random"
+  streak:0,best:0,level:1, piece:"random",
+    duration:30
  };
 }
 
 function loadState(){
  const s=defaults();
+
  try{
   const d=JSON.parse(localStorage.getItem(STORE_KEY)||"null");
+
   if(d&&typeof d==="object"){
    ["rating","points","correct","wrong","streak","best"].forEach(k=>{
     const n=Number(d[k]);
     if(Number.isFinite(n))s[k]=Math.max(0,Math.floor(n));
    });
-   s.level=LEVELS.some(L=>L.id===Number(d.level))?Number(d.level):1;
-   s.piece=PIECES.includes(d.piece)||d.piece==="random"?d.piece:"random";
+
+   s.level=LEVELS.some(L=>L.id===Number(d.level))
+    ?Number(d.level):1;
+
+   s.piece=PIECES.includes(d.piece)||d.piece==="random"
+    ?d.piece:"random";
+
+   // Restore the selected challenge duration
+   const duration=Number(d.duration);
+   s.duration=TIME_OPTIONS.includes(duration)?duration:30;
   }
  }catch(e){}
+
  return s;
 }
 
@@ -79817,7 +79875,7 @@ let state=loadState();
 let question=null;
 let gameActive=false;
 let locked=true;
-let remainingMs=GAME_MS;
+let remainingMs = state.duration * 1000;
 let deadline=0;
 let timerId=null;
 let advanceId=null;
@@ -80009,6 +80067,8 @@ function renderLevels(){
   b.disabled=gameActive;
  });
  $("piece").value=state.piece;
+ $("duration").value = String(state.duration);
+$("duration").disabled = gameActive;
  $("piece").disabled=gameActive;
  $("stop-game").disabled = !gameActive;
  const L=LEVELS.find(x=>x.id===state.level);
@@ -80107,13 +80167,35 @@ function visible(){
 function stopTimer(){
  if(timerId!==null){clearInterval(timerId);timerId=null;}
 }
-function renderTimer(){
- const fraction=Math.max(0,Math.min(1,remainingMs/GAME_MS));
- $("time").textContent=Math.ceil(remainingMs/1000)+"s";
- $("timer-fill").style.width=(fraction*100)+"%";
- const color=remainingMs<=5000?"#fb7185":remainingMs<=10000?"#fbbf24":"#00df83";
- $("timer-fill").style.background=color;
- $("time").style.color=color;
+function renderTimer() {
+
+  const totalMs = getGameDuration();
+
+  const fraction = Math.max(
+    0,
+    Math.min(1, remainingMs / totalMs)
+  );
+
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  $("time").textContent = minutes > 0
+    ? minutes + ":" + String(seconds).padStart(2, "0")
+    : seconds + "s";
+
+  $("timer-fill").style.width = (fraction * 100) + "%";
+
+  $("timer-label").textContent = getDurationLabel(state.duration);
+
+  const color = remainingMs <= 5000
+    ? "#fb7185"
+    : remainingMs <= 10000
+      ? "#fbbf24"
+      : "#00df83";
+
+  $("timer-fill").style.background = color;
+  $("time").style.color = color;
 }
 function timerTick(){
  if(!gameActive||timerId===null)return;
@@ -80202,7 +80284,12 @@ function finishByTimeout(){
  $("next").style.display="none";
  $("game").classList.remove("cdq-good");
  $("game").classList.add("cdq-bad");
- setFeedback("bad","⏰ Time is up!","Your 30-second challenge has ended. Press New Game to try again.");
+setFeedback(
+  "bad",
+  "⏰ Time is up!",
+  "Your " + getDurationLabel(state.duration) +
+  " has ended. Press New Game to try again."
+);
  renderLevels();
  $("piece").disabled=false;
 }
@@ -80338,7 +80425,7 @@ function newGame(){
  clearAdvance();
  gameActive=true;
  locked=false;
- remainingMs=GAME_MS;
+remainingMs = getGameDuration();
  paused=false;
  $("game").classList.remove("cdq-good","cdq-bad");
  $("feedback").style.display="none";
@@ -80349,6 +80436,31 @@ function newGame(){
  prepareQuestion();
  renderTimer();
  startTimer();
+}
+
+function changeDuration() {
+
+  if (gameActive) return;
+
+  const selected = Number($("duration").value);
+
+  if (!TIME_OPTIONS.includes(selected)) {
+    $("duration").value = String(state.duration);
+    return;
+  }
+
+  state.duration = selected;
+
+  save();
+
+  // Update idle timer immediately.
+  remainingMs = getGameDuration();
+
+  renderLevels();
+  renderTimer();
+
+  $("hint").textContent =
+    "Selected duration: " + getDurationLabel(selected);
 }
 
 function changePiece(){
@@ -80378,10 +80490,15 @@ function resetProgress(){
  clearTimeout(resetId);
  resetId=null;
  $("reset").textContent="Reset my progress";
- const piece=state.piece,level=state.level;
- state=defaults();
- state.piece=piece;
- state.level=level;
+const piece=state.piece;
+const level=state.level;
+const duration=state.duration;
+
+state=defaults();
+
+state.piece=piece;
+state.level=level;
+state.duration=duration;
  save();
  renderStats();
  if(gameActive)newGame();
@@ -80391,6 +80508,7 @@ function resetProgress(){
    PRIVATE EVENT BINDINGS
    All events belong to this feature's own DOM.
 ========================================================= */
+$("duration").addEventListener("change", changeDuration);
 $("new-game").addEventListener("click",newGame);
 $("next").addEventListener("click",nextQuestion);
 $("stop-game").addEventListener("click",stopGame);
@@ -80503,6 +80621,26 @@ renderIntro();
  border:1px solid rgba(255,215,0,.14);
  border-radius:16px;padding:16px
 }
+
+/* TIME CHALLENGE CONFIG */
+#squareCompare-section #scmp-config{
+ max-width:420px;
+ margin-bottom:15px
+}
+#squareCompare-section .scmp-setting label{
+ display:block;margin-bottom:7px;color:#aeb3cf;font-size:10px;font-weight:900
+}
+#squareCompare-section #scmp-duration{
+ width:100%;padding:12px;border-radius:9px;
+ background:#101629;border:1px solid #514675;color:#fff;outline:none
+}
+#squareCompare-section #scmp-duration:disabled{
+ opacity:.55;cursor:not-allowed
+}
+#squareCompare-section .scmp-sub{
+ color:#aeb3cf;font-size:11px;line-height:1.6;margin-top:4px
+}
+
 #squareCompare-section #scmp-game{
  --scmp-rgb:56,189,248;
  border-radius:18px;padding:22px;
@@ -80648,6 +80786,10 @@ renderIntro();
  background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.4)
 }
 #squareCompare-section #scmp-feedback.scmp-fb-bad strong{color:#fb7185}
+#squareCompare-section #scmp-feedback.scmp-fb-neutral{
+ background:rgba(96,165,250,.10);border-color:rgba(96,165,250,.4)
+}
+#squareCompare-section #scmp-feedback.scmp-fb-neutral strong{color:#60a5fa}
 
 #squareCompare-section .scmp-controls{
  display:flex;flex-direction:column;align-items:center;
@@ -80659,6 +80801,30 @@ renderIntro();
  background:transparent;color:#fff;font-size:13px;font-weight:900;cursor:pointer
 }
 #squareCompare-section .scmp-new:hover{background:rgba(255,255,255,.12)}
+
+/* STOP + NEW GAME BUTTONS */
+#squareCompare-section .scmp-action-row{
+ display:flex;justify-content:center;align-items:center;
+ gap:12px;flex-wrap:wrap;width:100%
+}
+#squareCompare-section .scmp-action-row .scmp-new,
+#squareCompare-section .scmp-action-row .scmp-stop{
+ flex:1;max-width:220px;min-width:140px
+}
+#squareCompare-section .scmp-stop{
+ padding:12px 24px;border-radius:11px;
+ border:1px solid rgba(251,113,133,.65);
+ background:rgba(251,113,133,.12);
+ color:#fecdd3;font-size:13px;font-weight:950;cursor:pointer;
+ transition:background .15s,border-color .15s
+}
+#squareCompare-section .scmp-stop:hover:not(:disabled){
+ background:rgba(251,113,133,.25);border-color:#fb7185
+}
+#squareCompare-section .scmp-stop:disabled{
+ opacity:.35;cursor:not-allowed
+}
+
 #squareCompare-section #scmp-next{
  display:none;width:100%;padding:14px;border:0;border-radius:12px;
  background:linear-gradient(145deg,#34d399,#059669);
@@ -80767,8 +80933,14 @@ renderIntro();
  #squareCompare-section .scmp-answer{font-size:12px;padding:12px 5px;min-height:54px}
  #squareCompare-section .scmp-big{font-size:52px}
 }
+@media(max-width:480px){
+ #squareCompare-section .scmp-action-row{gap:8px}
+ #squareCompare-section .scmp-action-row .scmp-new,
+ #squareCompare-section .scmp-action-row .scmp-stop{
+  min-width:0;padding:12px 10px
+ }
+}
 </style>
-
 
 
 <section class="section hidden" id="squareCompare-section">
@@ -80785,13 +80957,29 @@ renderIntro();
    <div class="scmp-tag">THE OLYMPUS CHESS ACADEMY</div>
   </header>
 
+  <!-- TIME CHALLENGE CONFIG -->
+  <section class="scmp-card" id="scmp-config">
+   <div class="scmp-setting">
+    <label for="scmp-duration">⏱ TIME CHALLENGE</label>
+    <select id="scmp-duration">
+     <option value="30" selected>30 Seconds</option>
+     <option value="60">1 Minute</option>
+     <option value="120">2 Minutes</option>
+     <option value="180">3 Minutes</option>
+     <option value="240">4 Minutes</option>
+     <option value="300">5 Minutes</option>
+    </select>
+    <div class="scmp-sub">Choose your total challenge duration.</div>
+   </div>
+  </section>
+
   <div class="scmp-layout">
    <main id="scmp-game">
 
     <div class="scmp-timer">
      <div class="scmp-timer-top"><span id="scmp-time">30s</span></div>
      <div class="scmp-track"><div id="scmp-timer-fill"></div></div>
-     <div class="scmp-timer-caption">TIME REMAINING · 30 SECOND CHALLENGE</div>
+     <div class="scmp-timer-caption" id="scmp-timer-caption">TIME REMAINING · 30 SECOND CHALLENGE</div>
     </div>
 
     <div class="scmp-instructions">
@@ -80827,7 +81015,15 @@ renderIntro();
 
     <div class="scmp-controls">
      <button type="button" id="scmp-next">Next Pair →</button>
-     <button type="button" class="scmp-new" id="scmp-new-game">New Game</button>
+
+     <div class="scmp-action-row">
+      <button type="button" class="scmp-stop" id="scmp-stop-game" disabled>
+       ■ STOP
+      </button>
+      <button type="button" class="scmp-new" id="scmp-new-game">
+       ＋ NEW GAME
+      </button>
+     </div>
     </div>
 
     <div class="scmp-hint" id="scmp-hint">
@@ -80893,7 +81089,7 @@ renderIntro();
  const $=id=>root.querySelector("#scmp-"+id);
  const STORE_KEY="olympusSquareCompare_v3";
  const FILES="abcdefgh";
- const GAME_MS=30000;
+ const TIME_OPTIONS=[30,60,120,180,240,300];
 
  const RANKS=[
   {min:0,icon:"🌱",name:"Seedling"},
@@ -80908,8 +81104,15 @@ renderIntro();
  const GOOD=["Super!","Great job!","Awesome!","Brilliant!","You got it!","Nice one!"];
  const BAD=["Oops!","Not quite!","Almost!","Good try!"];
 
+ function getGameDuration(){return state.duration*1000;}
+ function getDurationLabel(seconds){
+  return seconds<60
+   ? seconds+" SECOND CHALLENGE"
+   : (seconds/60)+" MINUTE CHALLENGE";
+ }
+
  function defaults(){
-  return {rating:500,points:0,correct:0,wrong:0,streak:0,best:0,mode:"easy"};
+  return {rating:500,points:0,correct:0,wrong:0,streak:0,best:0,mode:"easy",duration:30};
  }
  function load(){
   const s=defaults();
@@ -80921,6 +81124,8 @@ renderIntro();
      if(Number.isFinite(n))s[k]=Math.max(0,Math.floor(n));
     });
     s.mode=d.mode==="hard"?"hard":"easy";
+    const duration=Number(d.duration);
+    s.duration=TIME_OPTIONS.includes(duration)?duration:30;
    }
   }catch(e){}
   return s;
@@ -80928,7 +81133,7 @@ renderIntro();
 
  let state=load();
  let pair=null,locked=true,active=false;
- let timeLeft=GAME_MS,deadline=0;
+ let timeLeft=state.duration*1000,deadline=0;
  let timer=null,advance=null,resetConfirm=null;
  let lastPair="";
  let observer=null;
@@ -81028,9 +81233,16 @@ renderIntro();
   }
  }
  function renderTimer(){
-  const fraction=Math.max(0,Math.min(1,timeLeft/GAME_MS));
-  $("time").textContent=Math.ceil(timeLeft/1000)+"s";
+  const total=getGameDuration();
+  const fraction=Math.max(0,Math.min(1,timeLeft/total));
+  const totalSeconds=Math.ceil(timeLeft/1000);
+  const minutes=Math.floor(totalSeconds/60);
+  const seconds=totalSeconds%60;
+  $("time").textContent=minutes>0
+   ? minutes+":"+String(seconds).padStart(2,"0")
+   : seconds+"s";
   $("timer-fill").style.width=(fraction*100)+"%";
+  $("timer-caption").textContent="TIME REMAINING · "+getDurationLabel(state.duration);
   const color=timeLeft<=5000?"#fb7185":timeLeft<=10000?"#fbbf24":"#00df83";
   $("timer-fill").style.background=color;
   $("time").style.color=color;
@@ -81067,9 +81279,13 @@ renderIntro();
   else if(active&&paused&&timeLeft>0)startTimer();
  }
 
- function showFeedback(good,title,message){
+ function showFeedback(type,title,message){
   const el=$("feedback");
-  el.className=good?"scmp-fb-good":"scmp-fb-bad";
+  el.className = type==="good"
+   ? "scmp-fb-good"
+   : type==="neutral"
+    ? "scmp-fb-neutral"
+    : "scmp-fb-bad";
   el.replaceChildren();
   const strong=document.createElement("strong");
   strong.textContent=title;
@@ -81079,6 +81295,11 @@ renderIntro();
   el.style.display="block";
  }
  function setAnswersDisabled(value){answers.forEach(b=>b.disabled=value);}
+
+ function syncControls(){
+  $("stop-game").disabled = !active;
+  $("duration").disabled = active;
+ }
 
  function preparePair(){
   if(!active||timeLeft<=0)return;
@@ -81102,26 +81323,33 @@ renderIntro();
  function timeOut(){
   if(!active)return;
   stopTimer();clearAdvance();
-  active=false;locked=true;
+  active=false;locked=true;paused=false;
   setAnswersDisabled(true);
   $("game").classList.remove("scmp-good");
   $("game").classList.add("scmp-bad");
   $("next").style.display="none";
   renderPair(true);
-  showFeedback(false,"⏰ Time is up!","You completed "+state.correct+" correct answers in total. Press New Game to try again.");
+  showFeedback(
+   "bad",
+   "⏰ Time is up!",
+   "Your "+getDurationLabel(state.duration)+" has ended. You completed "+
+   state.correct+" correct answers. Press New Game to try again."
+  );
   $("bubble").textContent="Time is up! Ready for another challenge?";
+  $("hint").textContent="Press New Game to start another challenge.";
+  syncControls();
  }
  function startGame(){
   stopTimer();clearAdvance();
-  active=true;locked=false;timeLeft=GAME_MS;paused=false;
+  active=true;locked=false;timeLeft=getGameDuration();paused=false;
   $("game").classList.remove("scmp-good","scmp-bad");
   $("feedback").style.display="none";
   $("feedback").className="";
   $("next").style.display="none";
   preparePair();
   $("bubble").textContent="Game started! Compare the two squares and answer quickly.";
-  $("hint").textContent="30 seconds · Same Color or Different Colors?";
-  renderTimer();startTimer();
+  $("hint").textContent=getDurationLabel(state.duration)+" · Same Color or Different Colors?";
+  renderTimer();startTimer();syncControls();
  }
 
  function answer(choice){
@@ -81163,7 +81391,7 @@ renderIntro();
   const pointsText=dp>0?"+"+dp+" points":dp<0?dp+" points":"0 points";
 
   showFeedback(
-   correct,
+   correct?"good":"bad",
    correct?"✓ "+pick(GOOD):"✕ "+pick(BAD),
    explanation+" Correct answer: "+(pair.same?"Same Color":"Different Colors")+
    ". "+ratingText+" · "+pointsText+
@@ -81177,11 +81405,72 @@ renderIntro();
    $("hint").textContent="Correct · Next pair loading…";
    advance=setTimeout(()=>{advance=null;nextPair();},650);
   }else{
-   stopTimer();active=false;
+   stopTimer();active=false;paused=false;
    $("bubble").textContent="Not quite! Your challenge has stopped. Try again!";
    $("next").style.display="none";
-   $("hint").textContent="Press New Game to start another 30-second challenge.";
+   $("hint").textContent="Press New Game to start another challenge.";
+   syncControls();
   }
+ }
+
+ function stopGame(){
+  if(!active)return;
+
+  // Preserve the actual remaining time.
+  if(timer!==null){
+   timeLeft=Math.max(0,deadline-Date.now());
+  }
+
+  // If the timer has already expired, handle timeout normally.
+  if(timeLeft<=0){
+   timeOut();
+   return;
+  }
+
+  // Stop every pending game action.
+  stopTimer();
+  clearAdvance();
+
+  // Stop the game without recording a wrong answer.
+  active=false;
+  locked=true;
+  paused=false;
+
+  // Freeze the current answer options.
+  setAnswersDisabled(true);
+
+  // Hide the automatic next pair button.
+  $("next").style.display="none";
+
+  // Remove result coloring.
+  $("game").classList.remove("scmp-good","scmp-bad");
+
+  // Show neutral feedback.
+  showFeedback(
+   "neutral",
+   "■ GAME STOPPED",
+   "Your challenge has been stopped. Your rating, points and streak are preserved. Change the duration and press New Game when ready."
+  );
+
+  $("bubble").textContent="Stopped · Press New Game to try again.";
+  $("hint").textContent="Stopped · Choose a duration and press New Game.";
+
+  syncControls();
+  renderTimer();
+ }
+
+ function changeDuration(){
+  if(active)return;
+  const selected=Number($("duration").value);
+  if(!TIME_OPTIONS.includes(selected)){
+   $("duration").value=String(state.duration);
+   return;
+  }
+  state.duration=selected;
+  save();
+  timeLeft=getGameDuration();
+  renderTimer();
+  $("hint").textContent="Selected duration: "+getDurationLabel(selected);
  }
 
  function changeMode(mode){
@@ -81199,9 +81488,9 @@ renderIntro();
   }
   clearTimeout(resetConfirm);resetConfirm=null;
   $("reset").textContent="Reset my progress";
-  const mode=state.mode;
-  state=defaults();state.mode=mode;
-  save();renderStats();
+  const mode=state.mode,duration=state.duration;
+  state=defaults();state.mode=mode;state.duration=duration;
+  save();renderStats();syncControls();
   if(active)startGame();
  }
 
@@ -81209,6 +81498,8 @@ renderIntro();
  answers.forEach(b=>b.addEventListener("click",()=>answer(b.dataset.scmpAnswer)));
  $("new-game").addEventListener("click",startGame);
  $("next").addEventListener("click",nextPair);
+ $("stop-game").addEventListener("click",stopGame);
+ $("duration").addEventListener("change",changeDuration);
  $("reset").addEventListener("click",resetProgress);
  modes.forEach(b=>b.addEventListener("click",()=>changeMode(b.dataset.scmpMode)));
 
@@ -81222,8 +81513,10 @@ renderIntro();
    });
   }
  }
- renderStats();renderMode();renderTimer();
- $("bubble").textContent="Press New Game to begin your 30-second Compare Color challenge.";
+ renderStats();renderMode();
+ $("duration").value=String(state.duration);
+ renderTimer();syncControls();
+ $("bubble").textContent="Press New Game to begin your "+getDurationLabel(state.duration).toLowerCase()+".";
 })();
  </script>
 </section>
