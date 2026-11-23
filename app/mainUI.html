@@ -42793,6 +42793,12 @@ right:0;
   Square Distance
 </button>
 
+<button class="nav-btn" data-tab="mateOrNot" id="mateOrNotNavBtn">
+  🕵️ Checkmate or
+  <span style="font-size: 1.35em; color: #44e635; font-weight: 900;">Not</span>
+  <span style="font-size: 1.35em; color: #f53845; font-weight: 900;">?</span>
+</button>
+
 
 
 <button
@@ -70414,6 +70420,1212 @@ winClose?.addEventListener("click", function() {
 })();
 
 </script>
+
+<style>
+  #mn-shell *, #mn-shell *::before, #mn-shell *::after { box-sizing: border-box; }
+  #mn-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
+  #mn-layout > * { min-width: 0; }
+  @media (max-width: 1150px) { #mn-layout { grid-template-columns: 1fr; } }
+
+  .mn-card { background: rgba(20, 24, 42, 0.96); border: 1px solid rgba(255, 215, 0, 0.14); border-radius: 16px; padding: 14px; }
+  .mn-stat-row { display: flex; justify-content: space-between; gap: 8px; color: #aeb3cf; font-size: 12px; font-weight: 700; }
+  .mn-stat-row strong { color: #fff; font-variant-numeric: tabular-nums; }
+
+  /* ---------- GAME CARD ---------- */
+  #mn-game {
+    --rgb: 167, 139, 250;
+    min-width: 0; border-radius: 18px; padding: 24px 22px;
+    background: linear-gradient(135deg, rgba(var(--rgb), 0.16), rgba(20, 24, 42, 0.97) 58%);
+    border: 1px solid rgba(var(--rgb), 0.35);
+    transition: border-color .25s, box-shadow .25s, background .25s;
+  }
+  #mn-game.mn-good { --rgb: 52, 211, 153; border-color: rgba(52, 211, 153, 0.85); box-shadow: 0 14px 40px rgba(52, 211, 153, 0.25), inset 0 0 20px rgba(52, 211, 153, 0.08); }
+  #mn-game.mn-bad  { --rgb: 251, 113, 133; border-color: rgba(251, 113, 133, 0.85); box-shadow: 0 14px 40px rgba(251, 113, 133, 0.25), inset 0 0 20px rgba(251, 113, 133, 0.08); }
+
+  .mn-top { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+  .mn-mascot { flex: 0 0 auto; width: 62px; height: 62px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; background: radial-gradient(circle at 35% 25%, rgba(255,255,255,0.35), transparent 50%), linear-gradient(145deg, #c084fc, #7c3aed); box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35); }
+  .mn-bubble { position: relative; flex: 1 1 auto; min-width: 0; padding: 14px 18px; border-radius: 18px; background: #1a1a2e; border: 1px solid rgba(255,255,255,0.12); color: #fff; font-size: 15px; font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
+  .mn-bubble::before { content: ""; position: absolute; left: -8px; top: 20px; width: 14px; height: 14px; background: #1a1a2e; border-left: 1px solid rgba(255,255,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.12); transform: rotate(45deg); }
+
+  /* ---------- STAGE: board | answer panel ---------- */
+  .mn-stage { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .mn-stage { grid-template-columns: 1fr; } }
+
+  .mn-board-col { width: 100%; max-width: min(100%, 92vh); margin: 0 auto; }
+  .mn-board-box { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; overflow: hidden; box-shadow: 0 16px 45px rgba(0,0,0,0.45); background: #14172a; border: 2px solid rgba(167, 139, 250, 0.35); }
+  .mn-board-box.mn-shake { animation: mnShake .38s ease-in-out; }
+  @keyframes mnShake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+
+  .mn-chessboard { width: 100%; height: 100%; container-type: size; display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); user-select: none; }
+  .mn-sq { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .mn-sq.mn-light { background: #dcd3fc; }
+  .mn-sq.mn-dark  { background: #7c52d8; }
+  .mn-sq.mn-last::after { content: ""; position: absolute; inset: 0; background: rgba(255, 215, 0, 0.38); pointer-events: none; }
+  .mn-sq.mn-check::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, rgba(251,113,133,0.95) 0%, rgba(251,113,133,0.45) 55%, transparent 80%); pointer-events: none; }
+  .mn-sq.mn-hint::after { content: ""; position: absolute; inset: 0; background: rgba(52, 211, 153, 0.5); box-shadow: inset 0 0 0 4px #34d399; pointer-events: none; }
+  .mn-sq.mn-okmate::after { content: ""; position: absolute; inset: 0; background: rgba(52, 211, 153, 0.55); box-shadow: inset 0 0 0 4px #34d399; pointer-events: none; }
+  .mn-coord-file, .mn-coord-rank { position: absolute; font-size: 11px; font-weight: 900; line-height: 1; pointer-events: none; user-select: none; z-index: 4; }
+  .mn-coord-file { bottom: 3px; right: 4px; }
+  .mn-coord-rank { top: 3px; left: 4px; }
+  .mn-sq.mn-light .mn-coord-file, .mn-sq.mn-light .mn-coord-rank { color: #7c52d8; }
+  .mn-sq.mn-dark .mn-coord-file, .mn-sq.mn-dark .mn-coord-rank { color: #dcd3fc; }
+  .mn-piece { position: relative; z-index: 2; width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45)); user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .mn-glyph { position: relative; z-index: 2; font-size: 42px; font-size: 9.5cqw; line-height: 1; user-select: none; pointer-events: none; }
+  .mn-glyph.mn-white-glyph { color: #fff; filter: drop-shadow(0 2px 4px #000); }
+  .mn-glyph.mn-black-glyph { color: #1e1e24; filter: drop-shadow(0 1px 2px #fff); }
+
+  .mn-loading { position: absolute; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; color: #aeb3cf; font-size: 15px; font-weight: 800; background: radial-gradient(circle at 50% 40%, rgba(124,58,237,0.2), rgba(12,15,29,0.97) 75%); }
+  .mn-loading.mn-on { display: flex; }
+  .mn-loading small { color: #8b90ab; font-size: 12px; font-weight: 700; }
+  .mn-spinner { width: 46px; height: 46px; border-radius: 50%; border: 5px solid rgba(167,139,250,0.25); border-top-color: #a78bfa; animation: mnSpin .9s linear infinite; }
+  @keyframes mnSpin { to { transform: rotate(360deg); } }
+
+  /* ---------- ANSWER PANEL ---------- */
+  .mn-panel { background: rgba(14, 17, 32, 0.92); border: 1px solid rgba(255,255,255,0.12); border-radius: 18px; padding: 22px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .mn-q { margin: 0; text-align: center; color: #fff; font-size: 22px; font-weight: 900; line-height: 1.3; }
+  .mn-yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mn-yn-btn { padding: 16px 8px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #fff; font-size: 19px; font-weight: 900; cursor: pointer; transition: all .15s; }
+  .mn-yn-btn:hover:not(:disabled) { background: rgba(255,255,255,0.11); transform: translateY(-1px); }
+  .mn-yn-btn:disabled { cursor: default; }
+  .mn-yn-btn.mn-sel { border-color: #ffd700; background: rgba(255,215,0,0.14); color: #ffd700; }
+  .mn-yn-btn.mn-right { border-color: #34d399; background: rgba(52,211,153,0.2); color: #34d399; }
+  .mn-yn-btn.mn-wrong { border-color: #fb7185; background: rgba(251,113,133,0.2); color: #fb7185; }
+  .mn-turn-chip { align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #e4e7f5; font-size: 12px; font-weight: 900; }
+  .mn-turn-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #8b90ab; }
+  .mn-turn-dot.mn-w { background: #fff; } .mn-turn-dot.mn-b { background: #1e1e24; }
+
+  .mn-confirm { width: 100%; padding: 15px; border-radius: 14px; border: none; cursor: pointer; font-size: 17px; font-weight: 900; letter-spacing: .5px; color: #fff; background: linear-gradient(145deg, #7c3aed, #6d28d9); box-shadow: 0 8px 24px rgba(124,58,237,0.35); transition: transform .12s, opacity .2s; }
+  .mn-confirm:hover:not(:disabled) { transform: translateY(-2px); }
+  .mn-confirm:active:not(:disabled) { transform: scale(0.98); }
+  .mn-confirm:disabled { opacity: .45; cursor: default; box-shadow: none; background: #3a3f55; color: #aeb3cf; }
+
+  .mn-feedback { display: none; padding: 13px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; font-weight: 700; color: #e4e7f5; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); overflow-wrap: anywhere; }
+  .mn-feedback b.mn-fb-title { display: block; font-size: 16px; font-weight: 900; margin-bottom: 3px; }
+  .mn-after { display: none; grid-template-columns: 1fr; gap: 8px; }
+  .mn-after.mn-on { display: grid; }
+  .mn-btn { width: 100%; padding: 13px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.07); color: #e4e7f5; font-size: 14px; font-weight: 900; cursor: pointer; transition: all .15s; }
+  .mn-btn:hover:not(:disabled) { background: rgba(255,255,255,0.13); color: #fff; }
+  .mn-btn:disabled { opacity: .5; cursor: default; }
+  .mn-btn.mn-review { border-color: rgba(255,215,0,0.5); background: rgba(255,215,0,0.12); color: #ffd700; }
+  .mn-btn.mn-next { border: none; color: #fff; background: linear-gradient(145deg, #7c3aed, #6d28d9); }
+  .mn-btn.mn-next.mn-green { color: #042f2e; background: linear-gradient(145deg, #34d399, #10b981); }
+  .mn-guide { color: #c8ccdf; font-size: 12.5px; line-height: 1.55; font-weight: 600; }
+  .mn-guide b { color: #ffd700; }
+
+  /* ---------- STATS PANEL ---------- */
+  #mn-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
+  @media (max-width: 1150px) { #mn-side { position: static; } }
+  #mn-rating { position: relative; border-radius: 18px; padding: 14px; background: linear-gradient(160deg, rgba(255,215,0,0.20), rgba(20,24,42,0.97) 60%); border: 1px solid rgba(255,215,0,0.45); box-shadow: 0 20px 55px rgba(0,0,0,0.25); }
+  .mn-big { font-size: 46px; line-height: 1; font-weight: 900; color: #ffd700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: -1px; margin: 6px 0 4px; }
+  .mn-delta { position: absolute; right: 14px; top: 34px; font-size: 20px; font-weight: 900; opacity: 0; pointer-events: none; }
+  .mn-delta.mn-up { color: #34d399; animation: mnFloat 1s ease-out; }
+  .mn-delta.mn-down { color: #fb7185; animation: mnFloat 1s ease-out; }
+  @keyframes mnFloat { 0% { opacity: 0; transform: translateY(14px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px); } }
+  .mn-rank { text-align: center; color: #fff; font-size: 15px; font-weight: 900; }
+  .mn-bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,0.08); margin-top: 12px; overflow: hidden; }
+  .mn-bar-fill { height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #b8860b, #ffd700); transition: width .4s; }
+  .mn-next-rank { margin-top: 8px; text-align: center; color: #aeb3cf; font-size: 12px; font-weight: 700; }
+  .mn-stats { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .mn-title { color: #ffd700; font-size: 15px; font-weight: 900; margin-bottom: 4px; }
+  .mn-saved { margin-top: 10px; text-align: center; color: #6f7491; font-size: 11px; font-weight: 700; }
+  .mn-howrow { padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); color: #e4e7f5; font-size: 12px; font-weight: 700; line-height: 1.5; }
+
+  @media (prefers-reduced-motion: reduce) { .mn-delta.mn-up, .mn-delta.mn-down, .mn-board-box.mn-shake, .mn-spinner { animation: none; } }
+</style>
+
+<section class="section hidden" id="mateOrNot-section">
+  <div id="mn-shell" style="width:100%;max-width:1700px;margin:0 auto;padding:20px;">
+    <!-- HEADER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:42px;line-height:1;color:#ffd700;">🕵️</div>
+        <div>
+          <h2 style="margin:0;color:#fff;font-size:26px;font-weight:900;">Mate or Not?</h2>
+          <p style="margin:5px 0 0;color:#aeb3cf;font-size:14px;font-weight:600;">
+            Is there a forced checkmate? Say Yes or No (mate in 1 to 6). Trust your eyes, not the position!
+          </p>
+        </div>
+      </div>
+      <button type="button" id="mnSkipBtn" style="padding:10px 15px;border-radius:10px;border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.10);color:#ffd700;font-weight:800;cursor:pointer;">
+        ⏭ Skip Position
+      </button>
+    </div>
+
+    <div id="mn-layout">
+      <!-- GAME -->
+      <div id="mn-game">
+        <div class="mn-top">
+          <div class="mn-mascot" id="mnMascot">🦇</div>
+          <div class="mn-bubble" id="mnBubble">Setting up a position…</div>
+        </div>
+
+        <div class="mn-stage">
+          <div class="mn-board-col">
+            <div class="mn-board-box" id="mnBoardBox">
+              <div class="mn-chessboard" id="mnChessboard"></div>
+              <div class="mn-loading mn-on" id="mnLoading">
+                <div class="mn-spinner"></div>
+                <div id="mnLoadingText">Setting up a fresh position…</div>
+                <small id="mnLoadingSub"></small>
+              </div>
+            </div>
+          </div>
+
+          <div class="mn-panel">
+            <h3 class="mn-q">Is this a forced checkmate?</h3>
+            <div class="mn-yn">
+              <button type="button" class="mn-yn-btn" id="mnYes">Yes</button>
+              <button type="button" class="mn-yn-btn" id="mnNo">No</button>
+            </div>
+            <div class="mn-turn-chip" id="mnTurn"><span class="mn-turn-dot mn-w"></span>White to move</div>
+            <button type="button" class="mn-confirm" id="mnConfirm" disabled>CONFIRM</button>
+            <div class="mn-feedback" id="mnFeedback" aria-live="polite"></div>
+            <div class="mn-after" id="mnAfter">
+              <button type="button" class="mn-btn mn-review" id="mnReviewBtn">🔍 Review</button>
+              <button type="button" class="mn-btn mn-next" id="mnNextBtn">Next Position →</button>
+            </div>
+            <div class="mn-guide" id="mnGuide"><b>Yes</b> means the side to move can force checkmate in <b>"N" moves</b>, whatever the opponent replies. <b>No</b> means there is no such forced mate.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS PANEL -->
+      <div id="mn-side">
+        <div id="mn-rating">
+          <div style="color:#aeb3cf;font-size:11px;font-weight:900;letter-spacing:1px;">YOUR RATING</div>
+          <div class="mn-big" id="mnRating">500</div>
+          <div class="mn-delta" id="mnDelta"></div>
+          <div class="mn-rank" id="mnRank">♟️ Pawn</div>
+          <div class="mn-bar"><div class="mn-bar-fill" id="mnRankFill"></div></div>
+          <div class="mn-next-rank" id="mnNextRank"></div>
+          <div class="mn-stats">
+            <div class="mn-stat-row"><span>⭐ Points</span><strong id="mnPoints">0</strong></div>
+            <div class="mn-stat-row"><span>🔥 Run (in a row)</span><strong id="mnStreak">0</strong></div>
+            <div class="mn-stat-row"><span>🏆 Best run</span><strong id="mnBest">0</strong></div>
+            <div class="mn-stat-row"><span>✅ Right / ❌ Wrong</span><strong id="mnRW">0 / 0</strong></div>
+            <div class="mn-stat-row"><span>🎯 Accuracy</span><strong id="mnAcc">0%</strong></div>
+          </div>
+        </div>
+
+        <div class="mn-card">
+          <div class="mn-title">🧠 How to play</div>
+          <div style="margin-top:10px;display:grid;gap:7px;">
+            <div class="mn-howrow"><b>1. Look</b> · Study the position. Find every check.</div>
+            <div class="mn-howrow"><b>2. Decide</b> · Press Yes or No, then Confirm.</div>
+            <div class="mn-howrow"><b>3. Learn</b> · Right answer: next position in 2 seconds. Wrong answer: press Review to see the truth.</div>
+          </div>
+        </div>
+
+        <div class="mn-card" style="padding:12px 16px;">
+          <button type="button" id="mnResetBtn" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(251,113,133,0.35);background:rgba(251,113,133,0.10);color:#fb7185;font-weight:800;cursor:pointer;">Reset my progress</button>
+          <div class="mn-saved" id="mnSaved"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================
+     CONFIG (paths are relative to the main page)
+  ========================================================= */
+  const SF_SRC = "stockfish/stockfish-19-lite-single.js";   // the .wasm must sit next to it
+  const PIECE_PATH = "assets/pieces/";
+  const SOUND_PATH = "sounds/";
+
+  const STORE_KEY = "olympusMateOrNot_v1";
+  const SEEN_KEY = "olympusMateOrNot_seen_v1";
+  const RECENT_KEY = "olympusMateOrNot_recent_v1";
+  const START_RATING = 500;
+  const AUTO_NEXT_MS = 2000;     // after a CORRECT answer
+  const MAX_MATE = 6;            // "forced mate" means mate in 1..6
+  const YES_CAP = 2;             // ready-made mate positions kept per mate length
+  const NO_CAP = 4;              // ready-made non-mate positions kept
+  const NO_DEPTH = 12;           // Stockfish depth needed to trust "no mate within 4"
+  const SOLVER_NODES = 5000;    // own check-only mate solver budget per position
+
+  const PIECE_GLYPHS = {
+    w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
+    b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" }
+  };
+  const PIECE_NAMES = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+  const RANKS = [
+    { min: 0,   icon: "🌱", name: "Seedling" },
+    { min: 450, icon: "🧭", name: "Explorer" },
+    { min: 500, icon: "♟️", name: "Pawn" },
+    { min: 550, icon: "♞", name: "Knight" },
+    { min: 600, icon: "♝", name: "Bishop" },
+    { min: 650, icon: "♜", name: "Rook" },
+    { min: 700, icon: "♛", name: "Queen" },
+    { min: 750, icon: "♚", name: "King" }
+  ];
+
+  /* =========================================================
+     CHESS RULES (0x88 board): legal moves, check, mate.
+  ========================================================= */
+  const FILES = "abcdefgh";
+  const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  const D_N = [-33, -31, -18, -14, 14, 18, 31, 33];
+  const D_B = [-17, -15, 15, 17];
+  const D_R = [-16, -1, 1, 16];
+  const D_K = [-17, -16, -15, -1, 1, 15, 16, 17];
+  const isW = function (ch) { return ch === ch.toUpperCase(); };
+  const colorOf = function (ch) { return isW(ch) ? "w" : "b"; };
+  const sqName = function (sq) { return FILES[sq & 15] + (8 - (sq >> 4)); };
+  const sqFromName = function (n) { return (8 - parseInt(n[1], 10)) * 16 + (n.charCodeAt(0) - 97); };
+
+  function fromFen(fen) {
+    const p = fen.split(" "), b = new Array(128).fill(null);
+    let kw = -1, kb = -1;
+    p[0].split("/").forEach(function (row, r) {
+      let c = 0;
+      for (const ch of row) {
+        if (ch >= "1" && ch <= "8") c += +ch;
+        else { const sq = r * 16 + c; b[sq] = ch; if (ch === "K") kw = sq; if (ch === "k") kb = sq; c++; }
+      }
+    });
+    const cs = p[2] || "-";
+    const c = (cs.includes("K") ? 1 : 0) | (cs.includes("Q") ? 2 : 0) | (cs.includes("k") ? 4 : 0) | (cs.includes("q") ? 8 : 0);
+    const ep = p[3] && p[3] !== "-" ? sqFromName(p[3]) : -1;
+    return { b: b, t: p[1] || "w", c: c, ep: ep, hm: +p[4] || 0, fm: +p[5] || 1, kw: kw, kb: kb };
+  }
+
+  function fenOf(s) {
+    const rows = [];
+    for (let r = 0; r < 8; r++) {
+      let row = "", e = 0;
+      for (let c = 0; c < 8; c++) {
+        const p = s.b[r * 16 + c];
+        if (p) { if (e) { row += e; e = 0; } row += p; } else e++;
+      }
+      if (e) row += e;
+      rows.push(row);
+    }
+    const cs = (s.c & 1 ? "K" : "") + (s.c & 2 ? "Q" : "") + (s.c & 4 ? "k" : "") + (s.c & 8 ? "q" : "");
+    return rows.join("/") + " " + s.t + " " + (cs || "-") + " " + (s.ep >= 0 ? sqName(s.ep) : "-") + " " + s.hm + " " + s.fm;
+  }
+
+  function attacked(s, sq, by) {
+    const b = s.b;
+    const P = by === "w" ? "P" : "p", N = by === "w" ? "N" : "n", K = by === "w" ? "K" : "k";
+    const Bi = by === "w" ? "B" : "b", R = by === "w" ? "R" : "r", Q = by === "w" ? "Q" : "q";
+    const pd = by === "w" ? [15, 17] : [-15, -17];
+    for (const d of pd) { const x = sq + d; if (!(x & 0x88) && b[x] === P) return true; }
+    for (const d of D_N) { const x = sq + d; if (!(x & 0x88) && b[x] === N) return true; }
+    for (const d of D_K) { const x = sq + d; if (!(x & 0x88) && b[x] === K) return true; }
+    for (const d of D_B) {
+      let x = sq + d;
+      while (!(x & 0x88)) { const p = b[x]; if (p) { if (p === Bi || p === Q) return true; break; } x += d; }
+    }
+    for (const d of D_R) {
+      let x = sq + d;
+      while (!(x & 0x88)) { const p = b[x]; if (p) { if (p === R || p === Q) return true; break; } x += d; }
+    }
+    return false;
+  }
+
+  function pseudo(s) {
+    const b = s.b, us = s.t, out = [];
+    const push = function (f, t, p, cap, fl) {
+      if (p.toUpperCase() === "P" && ((t >> 4) === 0 || (t >> 4) === 7)) {
+        for (const pr of "QRBN") out.push({ f: f, t: t, p: p, cap: cap, pr: pr, fl: null });
+      } else out.push({ f: f, t: t, p: p, cap: cap, pr: null, fl: fl || null });
+    };
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const f = r * 16 + c, p = b[f];
+      if (!p || colorOf(p) !== us) continue;
+      const T = p.toUpperCase();
+      if (T === "P") {
+        const dir = us === "w" ? -16 : 16, st = us === "w" ? 6 : 1;
+        let t = f + dir;
+        if (!b[t]) {
+          push(f, t, p, null);
+          if (r === st && !b[t + dir]) push(f, t + dir, p, null, "dp");
+        }
+        for (const d of [dir - 1, dir + 1]) {
+          t = f + d;
+          if (t & 0x88) continue;
+          const q = b[t];
+          if (q && colorOf(q) !== us) push(f, t, p, q);
+          else if (!q && t === s.ep) push(f, t, p, us === "w" ? "p" : "P", "ep");
+        }
+      } else if (T === "N" || T === "K") {
+        for (const d of (T === "N" ? D_N : D_K)) {
+          const t = f + d;
+          if (t & 0x88) continue;
+          const q = b[t];
+          if (!q || colorOf(q) !== us) push(f, t, p, q || null);
+        }
+      } else {
+        for (const d of (T === "B" ? D_B : T === "R" ? D_R : D_K)) {
+          let t = f + d;
+          while (!(t & 0x88)) {
+            const q = b[t];
+            if (!q) push(f, t, p, null);
+            else { if (colorOf(q) !== us) push(f, t, p, q); break; }
+            t += d;
+          }
+        }
+      }
+    }
+    const them = us === "w" ? "b" : "w", base = us === "w" ? 112 : 0;
+    const K = us === "w" ? "K" : "k", R = us === "w" ? "R" : "r";
+    const kr = us === "w" ? 1 : 4, qr = us === "w" ? 2 : 8;
+    if (b[base + 4] === K && !attacked(s, base + 4, them)) {
+      if ((s.c & kr) && !b[base + 5] && !b[base + 6] && b[base + 7] === R && !attacked(s, base + 5, them) && !attacked(s, base + 6, them))
+        out.push({ f: base + 4, t: base + 6, p: K, cap: null, pr: null, fl: "ck" });
+      if ((s.c & qr) && !b[base + 3] && !b[base + 2] && !b[base + 1] && b[base] === R && !attacked(s, base + 3, them) && !attacked(s, base + 2, them))
+        out.push({ f: base + 4, t: base + 2, p: K, cap: null, pr: null, fl: "cq" });
+    }
+    return out;
+  }
+
+  function make(s, m) {
+    const b = s.b, mover = s.t, u = { ep: s.ep, c: s.c, hm: s.hm };
+    b[m.t] = m.pr ? (mover === "w" ? m.pr : m.pr.toLowerCase()) : m.p;
+    b[m.f] = null;
+    if (m.fl === "ep") b[m.t + (mover === "w" ? 16 : -16)] = null;
+    if (m.fl === "ck") { b[m.t - 1] = b[m.t + 1]; b[m.t + 1] = null; }
+    if (m.fl === "cq") { b[m.t + 1] = b[m.t - 2]; b[m.t - 2] = null; }
+    if (m.p === "K") { s.kw = m.t; s.c &= ~3; }
+    if (m.p === "k") { s.kb = m.t; s.c &= ~12; }
+    if (m.f === 119 || m.t === 119) s.c &= ~1;
+    if (m.f === 112 || m.t === 112) s.c &= ~2;
+    if (m.f === 7 || m.t === 7) s.c &= ~4;
+    if (m.f === 0 || m.t === 0) s.c &= ~8;
+    s.ep = m.fl === "dp" ? (m.f + m.t) / 2 : -1;
+    s.hm = (m.p.toUpperCase() === "P" || m.cap) ? 0 : s.hm + 1;
+    s.t = mover === "w" ? "b" : "w";
+    if (mover === "b") s.fm++;
+    return u;
+  }
+
+  function unmake(s, m, u) {
+    const b = s.b, mover = s.t === "w" ? "b" : "w";
+    s.t = mover;
+    if (mover === "b") s.fm--;
+    b[m.f] = m.p;
+    b[m.t] = null;
+    if (m.fl === "ep") b[m.t + (mover === "w" ? 16 : -16)] = m.cap;
+    else if (m.cap) b[m.t] = m.cap;
+    if (m.fl === "ck") { b[m.t + 1] = b[m.t - 1]; b[m.t - 1] = null; }
+    if (m.fl === "cq") { b[m.t - 2] = b[m.t + 1]; b[m.t + 1] = null; }
+    if (m.p === "K") s.kw = m.f;
+    if (m.p === "k") s.kb = m.f;
+    s.ep = u.ep; s.c = u.c; s.hm = u.hm;
+  }
+
+  function legal(s) {
+    const us = s.t, them = us === "w" ? "b" : "w", out = [];
+    for (const m of pseudo(s)) {
+      const u = make(s, m);
+      if (!attacked(s, us === "w" ? s.kw : s.kb, them)) out.push(m);
+      unmake(s, m, u);
+    }
+    return out;
+  }
+
+  function inCheck(s) { return attacked(s, s.t === "w" ? s.kw : s.kb, s.t === "w" ? "b" : "w"); }
+  function uciOf(m) { return sqName(m.f) + sqName(m.t) + (m.pr ? m.pr.toLowerCase() : ""); }
+
+  // Small chess.js-style wrapper
+  function Chess(fen) { this.s = fromFen(fen || START_FEN); this.h = []; }
+  Chess.prototype.fen = function () { return fenOf(this.s); };
+  Chess.prototype.turn = function () { return this.s.t; };
+  Chess.prototype.in_check = function () { return inCheck(this.s); };
+  Chess.prototype.in_checkmate = function () { return inCheck(this.s) && legal(this.s).length === 0; };
+  Chess.prototype.get = function (name) {
+    const p = this.s.b[sqFromName(name)];
+    return p ? { type: p.toLowerCase(), color: colorOf(p) } : null;
+  };
+  Chess.prototype.move = function (o) {
+    const from = sqFromName(o.from), to = sqFromName(o.to), promo = (o.promotion || "").toUpperCase();
+    const m = legal(this.s).find(function (x) { return x.f === from && x.t === to && (!x.pr || x.pr === promo); });
+    if (!m) return null;
+    make(this.s, m);
+    const v = {
+      from: sqName(m.f), to: sqName(m.t), piece: m.p.toLowerCase(), color: colorOf(m.p),
+      promotion: m.pr ? m.pr.toLowerCase() : undefined,
+      flags: (m.pr ? "p" : "") + (m.fl === "ep" ? "e" : "") + (m.cap ? "c" : "") + (m.fl === "ck" || m.fl === "cq" ? "k" : "")
+    };
+    this.h.push(v);
+    return v;
+  };
+
+  function moveObj(u) { const o = { from: u.slice(0, 2), to: u.slice(2, 4) }; if (u.length > 4) o.promotion = u[4]; return o; }
+  const rnd = function (n) { return Math.floor(Math.random() * n); };
+  const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  /* =========================================================
+     STOCKFISH WRAPPER (one Web Worker, one job at a time)
+  ========================================================= */
+  function Engine(url) {
+    const me = this;
+    let w = null, boot = "boot", cur = null, dead = false, deadErr = null;
+    const q = [];
+    let readyRes, readyRej;
+    me.ready = new Promise(function (res, rej) { readyRes = res; readyRej = rej; });
+    me.ready.catch(function () {});
+
+    function fail(err) {
+      dead = true; deadErr = err;
+      readyRej(err);
+      if (cur) { clearTimeout(cur.timer); cur.reject(err); cur = null; }
+      while (q.length) q.shift().reject(err);
+    }
+    function pump() {
+      if (dead || boot !== "idle" || cur || !q.length) return;
+      cur = q.shift();
+      cur.lines = {};
+      w.postMessage("setoption name MultiPV value 1");
+      w.postMessage("position fen " + cur.fen);
+      w.postMessage("go depth " + cur.depth + (cur.movetime ? " movetime " + cur.movetime : ""));
+      const job = cur;
+      job.timer = setTimeout(function () { if (cur === job) w.postMessage("stop"); }, (job.movetime || 3000) + 3000);
+    }
+    function parseInfo(line) {
+      if (/ (lowerbound|upperbound)/.test(line)) return;
+      const sc = / score (cp|mate) (-?\d+)/.exec(line);
+      const pv = / pv (.+)$/.exec(line);
+      if (!sc || !pv) return;
+      const dp = / depth (\d+)/.exec(line);
+      cur.lines[1] = { type: sc[1], val: +sc[2], pv: pv[1].trim().split(/\s+/), depth: dp ? +dp[1] : 0 };
+    }
+
+    try { w = new Worker(url); } catch (e) { fail(e); return; }
+    w.onerror = function () { fail(new Error("Stockfish could not be loaded from " + url)); };
+    w.onmessage = function (e) {
+      const line = String(e.data);
+      if (boot === "boot") { if (line === "uciok") { boot = "isready"; w.postMessage("isready"); } return; }
+      if (boot === "isready") { if (line === "readyok") { boot = "idle"; readyRes(); pump(); } return; }
+      if (!cur) return;
+      if (line.indexOf("info") === 0) parseInfo(line);
+      else if (line.indexOf("bestmove") === 0) {
+        const m = /bestmove (\S+)/.exec(line), job = cur;
+        clearTimeout(job.timer);
+        cur = null;
+        job.resolve({ lines: job.lines, best: m && m[1] !== "(none)" ? m[1] : null });
+        pump();
+      }
+    };
+    w.postMessage("uci");
+
+    me.analyze = function (o) {
+      return new Promise(function (resolve, reject) {
+        if (dead) { reject(deadErr); return; }
+        q.push({ fen: o.fen, depth: o.depth || 10, movetime: o.movetime || 0, resolve: resolve, reject: reject });
+        pump();
+      });
+    };
+    me.terminate = function () { dead = true; if (w) w.terminate(); };
+  }
+
+  /* =========================================================
+     FAST POSITION FACTORY
+     1. Play a quick, material-aware practice game with our own
+        move generator (no engine: instant).
+     2. Every position is tested with a tiny CHECKS-ONLY mate solver
+        (exact, microseconds). A hit = a verified forced mate.
+     3. Other positions get ONE short Stockfish look (depth 9):
+        a quiet-move mate it finds becomes a YES; a position with no
+        mate within 4 becomes a NO. Anything uncertain is dropped.
+  ========================================================= */
+  const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+  function pickPlayoutMove(s, ply) {
+    const ms = legal(s);
+    if (!ms.length) return null;
+    const noise = ply < 8 ? 2.2 : 1.5;
+    const white = s.t === "w", backRank = white ? 7 : 0, ek = white ? s.kb : s.kw;
+    const crowd = pieceCount(s);
+    let best = null, bs = -1e9;
+    for (const m of ms) {
+      const T = m.p.toUpperCase();
+      let sc = (m.cap ? VAL[m.cap.toLowerCase()] : 0) + (m.pr ? 8 : 0);
+      const u = make(s, m);
+      const chk = inCheck(s);
+      const rep = legal(s);
+      if (!rep.length) sc += chk ? 30 : -30;
+      else {
+        let worst = 0;
+        for (const r of rep) { const v = (r.cap ? VAL[r.cap.toLowerCase()] : 0) + (r.pr ? 8 : 0); if (v > worst) worst = v; }
+        sc -= worst;
+        if (chk) sc += 0.7;
+      }
+      unmake(s, m, u);
+      // ---- human-like positional sense ----
+      if (T === "K") { if (m.fl === "ck" || m.fl === "cq") sc += 2; else if (crowd > 14) sc -= 2.5; }
+      else if ((T === "N" || T === "B") && (m.f >> 4) === backRank && ply < 24) sc += 0.8;
+      if (T === "Q" && ply < 10) sc -= 1;
+      const tf = m.t & 7;
+      if (T === "P" && ply < 14) { if (tf >= 2 && tf <= 5) sc += 0.4; else if (tf === 0 || tf === 7) sc -= 0.4; }
+      if (T === "N" && (tf === 0 || tf === 7)) sc -= 0.6;
+      if (ply >= 8 && T !== "P" && T !== "K") {            // build attacks near the enemy king
+        const d = Math.max(Math.abs((m.t >> 4) - (ek >> 4)), Math.abs(tf - (ek & 7)));
+        if (d <= 2) sc += 0.5;
+      }
+      sc += Math.random() * noise;
+      if (sc > bs) { bs = sc; best = m; }
+    }
+    return best;
+  }
+
+  // How dangerous does the side to move look to the enemy king? (used to keep "No" positions believable)
+  function pressure(s) {
+    const us = s.t, ks = us === "w" ? s.kb : s.kw;
+    let zone = 0, near = 0;
+    if (attacked(s, ks, us)) zone++;
+    for (const d of D_K) { const x = ks + d; if (!(x & 0x88) && attacked(s, x, us)) zone++; }
+    for (let sq = 0; sq < 128; sq++) {
+      const p = s.b[sq];
+      if (!p || colorOf(p) !== us || "QRBN".indexOf(p.toUpperCase()) === -1) continue;
+      if (Math.max(Math.abs((sq >> 4) - (ks >> 4)), Math.abs((sq & 7) - (ks & 7))) <= 3) near++;
+    }
+    return { zone: zone, near: near };
+  }
+
+  // ---- checks-only forced-mate solver (attacker moves must all be checks) ----
+  let solverNodes = 0;
+  const ABORT = { abort: true };
+  function solveChecks(s, k) {
+    if (++solverNodes > SOLVER_NODES) throw ABORT;
+    const ms = legal(s);
+    for (const m of ms) {
+      const u = make(s, m);
+      if (inCheck(s)) {
+        const replies = legal(s);
+        if (!replies.length) { unmake(s, m, u); return [m]; }          // checkmate
+        if (k > 1) {
+          let ok = true, longest = null, longReply = null;
+          for (const r of replies) {
+            const u2 = make(s, r);
+            const sub = solveChecks(s, k - 1);
+            unmake(s, r, u2);
+            if (!sub) { ok = false; break; }
+            if (!longest || sub.length > longest.length) { longest = sub; longReply = r; }
+          }
+          if (ok) { unmake(s, m, u); return [m, longReply].concat(longest); }
+        }
+      }
+      unmake(s, m, u);
+    }
+    return null;
+  }
+  function solveMate(fen) {
+    solverNodes = 0;
+    for (let k = 1; k <= MAX_MATE; k++) {
+      const s = fromFen(fen);                // fresh copy: an abort can leave it half-played
+      try {
+        const r = solveChecks(s, k);
+        if (r) return { n: k, pv: r.map(uciOf) };
+      } catch (e) { if (e !== ABORT) throw e; return null; }
+    }
+    return null;
+  }
+
+  function pvIsMate(fen, pv, m) {
+    if (!pv || pv.length < 2 * m - 1) return false;
+    const t = new Chess(fen);
+    for (let i = 0; i < 2 * m - 1; i++) if (!t.move(moveObj(pv[i]))) return false;
+    return t.in_checkmate();
+  }
+
+  // ---- never show the same position twice (remembered on this device) ----
+  function hashStr(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  let seenArr = [];
+  try { seenArr = JSON.parse(localStorage.getItem(SEEN_KEY)) || []; } catch (e) { seenArr = []; }
+  const seen = new Set(seenArr);
+  function posKey(fen) { return hashStr(fen.split(" ").slice(0, 2).join(" ")); }
+  function remember(h) {
+    seen.add(h); seenArr.push(h);
+    if (seenArr.length > 6000) seenArr = seenArr.slice(-4500);
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(seenArr)); } catch (e) {}
+  }
+
+  // "kind" memory: remembers the last 40 puzzle shapes (mate length + mating piece/square, or material + side)
+  // so look-alike puzzles are skipped, not just identical ones.
+  let recentSigs = [];
+  try { recentSigs = JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { recentSigs = []; }
+  function sigOf(item) {
+    if (item.mate) {
+      const t = new Chess(item.fen);
+      let mv = null;
+      for (const u of item.pv) { mv = t.move(moveObj(u)); if (!mv) break; }
+      return "Y" + item.mate + (mv ? mv.piece + mv.to : "");
+    }
+    const f = item.fen.split(" ");
+    return "N" + f[1] + f[0].replace(/[\d\/]/g, "").split("").sort().join("");
+  }
+
+  /* =========================================================
+     DOM
+  ========================================================= */
+  const section = document.getElementById("mateOrNot-section");
+  if (!section) return;
+
+  const gameBox = document.getElementById("mn-game");
+  const mascot = document.getElementById("mnMascot");
+  const bubble = document.getElementById("mnBubble");
+  const boardBox = document.getElementById("mnBoardBox");
+  const boardEl = document.getElementById("mnChessboard");
+  const loadingEl = document.getElementById("mnLoading");
+  const loadingText = document.getElementById("mnLoadingText");
+  const loadingSub = document.getElementById("mnLoadingSub");
+  const yesBtn = document.getElementById("mnYes");
+  const noBtn = document.getElementById("mnNo");
+  const turnEl = document.getElementById("mnTurn");
+  const confirmBtn = document.getElementById("mnConfirm");
+  const feedback = document.getElementById("mnFeedback");
+  const afterRow = document.getElementById("mnAfter");
+  const reviewBtn = document.getElementById("mnReviewBtn");
+  const nextBtn = document.getElementById("mnNextBtn");
+  const guideEl = document.getElementById("mnGuide");
+  const skipBtn = document.getElementById("mnSkipBtn");
+  const resetBtn = document.getElementById("mnResetBtn");
+  const savedEl = document.getElementById("mnSaved");
+  const ratingEl = document.getElementById("mnRating");
+  const deltaEl = document.getElementById("mnDelta");
+  const rankEl = document.getElementById("mnRank");
+  const rankFill = document.getElementById("mnRankFill");
+  const nextRankEl = document.getElementById("mnNextRank");
+  const pointsEl = document.getElementById("mnPoints");
+  const streakEl = document.getElementById("mnStreak");
+  const bestEl = document.getElementById("mnBest");
+  const rwEl = document.getElementById("mnRW");
+  const accEl = document.getElementById("mnAcc");
+
+  /* =========================================================
+     STATE
+  ========================================================= */
+  function defaults() { return { rating: START_RATING, points: 0, correct: 0, wrong: 0, streak: 0, best: 0 }; }
+  function loadState() {
+    const s = defaults();
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        s.rating = Math.max(0, Number(d.rating) || START_RATING);
+        s.points = Math.max(0, Number(d.points) || 0);
+        s.correct = Math.max(0, Number(d.correct) || 0);
+        s.wrong = Math.max(0, Number(d.wrong) || 0);
+        s.streak = Math.max(0, Number(d.streak) || 0);
+        s.best = Math.max(0, Number(d.best) || 0);
+      }
+    } catch (e) {}
+    return s;
+  }
+  function saveState() {
+    let ok = true;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { ok = false; }
+    savedEl.textContent = ok ? "💾 Progress saved on this device" : "⚠️ Saving blocked in this browser";
+  }
+  const state = loadState();
+
+  let g = null, puzzle = null;
+  let stage = "loading";           // loading | ask | feedback
+  let answer = null;               // "yes" | "no"
+  let flip = false;
+  let lastMove = null, hintSqs = [], mateSq = null;
+  let fatal = false, booted = false;
+  let reviewToken = 0;
+  let autoTimer = null, autoTick = null, autoDeadline = 0;
+  const failedImg = {};
+
+  /* =========================================================
+     SOUNDS (lazy)
+  ========================================================= */
+  const SOUND_FILES = { check: "check.mp3", move: "move.mp3", castle: "castle.mp3", capture: "capture.mp3", next: "next.mp3", wrong: "wrong.mp3" };
+  const players = Object.create(null);
+  let soundsReady = false;
+  function initSounds() {
+    if (soundsReady) return;
+    soundsReady = true;
+    Object.keys(SOUND_FILES).forEach(function (n) {
+      try { const a = new Audio(SOUND_PATH + SOUND_FILES[n]); a.preload = "auto"; a.volume = 0.78; players[n] = a; } catch (e) {}
+    });
+  }
+  function playSound(name) {
+    initSounds();
+    const a = players[name];
+    if (!a) return;
+    try { a.pause(); a.currentTime = 0; const r = a.play(); if (r && r.catch) r.catch(function () {}); } catch (e) {}
+  }
+  function playMoveSound(mv, after) {
+    if (!mv) return;
+    if (after && after.in_check()) playSound("check");
+    else if (mv.flags.indexOf("k") !== -1) playSound("castle");
+    else if (mv.flags.indexOf("c") !== -1) playSound("capture");
+    else playSound("move");
+  }
+
+  /* =========================================================
+     BOARD RENDERING
+  ========================================================= */
+  function glyphNode(color, type) {
+    const s = document.createElement("span");
+    s.className = "mn-glyph " + (color === "w" ? "mn-white-glyph" : "mn-black-glyph");
+    s.textContent = PIECE_GLYPHS[color][type];
+    return s;
+  }
+  function pieceNode(color, type) {
+    const code = color + type.toUpperCase();
+    if (!failedImg[code]) {
+      const img = document.createElement("img");
+      img.className = "mn-piece";
+      img.alt = (color === "w" ? "White " : "Black ") + PIECE_NAMES[type];
+      img.draggable = false;
+      img.onerror = function () { failedImg[code] = true; if (img.parentNode) img.parentNode.replaceChild(glyphNode(color, type), img); };
+      img.src = PIECE_PATH + code + ".png";
+      return img;
+    }
+    return glyphNode(color, type);
+  }
+  function kingSquare(game, color) {
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const name = FILES[c] + (8 - r), p = game.get(name);
+      if (p && p.type === "k" && p.color === color) return name;
+    }
+    return null;
+  }
+  function renderBoard(game) {
+    game = game || g;
+    boardEl.innerHTML = "";
+    if (!game) return;
+    const checkSq = game.in_check() ? kingSquare(game, game.turn()) : null;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const row = flip ? 7 - r : r, col = flip ? 7 - c : c;
+        const name = FILES[col] + (8 - row);
+        const sq = document.createElement("div");
+        sq.className = "mn-sq " + ((row + col) % 2 === 0 ? "mn-light" : "mn-dark");
+        if (lastMove && (lastMove.from === name || lastMove.to === name)) sq.classList.add("mn-last");
+        if (checkSq === name) sq.classList.add("mn-check");
+        if (hintSqs.indexOf(name) !== -1) sq.classList.add("mn-hint");
+        if (mateSq === name) sq.classList.add("mn-okmate");
+        if (c === 0) { const rl = document.createElement("span"); rl.className = "mn-coord-rank"; rl.textContent = "" + (8 - row); sq.appendChild(rl); }
+        if (r === 7) { const fl = document.createElement("span"); fl.className = "mn-coord-file"; fl.textContent = FILES[col]; sq.appendChild(fl); }
+        const p = game.get(name);
+        if (p) sq.appendChild(pieceNode(p.color, p.type));
+        boardEl.appendChild(sq);
+      }
+    }
+  }
+  function setLoading(on, text, sub) {
+    loadingEl.classList.toggle("mn-on", on);
+    if (text) loadingText.textContent = text;
+    loadingSub.textContent = sub || "";
+  }
+
+  /* =========================================================
+     BACKGROUND BUFFER: ready-made positions
+  ========================================================= */
+  const yes = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  const noBuf = [];
+  let eng = null, genRunning = false, waiting = false, softDeadline = 0, checkedCount = 0, gamesSinceNo = 0;
+
+  const yesTotal = function () { return yes[1].length + yes[2].length + yes[3].length + yes[4].length + yes[5].length + yes[6].length; };
+  const needMore = function () {
+    if (fatal) return false;
+    if (waiting) return true;
+    return Date.now() < softDeadline && (yesTotal() < 4 || noBuf.length < NO_CAP);
+  };
+
+  function takeNext() {
+    const filled = [1, 2, 3, 4, 5, 6].filter(function (n) { return yes[n].length; });
+    const wantYes = Math.random() < 0.5;
+    if (wantYes && filled.length) return yes[filled[rnd(filled.length)]].shift();
+    if (!wantYes && noBuf.length) return noBuf.shift();
+    if (filled.length) return yes[filled[rnd(filled.length)]].shift();
+    if (noBuf.length) return noBuf.shift();
+    return null;
+  }
+
+  function offer(item) {
+    const sig = sigOf(item);
+    if (recentSigs.indexOf(sig) !== -1) return false;
+    recentSigs.push(sig);
+    if (recentSigs.length > 40) recentSigs.shift();
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(recentSigs)); } catch (e) {}
+    remember(posKey(item.fen));
+    if (!item.mate) gamesSinceNo = 0;
+    if (item.mate) yes[item.mate].push(item); else noBuf.push(item);
+    if (waiting) {
+      const p = takeNext();
+      if (p) { waiting = false; startPuzzle(p); }
+    }
+    return true;
+  }
+
+  function pieceCount(s) { let n = 0; for (let i = 0; i < 128; i++) if (s.b[i]) n++; return n; }
+  const yieldTick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+
+  async function considerPosition(s, mv) {
+    checkedCount++;
+    if (waiting) loadingSub.textContent = checkedCount + " positions checked";
+    if (pieceCount(s) < 10 || inCheck(s)) return false;
+    const ms = legal(s);
+    if (ms.length < 3) return false;
+    const fen = fenOf(s);
+    if (seen.has(posKey(fen))) return false;
+    let checks = 0;
+    for (const m of ms) { const u = make(s, m); if (inCheck(s)) checks++; unmake(s, m, u); }
+    const last = { from: sqName(mv.f), to: sqName(mv.t) };
+
+    // 1) exact check-only solver
+    const r = solveMate(fen);
+    if (r) {
+      if (yes[r.n].length < YES_CAP) return offer({ fen: fen, mate: r.n, pv: r.pv, best: r.pv[0], last: last });
+      return false;
+    }
+    // 2) one short Stockfish look (only while we still need non-mate positions)
+    if (noBuf.length >= NO_CAP) return false;
+    // A "No" must look like a real attack: several checks, attackers near the king, pressure on its squares.
+    // (If a long time passes without finding one, ask for slightly less so the student never waits forever.)
+    const pr = pressure(s);
+    const believable = pr.near >= 2 && pr.zone >= 3 && (gamesSinceNo > 60 ? checks >= 1 : checks >= 2);
+    if (!believable) return false;
+    const res = await eng.analyze({ fen: fen, depth: NO_DEPTH, movetime: 400 });
+    const L = res.lines[1];
+    if (!L) return false;
+    if (L.type === "mate") {
+      if (L.val >= 1 && L.val <= MAX_MATE && yes[L.val].length < YES_CAP && pvIsMate(fen, L.pv, L.val))
+        return offer({ fen: fen, mate: L.val, pv: L.pv.slice(0, 2 * L.val - 1), best: L.pv[0], last: last });
+      return false;                                            // mated-ourselves or longer mate: unclear, drop
+    }
+    if (L.depth < NO_DEPTH) return false;                      // search was cut short: not trusted
+    if (L.val < 120 || L.val > 1500) return false;            // side to move must be clearly better, but not just up a mountain of material
+    return offer({ fen: fen, mate: 0, pv: [], best: L.pv[0], last: last });
+  }
+
+  async function genLoop() {
+    if (genRunning || fatal || !eng) return;
+    genRunning = true;
+    try {
+      while (needMore()) {
+        await yieldTick();
+        if (noBuf.length < NO_CAP) gamesSinceNo++;
+        const s = fromFen(START_FEN);
+        const maxPly = 40 + rnd(40);
+        let ply = 0;
+        while (ply < maxPly && needMore()) {
+          const m = pickPlayoutMove(s, ply);
+          if (!m) break;
+          make(s, m);
+          ply++;
+          if (ply >= 14 && await considerPosition(s, m)) break;   // one position per practice game = no near-duplicates
+          await yieldTick();
+        }
+      }
+    } catch (err) { showFatal(err); }
+    genRunning = false;
+  }
+  function refill() { softDeadline = Date.now() + 7000; genLoop(); }
+
+  function showFatal(err) {
+    fatal = true;
+    setLoading(true, "⚠️ Could not start the position engine.", "");
+    bubble.textContent = "Engine error: check the file paths.";
+    mascot.textContent = "😵";
+    guideEl.innerHTML = "<b>Setup problem</b><br>" + String(err && err.message ? err.message : err).replace(/</g, "&lt;") +
+      "<br><br>Needed: <b>" + SF_SRC + "</b> and the matching <b>.wasm</b> file in the same folder. Run the site from a web server (not by double-clicking the file).";
+  }
+
+  /* =========================================================
+     GAME FLOW
+  ========================================================= */
+  function cancelAuto() {
+    if (autoTimer) clearTimeout(autoTimer);
+    if (autoTick) clearInterval(autoTick);
+    autoTimer = null; autoTick = null; autoDeadline = 0;
+    nextBtn.textContent = "Next Position →";
+  }
+  function scheduleAuto() {
+    cancelAuto();
+    autoDeadline = Date.now() + AUTO_NEXT_MS;
+    const upd = function () {
+      const left = Math.max(0, autoDeadline - Date.now());
+      nextBtn.textContent = left > 0 ? "Next Position (" + Math.ceil(left / 1000) + "s) →" : "Loading…";
+    };
+    upd();
+    autoTick = setInterval(upd, 150);
+    autoTimer = setTimeout(function () { autoTimer = null; if (stage === "feedback") loadPuzzle(); }, AUTO_NEXT_MS);
+  }
+
+  function resetUi() {
+    reviewToken++;
+    gameBox.classList.remove("mn-good", "mn-bad");
+    feedback.style.display = "none";
+    afterRow.classList.remove("mn-on");
+    nextBtn.classList.remove("mn-green");
+    reviewBtn.textContent = "🔍 Review";
+    reviewBtn.disabled = false;
+    yesBtn.className = "mn-yn-btn"; noBtn.className = "mn-yn-btn";
+    yesBtn.disabled = true; noBtn.disabled = true;
+    confirmBtn.disabled = true;
+    answer = null; hintSqs = []; mateSq = null;
+  }
+
+  function loadPuzzle() {
+    if (fatal) return;
+    cancelAuto();
+    stage = "loading";
+    resetUi();
+    mascot.textContent = "🦇";
+    bubble.textContent = "Setting up a position…";
+    const p = takeNext();
+    if (p) { startPuzzle(p); refill(); }
+    else {
+      waiting = true;
+      boardEl.innerHTML = "";
+      checkedCount = 0;
+      setLoading(true, "Setting up a fresh position…", "");
+      refill();
+    }
+  }
+
+  function startPuzzle(p) {
+    puzzle = p;
+    g = new Chess(p.fen);
+    flip = g.turn() === "b";
+    lastMove = p.last;
+    stage = "ask";
+    resetUi();
+    yesBtn.disabled = false; noBtn.disabled = false;
+    setLoading(false);
+    const side = g.turn() === "w" ? "White" : "Black";
+    turnEl.innerHTML = '<span class="mn-turn-dot ' + (g.turn() === "w" ? "mn-w" : "mn-b") + '"></span>' + side + " to move";
+    mascot.textContent = "🤔";
+    bubble.textContent = "Look at every check. Can " + side + " force checkmate?";
+    renderBoard();
+  }
+
+  function choose(a) {
+    if (stage !== "ask") return;
+    answer = a;
+    yesBtn.classList.toggle("mn-sel", a === "yes");
+    noBtn.classList.toggle("mn-sel", a === "no");
+    confirmBtn.disabled = false;
+  }
+
+  function showDelta(d) {
+    deltaEl.className = "mn-delta";
+    void deltaEl.offsetWidth;
+    if (d === 0) return;
+    deltaEl.textContent = d > 0 ? "+" + d : "" + d;
+    deltaEl.classList.add(d > 0 ? "mn-up" : "mn-down");
+  }
+
+  function confirmAnswer() {
+    if (stage !== "ask" || !answer) return;
+    stage = "feedback";
+    yesBtn.disabled = true; noBtn.disabled = true; confirmBtn.disabled = true;
+    const truth = puzzle.mate > 0;
+    const ok = (answer === "yes") === truth;
+    const old = state.rating;
+    const gain = truth ? puzzle.mate : 3;
+    const rightBtn = truth ? yesBtn : noBtn;
+    yesBtn.classList.remove("mn-sel"); noBtn.classList.remove("mn-sel");
+    rightBtn.classList.add("mn-right");
+
+    if (ok) {
+      state.correct++; state.streak++;
+      if (state.streak > state.best) state.best = state.streak;
+      state.rating += gain;
+      const pts = 5 + gain * 5 + Math.min(10, (state.streak - 1) * 2);
+      state.points += pts;
+      playSound("next");
+      gameBox.classList.add("mn-good");
+      mascot.textContent = "🎉";
+      bubble.textContent = "Correct! +" + gain + " rating · +" + pts + " points";
+      feedback.style.background = "rgba(52,211,153,0.15)";
+      feedback.style.borderColor = "rgba(52,211,153,0.3)";
+      feedback.innerHTML = '<b class="mn-fb-title" style="color:#34d399;">Correct!</b>' +
+        (truth ? "Yes, there was a forced mate." : "No, there was no forced mate.") + " Next position in 2 seconds…";
+      nextBtn.classList.add("mn-green");
+    } else {
+      (answer === "yes" ? yesBtn : noBtn).classList.add("mn-wrong");
+      state.wrong++; state.streak = 0;
+      state.rating = Math.max(0, state.rating - 1);
+      state.points = Math.max(0, state.points - 5);
+      playSound("wrong");
+      boardBox.classList.remove("mn-shake"); void boardBox.offsetWidth; boardBox.classList.add("mn-shake");
+      gameBox.classList.add("mn-bad");
+      mascot.textContent = "😅";
+      bubble.textContent = "Not this time. Press Review to see why.";
+      feedback.style.background = "rgba(251,113,133,0.15)";
+      feedback.style.borderColor = "rgba(251,113,133,0.3)";
+      feedback.innerHTML = '<b class="mn-fb-title" style="color:#fb7185;">Not quite.</b>-1 rating. Press <b style="color:#ffd700;">Review</b> to see the position, or go to the next one.';
+    }
+    feedback.style.display = "block";
+    afterRow.classList.add("mn-on");
+    showDelta(state.rating - old);
+    saveState(); renderStats();
+    if (ok) scheduleAuto();
+  }
+
+  /* ---------- review: shows whether it is mate ---------- */
+  function describe(game, u) {
+    const pc = game.get(u.slice(0, 2));
+    const gl = pc ? PIECE_GLYPHS[pc.color][pc.type] : "";
+    return gl + " " + u.slice(0, 2) + "→" + u.slice(2, 4) + (u.length > 4 ? "=" + u[4].toUpperCase() : "");
+  }
+
+  async function runReview() {
+    if (stage !== "feedback") return;
+    cancelAuto();
+    const tok = ++reviewToken;
+    reviewBtn.disabled = true;
+    hintSqs = []; mateSq = null;
+    const r = new Chess(puzzle.fen);
+    lastMove = puzzle.last;
+    renderBoard(r);
+    const side = r.turn() === "w" ? "White" : "Black";
+    const color = "#ffd700";
+
+    if (puzzle.mate > 0) {
+      feedback.innerHTML = '<b class="mn-fb-title" style="color:#34d399;">Yes: ' + side + ' mates in ' + puzzle.mate + '</b>Watch the forced line…';
+      feedback.style.display = "block";
+      const parts = [];
+      await sleep(600);
+      for (let i = 0; i < puzzle.pv.length; i++) {
+        if (tok !== reviewToken) return;
+        const u = puzzle.pv[i];
+        const txt = describe(r, u);
+        const mv = r.move(moveObj(u));
+        if (!mv) break;
+        playMoveSound(mv, r);
+        lastMove = { from: mv.from, to: mv.to };
+        const mated = r.in_checkmate();
+        parts.push(txt + (mated ? "#" : r.in_check() ? "+" : ""));
+        renderBoard(r);
+        feedback.innerHTML = '<b class="mn-fb-title" style="color:#34d399;">Yes: ' + side + ' mates in ' + puzzle.mate + '</b>' + parts.join(" &nbsp;·&nbsp; ");
+        if (mated) { mateSq = kingSquare(r, r.turn()); renderBoard(r); break; }
+        await sleep(950);
+      }
+      if (tok !== reviewToken) return;
+      bubble.textContent = "That was a forced checkmate in " + puzzle.mate + "!";
+    } else {
+      if (puzzle.best) {
+        const bm = puzzle.best;
+        hintSqs = [bm.slice(0, 2), bm.slice(2, 4)];
+        renderBoard(r);
+        feedback.innerHTML = '<b class="mn-fb-title" style="color:#fb7185;">No forced mate here</b>' +
+          side + ' cannot force checkmate, however tempting the checks look. The engine\'s best try is ' + describe(r, bm) + ' (green squares), but it does not force mate.';
+      } else {
+        feedback.innerHTML = '<b class="mn-fb-title" style="color:#fb7185;">No forced mate here</b>' + side + ' cannot force checkmate.';
+      }
+      feedback.style.display = "block";
+      bubble.textContent = "No forced mate in this position.";
+    }
+    reviewBtn.textContent = "🔁 Replay";
+    reviewBtn.disabled = false;
+  }
+
+  /* =========================================================
+     STATS
+  ========================================================= */
+  function rankFor(rating) { let idx = 0; for (let i = 0; i < RANKS.length; i++) if (rating >= RANKS[i].min) idx = i; return idx; }
+  function renderStats() {
+    ratingEl.textContent = state.rating;
+    pointsEl.textContent = state.points;
+    streakEl.textContent = state.streak;
+    bestEl.textContent = state.best;
+    rwEl.textContent = state.correct + " / " + state.wrong;
+    const total = state.correct + state.wrong;
+    accEl.textContent = total ? Math.round((state.correct / total) * 100) + "%" : "0%";
+    const i = rankFor(state.rating), cur = RANKS[i], nxt = RANKS[i + 1];
+    rankEl.textContent = cur.icon + " " + cur.name;
+    if (nxt) {
+      rankFill.style.width = Math.max(0, Math.min(100, ((state.rating - cur.min) / (nxt.min - cur.min)) * 100)) + "%";
+      nextRankEl.textContent = (nxt.min - state.rating) + " more to become " + nxt.icon + " " + nxt.name;
+    } else { rankFill.style.width = "100%"; nextRankEl.textContent = "Top rank reached! 👑"; }
+  }
+
+  /* =========================================================
+     EVENTS
+  ========================================================= */
+  yesBtn.addEventListener("click", function () { choose("yes"); });
+  noBtn.addEventListener("click", function () { choose("no"); });
+  confirmBtn.addEventListener("click", confirmAnswer);
+  reviewBtn.addEventListener("click", runReview);
+  nextBtn.addEventListener("click", function () { if (stage === "feedback") loadPuzzle(); });
+  skipBtn.addEventListener("click", function () { if (booted && (stage === "ask" || stage === "feedback")) loadPuzzle(); });
+
+  let resetTimer = null;
+  resetBtn.addEventListener("click", function () {
+    if (resetTimer === null) {
+      resetBtn.textContent = "Tap again to confirm reset";
+      resetTimer = setTimeout(function () { resetBtn.textContent = "Reset my progress"; resetTimer = null; }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer); resetTimer = null;
+    resetBtn.textContent = "Reset my progress";
+    Object.assign(state, defaults());
+    saveState(); renderStats();
+    if (booted) loadPuzzle();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (section.getClientRects().length === 0) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    const k = e.key.toLowerCase();
+    if (stage === "ask") {
+      if (k === "y") choose("yes");
+      else if (k === "n") choose("no");
+      else if (e.key === "Enter" && answer) { e.preventDefault(); confirmAnswer(); }
+    } else if (stage === "feedback" && e.key === "Enter") { e.preventDefault(); loadPuzzle(); }
+  });
+
+  /* =========================================================
+     INIT: nothing runs until the tab is first opened
+  ========================================================= */
+  let visibilityObserver = null, visibilityPoll = null;
+  function boot() {
+    if (booted) return;
+    booted = true;
+    if (visibilityObserver) visibilityObserver.disconnect();
+    if (visibilityPoll) clearInterval(visibilityPoll);
+    initSounds();
+    setLoading(true, "Starting Stockfish…", "");
+    Promise.resolve().then(function () {
+      eng = new Engine(SF_SRC);
+      return eng.ready;
+    }).then(loadPuzzle).catch(showFatal);
+  }
+
+  renderStats();
+  saveState();
+
+  function maybeBoot() { if (!booted && section.getClientRects().length > 0) boot(); }
+  try {
+    if (typeof MutationObserver !== "undefined") {
+      visibilityObserver = new MutationObserver(maybeBoot);
+      for (let node = section; node; node = node.parentElement) {
+        visibilityObserver.observe(node, { attributes: true, attributeFilter: ["class", "style", "hidden", "aria-hidden"] });
+      }
+    }
+  } catch (e) { visibilityObserver = null; }
+  visibilityPoll = setInterval(maybeBoot, 500);
+  maybeBoot();
+})();
+</script>
+
+
 
 
 <style>
@@ -198034,7 +199246,7 @@ const lockedTabs = [
   "guessElo", "attackDetection", "attackRelations", "visualizeMoves", 
 "puzzlebattle", "visualizeMovesHard", "learnNotation", "matePuzzles",
 "puzzletrainer", "blindfoldChess", "squareCompare"  , "chessDistance",
-"computer",
+"computer", "mateOrNot",
 "quiz",
 "coordtrain",
 "piecePractice",
@@ -271003,7 +272215,7 @@ style="
 training: [
   '[data-tab= "learnNotation" ]',
    '[data-tab= "matePuzzles" ]',
-    
+     '[data-tab= "mateOrNot" ]',
 
   '[data-tab="chessBaseLiveTactics"]',
   '[data-tab="puzzlerush"]',
