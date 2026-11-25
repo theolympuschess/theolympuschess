@@ -146823,6 +146823,206 @@ let studyPieceFilterMode = "all";
 // (visual badge like chess.com ! ? etc)
 // ============================================
 
+
+
+// =====================================================
+// ✨ OLYMPUS — CHESS.COM STYLE ANNOTATION REVEAL
+// Shared animation for Study + Live Classroom
+// =====================================================
+
+window.playOlympusAnnotationReveal = function(
+  squareEl,
+  anno,
+  nagColor,
+  finalMarker,
+  targetId = ""
+) {
+
+  if (!squareEl || !anno || !finalMarker) return;
+
+  // Remove an older animation on this square
+  squareEl
+    .querySelectorAll(".olympus-anno-reveal")
+    .forEach(el => el.remove());
+
+  squareEl.style.position = "relative";
+
+  // Main animation layer
+  const reveal = document.createElement("div");
+
+  reveal.className = "olympus-anno-reveal";
+
+  if (targetId) {
+    reveal.dataset.targetId = targetId;
+  }
+
+  reveal.style.cssText = `
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 999998;
+    pointer-events: none;
+    overflow: visible;
+  `;
+
+  // Full-square transparent annotation color
+  const tint = document.createElement("div");
+
+  tint.style.cssText = `
+    position: absolute;
+    inset: 0;
+    background: ${nagColor};
+    opacity: 0.30;
+  `;
+
+  // White annotation name pill
+  const pill = document.createElement("div");
+
+  pill.textContent = anno.label || "";
+
+  pill.style.cssText = `
+    position: absolute;
+    left: 50%;
+    top: -10%;
+    transform: translate(-50%, -50%);
+    background: #ffffff;
+    color: ${nagColor};
+    padding: 5px 13px;
+    border-radius: 30px;
+    font-size: clamp(13px, 2vw, 21px);
+    font-weight: 900;
+    line-height: 1.4;
+    white-space: nowrap;
+    box-shadow: 0 2px 9px rgba(0,0,0,0.20);
+    z-index: 3;
+    opacity: 1;
+    will-change: opacity, transform;
+  `;
+
+  // Large annotation symbol
+  const symbol = document.createElement("div");
+
+  symbol.textContent = anno.symbol || "";
+
+  symbol.style.cssText = `
+    position: absolute;
+    left: 65%;
+    top: 30%;
+    transform: translate(-50%, -50%) scale(1);
+    color: ${nagColor};
+    font-size: clamp(42px, 7vw, 76px);
+    font-weight: 1000;
+    line-height: 1;
+    z-index: 2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    will-change: left, top, transform;
+  `;
+
+  reveal.appendChild(tint);
+  reveal.appendChild(symbol);
+  reveal.appendChild(pill);
+
+  squareEl.appendChild(reveal);
+
+  // Reduced-motion accessibility
+  const reduceMotion =
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (reduceMotion) {
+    reveal.remove();
+    squareEl.appendChild(finalMarker);
+    return;
+  }
+
+  // Symbol travels smoothly towards the upper-right corner
+  const symbolAnimation = symbol.animate(
+    [
+      {
+        transform: "translate(-50%, -50%) scale(1)",
+        left: "65%",
+        top: "30%",
+        opacity: 1
+      },
+      {
+        transform: "translate(35%, -35%) scale(0.65)",
+        left: "100%",
+        top: "0%",
+        opacity: 0.95
+      }
+    ],
+    {
+      duration: 1000,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      fill: "forwards"
+    }
+  );
+
+  // Pill fades away gradually
+pill.animate(
+  [
+    {
+      opacity: 1,
+      transform: "translate(-50%, -50%) scale(1)",
+      offset: 0
+    },
+    {
+      opacity: 1,
+      transform: "translate(-50%, -50%) scale(1)",
+      offset: 0.65
+    },
+    {
+      opacity: 0,
+      transform: "translate(-50%, -60%) scale(0.95)",
+      offset: 1
+    }
+  ],
+  {
+    duration: 2200,
+    delay: 100,
+    easing: "ease-in-out",
+    fill: "forwards"
+  }
+);
+  // Square overlay fades away gradually
+  tint.animate(
+    [
+      { opacity: 0.30 },
+      { opacity: 0 }
+    ],
+    {
+      duration: 1000,
+      delay: 150,
+      easing: "ease-out",
+      fill: "forwards"
+    }
+  );
+
+  // Once symbol animation finishes, use ORIGINAL marker
+  symbolAnimation.onfinish = () => {
+
+    reveal.remove();
+
+    squareEl.appendChild(finalMarker);
+
+  };
+
+  // Fallback if animation is cancelled
+  symbolAnimation.oncancel = () => {
+
+    reveal.remove();
+
+    if (!finalMarker.isConnected) {
+      squareEl.appendChild(finalMarker);
+    }
+
+  };
+
+};
+
+
+
 let studyMoveMarkerEl = null;
 
 function clearStudyMoveMarker() {
@@ -146833,14 +147033,15 @@ function clearStudyMoveMarker() {
 
   studyMoveMarkerEl = null;
 }
+
+// =====================================================
+// ✨ STUDY BOARD — CHESS.COM STYLE ANNOTATION REVEAL
+// =====================================================
+
 function showStudyMoveMarker(node) {
 
-  if (
-    window.syncStudyAnnotationToolbar
-  ) {
-
+  if (window.syncStudyAnnotationToolbar) {
     window.syncStudyAnnotationToolbar();
-
   }
 
   if (!studyNagBubbleEnabled) return;
@@ -146849,13 +147050,17 @@ function showStudyMoveMarker(node) {
 
   if (!node || !node.move || !node.annotation) return;
 
-  // ⏱ Wait until piece finishes moving
+  // Wait for board movement to finish
   setTimeout(() => {
 
+    // Prevent outdated move animations
+    if (studyCurrentNode !== node) return;
+
     const anno = studyAnnotations[node.annotation];
-    const cssClass = anno.class;
+
     if (!anno) return;
 
+    const cssClass = anno.class;
     const square = node.move.to;
 
     const squareEl = document.querySelector(
@@ -146864,56 +147069,64 @@ function showStudyMoveMarker(node) {
 
     if (!squareEl) return;
 
-  const marker = document.createElement("div");
+    // Create original annotation marker
+    const marker = document.createElement("div");
 
-marker.className = "study-move-marker " + cssClass;
-marker.textContent = anno.symbol;
+    marker.className = "study-move-marker " + cssClass;
+    marker.textContent = anno.symbol;
 
-// 🔥 Get the real NAG color from CSS
-const temp = document.createElement("span");
-temp.className = cssClass;
-document.body.appendChild(temp);
+    // Get exact annotation color from existing CSS
+    const temp = document.createElement("span");
 
-const nagColor = getComputedStyle(temp).color;
-document.body.removeChild(temp);
+    temp.className = cssClass;
 
-// Apply Lichess style
-marker.style.background = nagColor;
-marker.style.color = "#ffffff";
+    document.body.appendChild(temp);
 
-marker.style.cssText += `
-  position:absolute;
-  top:0;
-  right:0;
-  transform:translate(40%, -40%);
-  width:36px;
-  height:36px;
-  border-radius:50%;
+    const nagColor = getComputedStyle(temp).color;
 
-  font-weight:900;
-font-size:22px;
-line-height:34px;
-display:flex;
-align-items:center;
-justify-content:center;
-text-align:center;
+    document.body.removeChild(temp);
 
-  pointer-events:none;
+    // Preserve existing circular marker design
+    marker.style.background = nagColor;
+    marker.style.color = "#ffffff";
 
-  
+    marker.style.cssText += `
+      position: absolute;
+      top: 0;
+      right: 0;
+      transform: translate(40%, -40%);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-weight: 900;
+      font-size: 22px;
+      line-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      box-shadow: 0 0 3px rgba(0,0,0,0.6);
+      z-index: 999;
+    `;
 
-  box-shadow:
-    0 0 3px rgba(0,0,0,0.6);
+    squareEl.style.position = "relative";
 
-  z-index:999;
-`;
+    // ✨ FIRST: animated square + annotation name
+    // ✨ THEN: original circular annotation marker
+    window.playOlympusAnnotationReveal(
+      squareEl,
+      anno,
+      nagColor,
+      marker
+    );
 
-  squareEl.style.position = "relative";
-  squareEl.appendChild(marker);
+    studyMoveMarkerEl = marker;
 
-  studyMoveMarkerEl = marker;
-}, 120);
+  }, 120);
+
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -222151,13 +222364,14 @@ function lpSetLiveAnnotationTarget({
     // Remove old marker locally
     // ------------------------------------------
 
-    document
-      .querySelectorAll(
-        ".lp-live-anno-marker"
-      )
-      .forEach(
-        el => el.remove()
-      );
+// 🧹 REMOVE OLD MARKER + ACTIVE REVEAL ANIMATION
+document
+  .querySelectorAll(
+    ".lp-live-anno-marker, .olympus-anno-reveal"
+  )
+  .forEach(
+    el => el.remove()
+  );
 
 
     // ------------------------------------------
@@ -240530,7 +240744,7 @@ window.renderLiveMoveAnnotation = function(target) {
 
   document
     .querySelectorAll(
-      ".lp-live-anno-marker"
+      ".lp-live-anno-marker, .olympus-anno-reveal"
     )
     .forEach(marker => {
 
@@ -240720,9 +240934,18 @@ window.renderLiveMoveAnnotation = function(target) {
     "relative";
 
 
-  squareEl.appendChild(
-    marker
+
+  // ✨ PLAY CHESS.COM STYLE REVEAL
+  // Then attach the original Live marker.
+
+  window.playOlympusAnnotationReveal(
+    squareEl,
+    anno,
+    nagColor,
+    marker,
+    targetId
   );
+
 
 };
 
@@ -240748,7 +240971,7 @@ function reapplyAllLiveAnnotations() {
 
   document
     .querySelectorAll(
-      ".lp-live-anno-marker"
+      ".lp-live-anno-marker, .olympus-anno-reveal"
     )
     .forEach(
       el => el.remove()
@@ -247151,9 +247374,12 @@ solvedPuzzles = {};
   // 🏷️ RESET LIVE ANNOTATIONS (isolated, additive)
   lpLiveAnnotations = {};
   lpLiveLastMove = null;
-  document
-    .querySelectorAll(".lp-live-anno-marker")
-    .forEach(el => el.remove());
+// 🧹 REMOVE LIVE ANNOTATIONS + TEMPORARY REVEAL ANIMATIONS
+document
+  .querySelectorAll(
+    ".lp-live-anno-marker, .olympus-anno-reveal"
+  )
+  .forEach(el => el.remove());
 
   // 🔥 reset timer
   clearInterval(timerInterval);
@@ -247375,9 +247601,12 @@ function listenRoom() {
         // 🏷️ RESET LIVE ANNOTATIONS (isolated, additive)
         lpLiveAnnotations = {};
         lpLiveLastMove = null;
-        document
-          .querySelectorAll(".lp-live-anno-marker")
-          .forEach(el => el.remove());
+  // 🧹 CLEAR LIVE MARKERS + TEMPORARY REVEAL ANIMATIONS
+document
+  .querySelectorAll(
+    ".lp-live-anno-marker, .olympus-anno-reveal"
+  )
+  .forEach(el => el.remove());
 
         // ==========================================
 // 📢 STUDENT — NEW ASK PUZZLE RECEIVED
