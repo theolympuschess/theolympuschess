@@ -203646,27 +203646,18 @@ if (
 function clearPGNViewerAnnotationMarker() {
 
   const boardEl =
-    document.getElementById(
-      "pgnViewerBoard"
-    );
-
+    document.getElementById("pgnViewerBoard");
 
   if (!boardEl) return;
 
-
-  const existing =
-    boardEl.querySelector(
-      ".pgn-viewer-annotation-marker"
-    );
-
-
-  if (existing) {
-
-    existing.remove();
-
-  }
+  boardEl
+    .querySelectorAll(
+      ".pgn-viewer-annotation-marker, .olympus-anno-reveal"
+    )
+    .forEach(el => el.remove());
 
 }
+
 
 /* =====================================================
    🎯 PGN VIEWER / GIF / MP4 ORIENTATION
@@ -203757,444 +203748,141 @@ function getPGNViewerOrientation(
    • Same annotation symbols from studyAnnotations
 ===================================================== */
 
-function showPGNViewerAnnotationMarker(
-  moveIndex
-) {
-
-  /* ==========================================
-     REMOVE PREVIOUS MARKER
-  ========================================== */
+function showPGNViewerAnnotationMarker(moveIndex) {
 
   clearPGNViewerAnnotationMarker();
 
-
-  /* ==========================================
-     VALIDATE
-  ========================================== */
-
   if (
-    moveIndex < 0
+    moveIndex < 0 ||
+    !Array.isArray(PGN_VIEWER.annotationHistory)
   ) {
-
     return;
-
   }
-
-
-  if (
-    !Array.isArray(
-      PGN_VIEWER.annotationHistory
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  /* ==========================================
-     GET ANNOTATION
-  ========================================== */
 
   const annotation =
-    PGN_VIEWER.annotationHistory[
-      moveIndex
-    ];
+    PGN_VIEWER.annotationHistory[moveIndex];
 
+  if (!annotation) return;
 
-  if (!annotation) {
-
+  if (typeof studyAnnotations === "undefined") {
+    console.warn("⚠️ studyAnnotations unavailable.");
     return;
-
   }
-
-
-  /* ==========================================
-     SAME STUDY ANNOTATION MAP
-  ========================================== */
-
-  if (
-    typeof studyAnnotations ===
-    "undefined"
-  ) {
-
-    console.warn(
-      "⚠️ studyAnnotations unavailable."
-    );
-
-    return;
-
-  }
-
 
   const annotationData =
-    studyAnnotations[
-      annotation
-    ];
+    studyAnnotations[annotation];
 
-
-  if (!annotationData) {
-
-    return;
-
-  }
-
-
-  /* ==========================================
-     GET ACTUAL MOVE
-  ========================================== */
+  if (!annotationData) return;
 
   const move =
-    PGN_VIEWER.moveObjectHistory[
-      moveIndex
-    ];
+    PGN_VIEWER.moveObjectHistory[moveIndex];
 
-
-  if (
-    !move ||
-    !move.to
-  ) {
-
-    console.warn(
-      "⚠️ No move object for annotation:",
-      moveIndex
-    );
-
-    return;
-
-  }
-
-
-  /* ==========================================
-     GET PGN VIEWER BOARD
-  ========================================== */
+  if (!move || !move.to) return;
 
   const boardEl =
-    document.getElementById(
-      "pgnViewerBoard"
-    );
+    document.getElementById("pgnViewerBoard");
 
-
-  if (!boardEl) {
-
-    return;
-
-  }
-
-
-  /* ==========================================
-     FIND DESTINATION SQUARE
-
-     Chessboard.js square:
-     data-square="e4"
-  ========================================== */
+  if (!boardEl) return;
 
   const targetSquare =
     boardEl.querySelector(
       `[data-square="${move.to}"]`
     );
 
-
   if (!targetSquare) {
-
     console.warn(
       "⚠️ PGN Viewer square not found:",
       move.to
     );
-
     return;
-
   }
 
+  const PGN_VIEWER_ANNOTATION_COLORS = {
+    brilliant: "#00e5ff",
+    good: "#4caf50",
+    interesting: "#ffca28",
+    dubious: "#ff9800",
+    mistake: "#ff7043",
+    blunder: "#ff1744",
+    only: "#9c27b0",
+    zugzwang: "#9c27b0",
+    equal: "#ff7ab8",
+    unclear: "#ff7ab8",
+    slightWhite: "#8bc34a",
+    slightBlack: "#8bc34a",
+    betterWhite: "#4caf50",
+    betterBlack: "#4caf50",
+    winningWhite: "#8bc34a",
+    winningBlack: "#8bc34a"
+  };
 
-  /* ==========================================
-     GET POSITIONS
-  ========================================== */
+  const badgeColor =
+    PGN_VIEWER_ANNOTATION_COLORS[annotation] ||
+    "#19c8e8";
 
-  const boardRect =
-    boardEl.getBoundingClientRect();
-
-
-  const squareRect =
-    targetSquare.getBoundingClientRect();
-
-
-  /* ==========================================
-     CREATE BADGE
-  ========================================== */
-
+  // Keep the original circular marker as the final state.
   const badge =
-    document.createElement(
-      "div"
-    );
-
+    document.createElement("div");
 
   badge.className =
     "pgn-viewer-annotation-marker";
 
-
   badge.textContent =
-    annotationData.symbol;
-
+    annotationData.symbol || "";
 
   badge.title =
-    annotationData.label;
+    annotationData.label || "";
 
-
-  /* ==========================================
-     🔵 STUDY-STYLE BADGE
-
-     This is the important visual part.
-  ========================================== */
+  const squareRect =
+    targetSquare.getBoundingClientRect();
 
   const badgeSize =
-    Math.max(
-      28,
-      squareRect.width * 0.38
-    );
-
-
-  badge.style.position =
-    "absolute";
-
-
-  /*
-   * Upper-right corner of destination
-   * square.
-   *
-   * The badge overlaps the square,
-   * exactly like your Study screenshot.
-   */
-
-  badge.style.left =
-    (
-      squareRect.right -
-      boardRect.left -
-      badgeSize * 0.48
-    ) + "px";
-
-
-  badge.style.top =
-    (
-      squareRect.top -
-      boardRect.top -
-      badgeSize * 0.12
-    ) + "px";
-
-
-  badge.style.width =
-    badgeSize + "px";
-
-
-  badge.style.height =
-    badgeSize + "px";
-
-
-  /* ==========================================
-     🔵 BLUE / CYAN CIRCLE
-  ========================================== */
-
-
-
-
-  badge.style.borderRadius =
-    "50%";
-
-    /* ==========================================
-   🎨 USE EXACT STUDY SYMBOL COLOR
-
-   IMPORTANT:
-   The Study colors are applied to
-   .anno-symbol, NOT the outer
-   .study-anno-item.
-
-   So we read the actual rendered
-   Study annotation symbol color.
-========================================== */
-
-/* ==========================================
-   🎨 PGN VIEWER ANNOTATION COLORS
-
-   Do NOT read the color from the Study DOM.
-
-   The Study DOM can return black for
-   hidden/non-active annotation elements.
-
-   Use the actual Study annotation colors
-   directly.
-========================================== */
-
-const PGN_VIEWER_ANNOTATION_COLORS = {
-
-  brilliant:
-    "#00e5ff",
-
-  good:
-    "#4caf50",
-
-  interesting:
-    "#ffca28",
-
-  dubious:
-    "#ff9800",
-
-  mistake:
-    "#ff7043",
-
-  blunder:
-    "#ff1744",
-
-  only:
-    "#9c27b0",
-
-  zugzwang:
-    "#9c27b0",
-
-  equal:
-    "#ff7ab8",
-
-  unclear:
-    "#ff7ab8",
-
-  slightWhite:
-    "#8bc34a",
-
-  slightBlack:
-    "#8bc34a",
-
-  betterWhite:
-    "#4caf50",
-
-  betterBlack:
-    "#4caf50",
-
-  winningWhite:
-    "#8bc34a",
-
-  winningBlack:
-    "#8bc34a"
-
-};
-
-
-badge.style.background =
-  PGN_VIEWER_ANNOTATION_COLORS[
-    annotation
-  ] ||
-  "#19c8e8";
-
-
-  badge.style.display =
-    "flex";
-
-
-  badge.style.alignItems =
-    "center";
-
-
-  badge.style.justifyContent =
-    "center";
-
-
-  /* ==========================================
-     SYMBOL
-  ========================================== */
-
-  badge.style.color =
-    "#ffffff";
-
-
-  badge.style.fontFamily =
-    "Arial, sans-serif";
-
-
-  badge.style.fontSize =
-    Math.max(
-      17,
-      squareRect.width * 0.28
-    ) + "px";
-
-
-  badge.style.fontWeight =
-    "900";
-
-
-  badge.style.lineHeight =
-    "1";
-
-
-  badge.style.textAlign =
-    "center";
-
-
-  /* ==========================================
-     DEPTH / STUDY LOOK
-  ========================================== */
-
-  badge.style.boxShadow =
-    "0 2px 6px rgba(0,0,0,.45)";
-
-
-  badge.style.border =
-    "2px solid rgba(255,255,255,.18)";
-
-
-  /* ==========================================
-     IMPORTANT
-
-     Keep badge above pieces.
-  ========================================== */
-
-  badge.style.zIndex =
-    "99999";
-
-
-  badge.style.pointerEvents =
-    "none";
-
-
-  badge.style.userSelect =
-    "none";
-
-
-  /* ==========================================
-     BOARD MUST BE POSITIONING CONTAINER
-  ========================================== */
-
-  if (
-    getComputedStyle(
-      boardEl
-    ).position ===
-    "static"
-  ) {
-
-    boardEl.style.position =
-      "relative";
-
-  }
-
-
-  /* ==========================================
-     ADD BADGE
-  ========================================== */
-
-  boardEl.appendChild(
+    Math.max(28, squareRect.width * 0.38);
+
+  badge.style.cssText = `
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(40%, -40%);
+    width: ${badgeSize}px;
+    height: ${badgeSize}px;
+    border-radius: 50%;
+    background: ${badgeColor};
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+    font-size: ${Math.max(17, squareRect.width * 0.28)}px;
+    font-weight: 900;
+    line-height: 1;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.45);
+    border: 2px solid rgba(255,255,255,.18);
+    z-index: 99999;
+    pointer-events: none;
+    user-select: none;
+  `;
+
+  targetSquare.style.position = "relative";
+
+  window.playOlympusAnnotationReveal(
+    targetSquare,
+    annotationData,
+    badgeColor,
     badge
   );
 
-
   console.log(
-    "🎯 PGN Study-style annotation:",
+    "🎯 PGN animated annotation:",
     {
       moveIndex,
       move: move.san,
       square: move.to,
       annotation,
-      symbol:
-        annotationData.symbol
+      symbol: annotationData.symbol
     }
   );
-
 }
 
 
@@ -205043,6 +204731,155 @@ const squareY =
     );
 
   };
+/* =====================================================
+   ✨ OLYMPUS — CANVAS ANNOTATION REVEAL
+   Used by GIF and MP4 export
+===================================================== */
+
+window.drawPGNExportAnnotationRevealFrame =
+function(ctx, annotation, move, square, boardTop, progress) {
+
+  if (!ctx || !annotation || !move || !move.to) return;
+
+  if (typeof studyAnnotations === "undefined") return;
+
+  const annotationData =
+    studyAnnotations[annotation];
+
+  if (!annotationData) return;
+
+  const COLORS = {
+    brilliant: "#00e5ff",
+    good: "#4caf50",
+    interesting: "#ffca28",
+    dubious: "#ff9800",
+    mistake: "#ff7043",
+    blunder: "#ff1744",
+    only: "#9c27b0",
+    zugzwang: "#9c27b0",
+    equal: "#ff7ab8",
+    unclear: "#ff7ab8",
+    slightWhite: "#8bc34a",
+    slightBlack: "#8bc34a",
+    betterWhite: "#4caf50",
+    betterBlack: "#4caf50",
+    winningWhite: "#8bc34a",
+    winningBlack: "#8bc34a"
+  };
+
+  const color = COLORS[annotation] || "#19c8e8";
+
+  progress = Math.max(0, Math.min(1, progress));
+
+  // At the end, draw the exact original export marker.
+  if (progress >= 1) {
+    window.drawPGNExportAnnotation(
+      ctx,
+      annotation,
+      move,
+      square,
+      boardTop
+    );
+    return;
+  }
+
+  const position =
+    getPGNExportSquarePosition(
+      move.to,
+      square,
+      boardTop
+    );
+
+  const squareX = position.x - square / 2;
+  const squareY = position.y - square / 2;
+
+  const eased =
+    1 - Math.pow(1 - progress, 3);
+
+  ctx.save();
+
+  // Full-square tint fades during the reveal.
+  ctx.globalAlpha = 0.30 * (1 - progress);
+  ctx.fillStyle = color;
+  ctx.fillRect(squareX, squareY, square, square);
+
+  // Annotation name pill.
+  const label = annotationData.label || "";
+  const pillHeight = Math.max(25, square * 0.40);
+  const pillFont = Math.max(12, square * 0.20);
+
+  ctx.font = `900 ${pillFont}px Arial`;
+
+  const pillWidth =
+    Math.max(
+      square * 0.9,
+      ctx.measureText(label).width + square * 0.34
+    );
+
+  let pillOpacity = 1;
+
+  if (progress > 0.65) {
+    pillOpacity = 1 - ((progress - 0.65) / 0.35);
+  }
+
+  const pillCenterX = position.x;
+  const pillCenterY = squareY - square * 0.12 - progress * square * 0.10;
+  const pillX = pillCenterX - pillWidth / 2;
+  const pillY = pillCenterY - pillHeight / 2;
+  const radius = pillHeight / 2;
+
+  ctx.globalAlpha = Math.max(0, pillOpacity);
+  ctx.beginPath();
+  ctx.moveTo(pillX + radius, pillY);
+  ctx.lineTo(pillX + pillWidth - radius, pillY);
+  ctx.quadraticCurveTo(pillX + pillWidth, pillY, pillX + pillWidth, pillY + radius);
+  ctx.lineTo(pillX + pillWidth, pillY + pillHeight - radius);
+  ctx.quadraticCurveTo(pillX + pillWidth, pillY + pillHeight, pillX + pillWidth - radius, pillY + pillHeight);
+  ctx.lineTo(pillX + radius, pillY + pillHeight);
+  ctx.quadraticCurveTo(pillX, pillY + pillHeight, pillX, pillY + pillHeight - radius);
+  ctx.lineTo(pillX, pillY + radius);
+  ctx.quadraticCurveTo(pillX, pillY, pillX + radius, pillY);
+  ctx.closePath();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,0.20)";
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `900 ${pillFont}px Arial`;
+  ctx.fillText(label, pillCenterX, pillCenterY);
+
+  // Large symbol moves and shrinks into the upper-right corner.
+  const startX = squareX + square * 0.65;
+  const startY = squareY + square * 0.30;
+  const endX = squareX + square * 1.02;
+  const endY = squareY - square * 0.02;
+
+  const symbolX = startX + (endX - startX) * eased;
+  const symbolY = startY + (endY - startY) * eased;
+  const symbolScale = 1 - (0.35 * eased);
+  const symbolSize = Math.max(42, square * 0.95);
+
+  ctx.globalAlpha = 1;
+  ctx.translate(symbolX, symbolY);
+  ctx.scale(symbolScale, symbolScale);
+
+  ctx.fillStyle = color;
+  ctx.font = `1000 ${symbolSize}px Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.12)";
+  ctx.shadowBlur = 3;
+  ctx.fillText(annotationData.symbol || "", 0, 0);
+
+  ctx.restore();
+};
+
+
 /* ==========================================
    🏛️ DRAW ACADEMY LOGO ON EXPORT
 ========================================== */
@@ -205895,68 +205732,91 @@ for (
   }
 
 
-  /* ========================================
-     DRAW NEW CHESS POSITION
-  ======================================== */
+  const annotation =
+    PGN_VIEWER.annotationHistory[i];
 
-  drawFrame(
-    gifGame
-  );
+  const ANNO_FRAME_MS = 100;
+  const ANNO_FRAME_COUNT = 12;
 
+  if (annotation) {
 
-  /* ========================================
-     🏹 DRAW NAVY-BLUE MOVE ARROW
+    // Twelve animation frames = 1.2 seconds.
+    for (let frame = 0; frame < ANNO_FRAME_COUNT; frame++) {
 
-     IMPORTANT:
-     drawFrame() draws the board/pieces first.
+      drawFrame(gifGame);
 
-     We draw the arrow AFTER it so the arrow
-     appears on top of the board and pieces.
-  ======================================== */
+      drawPGNExportMoveArrow(
+        ctx,
+        playedMove,
+        SIZE / 8,
+        HEADER_HEIGHT
+      );
 
-  drawPGNExportMoveArrow(
+      window.drawPGNExportAnnotationRevealFrame(
+        ctx,
+        annotation,
+        playedMove,
+        SIZE / 8,
+        HEADER_HEIGHT,
+        frame / ANNO_FRAME_COUNT
+      );
 
-    ctx,
-
-    playedMove,
-
-    SIZE / 8,
-
-    HEADER_HEIGHT
-
-  );
-
-  /* ========================================
-   🎯 STUDY ANNOTATION
-======================================== */
-
-window.drawPGNExportAnnotation(
-  ctx,
-  PGN_VIEWER.annotationHistory[i],
-  playedMove,
-  SIZE / 8,
-  HEADER_HEIGHT
-);
-
-
-  /* ========================================
-     ADD THIS FRAME TO GIF
-
-     MOVE_DELAY is already 2000.
-     Therefore this position + arrow
-     remains visible for exactly 2 seconds.
-  ======================================== */
-
-  gif.addFrame(
-    ctx,
-    {
-      copy:
-        true,
-
-      delay:
-        MOVE_DELAY
+      gif.addFrame(
+        ctx,
+        {
+          copy: true,
+          delay: ANNO_FRAME_MS
+        }
+      );
     }
-  );
+
+    // Final circular marker: hold for the remaining 1.8 seconds.
+    drawFrame(gifGame);
+
+    drawPGNExportMoveArrow(
+      ctx,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT
+    );
+
+    window.drawPGNExportAnnotationRevealFrame(
+      ctx,
+      annotation,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT,
+      1
+    );
+
+    gif.addFrame(
+      ctx,
+      {
+        copy: true,
+        delay: MOVE_DELAY - (ANNO_FRAME_MS * ANNO_FRAME_COUNT)
+      }
+    );
+
+  } else {
+
+    // No annotation: preserve the original three-second move frame.
+    drawFrame(gifGame);
+
+    drawPGNExportMoveArrow(
+      ctx,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT
+    );
+
+    gif.addFrame(
+      ctx,
+      {
+        copy: true,
+        delay: MOVE_DELAY
+      }
+    );
+  }
 }
 
 
@@ -207985,7 +207845,7 @@ output.addAudioTrack(
    output.addVideoTrack(
   videoSource,
   {
-    frameRate: 2 / 3
+    frameRate: 10
   }
 );
 
@@ -208126,65 +207986,92 @@ addSoundToTimeline(
 );
 
 
-  /* ========================================
-     DRAW NEW POSITION
-  ======================================== */
+  const annotation =
+    PGN_VIEWER.annotationHistory[i];
 
-  drawFrame(
-    game
-  );
+  const ANNO_FRAME_DURATION = 0.1;
+  const ANNO_FRAME_COUNT = 12;
 
+  if (annotation) {
 
-  /* ========================================
-     🏹 DRAW NAVY-BLUE MOVE ARROW
+    // Animated reveal: 12 frames at 100ms = 1.2 seconds.
+    for (let frame = 0; frame < ANNO_FRAME_COUNT; frame++) {
 
-     IMPORTANT:
-     Arrow is drawn AFTER the pieces,
-     so it appears on top of the board.
-  ======================================== */
+      drawFrame(game);
 
-  drawPGNExportMoveArrow(
+      drawPGNExportMoveArrow(
+        ctx,
+        playedMove,
+        SIZE / 8,
+        HEADER_HEIGHT
+      );
 
-    ctx,
+      window.drawPGNExportAnnotationRevealFrame(
+        ctx,
+        annotation,
+        playedMove,
+        SIZE / 8,
+        HEADER_HEIGHT,
+        frame / ANNO_FRAME_COUNT
+      );
 
-    playedMove,
+      await videoSource.add(
+        timestamp,
+        ANNO_FRAME_DURATION
+      );
 
-    SIZE / 8,
+      timestamp += ANNO_FRAME_DURATION;
+    }
 
-    HEADER_HEIGHT
+    // Final circular marker remains for the remaining 1.8 seconds.
+    drawFrame(game);
 
-  );
+    drawPGNExportMoveArrow(
+      ctx,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT
+    );
 
-  /* ========================================
-   🎯 STUDY ANNOTATION
-======================================== */
+    window.drawPGNExportAnnotationRevealFrame(
+      ctx,
+      annotation,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT,
+      1
+    );
 
-window.drawPGNExportAnnotation(
-  ctx,
-  PGN_VIEWER.annotationHistory[i],
-  playedMove,
-  SIZE / 8,
-  HEADER_HEIGHT
-);
+    const remainingDuration =
+      FRAME_DURATION -
+      (ANNO_FRAME_DURATION * ANNO_FRAME_COUNT);
 
+    await videoSource.add(
+      timestamp,
+      remainingDuration
+    );
 
-  /* ========================================
-     ADD FRAME TO MP4
+    timestamp += remainingDuration;
 
-     FRAME_DURATION = 2 seconds.
-  ======================================== */
+  } else {
 
-  await videoSource.add(
+    // No annotation: preserve the original three-second frame.
+    drawFrame(game);
 
-    timestamp,
+    drawPGNExportMoveArrow(
+      ctx,
+      playedMove,
+      SIZE / 8,
+      HEADER_HEIGHT
+    );
 
-    FRAME_DURATION
+    await videoSource.add(
+      timestamp,
+      FRAME_DURATION
+    );
 
-  );
-
-
-  timestamp +=
-    FRAME_DURATION;
+    timestamp += FRAME_DURATION;
+  }
 }
 
 
