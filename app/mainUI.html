@@ -146828,6 +146828,7 @@ let studyPieceFilterMode = "all";
 // =====================================================
 // ✨ OLYMPUS — CHESS.COM STYLE ANNOTATION REVEAL
 // Shared animation for Study + Live Classroom
+// Smooth outward + return animation
 // =====================================================
 
 window.playOlympusAnnotationReveal = function(
@@ -146840,14 +146841,20 @@ window.playOlympusAnnotationReveal = function(
 
   if (!squareEl || !anno || !finalMarker) return;
 
-  // Remove an older animation on this square
+  // -------------------------------------------------
+  // REMOVE OLDER ANIMATION
+  // -------------------------------------------------
+
   squareEl
     .querySelectorAll(".olympus-anno-reveal")
     .forEach(el => el.remove());
 
   squareEl.style.position = "relative";
 
-  // Main animation layer
+  // -------------------------------------------------
+  // MAIN ANIMATION LAYER
+  // -------------------------------------------------
+
   const reveal = document.createElement("div");
 
   reveal.className = "olympus-anno-reveal";
@@ -146866,17 +146873,24 @@ window.playOlympusAnnotationReveal = function(
     overflow: visible;
   `;
 
-  // Full-square transparent annotation color
+  // -------------------------------------------------
+  // SQUARE TINT
+  // -------------------------------------------------
+
   const tint = document.createElement("div");
 
   tint.style.cssText = `
     position: absolute;
     inset: 0;
     background: ${nagColor};
-    opacity: 0.30;
+    opacity: 0.45;
+    pointer-events: none;
   `;
 
-  // White annotation name pill
+  // -------------------------------------------------
+  // ANNOTATION NAME PILL
+  // -------------------------------------------------
+
   const pill = document.createElement("div");
 
   pill.textContent = anno.label || "";
@@ -146884,7 +146898,7 @@ window.playOlympusAnnotationReveal = function(
   pill.style.cssText = `
     position: absolute;
     left: 50%;
-    top: -10%;
+    top: -20%;
     transform: translate(-50%, -50%);
     background: #ffffff;
     color: ${nagColor};
@@ -146898,9 +146912,13 @@ window.playOlympusAnnotationReveal = function(
     z-index: 3;
     opacity: 1;
     will-change: opacity, transform;
+    pointer-events: none;
   `;
 
-  // Large annotation symbol
+  // -------------------------------------------------
+  // ANNOTATION SYMBOL
+  // -------------------------------------------------
+
   const symbol = document.createElement("div");
 
   symbol.textContent = anno.symbol || "";
@@ -146916,7 +146934,8 @@ window.playOlympusAnnotationReveal = function(
     line-height: 1;
     z-index: 2;
     text-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    will-change: left, top, transform;
+    will-change: left, top, transform, opacity;
+    pointer-events: none;
   `;
 
   reveal.appendChild(tint);
@@ -146925,18 +146944,29 @@ window.playOlympusAnnotationReveal = function(
 
   squareEl.appendChild(reveal);
 
-  // Reduced-motion accessibility
+  // -------------------------------------------------
+  // REDUCED MOTION
+  // -------------------------------------------------
+
   const reduceMotion =
     window.matchMedia &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (reduceMotion) {
+
     reveal.remove();
-    squareEl.appendChild(finalMarker);
+
+    if (!finalMarker.isConnected) {
+      squareEl.appendChild(finalMarker);
+    }
+
     return;
   }
 
-  // Symbol travels smoothly towards the upper-right corner
+  // -------------------------------------------------
+  // 1. SYMBOL MOVES TOWARDS UPPER-RIGHT CORNER
+  // -------------------------------------------------
+
   const symbolAnimation = symbol.animate(
     [
       {
@@ -146959,57 +146989,183 @@ window.playOlympusAnnotationReveal = function(
     }
   );
 
-  // Pill fades away gradually
-pill.animate(
-  [
-    {
-      opacity: 1,
-      transform: "translate(-50%, -50%) scale(1)",
-      offset: 0
-    },
-    {
-      opacity: 1,
-      transform: "translate(-50%, -50%) scale(1)",
-      offset: 0.65
-    },
-    {
-      opacity: 0,
-      transform: "translate(-50%, -60%) scale(0.95)",
-      offset: 1
-    }
-  ],
-  {
-    duration: 2200,
-    delay: 100,
-    easing: "ease-in-out",
-    fill: "forwards"
-  }
-);
-  // Square overlay fades away gradually
-  tint.animate(
+  // -------------------------------------------------
+  // 2. PILL SLOWLY DISAPPEARS
+  // -------------------------------------------------
+
+  const pillAnimation = pill.animate(
     [
-      { opacity: 0.30 },
-      { opacity: 0 }
+      {
+        opacity: 1,
+        transform: "translate(-50%, -50%) scale(1)",
+        offset: 0
+      },
+      {
+        opacity: 1,
+        transform: "translate(-50%, -50%) scale(1)",
+        offset: 0.55
+      },
+      {
+        opacity: 0,
+        transform: "translate(-50%, -60%) scale(0.95)",
+        offset: 1
+      }
     ],
     {
-      duration: 1000,
-      delay: 150,
-      easing: "ease-out",
+      duration: 2000,
+      delay: 100,
+      easing: "ease-in-out",
       fill: "forwards"
     }
   );
 
-  // Once symbol animation finishes, use ORIGINAL marker
+  // -------------------------------------------------
+  // 3. SQUARE TINT FADES AWAY
+  // -------------------------------------------------
+
+// -------------------------------------------------
+// 3. SQUARE TINT STAYS THE WHOLE DURATION,
+//    THEN FADES SLOWLY BEFORE THE FINAL MARKER SHOWS
+// -------------------------------------------------
+
+tint.animate(
+  [
+    { opacity: 0.45, offset: 0 },     // ← was 0.30
+    { opacity: 0.45, offset: 0.5 }, // ← hold time
+    { opacity: 0,    offset: 1 }
+  ],
+  {
+    duration: 2000,   // ← 1000 (outward) + 1100 (return) = whole animation
+    delay: 0,
+    easing: "ease-in-out",
+    fill: "forwards"
+  }
+);
+
+  // -------------------------------------------------
+  // ANIMATION COMPLETION TRACKING
+  // -------------------------------------------------
+
+  let returnAnimation = null;
+
+  let symbolFinished = false;
+  let pillFinished = false;
+  let revealCompleted = false;
+
+  // -------------------------------------------------
+  // 4. SYMBOL RETURNS BACK WHILE SLOWLY FADING AWAY,
+  //    AND THE NORMAL CORNER MARKER FADES IN
+  //    (symbol is fully invisible before it gets back
+  //    to the big size on the square, so it never holds)
+  // -------------------------------------------------
+
+  const RETURN_DURATION = 1100;
+
   symbolAnimation.onfinish = () => {
 
-    reveal.remove();
+    if (!reveal.isConnected || revealCompleted) return;
 
-    squareEl.appendChild(finalMarker);
+    // Normal corner marker fades in during the return
+    if (!finalMarker.isConnected) {
+      squareEl.appendChild(finalMarker);
+    }
+
+    finalMarker.animate(
+      [
+        { opacity: 0 },
+        { opacity: 1 }
+      ],
+      {
+        duration: RETURN_DURATION,
+        easing: "ease-in-out",
+        fill: "both"
+      }
+    );
+
+    returnAnimation = symbol.animate(
+      [
+        {
+          transform: "translate(35%, -35%) scale(0.65)",
+          left: "100%",
+          top: "0%",
+          opacity: 0.95,
+          offset: 0
+        },
+        {
+          // fully faded before it gets close to the big size
+          transform: "translate(-10%, -40%) scale(0.8)",
+          left: "86%",
+          top: "10%",
+          opacity: 0,
+          offset: 0.75
+        },
+        {
+          transform: "translate(-50%, -50%) scale(1)",
+          left: "65%",
+          top: "30%",
+          opacity: 0,
+          offset: 1
+        }
+      ],
+      {
+        duration: RETURN_DURATION,
+        easing: "ease-in-out",
+        fill: "forwards"
+      }
+    );
+
+    returnAnimation.onfinish = () => {
+
+      symbolFinished = true;
+
+      symbol.style.display = "none";
+
+      cleanupReveal();
+
+    };
+
+    returnAnimation.oncancel = handleAnimationCancel;
 
   };
 
-  // Fallback if animation is cancelled
-  symbolAnimation.oncancel = () => {
+  // -------------------------------------------------
+  // 5. REMOVE ANIMATION LAYER ONLY AFTER BOTH ARE DONE
+  //    (so the pill is never cut off)
+  // -------------------------------------------------
+
+  function cleanupReveal() {
+
+    if (revealCompleted || !reveal.isConnected) return;
+
+    if (!symbolFinished || !pillFinished) return;
+
+    revealCompleted = true;
+
+    reveal.remove();
+
+  }
+
+  // -------------------------------------------------
+  // PILL COMPLETELY DISAPPEARED
+  // -------------------------------------------------
+
+  pillAnimation.onfinish = () => {
+
+    pillFinished = true;
+
+    cleanupReveal();
+
+  };
+
+  // -------------------------------------------------
+  // FALLBACK IF AN ANIMATION IS CANCELLED
+  // -------------------------------------------------
+
+  function handleAnimationCancel() {
+
+    if (revealCompleted || !reveal.isConnected) return;
+
+    revealCompleted = true;
 
     reveal.remove();
 
@@ -147017,7 +147173,22 @@ pill.animate(
       squareEl.appendChild(finalMarker);
     }
 
-  };
+    finalMarker.animate(
+      [
+        { opacity: 0 },
+        { opacity: 1 }
+      ],
+      {
+        duration: 700,
+        easing: "ease-out",
+        fill: "forwards"
+      }
+    );
+
+  }
+
+  symbolAnimation.oncancel = handleAnimationCancel;
+  pillAnimation.oncancel = handleAnimationCancel;
 
 };
 
