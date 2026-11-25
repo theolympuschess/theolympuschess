@@ -11432,6 +11432,100 @@ No JS / No HTML changes
 }
 
 
+/* =====================================================
+   🏷️ OLYMPUS LIVE MATCH — ANNOTATION TOOLBAR
+   Screenshot-matched vertical annotation buttons
+===================================================== */
+
+
+#mpLiveAnnoToolbar {
+  position: absolute;
+
+  /* Align beside the actual 600px chessboard */
+  top: 136px;
+  left: calc(50% + 305px);
+  right: auto;
+
+  width: 26px;
+  height: 594px;
+
+
+  display: grid;
+  grid-template-rows: repeat(var(--mp-anno-count, 17), 1fr);
+  gap: 2px;
+
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+
+  z-index: 30;
+  pointer-events: auto;
+}
+
+/* Individual annotation buttons */
+#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn {
+  width: 26px !important;
+  min-width: 26px !important;
+
+  height: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box;
+
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(--mp-anno-color) !important;
+  border-radius: 4px !important;
+
+  background: var(--mp-anno-color) !important;
+  color: #ffffff !important;
+
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+
+  overflow: hidden;
+}
+
+/* Hover */
+#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn:hover {
+  background: rgba(255,255,255,0.14) !important;
+  transform: scale(1.08);
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* Active annotation */
+#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn.active {
+  background: #ffd54a !important;
+  color: #000000 !important;
+  border-color: #ffd54a !important;
+  box-shadow: 0 0 8px rgba(255,213,74,0.9);
+}
+
+/* Smaller evaluation symbols */
+#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn[data-type="winningWhite"],
+#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn[data-type="winningBlack"] {
+  font-size: 10px !important;
+}
+
+/* Students must never see the admin toolbar */
+body.student-view #mpLiveAnnoToolbar {
+  display: none !important;
+}
+
 
 
 .mp-clock {
@@ -52926,7 +53020,18 @@ data-role="admin-only">
   <span id="clockBlack" class="mp-clock">0:00</span>
 </div>
 
-        <div id="mpBoard"></div>
+        <!-- =====================================================
+     🏷️ OLYMPUS LIVE MATCH ANNOTATION TOOLBAR
+     Admin only — positioned beside the chessboard
+====================================================== -->
+
+<div
+  id="mpLiveAnnoToolbar"
+  data-role="admin-only"
+  aria-label="Live Match Annotation Toolbar"
+></div>
+
+<div id="mpBoard"></div>
         <!-- ♟ MULTIPLAYER DRAW HELP -->
 <div id="mpDrawHelpWrapper">
 
@@ -142574,6 +142679,140 @@ const studyAnnotations = {
   winningBlack: { symbol: "−+", label: "Black Winning", class: "anno-winning" }
 };
 
+
+// =====================================================
+// 🏷️ OLYMPUS LIVE MATCH — BUILD ANNOTATION TOOLBAR
+// Reuses the existing Study annotation definitions
+// =====================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const toolbar = document.getElementById("mpLiveAnnoToolbar");
+
+  if (!toolbar || typeof studyAnnotations === "undefined") {
+    console.warn("Live Match annotation toolbar could not initialize.");
+    return;
+  }
+
+  toolbar.innerHTML = "";
+
+  const annotationKeys = Object.keys(studyAnnotations);
+
+  toolbar.style.setProperty(
+    "--mp-anno-count",
+    annotationKeys.length
+  );
+
+  annotationKeys.forEach((type) => {
+
+    const data = studyAnnotations[type];
+
+    if (!data) return;
+
+    // Get the exact existing annotation color
+    const colorProbe = document.createElement("span");
+
+    colorProbe.className = data.class;
+
+    colorProbe.style.position = "absolute";
+    colorProbe.style.visibility = "hidden";
+    colorProbe.style.pointerEvents = "none";
+
+    document.body.appendChild(colorProbe);
+
+    const annotationColor = getComputedStyle(colorProbe).color;
+
+    colorProbe.remove();
+
+    // Create toolbar button
+    const button = document.createElement("button");
+
+    button.type = "button";
+
+    button.className =
+      "mp-live-anno-toolbar-btn " + data.class;
+
+    button.dataset.type = type;
+
+    button.textContent = data.symbol;
+
+    button.title = data.label;
+
+    button.setAttribute("aria-label", data.label);
+
+    button.style.setProperty(
+      "--mp-anno-color",
+      annotationColor
+    );
+
+    
+toolbar.appendChild(button);
+
+// ================================================
+// 🎯 LIVE MATCH — ADMIN ANNOTATION SELECTION
+// ================================================
+
+button.addEventListener("click", (e) => {
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Admin only
+  if (currentProfile?.role !== "admin") return;
+
+  const current = window.mpLiveAnnotation;
+
+  // Same button again WHILE its marker is on the board → remove it for everyone
+  if (
+    window.mpSelectedAnnotationType === type &&
+    current &&
+    current.type === type
+  ) {
+
+    window.mpClearLiveMatchAnnotation();
+    window.mpBroadcastLiveAnnotation("clear");
+
+    window.mpSelectedAnnotationType = null;
+
+    toolbar
+      .querySelectorAll(".mp-live-anno-toolbar-btn")
+      .forEach(btn => btn.classList.remove("active"));
+
+    return;
+  }
+
+  // Select this annotation
+  window.mpSelectedAnnotationType = type;
+
+  toolbar
+    .querySelectorAll(".mp-live-anno-toolbar-btn")
+    .forEach(btn => btn.classList.remove("active"));
+
+  button.classList.add("active");
+
+  if (current) {
+    // A marker is already on the board → swap its type
+    // (updates admin + students through the channel)
+    window.mpSwitchLiveAnnotationType(type);
+  } else {
+    // No marker yet → mark the destination square of the last move
+    window.mpApplyLiveAnnotationToLastMove(type);
+  }
+
+});
+
+
+  });
+
+  console.log(
+    "✅ Live Match annotation toolbar created:",
+    annotationKeys.length,
+    "buttons"
+  );
+
+});
+
+
 // ============================================
 // 🔥 PGN NAG MAPPING (SAFE LAYER)
 // ============================================
@@ -170866,6 +171105,8 @@ function mpDrawArrow(from, to) {
 function mpEndAndUnlock() {
   // 🔴 STOP EVERYTHING
   stopClock()
+   // 🏷️ remove leftover annotation + deselect admin tool
+  window.mpResetLiveAnnotationState()
 
   // Leave realtime room
   if (channel) {
@@ -171252,6 +171493,7 @@ mpFlipBtn.onclick = () => {
     : baseOrientation
 
   mpBoard.orientation(newOrientation)
+   window.mpRefreshLiveAnnotation()      // 🏷️ redraw marker after flip
   // ✅ TRACK IT MANUALLY
   window.mpCurrentOrientation = newOrientation
 
@@ -173179,6 +173421,249 @@ function mpClearCheckHighlight() {
     el.style.boxShadow = ''
   })
 }
+
+
+/* =====================================================
+   🏷️ OLYMPUS LIVE MATCH — ANNOTATION RENDERER
+   Reuses the shared Study / Live Classroom animation
+===================================================== */
+
+window.mpLiveAnnotation = null;
+
+window.mpClearLiveMatchAnnotation = function() {
+
+  document
+    .querySelectorAll(
+      "#mpBoard .mp-live-anno-marker, #mpBoard .olympus-anno-reveal"
+    )
+    .forEach(el => el.remove());
+
+  window.mpLiveAnnotation = null;
+};
+
+
+window.mpRenderLiveMatchAnnotation = function(square, type) {
+
+  if (!square || !type) return;
+
+  const anno = studyAnnotations[type];
+
+  if (!anno) return;
+
+  const boardEl = document.getElementById("mpBoard");
+
+  if (!boardEl) return;
+
+  const squareEl = boardEl.querySelector(
+    '[data-square="' + square + '"]'
+  );
+
+  if (!squareEl) {
+    console.warn("Live Match annotation square not found:", square);
+    return;
+  }
+
+  // Remove the previous annotation
+  window.mpClearLiveMatchAnnotation();
+
+  // Remember current annotation
+  window.mpLiveAnnotation = {
+    square,
+    type
+  };
+
+  // Get exact existing annotation color
+  const colorProbe = document.createElement("span");
+
+  colorProbe.className = anno.class;
+  colorProbe.style.position = "absolute";
+  colorProbe.style.visibility = "hidden";
+
+  document.body.appendChild(colorProbe);
+
+  const nagColor = getComputedStyle(colorProbe).color;
+
+  colorProbe.remove();
+
+  // Create final marker
+  const marker = document.createElement("div");
+
+  marker.className = "mp-live-anno-marker " + anno.class;
+
+  marker.dataset.targetId = "mp-live:" + square;
+
+  marker.textContent = anno.symbol;
+
+  marker.style.cssText = `
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(40%, -40%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: ${nagColor};
+    color: #ffffff;
+    font-weight: 900;
+    font-size: 22px;
+    line-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    pointer-events: none;
+    box-shadow: 0 0 3px rgba(0,0,0,0.6);
+    z-index: 999999;
+    box-sizing: border-box;
+  `;
+
+  squareEl.style.position = "relative";
+
+  // Reuse the existing shared animation
+  if (typeof window.playOlympusAnnotationReveal === "function") {
+
+    window.playOlympusAnnotationReveal(
+      squareEl,
+      anno,
+      nagColor,
+      marker,
+      "mp-live:" + square
+    );
+
+  } else {
+
+    squareEl.appendChild(marker);
+
+  }
+
+};
+
+
+/* =====================================================
+   🖱️ ADMIN SQUARE SELECTION
+===================================================== */
+
+/* =====================================================
+   📡 LIVE MATCH ANNOTATION — BROADCAST + HELPERS
+===================================================== */
+
+window.mpLiveFenKey = function () {
+  return mpChess.fen().split(" ").slice(0, 4).join(" ");
+};
+
+// Admin → everyone else, on the EXISTING live-match channel
+window.mpBroadcastLiveAnnotation = function (action, square, type) {
+
+  if (currentProfile?.role !== "admin") return;
+  if (!channel || !roomId) return;
+
+  channel.send({
+    type: "broadcast",
+    event: "mp-live-anno",
+    payload: {
+      roomId: roomId,
+      action: action,              // "set" or "clear"
+      square: square || null,
+      type: type || null,
+      fenKey: window.mpLiveFenKey()
+    }
+  });
+};
+
+// Render locally + broadcast
+window.mpSetLiveAnnotation = function (square, type) {
+  window.mpRenderLiveMatchAnnotation(square, type);
+  window.mpBroadcastLiveAnnotation("set", square, type);
+};
+
+// Admin clicked ANOTHER annotation button while a marker is on the board:
+// replace the marker type on the same square
+window.mpSwitchLiveAnnotationType = function (type) {
+  const current = window.mpLiveAnnotation;
+  if (!current || !current.square) return;
+  if (current.type === type) return;
+  window.mpSetLiveAnnotation(current.square, type);
+};
+
+// Destination square of the last move played (e.g. Bh3 → "h3")
+window.mpGetLastMoveSquare = function () {
+
+  // Local moves: chess.js history is current
+  const hist = mpChess.history({ verbose: true });
+  if (hist.length) return hist[hist.length - 1].to;
+
+  // After server load / rejoin the history is empty → use the PGN
+  const last = mpGetLastMoveFromPGN(lastPgn);
+  return last ? last.to : null;
+};
+
+// Admin clicked an annotation button with no marker on the board:
+// put it on the last move's destination square
+window.mpApplyLiveAnnotationToLastMove = function (type) {
+
+  if (mpGameOver || !roomId) return;
+
+  const square = window.mpGetLastMoveSquare();
+  if (!square) return;
+
+  window.mpSetLiveAnnotation(square, type);
+};
+
+// Clear marker + deselect admin tool (used on game end / new game)
+window.mpResetLiveAnnotationState = function () {
+  window.mpClearLiveMatchAnnotation();
+  window.mpSelectedAnnotationType = null;
+
+  document
+    .querySelectorAll("#mpLiveAnnoToolbar .mp-live-anno-toolbar-btn.active")
+    .forEach(b => b.classList.remove("active"));
+};
+
+// Re-draw after the board DOM is rebuilt (flip / resize)
+window.mpRefreshLiveAnnotation = function () {
+  const a = window.mpLiveAnnotation;
+  if (!a) return;
+  setTimeout(() => {
+    window.mpRenderLiveMatchAnnotation(a.square, a.type);
+  }, 0);
+};
+
+
+/* =====================================================
+   🖱️ ADMIN SQUARE SELECTION
+===================================================== */
+
+window.mpLiveAnnoClickHandler = function (event) {
+
+  if (currentProfile?.role !== "admin") return;
+
+  const selectedType = window.mpSelectedAnnotationType;
+  if (!selectedType) return;
+
+  const squareEl = event.target.closest("[data-square]");
+  if (!squareEl) return;
+
+  const square = squareEl.dataset.square;
+  if (!square) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  // Tap the same annotated square with the same tool → remove for everyone
+  if (
+    window.mpLiveAnnotation &&
+    window.mpLiveAnnotation.square === square &&
+    window.mpLiveAnnotation.type === selectedType
+  ) {
+    window.mpClearLiveMatchAnnotation();
+    window.mpBroadcastLiveAnnotation("clear");
+    return;
+  }
+
+  // Otherwise place / move / replace the marker for everyone
+  window.mpSetLiveAnnotation(square, selectedType);
+};
+
 /* ===============================
    BOARD INIT
 ================================ */
@@ -173195,6 +173680,23 @@ function initLiveMatchBoard() {
     onDragStart: mpOnDragStart,
     onDrop: onLiveMatchDrop
   })
+  // 🏷️ LIVE MATCH ANNOTATION SQUARE CLICK
+const mpAnnoBoardElement = document.getElementById("mpBoard");
+
+if (
+  mpAnnoBoardElement &&
+  !mpAnnoBoardElement.dataset.annoClickAttached
+) {
+
+  mpAnnoBoardElement.dataset.annoClickAttached = "true";
+
+  mpAnnoBoardElement.addEventListener(
+    "click",
+    window.mpLiveAnnoClickHandler,
+    true
+  );
+
+}
   // 🔥 ADD THIS EXACTLY HERE
 window.mpCurrentOrientation = mySide === 'b' ? 'black' : 'white'
   // ✅ ADD HERE (OUTSIDE)
@@ -173354,6 +173856,7 @@ mpClearArrow()
 }
 
 async function mpAfterMove() {
+   window.mpClearLiveMatchAnnotation();   // 🏷️ marker disappears when a move is played
   // ===============================
   // CHECKMATE DETECTION
   // ===============================
@@ -173524,6 +174027,7 @@ async function mpRejoinRoomById(id) {
   mpMovesBox.textContent = ''
     // 🔥 Clear mobile tap state
   mpTapSource = null
+    window.mpResetLiveAnnotationState()   // 🏷️
   clearMpHighlights()
 
 
@@ -174048,6 +174552,39 @@ channel = supabase
     }
   )
 
+    // =====================================================
+  // 🏷️ ADMIN ANNOTATION → STUDENTS
+  // =====================================================
+  .on(
+    "broadcast",
+    { event: "mp-live-anno" },
+    ({ payload }) => {
+
+      // Admin already rendered it locally
+      if (currentProfile?.role === "admin") return;
+
+      if (!payload) return;
+      if (payload.roomId !== roomId) return;
+      if (mpGameOver) return;
+
+      if (payload.action === "clear") {
+        window.mpClearLiveMatchAnnotation();
+        return;
+      }
+
+      if (payload.action === "set") {
+
+        // Only show it on the position it was made for
+        if (payload.fenKey !== window.mpLiveFenKey()) return;
+
+        window.mpRenderLiveMatchAnnotation(
+          payload.square,
+          payload.type
+        );
+      }
+    }
+  )
+
   .on(
     'postgres_changes',
       {
@@ -174168,6 +174705,7 @@ if (!row.draw_request && mpDrawBtn.disabled) {
 
        if (row.fen !== lastFen) {
         mpClearCheckHighlight()
+          window.mpClearLiveMatchAnnotation()   // 🏷️ position changed → marker gone
 
   mpChess.load(row.fen)
   lastFen = row.fen
