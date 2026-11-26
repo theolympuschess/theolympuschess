@@ -204891,7 +204891,8 @@ function drawPGNExportMoveArrow(
   ctx,
   move,
   square,
-  boardTop
+  boardTop,
+  arrowColor
 ) {
 
   if (
@@ -205014,10 +205015,10 @@ function squarePosition(
 
 
 ctx.strokeStyle =
-  "#315A8A";
+  arrowColor || "#315A8A";
 
 ctx.fillStyle =
-  "#315A8A";
+  arrowColor || "#315A8A";
 
 
   ctx.lineWidth =
@@ -207354,6 +207355,649 @@ await markStudentAssignmentGradeSeen(id);
 );
 
 /* =====================================================
+   🔀 MP4 ONLY — MAIN LINE + VARIATIONS ENGINE
+   (does not touch the viewer, GIF or annotation code)
+===================================================== */
+
+function pgnMp4Tokenize(text) {
+  const tokens = [];
+  let word = "";
+  let braceDepth = 0;
+  let semicolon = false;
+  const SUFFIX = { "!": 1, "?": 2, "!!": 3, "??": 4, "!?": 5, "?!": 6 };
+
+  const flush = () => {
+    if (!word) return;
+    let raw = word;
+    word = "";
+    raw = raw.replace(/^\d+\.(?:\.\.)?/, "").replace(/^\.+/, "");
+
+    const nags = [];
+    raw = raw.replace(/\$(\d+)/g, (_m, n) => { nags.push(Number(n)); return ""; });
+
+    const suffix = raw.match(/[!?]+$/);
+    if (suffix) {
+      if (SUFFIX[suffix[0]]) nags.push(SUFFIX[suffix[0]]);
+      raw = raw.slice(0, raw.length - suffix[0].length);
+    }
+
+    if (!raw || /^\.+$/.test(raw)) {
+      nags.forEach(n => tokens.push({ t: "nag", v: n }));
+      return;
+    }
+    if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(raw)) { tokens.push({ t: "end" }); return; }
+    raw = raw.replace(/e\.p\.?$/i, "");
+    if (!raw || /^\d+$/.test(raw)) return;
+    raw = raw.replace(/^0-0-0$/, "O-O-O").replace(/^0-0$/, "O-O");
+    tokens.push({ t: "move", v: raw, nags });
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (semicolon) { if (ch === "\n") semicolon = false; continue; }
+    if (braceDepth > 0) {
+      if (ch === "{") braceDepth++;
+      else if (ch === "}") braceDepth--;
+      continue;
+    }
+    if (ch === "{") { flush(); braceDepth = 1; continue; }
+    if (ch === ";") { flush(); semicolon = true; continue; }
+    if (ch === "(") { flush(); tokens.push({ t: "(" }); continue; }
+    if (ch === ")") { flush(); tokens.push({ t: ")" }); continue; }
+    if (/\s/.test(ch)) { flush(); continue; }
+    word += ch;
+  }
+  flush();
+  if (braceDepth > 0) throw new Error("Unclosed PGN comment.");
+  return tokens;
+}
+
+function pgnMp4BuildTree(tokens) {
+  const root = { moves: [] };
+  let line = root;
+  const stack = [];
+  for (const tok of tokens) {
+    if (tok.t === "move") {
+      line.moves.push({ san: tok.v, vars: [], nags: (tok.nags || []).slice() });
+    } else if (tok.t === "nag") {
+      if (line.moves.length) line.moves[line.moves.length - 1].nags.push(tok.v);
+    } else if (tok.t === "(") {
+      if (!line.moves.length) throw new Error("Variation starts before any move.");
+      const variation = { moves: [] };
+      line.moves[line.moves.length - 1].vars.push(variation);
+      stack.push(line);
+      line = variation;
+    } else if (tok.t === ")") {
+      if (!stack.length) throw new Error("Unmatched ) in PGN.");
+      line = stack.pop();
+    } else if (tok.t === "end" && !stack.length) {
+      break;
+    }
+  }
+  if (stack.length) throw new Error("Unclosed variation in PGN.");
+  return root;
+}
+
+/* Replays one line. A variation starts from the position BEFORE the move it replaces. */
+function pgnMp4Replay(line, fen, prevMove, isMain, prevRec) {
+  const chess = new Chess(fen);
+  const records = [];
+  let lastMove = prevMove;
+  let lastRec = prevRec || null;
+
+  for (let i = 0; i < line.moves.length; i++) {
+    const node = line.moves[i];
+    const fenBefore = chess.fen();
+    const moveNo = Number(String(fenBefore).split(" ")[5]) || 1;
+
+    let played = null;
+    try { played = chess.move(node.san, { sloppy: true }); } catch (e) { played = null; }
+
+    if (!played) {
+      if (isMain) throw new Error(`Could not read move "${node.san}".`);
+      console.warn("MP4: variation cut short at", node.san);
+      break;
+    }
+
+    let anno = null;
+    if (typeof nagToAnnotation !== "undefined") {
+      for (const n of node.nags) {
+        const key = nagToAnnotation["$" + n];
+        if (key) { anno = key; break; }
+      }
+    }
+
+    const rec = {
+      san: played.san, move: played, color: played.color, moveNo,
+      fenBefore, fenAfter: chess.fen(),
+      prevMove: lastMove, prevRec: lastRec,
+      anno, vars: []
+    };
+    records.push(rec);
+    lastMove = played;
+    lastRec = rec;
+
+    for (const v of node.vars) {
+      if (!v.moves.length) continue;
+      const sub = pgnMp4Replay(v, fenBefore, rec.prevMove, false, rec.prevRec);
+      if (sub.length) rec.vars.push({ moves: sub, no: 0, parentNo: null });
+    }
+  }
+  return records;
+}
+
+/* Builds the final list of video frames for the chosen options. */
+function pgnMp4BuildPlan(showMain, showVars) {
+
+  const raw = PGN_VIEWER.puzzles[PGN_VIEWER.currentPuzzle] || "";
+  const startFen = PGN_VIEWER.startFen || new Chess().fen();
+  const startIndex = Math.max(0, Math.min(PGN_VIEWER.currentMove, PGN_VIEWER.moveHistory.length));
+
+  let records = null;
+  try {
+    const body = raw
+      .replace(/^\uFEFF/, "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/^\s*\[[A-Za-z0-9_]+\s+"(?:\\.|[^"\\])*"\]\s*$/gm, " ")
+      .replace(/^%.*$/gm, " ");
+
+    records = pgnMp4Replay(pgnMp4BuildTree(pgnMp4Tokenize(body)), startFen, null, true, null);
+
+    if (records.length !== PGN_VIEWER.moveHistory.length) records = null;
+  } catch (err) {
+    console.warn("MP4 variation parser fallback:", err);
+    records = null;
+  }
+
+  /* ---------- FALLBACK: plain main line (old behaviour) ---------- */
+  if (!records) {
+    const g = new Chess(startFen);
+    const frames = [{ fen: g.fen(), move: null, anno: null, silent: true, theme: "main", banner: null }];
+    for (let i = startIndex; i < PGN_VIEWER.moveHistory.length; i++) {
+      // rebuild position up to startIndex first
+    }
+    const g2 = new Chess(startFen);
+    for (let i = 0; i < startIndex; i++) g2.move(PGN_VIEWER.moveHistory[i]);
+    frames[0].fen = g2.fen();
+    for (let i = startIndex; i < PGN_VIEWER.moveHistory.length; i++) {
+      const m = g2.move(PGN_VIEWER.moveHistory[i]);
+      frames.push({
+        fen: g2.fen(), move: m,
+        anno: PGN_VIEWER.annotationHistory[i] || null,
+        silent: false, theme: "main", banner: null
+      });
+    }
+    return { frames, hasBanner: false, usedVars: false, usedMain: true };
+  }
+
+  const remaining = records.slice(startIndex);
+  const hasVars = remaining.some(r => r.vars.length > 0);
+  const useVars = !!showVars && hasVars;
+  const useMain = !!showMain || !useVars;
+
+  const moveNoText = r => r.moveNo + (r.color === "w" ? "" : "…");
+  const moveText = r => r.moveNo + (r.color === "w" ? "." : "…") + " " + r.san;
+
+  const frames = [];
+  let counter = 0;
+
+  frames.push({
+    fen: startIndex > 0 ? records[startIndex - 1].fenAfter : startFen,
+    move: null, anno: null, silent: true, theme: "main",
+    banner: {
+      badge: useMain ? "MAIN LINE" : "VARIATIONS", theme: "main",
+      text: useMain ? "Starting position" : "Side lines only · starting position"
+    }
+  });
+
+  function pushMove(rec, owner) {
+    frames.push({
+      fen: rec.fenAfter, move: rec.move, anno: rec.anno, silent: false,
+      theme: owner ? "var" : "main",
+      banner: owner
+        ? { badge: "VARIATION No. " + owner.no, theme: "var",
+            text: "on move " + moveNoText(owner.moves[0]) + "  ·  " + moveText(rec) }
+        : { badge: "MAIN LINE", theme: "main", text: moveText(rec) }
+    });
+  }
+
+  function pushBranch(v) {
+    const first = v.moves[0];
+    const where = moveNoText(first);
+    let text;
+    if (v.parentNo) text = "Going back to move " + where + "  ·  another idea inside Variation No. " + v.parentNo;
+    else if (useMain) text = "Going back to move " + where + "  ·  let’s try another idea";
+    else text = "A different idea on move " + where;
+
+    frames.push({
+      fen: first.fenBefore, move: first.prevMove,
+      anno: first.prevRec ? first.prevRec.anno : null,
+      silent: true, theme: "var",
+      banner: { badge: "VARIATION No. " + v.no, theme: "var", text }
+    });
+  }
+
+  function pushBack(rec, owner) {
+    frames.push({
+      fen: rec.fenAfter, move: rec.move, anno: rec.anno, silent: true,
+      theme: owner ? "var" : "main",
+      banner: owner
+        ? { badge: "VARIATION No. " + owner.no, theme: "var",
+            text: "Back to Variation No. " + owner.no + "  ·  " + moveText(rec) }
+        : { badge: "MAIN LINE", theme: "main", text: "Back to the main line  ·  " + moveText(rec) }
+    });
+  }
+
+  function emit(list, owner) {
+    for (const rec of list) {
+      const showMove = owner ? true : useMain;
+      if (showMove) pushMove(rec, owner);
+      if (!useVars) continue;
+      for (const v of rec.vars) {
+        v.no = ++counter;
+        v.parentNo = owner ? owner.no : null;
+        pushBranch(v);
+        emit(v.moves, v);
+        if (showMove) pushBack(rec, owner);
+      }
+    }
+  }
+
+  emit(remaining, null);
+
+  return { frames, hasBanner: useVars, usedVars: useVars, usedMain: useMain };
+}
+
+/* Banner strip under the header: "MAIN LINE" or "VARIATION No. n" */
+function pgnMp4DrawBanner(ctx, width, banner) {
+  if (!ctx || !banner) return;
+
+  const isVar = banner.theme === "var";
+  const accent = isVar ? "#4cc9f0" : "#e7b94e";
+  const x = 12, y = 94, w = width - 24, h = 30;
+
+  function rr(rx, ry, rw, rh, r) {
+    ctx.beginPath();
+    ctx.moveTo(rx + r, ry);
+    ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+    ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+    ctx.arcTo(rx, ry + rh, rx, ry, r);
+    ctx.arcTo(rx, ry, rx + rw, ry, r);
+    ctx.closePath();
+  }
+
+  ctx.save();
+
+  rr(x, y, w, h, 10);
+  ctx.fillStyle = isVar ? "rgba(76,201,240,0.14)" : "rgba(231,185,78,0.10)";
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = isVar ? "rgba(76,201,240,0.65)" : "rgba(231,185,78,0.40)";
+  ctx.stroke();
+
+  ctx.font = "bold 12px Arial";
+  const badgeW = Math.ceil(ctx.measureText(banner.badge).width) + 22;
+  rr(x + 4, y + 4, badgeW, h - 8, 8);
+  ctx.fillStyle = accent;
+  ctx.fill();
+
+  ctx.fillStyle = "#0b1220";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(banner.badge, x + 4 + badgeW / 2, y + h / 2 + 1);
+
+  const tx = x + 4 + badgeW + 12;
+  const maxW = x + w - 10 - tx;
+  let size = 14;
+  ctx.font = `bold ${size}px Arial`;
+  while (size > 9 && ctx.measureText(banner.text).width > maxW) {
+    size--;
+    ctx.font = `bold ${size}px Arial`;
+  }
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#eaf1fa";
+  ctx.fillText(banner.text, tx, y + h / 2 + 1);
+
+  ctx.restore();
+}
+
+/* =====================================================
+   👤 MP4 ONLY — PLAYER PHOTOS (WITH CROP) + NAMES
+   Nothing is drawn unless a photo or a name is given.
+===================================================== */
+
+window.PGN_MP4_PHOTOS = { white: null, black: null };
+
+const PGN_CROP_VIEW = 320;   /* crop window size on screen */
+const PGN_CROP_OUT = 400;    /* saved photo size in pixels */
+
+const PGN_CROP = {
+  side: null, img: null,
+  scale: 1, minScale: 1, x: 0, y: 0,
+  dragging: false, lastX: 0, lastY: 0
+};
+
+function pgnMp4PlayerName(side) {
+  const el = document.getElementById(
+    side === "white" ? "pgnViewerWhiteName" : "pgnViewerBlackName"
+  );
+  return el ? el.value.trim() : "";
+}
+
+/* true when ANY photo or ANY name exists (adds the strip under the board) */
+function pgnMp4HasPlayerPhotos() {
+  return !!(
+    window.PGN_MP4_PHOTOS.white ||
+    window.PGN_MP4_PHOTOS.black ||
+    pgnMp4PlayerName("white") ||
+    pgnMp4PlayerName("black")
+  );
+}
+
+function pgnMp4RefreshPhotoButtons() {
+  [["white", "White", "⚪"], ["black", "Black", "⚫"]].forEach(([side, name, icon]) => {
+    const has = !!window.PGN_MP4_PHOTOS[side];
+    const text = document.getElementById(`pgnViewer${name}PhotoText`);
+    const clear = document.getElementById(`pgnViewer${name}PhotoClear`);
+    if (text) text.textContent = has ? `✅ ${name} photo` : `${icon} ${name} photo`;
+    if (clear) clear.style.display = has ? "inline-block" : "none";
+  });
+}
+
+/* ---------- crop pop-up ---------- */
+
+function pgnCropClamp() {
+  const w = PGN_CROP.img.width * PGN_CROP.scale;
+  const h = PGN_CROP.img.height * PGN_CROP.scale;
+  PGN_CROP.x = Math.min(0, Math.max(PGN_CROP_VIEW - w, PGN_CROP.x));
+  PGN_CROP.y = Math.min(0, Math.max(PGN_CROP_VIEW - h, PGN_CROP.y));
+}
+
+function pgnCropDraw() {
+  const canvas = document.getElementById("pgnCropCanvas");
+  if (!canvas || !PGN_CROP.img) return;
+  const ctx = canvas.getContext("2d");
+  const V = PGN_CROP_VIEW;
+
+  ctx.clearRect(0, 0, V, V);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, V, V);
+
+  ctx.drawImage(
+    PGN_CROP.img,
+    PGN_CROP.x, PGN_CROP.y,
+    PGN_CROP.img.width * PGN_CROP.scale,
+    PGN_CROP.img.height * PGN_CROP.scale
+  );
+
+  /* darken everything outside the circle */
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.rect(0, 0, V, V);
+  ctx.arc(V / 2, V / 2, V / 2 - 4, 0, Math.PI * 2);
+  ctx.fill("evenodd");
+
+  ctx.beginPath();
+  ctx.arc(V / 2, V / 2, V / 2 - 4, 0, Math.PI * 2);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#ffffff";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function pgnCropCloseModal() {
+  const o = document.getElementById("pgnCropOverlay");
+  if (o) o.style.display = "none";
+  if (PGN_CROP.img && PGN_CROP.img.close) PGN_CROP.img.close();
+  PGN_CROP.img = null;
+  PGN_CROP.side = null;
+}
+
+function pgnCropEnsureModal() {
+
+  if (document.getElementById("pgnCropOverlay")) return;
+
+  const o = document.createElement("div");
+  o.id = "pgnCropOverlay";
+  o.style.cssText =
+    "display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);" +
+    "z-index:1000010;align-items:center;justify-content:center;" +
+    "padding:16px;box-sizing:border-box;";
+
+  o.innerHTML = `
+    <div style="background:#111827;border:1px solid #6366f1;border-radius:14px;padding:18px;color:#fff;text-align:center;">
+      <div id="pgnCropTitle" style="font-weight:800;margin-bottom:10px;">Crop photo</div>
+      <canvas id="pgnCropCanvas" width="${PGN_CROP_VIEW}" height="${PGN_CROP_VIEW}"
+        style="width:${PGN_CROP_VIEW}px;height:${PGN_CROP_VIEW}px;border-radius:10px;touch-action:none;cursor:grab;background:#000;"></canvas>
+      <div style="font-size:12px;color:#94a3b8;margin:8px 0 4px;">Drag to move · slider to zoom</div>
+      <input type="range" id="pgnCropZoom" min="1" max="4" step="0.01" value="1" style="width:100%;">
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;">
+        <button type="button" id="pgnCropCancel"
+          style="padding:8px 18px;border:none;border-radius:8px;background:#475569;color:#fff;cursor:pointer;">Cancel</button>
+        <button type="button" id="pgnCropApply"
+          style="padding:8px 18px;border:none;border-radius:8px;background:#1EAD52;color:#fff;font-weight:700;cursor:pointer;">Use photo</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(o);
+
+  const canvas = document.getElementById("pgnCropCanvas");
+
+  canvas.addEventListener("pointerdown", e => {
+    PGN_CROP.dragging = true;
+    PGN_CROP.lastX = e.clientX;
+    PGN_CROP.lastY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.style.cursor = "grabbing";
+  });
+
+  canvas.addEventListener("pointermove", e => {
+    if (!PGN_CROP.dragging || !PGN_CROP.img) return;
+    const k = PGN_CROP_VIEW / canvas.getBoundingClientRect().width;
+    PGN_CROP.x += (e.clientX - PGN_CROP.lastX) * k;
+    PGN_CROP.y += (e.clientY - PGN_CROP.lastY) * k;
+    PGN_CROP.lastX = e.clientX;
+    PGN_CROP.lastY = e.clientY;
+    pgnCropClamp();
+    pgnCropDraw();
+  });
+
+  const stopDrag = () => {
+    PGN_CROP.dragging = false;
+    canvas.style.cursor = "grab";
+  };
+  canvas.addEventListener("pointerup", stopDrag);
+  canvas.addEventListener("pointercancel", stopDrag);
+
+  /* zoom keeps the centre of the crop window fixed */
+  document.getElementById("pgnCropZoom").addEventListener("input", e => {
+    if (!PGN_CROP.img) return;
+    const V = PGN_CROP_VIEW;
+    const cx = (V / 2 - PGN_CROP.x) / PGN_CROP.scale;
+    const cy = (V / 2 - PGN_CROP.y) / PGN_CROP.scale;
+    PGN_CROP.scale = PGN_CROP.minScale * Number(e.target.value);
+    PGN_CROP.x = V / 2 - cx * PGN_CROP.scale;
+    PGN_CROP.y = V / 2 - cy * PGN_CROP.scale;
+    pgnCropClamp();
+    pgnCropDraw();
+  });
+
+  document.getElementById("pgnCropCancel").addEventListener("click", pgnCropCloseModal);
+
+  document.getElementById("pgnCropApply").addEventListener("click", async () => {
+
+    if (!PGN_CROP.img || !PGN_CROP.side) return;
+
+    const out = document.createElement("canvas");
+    out.width = PGN_CROP_OUT;
+    out.height = PGN_CROP_OUT;
+    const octx = out.getContext("2d");
+
+    const k = PGN_CROP_OUT / PGN_CROP_VIEW;
+    octx.drawImage(
+      PGN_CROP.img,
+      PGN_CROP.x * k, PGN_CROP.y * k,
+      PGN_CROP.img.width * PGN_CROP.scale * k,
+      PGN_CROP.img.height * PGN_CROP.scale * k
+    );
+
+    try {
+      const bitmap = await createImageBitmap(out);
+      const old = window.PGN_MP4_PHOTOS[PGN_CROP.side];
+      if (old && old.close) old.close();
+      window.PGN_MP4_PHOTOS[PGN_CROP.side] = bitmap;
+    } catch (err) {
+      console.error("Crop save error:", err);
+      alert("Could not save the cropped photo.");
+    }
+
+    pgnCropCloseModal();
+    pgnMp4RefreshPhotoButtons();
+  });
+}
+
+async function pgnCropOpen(side, file) {
+
+  pgnCropEnsureModal();
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch (err) {
+    console.error("Player photo error:", err);
+    alert("Could not read that image. Please use a PNG or JPG file.");
+    return;
+  }
+
+  const V = PGN_CROP_VIEW;
+  PGN_CROP.side = side;
+  PGN_CROP.img = bitmap;
+  PGN_CROP.minScale = Math.max(V / bitmap.width, V / bitmap.height);
+  PGN_CROP.scale = PGN_CROP.minScale;
+  PGN_CROP.x = (V - bitmap.width * PGN_CROP.scale) / 2;
+  PGN_CROP.y = (V - bitmap.height * PGN_CROP.scale) / 2;
+
+  document.getElementById("pgnCropZoom").value = 1;
+  document.getElementById("pgnCropTitle").textContent =
+    side === "white" ? "Crop White player photo" : "Crop Black player photo";
+
+  document.getElementById("pgnCropOverlay").style.display = "flex";
+  pgnCropDraw();
+}
+
+document.addEventListener("change", function (e) {
+
+  const id = e.target && e.target.id;
+  if (id !== "pgnViewerWhitePhoto" && id !== "pgnViewerBlackPhoto") return;
+
+  const side = id === "pgnViewerWhitePhoto" ? "white" : "black";
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+
+  pgnCropOpen(side, file);
+});
+
+document.addEventListener("click", function (e) {
+
+  const id = e.target && e.target.id;
+  if (id !== "pgnViewerWhitePhotoClear" && id !== "pgnViewerBlackPhotoClear") return;
+
+  const side = id === "pgnViewerWhitePhotoClear" ? "white" : "black";
+  const old = window.PGN_MP4_PHOTOS[side];
+  if (old && old.close) old.close();
+  window.PGN_MP4_PHOTOS[side] = null;
+  pgnMp4RefreshPhotoButtons();
+});
+
+/* ---------- draw the strip under the board ---------- */
+
+function pgnMp4DrawPlayerPhotos(ctx, size, boardTop) {
+
+  if (!pgnMp4HasPlayerPhotos()) return;
+
+  const stripTop = boardTop + size;
+  const diameter = 60;
+  const centerY = stripTop + 8 + diameter / 2;
+
+  const sides = [
+    { key: "white", x: size * 0.25, tag: "WHITE", ring: "#f5f5f5" },
+    { key: "black", x: size * 0.75, tag: "BLACK", ring: "#9ca3af" }
+  ];
+
+  for (const s of sides) {
+
+    const img = window.PGN_MP4_PHOTOS[s.key];
+    const name = pgnMp4PlayerName(s.key);
+
+    /* nothing uploaded and nothing typed → nothing on this side */
+    if (!img && !name) continue;
+
+    ctx.save();
+    ctx.textBaseline = "middle";
+
+    if (img) {
+
+      /* circular photo */
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(s.x, centerY, diameter / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(img, s.x - diameter / 2, centerY - diameter / 2, diameter, diameter);
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(s.x, centerY, diameter / 2, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = s.ring;
+      ctx.stroke();
+
+      /* WHITE / BLACK on the LEFT side of the photo */
+      ctx.fillStyle = "#f5c542";
+      ctx.font = "bold 14px Arial";
+      ctx.textAlign = "right";
+      ctx.fillText(s.tag, s.x - diameter / 2 - 10, centerY);
+
+      /* typed name below the photo (only if typed) */
+      if (name) {
+        const maxWidth = size * 0.46;
+        let fontSize = 16;
+        ctx.font = `bold ${fontSize}px Arial`;
+        while (fontSize > 9 && ctx.measureText(name).width > maxWidth) {
+          fontSize--;
+          ctx.font = `bold ${fontSize}px Arial`;
+        }
+        ctx.fillStyle = "#e5e7eb";
+        ctx.textAlign = "center";
+        ctx.fillText(name, s.x, stripTop + 82);
+      }
+
+    } else {
+
+      /* no photo, but a name was typed: tag above the name */
+      ctx.fillStyle = "#f5c542";
+      ctx.font = "bold 13px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(s.tag, s.x, centerY - 12);
+
+      const maxWidth = size * 0.46;
+      let fontSize = 18;
+      ctx.font = `bold ${fontSize}px Arial`;
+      while (fontSize > 9 && ctx.measureText(name).width > maxWidth) {
+        fontSize--;
+        ctx.font = `bold ${fontSize}px Arial`;
+      }
+      ctx.fillStyle = "#e5e7eb";
+      ctx.fillText(name, s.x, centerY + 10);
+    }
+
+    ctx.restore();
+  }
+}
+
+/* =====================================================
    📱 PGN VIEWER → DIRECT MP4 EXPORT
    =====================================================
 
@@ -207376,1624 +208020,466 @@ await markStudentAssignmentGradeSeen(id);
 
 ===================================================== */
 
-window.downloadPGNViewerMP4 =
-  async function() {
+window.downloadPGNViewerMP4 = async function () {
 
-    const button =
-      document.getElementById(
-        "pgnViewerMp4Btn"
-      );
+  const button = document.getElementById("pgnViewerMp4Btn");
 
+  const musicToggle = document.getElementById("pgnViewerMp4MusicToggle");
+  const includeMusic = musicToggle ? musicToggle.checked : true;
+
+  const mainToggle = document.getElementById("pgnViewerMp4MainToggle");
+  const varToggle = document.getElementById("pgnViewerMp4VarToggle");
+
+  /* ==========================================
+     BASIC CHECKS
+  ========================================== */
+
+  if (
+    !PGN_VIEWER.game ||
+    !Array.isArray(PGN_VIEWER.moveHistory) ||
+    !PGN_VIEWER.moveHistory.length
+  ) {
+    alert("No active PGN is loaded.");
+    return;
+  }
+
+  if (typeof Mediabunny === "undefined") {
+    alert("MP4 engine is not loaded. Please refresh the page.");
+    return;
+  }
+
+  if (typeof VideoEncoder === "undefined") {
+    alert("Your browser does not support MP4 video encoding.");
+    return;
+  }
+
+  /* ==========================================
+     🔀 BUILD FRAME PLAN
+     (Main line / Variations checkboxes)
+  ========================================== */
+
+  let plan;
+
+  try {
+    plan = pgnMp4BuildPlan(
+      mainToggle ? mainToggle.checked : true,
+      varToggle ? varToggle.checked : false
+    );
+  } catch (err) {
+    console.error("MP4 plan error:", err);
+    alert("Could not prepare the video moves. Check the console for details.");
+    return;
+  }
+
+  if (!plan.frames.length) {
+    alert("Nothing to export.");
+    return;
+  }
+
+  /* ==========================================
+     CANVAS DIMENSIONS
+     (taller header only when the banner is used)
+  ========================================== */
+
+  const SIZE = 600;
+  const HEADER_HEIGHT = plan.hasBanner ? 130 : 90;
+  const FOOTER_HEIGHT = pgnMp4HasPlayerPhotos() ? 90 : 0;
+
+  const VIDEO_WIDTH = Math.ceil(SIZE / 16) * 16;
+  const VIDEO_HEIGHT = Math.ceil((SIZE + HEADER_HEIGHT + FOOTER_HEIGHT) / 16) * 16;
+
+  const codecSupport = await VideoEncoder.isConfigSupported({
+    codec: "avc1.42E028",
+    width: VIDEO_WIDTH,
+    height: VIDEO_HEIGHT,
+    bitrate: 2_000_000,
+    framerate: 1
+  }).catch(() => null);
+
+  if (!codecSupport || !codecSupport.supported) {
+    alert("H.264 MP4 encoding is not supported by this browser.");
+    return;
+  }
+
+  /* ==========================================
+     BUTTON
+  ========================================== */
+
+  if (button) {
+    button.disabled = true;
+    button.dataset.oldText = button.textContent;
+    button.textContent = "⏳ Creating MP4...";
+  }
+
+  const pieceImages = {};
+
+  try {
+
+    const {
+      Output, Mp4OutputFormat, BufferTarget,
+      CanvasSource, AudioBufferSource, Quality
+    } = Mediabunny;
 
     /* ========================================
-       🎵 BACKGROUND MUSIC TOGGLE
+       CANVAS
     ======================================== */
 
-    const musicToggle =
-      document.getElementById(
-        "pgnViewerMp4MusicToggle"
-      );
+    const canvas = document.createElement("canvas");
+    canvas.width = VIDEO_WIDTH;
+    canvas.height = VIDEO_HEIGHT;
 
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Unable to create MP4 canvas.");
 
-    const includeMusic =
-      musicToggle
-        ? musicToggle.checked
-        : true;
+    const studyTitle = PGN_VIEWER.studyTitle || "Untitled Study";
+    const chapterName =
+      PGN_VIEWER.currentChapterName ||
+      `Chapter ${PGN_VIEWER.currentPuzzle + 1}`;
 
-
-    /* ==========================================
-       BASIC CHECKS
-    ========================================== */
-
-    if (
-      !PGN_VIEWER.game ||
-      !Array.isArray(
-        PGN_VIEWER.moveHistory
-      ) ||
-      !PGN_VIEWER.moveHistory.length
-    ) {
-
-      alert(
-        "No active PGN is loaded."
-      );
-
-      return;
-    }
-
-
-    if (
-      typeof Mediabunny ===
-      "undefined"
-    ) {
-
-      alert(
-        "MP4 engine is not loaded. Please refresh the page."
-      );
-
-      return;
-    }
-
-
-    /* ==========================================
-       CHECK H.264 SUPPORT
-    ========================================== */
-
-    if (
-      typeof VideoEncoder ===
-      "undefined"
-    ) {
-
-      alert(
-        "Your browser does not support MP4 video encoding."
-      );
-
-      return;
-    }
-    /* ==========================================
-   CANVAS DIMENSIONS
-
-   ✅ Defined here (early) so both the codec
-   support check below AND the actual canvas
-   creation later use the exact same values.
-========================================== */
-
-const SIZE =
-  600;
-
-const HEADER_HEIGHT =
-  90;
-
-const VIDEO_WIDTH =
-  Math.ceil(SIZE / 16) * 16;      // 600 → 608
-
-const VIDEO_HEIGHT =
-  Math.ceil((SIZE + HEADER_HEIGHT) / 16) * 16;   // 690 → 704
-
-
-const codecSupport =
-  await VideoEncoder.isConfigSupported({
-
-    codec:
-      "avc1.42E028",   // ✅ was "avc1.42E01E" (Level 3.0, 1620 MB cap)
-                        // now Level 4.0 (28 hex), 8192 MB cap — fits 608×704 (1672 MB)
-
-    width:
-      VIDEO_WIDTH,
-
-    height:
-      VIDEO_HEIGHT,
-
-    bitrate:
-      2_000_000,
-
-    framerate:
-      1
-
-  }).catch(
-    () => null
-  );
-
-
-    if (
-      !codecSupport ||
-      !codecSupport.supported
-    ) {
-
-      alert(
-        "H.264 MP4 encoding is not supported by this browser."
-      );
-
-      return;
-    }
-
-
-    /* ==========================================
-       BUTTON
-    ========================================== */
-
-    if (button) {
-
-      button.disabled =
-        true;
-
-      button.dataset.oldText =
-        button.textContent;
-
-      button.textContent =
-        "⏳ Creating MP4...";
-    }
-
-
-    try {
-
-      /* ========================================
-         MEDIABUNNY CLASSES
-      ======================================== */
-
-  const {
-
-  Output,
-
-  Mp4OutputFormat,
-
-  BufferTarget,
-
-  CanvasSource,
-
-  AudioBufferSource,
-
-  Quality
-
-} =
-  Mediabunny;
-
-
-/* ========================================
-   CANVAS
-======================================== */
-
-const canvas =
-  document.createElement(
-    "canvas"
-  );
-
-
-canvas.width =
-  VIDEO_WIDTH;
-
-
-canvas.height =
-  VIDEO_HEIGHT;
-
-
-const ctx =
-  canvas.getContext(
-    "2d"
-  );
-
-
-if (!ctx) {
-
-  throw new Error(
-    "Unable to create MP4 canvas."
-  );
-}
-
-
-      /* ========================================
-         STUDY / CHAPTER
-      ======================================== */
-
-      const studyTitle =
-        PGN_VIEWER.studyTitle ||
-        "Untitled Study";
-
-
-      const chapterName =
-        PGN_VIEWER.currentChapterName ||
-        `Chapter ${PGN_VIEWER.currentPuzzle + 1}`;
-
-
-      /* ========================================
-         STARTING FEN
-      ======================================== */
-
-      const startFen =
-        PGN_VIEWER.startFen ||
-        new Chess().fen();
-
-
-      /* ========================================
-         MOVE HISTORY
-      ======================================== */
-
-      const fullHistory =
-        PGN_VIEWER.moveHistory.slice();
-
-
-      const currentMove =
-        Math.max(
-          0,
-          Math.min(
-            PGN_VIEWER.currentMove,
-            fullHistory.length
-          )
-        );
-
-
-      /* ========================================
-         CREATE GAME
-      ======================================== */
-
-      const game =
-        new Chess();
-
-
-      game.load(
-        startFen
-      );
-
-
-      /* ========================================
-         REBUILD CURRENT POSITION
-      ======================================== */
-
-      for (
-        let i = 0;
-        i < currentMove;
-        i++
-      ) {
-
-        game.move(
-          fullHistory[i]
-        );
-      }
-
-
-      /* ========================================
-         PIECES
-
-         SAME PIECE THEME AS EXISTING GIF
-      ======================================== */
-
-      const pieceTheme =
-        getPieceThemePath(
-          currentPieceTheme
-        );
-
-
-      const pieceCodes = [
-
-        "wK",
-        "wQ",
-        "wR",
-        "wB",
-        "wN",
-        "wP",
-
-        "bK",
-        "bQ",
-        "bR",
-        "bB",
-        "bN",
-        "bP"
-
-      ];
-
-
-      const pieceImages =
-        {};
-
-
-      /* ========================================
-         LOAD PIECES
-      ======================================== */
-
-      for (
-        const code of pieceCodes
-      ) {
-
-        const path =
-          pieceTheme.replace(
-            "{piece}",
-            code
-          );
-
-
-        const response =
-          await fetch(
-            path
-          );
-
-
-        if (!response.ok) {
-
-          throw new Error(
-            `Unable to load piece ${code}.`
-          );
-        }
-
-
-        const blob =
-          await response.blob();
-
-
-        const url =
-          URL.createObjectURL(
-            blob
-          );
-
-
-        const image =
-          new Image();
-
-
-        await new Promise(
-          (
-            resolve,
-            reject
-          ) => {
-
-            image.onload =
-              resolve;
-
-            image.onerror =
-              reject;
-
-            image.src =
-              url;
-          }
-        );
-
-
-        pieceImages[code] = {
-
-          image:
-            image,
-
-          url:
-            url
-        };
-      }
-
-
-      /* ========================================
-         DRAW FRAME
-
-         Same visual structure as GIF.
-      ======================================== */
-
-      function drawFrame(
-        chessGame
-      ) {
-
-        /* --------------------------------------
-           BACKGROUND
-        -------------------------------------- */
-
-        ctx.clearRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-
-        ctx.fillStyle =
-          "#1c1f35";
-
-
-        ctx.fillRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-
-        /* --------------------------------------
-           HEADER
-        -------------------------------------- */
-
-        ctx.textAlign =
-          "center";
-
-
-        ctx.textBaseline =
-          "alphabetic";
-
-          /* ==========================================
-   🏛️ ACADEMY LOGO
-========================================== */
-
-drawPGNExportAcademyLogo(
-  ctx
-);
-
-
-        ctx.fillStyle =
-          "#f5c542";
-
-
-        ctx.font =
-          "bold 30px Arial";
-
-
-        ctx.fillText(
-          "The Olympus Chess Academy",
-          SIZE / 2,
-          25
-        );
-
-
-        ctx.fillStyle =
-          "#ffffff";
-
-
-        ctx.font =
-          "bold 22px Arial";
-
-
-        ctx.fillText(
-          studyTitle,
-          SIZE / 2,
-          52
-        );
-
-
-        ctx.fillStyle =
-          "#d1d5db";
-
-
-        ctx.font =
-          "bold 17px Arial";
-
-
-        ctx.fillText(
-          chapterName,
-          SIZE / 2,
-          76
-        );
-
-
-        /* --------------------------------------
-           BOARD
-        -------------------------------------- */
-
-        const square =
-          SIZE / 8;
-
-
-        const board =
-          chessGame.board();
-
-
-        /* ========================================
-   ♟️ DRAW BOARD + PIECES
-   RESPECT PGN POV
-======================================== */
-
-for (
-  let rank = 0;
-  rank < 8;
-  rank++
-) {
-
-  for (
-    let file = 0;
-    file < 8;
-    file++
-  ) {
-
-    /* ======================================
-       ACTUAL CHESS SQUARE
-
-       chess.js board:
-       rank 0 = rank 8
-       rank 7 = rank 1
-    ====================================== */
-
-    const squareName =
-      String.fromCharCode(
-        97 + file
-      ) +
-      (
-        8 - rank
-      );
-
-
-    /* ======================================
-       SCREEN POSITION
-
-       This automatically flips everything
-       when POV = black.
-    ====================================== */
-
-    const position =
-      getPGNExportSquarePosition(
-        squareName,
-        square,
-        HEADER_HEIGHT
-      );
-
-
-    /* ======================================
-       BOARD COLOR
-
-       Use DISPLAY coordinates for colors.
-    ====================================== */
-
-    const displayFile =
-      PGN_VIEWER.orientation === "black"
-        ? 7 - file
-        : file;
-
-
-    const displayRank =
-      PGN_VIEWER.orientation === "black"
-        ? 7 - rank
-        : rank;
-
-
-    const light =
-      (
-        displayFile +
-        displayRank
-      ) % 2 === 0;
-
-
-    ctx.fillStyle =
-      light
-        ? "#f0d9b5"
-        : "#b58863";
-
-
-    ctx.fillRect(
-
-      displayFile * square,
-
-      HEADER_HEIGHT +
-        displayRank * square,
-
-      square,
-
-      square
-    );
-
-
-    /* ======================================
-       PIECE
-    ====================================== */
-
-    const piece =
-      board[rank][file];
-
-
-    if (!piece) {
-
-      continue;
-    }
-
-
-    const code =
-      piece.color +
-      piece.type.toUpperCase();
-
-
-    const cached =
-      pieceImages[code];
-
-
-    if (
-      cached &&
-      cached.image
-    ) {
-
-      ctx.drawImage(
-
-        cached.image,
-
-        position.x -
-          square / 2,
-
-        position.y -
-          square / 2,
-
-        square,
-
-        square
-
-      );
-    }
-  }
-}
-      }
-
-/* ========================================
-   🔊 MP4 AUDIO SETUP
-
-   Uses the SAME sound files as your
-   normal chess sound system.
-
-   Sound timing:
-   Move 1 → 3 sec
-   Move 2 → 6 sec
-   Move 3 → 9 sec
-   etc.
-
-   The sounds are EMBEDDED into the MP4.
-======================================== */
-
-const audioContext =
-  new (
-    window.AudioContext ||
-    window.webkitAudioContext
-  )();
-
-
-/* ========================================
-   LOAD SOUND FILE
-======================================== */
-
-async function loadExportSound(
-  path
-) {
-
-  const response =
-    await fetch(
-      path
-    );
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      `Could not load sound: ${path}`
-    );
-  }
-
-
-  const arrayBuffer =
-    await response.arrayBuffer();
-
-
-  return await audioContext.decodeAudioData(
-    arrayBuffer
-  );
-}
-
-
-/* ========================================
-   LOAD ALL CHESS SOUNDS
-======================================== */
-
-const exportSounds = {
-
-  move:
-    await loadExportSound(
-      "sounds/move.mp3"
-    ),
-
-  capture:
-    await loadExportSound(
-      "sounds/capture.mp3"
-    ),
-
-  castle:
-    await loadExportSound(
-      "sounds/castle.mp3"
-    ),
-
-  check:
-    await loadExportSound(
-      "sounds/check.mp3"
-    ),
-      /* 🎵 BACKGROUND MUSIC */
-  music:
-    await loadExportSound(
-      "sounds/video.mp3"
-    )
-
-};
-
-
-
-/* ========================================
-   ⏱️ MP4 FRAME TIMING
-   3 seconds per position
-======================================== */
-
-const FRAME_DURATION =
-  3;
-
-
-
-/* ========================================
-   TOTAL VIDEO DURATION
-
-   Starting position
-   +
-   every remaining move
-   +
-   final position
-======================================== */
-
-const totalPositions =
-  1 +
-  (fullHistory.length - currentMove) +
-  1;
-
-
-const totalDuration =
-  totalPositions *
-  FRAME_DURATION;
-
-  
-
-
-/* ========================================
-   AUDIO BUFFER
-
-   48 kHz stereo
-======================================== */
-
-const AUDIO_SAMPLE_RATE =
-  48000;
-
-
-const audioBuffer =
-  audioContext.createBuffer(
-
-    2,
-
-    Math.ceil(
-      totalDuration *
-      AUDIO_SAMPLE_RATE
-    ),
-
-    AUDIO_SAMPLE_RATE
-
-  );
-
-
-/* ========================================
-   HELPER: ADD SOUND TO AUDIO TIMELINE
-======================================== */
-
-/* ========================================
-   HELPER: ADD SOUND TO AUDIO TIMELINE
-
-   volume:
-   1.00 = normal sound
-   0.06 = very light background music
-======================================== */
-
-/* ========================================
-   🔊 ADD SOUND TO AUDIO TIMELINE
-
-   Supports:
-   • normal volume
-   • optional fade-out
-======================================== */
-
-function addSoundToTimeline(
-  sourceBuffer,
-  startTime,
-  volume = 1,
-  fadeOutStart = null,
-  fadeOutEnd = null
-) {
-
-  if (
-    !sourceBuffer
-  ) {
-    return;
-  }
-
-
-  const startSample =
-    Math.floor(
-      startTime *
-      AUDIO_SAMPLE_RATE
-    );
-
-
-  const channels =
-    Math.min(
-      2,
-      sourceBuffer.numberOfChannels
-    );
-
-
-  const availableSamples =
-    audioBuffer.length -
-    startSample;
-
-
-  if (
-    availableSamples <= 0
-  ) {
-    return;
-  }
-
-
-  const samplesToCopy =
-    Math.min(
-      sourceBuffer.length,
-      availableSamples
-    );
-
-
-  /* ========================================
-     COPY AUDIO
-  ======================================== */
-
-  for (
-    let channel = 0;
-    channel < channels;
-    channel++
-  ) {
-
-    const sourceData =
-      sourceBuffer.getChannelData(
-        channel
-      );
-
-
-    const destinationData =
-      audioBuffer.getChannelData(
-        channel
-      );
-
-
-    for (
-      let i = 0;
-      i < samplesToCopy;
-      i++
-    ) {
-
-      const currentTime =
-        startTime +
-        (
-          i /
-          AUDIO_SAMPLE_RATE
-        );
-
-
-      let currentVolume =
-        volume;
-
-
-      /* ======================================
-         🎚️ SMOOTH FADE OUT
-      ====================================== */
-
-      if (
-        fadeOutStart !== null &&
-        fadeOutEnd !== null &&
-        currentTime >= fadeOutStart
-      ) {
-
-        const fadeProgress =
-          Math.max(
-            0,
-            Math.min(
-              1,
-              (
-                currentTime -
-                fadeOutStart
-              ) /
-              (
-                fadeOutEnd -
-                fadeOutStart
-              )
-            )
-          );
-
-
-        currentVolume =
-          volume *
-          (
-            1 -
-            fadeProgress
-          );
-      }
-
-
-      destinationData[
-        startSample + i
-      ] +=
-        sourceData[i] *
-        currentVolume;
-    }
-  }
-
-
-  /* ========================================
-     MONO → BOTH CHANNELS
-  ======================================== */
-
-  if (
-    sourceBuffer.numberOfChannels === 1
-  ) {
-
-    const sourceData =
-      sourceBuffer.getChannelData(
-        0
-      );
-
-
-    const left =
-      audioBuffer.getChannelData(
-        0
-      );
-
-
-    const right =
-      audioBuffer.getChannelData(
-        1
-      );
-
-
-    for (
-      let i = 0;
-      i < samplesToCopy;
-      i++
-    ) {
-
-      const currentTime =
-        startTime +
-        (
-          i /
-          AUDIO_SAMPLE_RATE
-        );
-
-
-      let currentVolume =
-        volume;
-
-
-      /* ======================================
-         🎚️ SMOOTH FADE OUT
-      ====================================== */
-
-      if (
-        fadeOutStart !== null &&
-        fadeOutEnd !== null &&
-        currentTime >= fadeOutStart
-      ) {
-
-        const fadeProgress =
-          Math.max(
-            0,
-            Math.min(
-              1,
-              (
-                currentTime -
-                fadeOutStart
-              ) /
-              (
-                fadeOutEnd -
-                fadeOutStart
-              )
-            )
-          );
-
-
-        currentVolume =
-          volume *
-          (
-            1 -
-            fadeProgress
-          );
-      }
-
-
-      right[
-        startSample + i
-      ] +=
-        sourceData[i] *
-        currentVolume;
-    }
-  }
-}
-/* ========================================
-   🎵 BACKGROUND MUSIC
-
-   ONLY controlled by the Music checkbox.
-
-   0.06 = 6% volume.
-======================================== */
-
-/* ========================================
-   🎵 BACKGROUND MUSIC
-   + SMOOTH 3 SECOND FADE OUT
-======================================== */
-
-if (
-  includeMusic
-) {
-
-  const MUSIC_VOLUME =
-    0.2;
-
-
-  const FADE_DURATION =
-    3;
-
-
-  const fadeOutStart =
-    Math.max(
-      0,
-      totalDuration -
-      FADE_DURATION
-    );
-
-
-  const fadeOutEnd =
-    totalDuration;
-
-
-  let musicTime =
-    0;
-
-
-  while (
-    musicTime <
-    totalDuration
-  ) {
-
-    addSoundToTimeline(
-
-      exportSounds.music,
-
-      musicTime,
-
-      MUSIC_VOLUME,
-
-      fadeOutStart,
-
-      fadeOutEnd
-
-    );
-
-
-    musicTime +=
-      exportSounds.music.duration;
-  }
-}
-
-      /* ========================================
-         MEDIABUNNY OUTPUT
-      ======================================== */
-
-      const output =
-        new Output({
-
-          format:
-            new Mp4OutputFormat({
-
-              fastStart:
-                "in-memory"
-
-            }),
-
-          target:
-            new BufferTarget()
-
-        });
-        /* ========================================
-   🔊 CREATE MP4 AUDIO TRACK
-======================================== */
-
-const audioSource =
-  new AudioBufferSource({
-
-    codec:
-      "aac",
-
-    quality:
-      new Quality({
-
-        bitrate:
-          128000
-
-      })
-
-  });
-
-
-output.addAudioTrack(
-  audioSource
-);
-
-
-      /* ========================================
-         VIDEO SOURCE
-
-         ✅ FIX: `bitrate` must be a plain number
-         (or a Quality instance), passed directly —
-         not wrapped in a `quality` key. The old
-         `quality: new Quality({...})` shape doesn't
-         match Mediabunny's VideoEncodingConfig and
-         would leave the encoder without a real bitrate.
-      ======================================== */
-
-      const videoSource =
-        new CanvasSource(
-
-          canvas,
-
-          {
-
-            codec:
-              "avc",
-
-            bitrate:
-              2_000_000
-
-          }
-
-        );
-
-
-      /* ========================================
-         ✅ FIX: no `frameRate` hint here.
-
-         `frameRate` tells Mediabunny to SNAP all
-         timestamps/durations of this track to that
-         rate. We're feeding 1.5s-long frames — an
-         effective ~0.667 fps — so passing
-         `frameRate: 1` would round our 1.5s spacing
-         down to 1-second increments and silently
-         wreck the "1.5 sec per move" timing.
-         Leaving it unset means our explicit
-         timestamps are used exactly as given.
-      ======================================== */
-
-   output.addVideoTrack(
-  videoSource,
-  {
-    frameRate: 10
-  }
-);
-
-
-      await output.start();
-
-
-      /* ========================================
-         ⏱️ EXACT TIMING
-
-         1.5 seconds per position.
-      ======================================== */
-
-     
-
-
-      let timestamp =
-        0;
-
-
-      /* ========================================
-         STARTING POSITION
-      ======================================== */
-
-      drawFrame(
-        game
-      );
-
-
-      await videoSource.add(
-
-        timestamp,
-
-        FRAME_DURATION
-
-      );
-
-
-      timestamp +=
-        FRAME_DURATION;
-
-
-      /* ========================================
-   PLAY REMAINING MOVES
-
-   🏹 Each move gets a navy-blue arrow.
-   ⏱️ Each move stays visible for 2 seconds.
-======================================== */
-
-for (
-  let i = currentMove;
-  i < fullHistory.length;
-  i++
-) {
-
-  /* ========================================
-     PLAY MOVE
-
-     chess.js returns the actual move object,
-     which gives us:
-
-     from
-     to
-     piece
-     captured
-     etc.
-  ======================================== */
-
-  const playedMove =
-    game.move(
-      fullHistory[i]
-    );
     /* ========================================
-   🔊 SELECT SOUND FOR THIS MOVE
-======================================== */
+       PIECES (same theme as GIF)
+    ======================================== */
 
-let moveSound =
-  exportSounds.move;
+    const pieceTheme = getPieceThemePath(currentPieceTheme);
+    const pieceCodes = ["wK","wQ","wR","wB","wN","wP","bK","bQ","bR","bB","bN","bP"];
 
+    for (const code of pieceCodes) {
+      const response = await fetch(pieceTheme.replace("{piece}", code));
+      if (!response.ok) throw new Error(`Unable to load piece ${code}.`);
 
-/* ========================================
-   CASTLING
-======================================== */
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const image = new Image();
 
-if (
-  playedMove.flags &&
-  (
-    playedMove.flags.includes("k") ||
-    playedMove.flags.includes("q")
-  )
-) {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = url;
+      });
 
-  moveSound =
-    exportSounds.castle;
-}
-
-
-/* ========================================
-   CAPTURE
-======================================== */
-
-else if (
-  playedMove.captured
-) {
-
-  moveSound =
-    exportSounds.capture;
-}
-
-
-/* ========================================
-   CHECK / CHECKMATE
-======================================== */
-
-else if (
-  playedMove.san &&
-  (
-    playedMove.san.includes("+") ||
-    playedMove.san.includes("#")
-  )
-) {
-
-  moveSound =
-    exportSounds.check;
-}
-
-
-/* ========================================
-   🔊 PUT SOUND AT EXACT MOVE TIME
-======================================== */
-
-addSoundToTimeline(
-
-  moveSound,
-
-  timestamp
-
-);
-
-
-  const annotation =
-    PGN_VIEWER.annotationHistory[i];
-
-  const ANNO_FRAME_DURATION = 0.1;
-  const ANNO_FRAME_COUNT = 12;
-
-  if (annotation) {
-
-    // Animated reveal: 12 frames at 100ms = 1.2 seconds.
-    for (let frame = 0; frame < ANNO_FRAME_COUNT; frame++) {
-
-      drawFrame(game);
-
-      drawPGNExportMoveArrow(
-        ctx,
-        playedMove,
-        SIZE / 8,
-        HEADER_HEIGHT
-      );
-
-      window.drawPGNExportAnnotationRevealFrame(
-        ctx,
-        annotation,
-        playedMove,
-        SIZE / 8,
-        HEADER_HEIGHT,
-        frame / ANNO_FRAME_COUNT
-      );
-
-      await videoSource.add(
-        timestamp,
-        ANNO_FRAME_DURATION
-      );
-
-      timestamp += ANNO_FRAME_DURATION;
+      pieceImages[code] = { image, url };
     }
 
-    // Final circular marker remains for the remaining 1.8 seconds.
-    drawFrame(game);
+    /* ========================================
+       DRAW BOARD (header + squares + pieces)
+    ======================================== */
 
-    drawPGNExportMoveArrow(
-      ctx,
-      playedMove,
-      SIZE / 8,
-      HEADER_HEIGHT
-    );
+    function drawFrame(chessGame) {
 
-    window.drawPGNExportAnnotationRevealFrame(
-      ctx,
-      annotation,
-      playedMove,
-      SIZE / 8,
-      HEADER_HEIGHT,
-      1
-    );
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#1c1f35";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const remainingDuration =
-      FRAME_DURATION -
-      (ANNO_FRAME_DURATION * ANNO_FRAME_COUNT);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
 
-    await videoSource.add(
-      timestamp,
-      remainingDuration
-    );
+      drawPGNExportAcademyLogo(ctx);
 
-    timestamp += remainingDuration;
+      ctx.fillStyle = "#f5c542";
+      ctx.font = "bold 30px Arial";
+      ctx.fillText("The Olympus Chess Academy", SIZE / 2, 25);
 
-  } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px Arial";
+      ctx.fillText(studyTitle, SIZE / 2, 52);
 
-    // No annotation: preserve the original three-second frame.
-    drawFrame(game);
+      ctx.fillStyle = "#d1d5db";
+      ctx.font = "bold 17px Arial";
+      ctx.fillText(chapterName, SIZE / 2, 76);
 
-    drawPGNExportMoveArrow(
-      ctx,
-      playedMove,
-      SIZE / 8,
-      HEADER_HEIGHT
-    );
+      const square = SIZE / 8;
+      const board = chessGame.board();
 
-    await videoSource.add(
-      timestamp,
-      FRAME_DURATION
-    );
+      for (let rank = 0; rank < 8; rank++) {
+        for (let file = 0; file < 8; file++) {
 
-    timestamp += FRAME_DURATION;
-  }
-}
+          const squareName = String.fromCharCode(97 + file) + (8 - rank);
 
-
-      /* ========================================
-         FINAL POSITION
-
-         Same final hold as GIF.
-      ======================================== */
-
-      drawFrame(
-        game
-      );
-
-
-      await videoSource.add(
-
-        timestamp,
-
-        FRAME_DURATION
-
-      );
-
-
-      /* ========================================
-         FINALIZE MP4
-      ======================================== */
-
-      if (button) {
-
-        button.textContent =
-          "⏳ Finalizing MP4...";
-      }
-      /* ========================================
-   🔊 ADD COMPLETE AUDIO TIMELINE
-======================================== */
-
-await audioSource.add(
-  audioBuffer
-);
-
-
-audioSource.close();
-
-
-      await output.finalize();
-
-
-      const buffer =
-        output.target.buffer;
-
-
-      if (!buffer) {
-
-        throw new Error(
-          "MP4 output is empty."
-        );
-      }
-
-
-      /* ========================================
-         CREATE FILE
-      ======================================== */
-
-      const mp4Blob =
-        new Blob(
-
-          [
-            buffer
-          ],
-
-          {
-            type:
-              "video/mp4"
-          }
-
-        );
-
-
-      const safeStudy =
-        studyTitle
-          .replace(
-            /[\\/:*?"<>|]+/g,
-            "_"
-          )
-          .trim();
-
-
-      const safeChapter =
-        chapterName
-          .replace(
-            /[\\/:*?"<>|]+/g,
-            "_"
-          )
-          .trim();
-
-
-      const filename =
-        `${safeStudy} - ${safeChapter}.mp4`;
-
-
-      const url =
-        URL.createObjectURL(
-          mp4Blob
-        );
-
-
-      const link =
-        document.createElement(
-          "a"
-        );
-
-
-      link.href =
-        url;
-
-
-      link.download =
-        filename;
-
-
-      document.body.appendChild(
-        link
-      );
-
-
-      link.click();
-
-
-      link.remove();
-
-
-      setTimeout(
-        () => {
-
-          URL.revokeObjectURL(
-            url
+          const position = getPGNExportSquarePosition(
+            squareName, square, HEADER_HEIGHT
           );
 
-        },
-        3000
-      );
+          const displayFile =
+            PGN_VIEWER.orientation === "black" ? 7 - file : file;
+          const displayRank =
+            PGN_VIEWER.orientation === "black" ? 7 - rank : rank;
 
+          const light = (displayFile + displayRank) % 2 === 0;
 
-      /* ========================================
-         CLEAN PIECE URLs
-      ======================================== */
+          ctx.fillStyle = light ? "#f0d9b5" : "#b58863";
+          ctx.fillRect(
+            displayFile * square,
+            HEADER_HEIGHT + displayRank * square,
+            square, square
+          );
 
-      Object.values(
-        pieceImages
-      ).forEach(
-        data => {
+          const piece = board[rank][file];
+          if (!piece) continue;
 
-          if (
-            data &&
-            data.url
-          ) {
+          const cached = pieceImages[piece.color + piece.type.toUpperCase()];
 
-            URL.revokeObjectURL(
-              data.url
+          if (cached && cached.image) {
+            ctx.drawImage(
+              cached.image,
+              position.x - square / 2,
+              position.y - square / 2,
+              square, square
             );
           }
         }
-      );
+      }
+    }
 
+    /* One complete frame: board + arrow + banner + annotation */
+    const SQ = SIZE / 8;
 
-      /* ========================================
-         SUCCESS
-      ======================================== */
+    function renderFrame(frame, annoProgress, plain) {
 
-      if (
-        typeof showJoinBanner ===
-        "function"
-      ) {
+           drawFrame(new Chess(frame.fen));
+      pgnMp4DrawPlayerPhotos(ctx, SIZE, HEADER_HEIGHT);
 
-        showJoinBanner(
-          "📱 Video Downloaded Successfully",
-          false
+      if (!plain && frame.move) {
+        drawPGNExportMoveArrow(
+          ctx, frame.move, SQ, HEADER_HEIGHT,
+          frame.theme === "var" ? "#0A6078" : undefined
         );
       }
 
+      if (plan.hasBanner) pgnMp4DrawBanner(ctx, SIZE, frame.banner);
 
-      console.log(
-        "✅ MP4 created:",
-        filename
-      );
-
-
-    } catch (err) {
-
-      console.error(
-        "❌ MP4 generation failed:",
-        err
-      );
-
-
-      alert(
-        "Failed to create WhatsApp MP4. Check the browser console for details."
-      );
-
-
-    } finally {
-
-      if (button) {
-
-        button.disabled =
-          false;
-
-        button.textContent =
-          button.dataset.oldText ||
-          "📱 WhatsApp Video";
+      if (!plain && frame.anno && frame.move) {
+        window.drawPGNExportAnnotationRevealFrame(
+          ctx, frame.anno, frame.move, SQ, HEADER_HEIGHT, annoProgress
+        );
       }
     }
-  };
+
+    /* ========================================
+       🔊 AUDIO SETUP
+    ======================================== */
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    async function loadExportSound(path) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Could not load sound: ${path}`);
+      return await audioContext.decodeAudioData(await response.arrayBuffer());
+    }
+
+    const exportSounds = {
+      move: await loadExportSound("sounds/move.mp3"),
+      capture: await loadExportSound("sounds/capture.mp3"),
+      castle: await loadExportSound("sounds/castle.mp3"),
+      check: await loadExportSound("sounds/check.mp3"),
+      music: await loadExportSound("sounds/video.mp3")
+    };
+
+    const FRAME_DURATION = 3;
+
+    /* every frame + one final hold */
+    const totalPositions = plan.frames.length + 1;
+    const totalDuration = totalPositions * FRAME_DURATION;
+
+    const AUDIO_SAMPLE_RATE = 48000;
+
+    const audioBuffer = audioContext.createBuffer(
+      2,
+      Math.ceil(totalDuration * AUDIO_SAMPLE_RATE),
+      AUDIO_SAMPLE_RATE
+    );
+
+    function addSoundToTimeline(
+      sourceBuffer, startTime, volume = 1,
+      fadeOutStart = null, fadeOutEnd = null
+    ) {
+      if (!sourceBuffer) return;
+
+      const startSample = Math.floor(startTime * AUDIO_SAMPLE_RATE);
+      const available = audioBuffer.length - startSample;
+      if (available <= 0) return;
+
+      const samplesToCopy = Math.min(sourceBuffer.length, available);
+      const mono = sourceBuffer.numberOfChannels === 1;
+      const channels = Math.min(2, sourceBuffer.numberOfChannels);
+
+      const gainAt = (i) => {
+        let g = volume;
+        if (fadeOutStart !== null && fadeOutEnd !== null) {
+          const t = startTime + i / AUDIO_SAMPLE_RATE;
+          if (t >= fadeOutStart) {
+            const p = Math.max(0, Math.min(1, (t - fadeOutStart) / (fadeOutEnd - fadeOutStart)));
+            g = volume * (1 - p);
+          }
+        }
+        return g;
+      };
+
+      for (let ch = 0; ch < channels; ch++) {
+        const src = sourceBuffer.getChannelData(ch);
+        const dst = audioBuffer.getChannelData(ch);
+        for (let i = 0; i < samplesToCopy; i++) {
+          dst[startSample + i] += src[i] * gainAt(i);
+        }
+      }
+
+      if (mono) {
+        const src = sourceBuffer.getChannelData(0);
+        const right = audioBuffer.getChannelData(1);
+        for (let i = 0; i < samplesToCopy; i++) {
+          right[startSample + i] += src[i] * gainAt(i);
+        }
+      }
+    }
+
+    /* 🎵 background music + 3 s fade-out */
+    if (includeMusic) {
+      const MUSIC_VOLUME = 0.2;
+      const FADE_DURATION = 3;
+      const fadeOutStart = Math.max(0, totalDuration - FADE_DURATION);
+
+      let musicTime = 0;
+      while (musicTime < totalDuration) {
+        addSoundToTimeline(
+          exportSounds.music, musicTime, MUSIC_VOLUME,
+          fadeOutStart, totalDuration
+        );
+        musicTime += exportSounds.music.duration;
+      }
+    }
+
+    function pickMoveSound(m) {
+      if (m.flags && (m.flags.includes("k") || m.flags.includes("q"))) return exportSounds.castle;
+      if (m.captured) return exportSounds.capture;
+      if (m.san && (m.san.includes("+") || m.san.includes("#"))) return exportSounds.check;
+      return exportSounds.move;
+    }
+
+    /* ========================================
+       MEDIABUNNY OUTPUT
+    ======================================== */
+
+    const output = new Output({
+      format: new Mp4OutputFormat({ fastStart: "in-memory" }),
+      target: new BufferTarget()
+    });
+
+    const audioSource = new AudioBufferSource({
+      codec: "aac",
+      quality: new Quality({ bitrate: 128000 })
+    });
+    output.addAudioTrack(audioSource);
+
+    const videoSource = new CanvasSource(canvas, {
+      codec: "avc",
+      bitrate: 2_000_000
+    });
+    output.addVideoTrack(videoSource, { frameRate: 10 });
+
+    await output.start();
+
+    /* ========================================
+       WRITE ALL FRAMES
+       (main line moves, variation branches,
+        returns to the main line)
+    ======================================== */
+
+    const ANNO_FRAME_DURATION = 0.1;
+    const ANNO_FRAME_COUNT = 12;
+
+    let timestamp = 0;
+
+    for (const frame of plan.frames) {
+
+      /* 🔊 sound only for real played moves */
+      if (!frame.silent && frame.move) {
+        addSoundToTimeline(pickMoveSound(frame.move), timestamp);
+      }
+
+      if (!frame.silent && frame.anno && frame.move) {
+
+        /* animated annotation reveal: 1.2 s */
+        for (let f = 0; f < ANNO_FRAME_COUNT; f++) {
+          renderFrame(frame, f / ANNO_FRAME_COUNT, false);
+          await videoSource.add(timestamp, ANNO_FRAME_DURATION);
+          timestamp += ANNO_FRAME_DURATION;
+        }
+
+        /* final badge for the remaining 1.8 s */
+        renderFrame(frame, 1, false);
+        const remaining = FRAME_DURATION - ANNO_FRAME_DURATION * ANNO_FRAME_COUNT;
+        await videoSource.add(timestamp, remaining);
+        timestamp += remaining;
+
+      } else {
+
+        renderFrame(frame, 1, false);
+        await videoSource.add(timestamp, FRAME_DURATION);
+        timestamp += FRAME_DURATION;
+      }
+    }
+
+    /* final hold (plain position, no arrow) */
+    renderFrame(plan.frames[plan.frames.length - 1], 1, true);
+    await videoSource.add(timestamp, FRAME_DURATION);
+
+    /* ========================================
+       FINALIZE
+    ======================================== */
+
+    if (button) button.textContent = "⏳ Finalizing MP4...";
+
+    await audioSource.add(audioBuffer);
+    audioSource.close();
+
+    await output.finalize();
+
+    const buffer = output.target.buffer;
+    if (!buffer) throw new Error("MP4 output is empty.");
+
+    const mp4Blob = new Blob([buffer], { type: "video/mp4" });
+
+    const safeStudy = studyTitle.replace(/[\\/:*?"<>|]+/g, "_").trim();
+    const safeChapter = chapterName.replace(/[\\/:*?"<>|]+/g, "_").trim();
+
+    const suffix = plan.usedVars
+      ? (plan.usedMain ? " (Main + Variations)" : " (Variations)")
+      : "";
+
+    const filename = `${safeStudy} - ${safeChapter}${suffix}.mp4`;
+
+    const url = URL.createObjectURL(mp4Blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+    if (typeof showJoinBanner === "function") {
+      showJoinBanner("📱 Video Downloaded Successfully", false);
+    }
+
+    console.log("✅ MP4 created:", filename);
+
+  } catch (err) {
+
+    console.error("❌ MP4 generation failed:", err);
+    alert("Failed to create WhatsApp MP4. Check the browser console for details.");
+
+  } finally {
+
+    Object.values(pieceImages).forEach(d => {
+      if (d && d.url) URL.revokeObjectURL(d.url);
+    });
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = button.dataset.oldText || "📱 WhatsApp Video";
+    }
+  }
+};
 
 /* ============================================================
    🎓 STUDENT PUZZLE GRID VIEWER
@@ -267003,24 +266489,40 @@ document.addEventListener("DOMContentLoaded", startApp);
   </button>
 
 
-  <label style="
-    display:flex;
-    align-items:center;
-    gap:5px;
-    cursor:pointer;
-    font-size:14px;
-    user-select:none;
-  ">
-
-    <input
-      type="checkbox"
-      id="pgnViewerMp4MusicToggle"
-      checked
-    >
-
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:14px;user-select:none;">
+    <input type="checkbox" id="pgnViewerMp4MusicToggle" checked>
     🎵 Music
-
   </label>
+
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:14px;user-select:none;">
+    <input type="checkbox" id="pgnViewerMp4MainToggle" checked>
+    ♟ Main line
+  </label>
+
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:14px;user-select:none;">
+    <input type="checkbox" id="pgnViewerMp4VarToggle" checked>
+    🔀 Variations
+  </label>
+
+    <div style="display:flex;align-items:center;gap:6px;">
+    <label id="pgnViewerWhitePhotoLabel" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:14px;user-select:none;">
+      <input type="file" id="pgnViewerWhitePhoto" accept="image/*" style="display:none">
+      <span id="pgnViewerWhitePhotoText">⚪ White photo</span>
+    </label>
+    <button type="button" id="pgnViewerWhitePhotoClear" style="display:none;padding:2px 7px;border:none;border-radius:6px;background:#555;color:#fff;cursor:pointer;">✕</button>
+    <input type="text" id="pgnViewerWhiteName" placeholder="White name" maxlength="24"
+      style="width:110px;padding:4px 6px;border-radius:6px;border:1px solid #888;font-size:13px;">
+  </div>
+
+  <div style="display:flex;align-items:center;gap:6px;">
+    <label id="pgnViewerBlackPhotoLabel" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:14px;user-select:none;">
+      <input type="file" id="pgnViewerBlackPhoto" accept="image/*" style="display:none">
+      <span id="pgnViewerBlackPhotoText">⚫ Black photo</span>
+    </label>
+    <button type="button" id="pgnViewerBlackPhotoClear" style="display:none;padding:2px 7px;border:none;border-radius:6px;background:#555;color:#fff;cursor:pointer;">✕</button>
+    <input type="text" id="pgnViewerBlackName" placeholder="Black name" maxlength="24"
+      style="width:110px;padding:4px 6px;border-radius:6px;border:1px solid #888;font-size:13px;">
+  </div>
 
 </div>
 
