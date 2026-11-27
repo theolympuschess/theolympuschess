@@ -11547,7 +11547,7 @@ body.student-view #mpLiveAnnoToolbar {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 9999999999;
 }
 
 .mp-promo-overlay.hidden {
@@ -11577,6 +11577,13 @@ body.student-view #mpLiveAnnoToolbar {
   background: #3b82f6;
 }
 
+.mp-promo-box button.mp-promo-cancel {
+  background: #7f1d1d;
+}
+
+.mp-promo-box button.mp-promo-cancel:hover {
+  background: #dc2626;
+}
 
 /* Grab cursor on Live Match board */
 #mpBoard {
@@ -72153,14 +72160,7 @@ winClose?.addEventListener("click", function() {
     </div>
 
     <!-- ===== PROMOTION POPUP ===== -->
-    <div class="mp-pop-overlay" id="mpPromoModal">
-      <div class="mp-pop">
-        <div class="mp-pop-icon">👑</div>
-        <div class="mp-pop-title">Promote your pawn</div>
-        <div class="mp-pop-text">Choose the piece you want.</div>
-        <div class="mp-promo-grid" id="mpPromoGrid"></div>
-      </div>
-    </div>
+
 
     <!-- ===== HINT / SOLUTION CONFIRM POPUP ===== -->
     <div class="mp-pop-overlay" id="mpAssistModal">
@@ -172117,9 +172117,28 @@ function mpForcePOVLayout() {
    HELPERS
 ================================ */
 
-function mpInstantMove(from, to, promotion = 'q') {
+function mpInstantMove(from, to, promotion = null) {
+
+  // 🔥 PROMOTION CHECK (tap system)
+  const piece = mpChess.get(from)
+  const isPromo =
+    piece &&
+    piece.type === 'p' &&
+    ((mySide === 'w' && to[1] === '8') ||
+     (mySide === 'b' && to[1] === '1'))
+
+  if (isPromo && !promotion) {
+    // Only ask if the move is actually legal
+    const test = new Chess(mpChess.fen())
+    if (!test.move({ from, to, promotion: 'q' })) return false
+
+    mpPendingPromotion = { source: from, target: to }
+    showMpPromotion()
+    return false
+  }
+
   // Apply instantly on board for zero lag feel
-  const move = mpChess.move({ from, to, promotion })
+  const move = mpChess.move({ from, to, promotion: promotion || 'q' })
   if (!move) return false
 
   if (mpBoard) {
@@ -175073,29 +175092,54 @@ window.mpCompletePromotion = function(piece) {
   mpPendingPromotion = null
 
   // 🔥 Apply move locally
-const move = mpChess.move({
-  from: source,
-  to: target,
-  promotion: piece
-})
-if (move?.captured) {
+  const move = mpChess.move({
+    from: source,
+    to: target,
+    promotion: piece
+  })
 
-  showCaptureExplosion(
-    "mpBoard",
-    move.to
-  );
+  // Move was not legal: unlock and stop
+  if (!move) {
+    moveLock = false
+    return
+  }
 
-}
+  if (move.captured) {
+    showCaptureExplosion(
+      "mpBoard",
+      move.to
+    );
+  }
 
-// 🔊 Play sound
-mpPlayMoveSound(move)
+  // 🔥 Update the board right now (the drop returned 'snapback')
+  if (mpBoard) {
+    mpBoard.position(mpChess.fen(), false)
+    updateTurnHighlight()
+  }
+
+  // 🔊 Play sound
+  mpPlayMoveSound(move)
+  mpClearArrow()
 
   moveLock = true
 
   // 🔥 Sync + checkmate handling
   mpAfterMove()
 }
+window.mpCancelPromotion = function () {
+  document.getElementById('mpPromoModal').classList.add('hidden')
 
+  mpPendingPromotion = null
+  mpTapSource = null
+  moveLock = false
+
+  clearMpHighlights()
+
+  // Make sure the board shows the real position (pawn back on its square)
+  if (mpBoard) {
+    mpBoard.position(mpChess.fen(), false)
+  }
+}
 // expose to inline HTML buttons
 window.showMpPromotion = showMpPromotion;
 
@@ -176169,6 +176213,12 @@ mpArchivePanel.style.display = 'block'
 mpLoadArchive()
 }
 
+// 👇 PUT IT HERE, once, at the very end of the file
+document.getElementById('mpPromoModal').addEventListener('click', e => {
+  if (e.target.id === 'mpPromoModal') {
+    window.mpCancelPromotion()
+  }
+})
 // =========================================================
 // ♚ THREE-CHECK  —  MULTIPLAYER + PLAY WITH BOT  (every name starts with "tc")
 // Same architecture as Dice Multiplayer. Instead of dice, the game uses
@@ -269275,12 +269325,15 @@ function syncNavVisibility() {
 
 
 <!-- LIVE MATCH PROMOTION MODAL (ISOLATED) -->
+
 <div id="mpPromoModal" class="mp-promo-overlay hidden">
   <div class="mp-promo-box">
     <button onclick="mpCompletePromotion('q')">♕</button>
     <button onclick="mpCompletePromotion('r')">♖</button>
     <button onclick="mpCompletePromotion('b')">♗</button>
     <button onclick="mpCompletePromotion('n')">♘</button>
+    <button class="mp-promo-cancel" onclick="mpCancelPromotion()">✕</button>
+   
   </div>
 </div>
 
