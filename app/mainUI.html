@@ -173224,16 +173224,14 @@ async function mpHandleLocalTimeout(loserTurn) {
     .eq('id', roomId)
     .eq('status', 'playing')
 
-  mpShowModal(
-    'Game Over',
-    winner === mySide
+  mpFinishGameWithDelay({
+    banner: '⏱ Time up!',
+    title: 'Game Over',
+    message: winner === mySide
       ? '🎉 Opponent ran out of time! You won!'
-      : '⛔ Time up! You lost on time.'
-  )
-  mpArchiveSaveGame(winner)
-
-  mpClearSession()
-  mpEndAndUnlock()
+      : '⛔ Time up! You lost on time.',
+    winner
+  })
 }
 
 
@@ -175035,8 +175033,30 @@ mpClearArrow()
   return
 }
 
+/* ===============================
+   GAME END WITH DELAY (checkmate / time)
+   mpGameOver must already be true before calling.
+================================ */
+function mpFinishGameWithDelay({ banner, title, message, winner, delay = 4000 }) {
+
+  stopClock()
+
+  // Brief notice while the final position stays on the board
+  showJoinBanner(banner)
+
+  setTimeout(() => {
+    playKFQCompleteSound()          // sound appears with the modal
+    mpShowModal(title, message)
+
+    mpArchiveSaveGame(winner)
+    mpClearSession()
+    mpEndAndUnlock()                // reset happens only after the delay
+  }, delay)
+}
+
 async function mpAfterMove() {
-   window.mpClearLiveMatchAnnotation();   // 🏷️ marker disappears when a move is played
+  window.mpClearLiveMatchAnnotation();   // 🏷️ marker disappears when a move is played
+
   // ===============================
   // CHECKMATE DETECTION
   // ===============================
@@ -175062,10 +175082,13 @@ async function mpAfterMove() {
       })
       .eq('id', roomId)
 
-    mpShowModal('Checkmate!', '♟️ You delivered CHECKMATE!')
-    
-mpArchiveSaveGame(winner)
-mpEndAndUnlock()
+    // 🔥 Show the mate position for 2 sec, then sound + modal + reset
+    mpFinishGameWithDelay({
+      banner: '♟️ Checkmate!',
+      title: 'Checkmate!',
+      message: '♟️ You delivered CHECKMATE!',
+      winner
+    })
     return
   }
 
@@ -176011,7 +176034,7 @@ playKFQCompleteSound();
 }
 
 /* ===============================
-   CHECKMATE (REMOTE)
+   CHECKMATE / TIME (REMOTE)
 ================================ */
 
 if (
@@ -176022,18 +176045,22 @@ if (
   mpGameOver = true
   stopClock()
 
-  if (row.winner === mySide) {
-    mpShowModal('Victory!', '♟️ You won by CHECKMATE!')
-  } else {
-    mpShowModal('Defeat', '💀 Time ran out!')
-  }
- mpArchiveSaveGame(row.winner)
+  // The board already holds the final position at this point
+  const byMate =
+    typeof mpChess.isCheckmate === 'function'
+      ? mpChess.isCheckmate()
+      : mpChess.in_checkmate()
 
-mpClearSession()
-mpEndAndUnlock()
- playKFQCompleteSound();
+  const iWon = row.winner === mySide
 
-
+  mpFinishGameWithDelay({
+    banner: byMate ? '♟️ Checkmate!' : '⏱ Time up!',
+    title: iWon ? 'Victory!' : 'Defeat',
+    message: iWon
+      ? (byMate ? '♟️ You won by CHECKMATE!' : '🎉 Opponent ran out of time! You won!')
+      : (byMate ? '💀 You were checkmated.' : '⛔ Time up! You lost on time.'),
+    winner: row.winner
+  })
 
   return
 }
