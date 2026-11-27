@@ -172031,7 +172031,7 @@ mpLastTapTime = now
   if (!square) return
 
   // ❌ Game guards
-  if (mpGameOver) return
+  if (mpGameOver || mpIntroActive) return
   if (moveLock) return
   if (serverTurn !== mySide) return
 
@@ -173052,7 +173052,7 @@ async function mpAcceptRematch() {
 
   // 🔥 REJOIN PIPELINE
   setTimeout(() => {
-    mpRejoinRoomById(roomId)
+    mpRejoinRoomById(roomId, true)
   }, 300)
 }
 
@@ -173956,7 +173956,7 @@ if (startError) {
 // =====================================================
 // 🔥 USE THE SAME PIPELINE THAT WORKS AFTER REFRESH
 // =====================================================
-await mpRejoinRoomById(challenge.room_id);
+await mpRejoinRoomById(challenge.room_id, true);
 
 console.log(
     "✅ INVITE REJOIN COMPLETE:",
@@ -174842,6 +174842,565 @@ window.mpLiveAnnoClickHandler = function (event) {
   window.mpSetLiveAnnotation(square, selectedType);
 };
 
+
+/* =====================================================
+   ⚔️ LIVE MATCH PRE-GAME VS INTRO
+   Cinematic red-vs-blue matchup reveal, WHITE/BLACK labels, entry track,
+   supplied spoken 3-2-1 MP3 countdown, then FIGHT track.
+   Local presentation only — does not modify chess/server state.
+===================================================== */
+let mpIntroActive = false;
+let mpIntroPlayed = false;
+let mpIntroAudioContext = null;
+let mpIntroAudioUnlocked = false;
+
+// Dedicated intro tracks supplied for the Live Match sequence.
+// These paths expect the files inside the app's existing sounds/ folder.
+const mpIntroEntryTrack = new Audio("sounds/entry.mp3");
+const mpIntroFightTrack = new Audio("sounds/fight.mp3");
+
+// Supplied spoken countdown clips. Each clip is played once, in sync with
+// its matching on-screen number; the Web Audio countdown synthesizer is not used.
+const mpIntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+
+const mpIntroAllTracks = [
+  mpIntroEntryTrack,
+  mpIntroCountdownTracks["3"],
+  mpIntroCountdownTracks["2"],
+  mpIntroCountdownTracks["1"],
+  mpIntroFightTrack
+];
+
+mpIntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function mpEnsureIntroStyles() {
+  if (document.getElementById("mpPreGameIntroStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "mpPreGameIntroStyles";
+  style.textContent = `
+    #mpPreGameIntro {
+      position: fixed; inset: 0; z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; padding: clamp(12px, 3vw, 34px);
+      isolation: isolate;
+      background:
+        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);
+      color: #fff; font-family: inherit;
+      animation: mpIntroBackdrop .35s ease both;
+    }
+    #mpPreGameIntro * { box-sizing: border-box; }
+    #mpPreGameIntro::before {
+      content: ""; position: absolute; inset: -45%; z-index: -2;
+      background: repeating-conic-gradient(
+        from 0deg at 50% 50%,
+        rgba(255,255,255,.19) 0deg 1.1deg,
+        transparent 1.1deg 7deg,
+        rgba(0,0,0,.12) 7deg 8deg,
+        transparent 8deg 13deg
+      );
+      animation: mpIntroRays 24s linear infinite;
+      opacity: .78;
+    }
+    #mpPreGameIntro::after {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background:
+        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),
+        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),
+        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);
+      pointer-events: none;
+    }
+    #mpPreGameIntro .mp-intro-stage {
+      width: min(1180px, 100%); text-align: center; position: relative;
+      z-index: 2; transform: translateZ(0);
+    }
+    #mpPreGameIntro .mp-intro-versus {
+      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+      align-items: center; gap: clamp(5px, 1.8vw, 24px);
+      width: 100%;
+    }
+    #mpPreGameIntro .mp-intro-player {
+      min-width: 0; min-height: clamp(132px, 25vh, 245px);
+      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: clamp(9px, 1.8vh, 18px);
+      border-radius: clamp(12px, 2vw, 24px);
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));
+      border: 2px solid rgba(255,255,255,.8);
+      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);
+      animation: mpIntroLeft .72s cubic-bezier(.16,.9,.25,1) both;
+    }
+    #mpPreGameIntro .mp-intro-player::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);
+      opacity: .8;
+    }
+    #mpPreGameIntro .mp-intro-player.black {
+      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));
+      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);
+      animation-name: mpIntroRight;
+    }
+    #mpPreGameIntro .mp-intro-side {
+      position: relative; z-index: 1;
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: clamp(76px, 10vw, 132px);
+      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);
+      border: 2px solid rgba(255,255,255,.92);
+      border-radius: 999px;
+      background: rgba(15,15,20,.28);
+      color: #fff; font-size: clamp(15px, 2vw, 27px);
+      font-weight: 1000; letter-spacing: .14em;
+      text-transform: uppercase;
+      text-shadow: 0 2px 8px rgba(0,0,0,.4);
+      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);
+    }
+    #mpPreGameIntro .mp-intro-player.black .mp-intro-side {
+      background: rgba(0,12,65,.34);
+    }
+    #mpPreGameIntro .mp-intro-name {
+      position: relative; z-index: 1; width: 100%;
+      font-size: clamp(25px, 5.7vw, 76px);
+      font-weight: 1000; letter-spacing: -.045em;
+      overflow-wrap: anywhere; word-break: break-word;
+      line-height: .98; text-transform: uppercase;
+      color: #fff;
+      -webkit-text-stroke: 1px rgba(255,255,255,.18);
+      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);
+    }
+    #mpPreGameIntro .mp-intro-vs {
+      position: relative; z-index: 3;
+      font-size: clamp(76px, 15vw, 210px);
+      line-height: .82; font-weight: 1000; font-style: italic;
+      letter-spacing: -.1em; padding-right: .1em;
+      color: #fff;
+      -webkit-text-stroke: 2px rgba(255,255,255,.9);
+      text-shadow:
+        7px 8px 0 #ed1027,
+        -5px -4px 0 #164de2,
+        0 14px 35px rgba(0,0,0,.48);
+      transform: rotate(-7deg);
+      animation: mpIntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,
+                 mpIntroVSPulse 1.2s ease-in-out 1s infinite alternate;
+    }
+    #mpPreGameIntro .mp-intro-message {
+      min-height: clamp(68px, 12vh, 116px);
+      display: flex; align-items: center; justify-content: center;
+      margin-top: clamp(18px, 4vh, 38px);
+      font-size: clamp(30px, 6.8vw, 82px);
+      font-weight: 1000; font-style: italic; letter-spacing: .015em;
+      text-transform: uppercase; color: #fff;
+      -webkit-text-stroke: 1px rgba(255,255,255,.35);
+      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);
+    }
+    #mpPreGameIntro .mp-intro-message.count {
+      min-height: clamp(130px, 26vh, 250px);
+      font-size: clamp(118px, 27vw, 300px); line-height: .78;
+      color: #fff; letter-spacing: -.07em;
+      -webkit-text-stroke: 3px rgba(255,255,255,.75);
+      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);
+    }
+    #mpPreGameIntro .mp-intro-message.battle {
+      color: #fff3a2;
+      font-size: clamp(34px, 7vw, 92px);
+      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);
+    }
+    #mpPreGameIntro .mp-intro-message.pop { animation: mpIntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }
+    #mpPreGameIntro .mp-intro-flash {
+      position: absolute; inset: -35%; pointer-events: none; opacity: 0;
+      z-index: 4;
+      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);
+    }
+    #mpPreGameIntro .mp-intro-flash.fire { animation: mpIntroFlash .48s ease-out; }
+    #mpPreGameIntro.impact .mp-intro-stage { animation: mpIntroShake .28s ease-out; }
+    @keyframes mpIntroBackdrop { from { opacity:0 } to { opacity:1 } }
+    @keyframes mpIntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }
+    @keyframes mpIntroRays { to { transform: rotate(360deg); } }
+    @keyframes mpIntroLeft {
+      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }
+      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }
+      100% { opacity:1; transform:translateX(0) scale(1) }
+    }
+    @keyframes mpIntroRight {
+      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }
+      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }
+      100% { opacity:1; transform:translateX(0) scale(1) }
+    }
+    @keyframes mpIntroVS {
+      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }
+      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }
+      100% { opacity:1; transform:scale(1) rotate(-7deg) }
+    }
+    @keyframes mpIntroVSPulse {
+      from { filter:brightness(1); }
+      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }
+    }
+    @keyframes mpIntroPop {
+      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }
+      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }
+      100% { opacity:1; transform:scale(1) rotate(0) }
+    }
+    @keyframes mpIntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }
+    @keyframes mpIntroShake {
+      0%,100% { transform:translate3d(0,0,0) }
+      20% { transform:translate3d(-7px,2px,0) }
+      40% { transform:translate3d(6px,-2px,0) }
+      60% { transform:translate3d(-4px,1px,0) }
+      80% { transform:translate3d(3px,0,0) }
+    }
+    @media (max-width:560px) {
+      #mpPreGameIntro { padding: 12px; }
+      #mpPreGameIntro .mp-intro-versus { gap: 4px; }
+      #mpPreGameIntro .mp-intro-player {
+        min-height: 118px; padding: 14px 5px; border-radius: 12px;
+      }
+      #mpPreGameIntro .mp-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }
+      #mpPreGameIntro .mp-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }
+      #mpPreGameIntro .mp-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }
+      #mpPreGameIntro .mp-intro-message.count { font-size: clamp(112px, 34vw, 190px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #mpPreGameIntro *, #mpPreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+/* Web Audio API cinematic SFX. A single context is reused; no external
+   audio files or network requests are required. */
+function mpGetIntroAudioContext() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!mpIntroAudioContext) mpIntroAudioContext = new AudioCtx();
+    if (mpIntroAudioContext.state === "suspended") {
+      mpIntroAudioContext.resume().catch(() => {});
+    }
+    return mpIntroAudioContext;
+  } catch (error) {
+    return null;
+  }
+}
+
+function mpUnlockIntroAudio() {
+  const ctx = mpGetIntroAudioContext();
+  if (ctx) {
+    ctx.resume().then(() => { mpIntroAudioUnlocked = true; }).catch(() => {});
+  }
+
+  // Prime the supplied MP3 elements silently during the user's first gesture
+  // so browsers are more likely to permit their later playback in the intro.
+  mpIntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const previousMuted = track.muted;
+    track.muted = true;
+    const attempt = track.play();
+    if (attempt && typeof attempt.then === "function") {
+      attempt.then(() => {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = previousMuted;
+      }).catch(() => {
+        track.muted = previousMuted;
+      });
+    } else {
+      track.pause();
+      track.muted = previousMuted;
+    }
+  });
+}
+
+document.addEventListener("pointerdown", mpUnlockIntroAudio, { once: true, passive: true });
+document.addEventListener("keydown", mpUnlockIntroAudio, { once: true });
+
+function mpIntroNoiseBurst(ctx, duration, volume, filterStart = 1800, filterEnd = 220) {
+  const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) {
+    const fade = Math.pow(1 - i / length, 2.2);
+    channelData[i] = (Math.random() * 2 - 1) * fade;
+  }
+
+  const source = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  source.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(filterStart, ctx.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(80, filterEnd), ctx.currentTime + duration);
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+  source.stop(ctx.currentTime + duration);
+}
+
+function mpIntroPlayBattleSound() {
+  const ctx = mpGetIntroAudioContext();
+  if (!ctx || (ctx.state !== "running" && !mpIntroAudioUnlocked)) return;
+
+  try {
+    const now = ctx.currentTime;
+
+    // Deep cinematic boom.
+    const sub = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(105, now);
+    sub.frequency.exponentialRampToValueAtTime(38, now + 0.72);
+    subGain.gain.setValueAtTime(0.0001, now);
+    subGain.gain.exponentialRampToValueAtTime(0.52, now + 0.025);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.82);
+    sub.connect(subGain);
+    subGain.connect(ctx.destination);
+    sub.start(now);
+    sub.stop(now + 0.84);
+
+    // Rising metallic launch sweep.
+    const sweep = ctx.createOscillator();
+    const sweepGain = ctx.createGain();
+    sweep.type = "sawtooth";
+    sweep.frequency.setValueAtTime(95, now);
+    sweep.frequency.exponentialRampToValueAtTime(760, now + 0.38);
+    sweep.frequency.exponentialRampToValueAtTime(180, now + 0.72);
+    sweepGain.gain.setValueAtTime(0.0001, now);
+    sweepGain.gain.exponentialRampToValueAtTime(0.13, now + 0.04);
+    sweepGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.74);
+    sweep.connect(sweepGain);
+    sweepGain.connect(ctx.destination);
+    sweep.start(now);
+    sweep.stop(now + 0.76);
+
+    mpIntroNoiseBurst(ctx, 0.72, 0.32, 4200, 90);
+  } catch (error) {
+    // Sound failure must never interrupt the match intro.
+  }
+}
+
+function mpIntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function mpPlayIntroTrack(track) {
+  return new Promise(resolve => {
+    if (!track) {
+      resolve(false);
+      return;
+    }
+
+    let finished = false;
+    const finish = played => {
+      if (finished) return;
+      finished = true;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      resolve(played);
+    };
+
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+
+      const playResult = track.play();
+      if (playResult && typeof playResult.then === "function") {
+        playResult.catch(error => {
+          console.warn("Intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("Intro audio playback failed:", error);
+      finish(false);
+    }
+  });
+}
+
+/* =====================================================
+   🔎 RESOLVE REAL PLAYER NAMES BEFORE THE INTRO
+   Prefer the authoritative white_name / black_name fields
+   from live_match_rooms. If those are absent, try real
+   profile IDs when available, then the local player's name.
+===================================================== */
+async function mpResolvePreGamePlayerNames() {
+  let room = null;
+
+  if (roomId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_match_rooms')
+        .select('white_name, black_name, white_id, black_id')
+        .eq('id', roomId)
+        .single();
+
+      if (!error && data) room = data;
+    } catch (error) {
+      console.warn('Could not refresh Live Match player names:', error);
+    }
+  }
+
+  const isPlaceholder = value => {
+    const v = String(value ?? '').trim().toLowerCase();
+    return !v || ['white', 'black', 'waiting...', 'waiting', 'player', 'you', 'unknown', 'null'].includes(v);
+  };
+
+  const lookupProfileName = async profileId => {
+    const id = String(profileId ?? '').trim();
+    if (!id || ['host', 'student', 'null', 'undefined'].includes(id.toLowerCase())) return '';
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', id)
+        .maybeSingle();
+      if (!error && data?.username) return String(data.username).trim();
+    } catch (error) {
+      console.warn('Profile-name lookup failed:', error);
+    }
+    return '';
+  };
+
+  const challengeWhite = window.currentMatchChallenge?.white_username || currentMatchChallenge?.white_username;
+  const challengeBlack = window.currentMatchChallenge?.black_username || currentMatchChallenge?.black_username;
+
+  let white = room?.white_name || mpWhiteName;
+  let black = room?.black_name || mpBlackName;
+
+  if (isPlaceholder(white)) white = challengeWhite || '';
+  if (isPlaceholder(black)) black = challengeBlack || '';
+
+  if (isPlaceholder(white)) white = await lookupProfileName(room?.white_id);
+  if (isPlaceholder(black)) black = await lookupProfileName(room?.black_id);
+
+  const localName = String(currentProfile?.username || '').trim();
+  if (localName && mySide === 'w' && isPlaceholder(white)) white = localName;
+  if (localName && mySide === 'b' && isPlaceholder(black)) black = localName;
+
+  mpWhiteName = isPlaceholder(white) ? 'White' : String(white).trim();
+  mpBlackName = isPlaceholder(black) ? 'Black' : String(black).trim();
+  updateMpPlayerLabels();
+
+  return { white: mpWhiteName, black: mpBlackName };
+}
+
+async function mpPlayPreGameIntro() {
+  if (mpIntroPlayed || mpIntroActive || mpGameOver || !roomId) return;
+
+  mpIntroPlayed = true;
+  mpIntroActive = true;
+
+  // Freeze the local clock renderer for the complete intro.
+  // Do not deduct either player's time while the VS/countdown/FIGHT
+  // presentation is running, even if a clock loop was already active.
+  stopClock();
+
+  moveLock = true;
+  mpTapSource = null;
+  clearMpHighlights();
+
+  mpEnsureIntroStyles();
+
+  // Refresh names from the authoritative room row immediately before reveal.
+  const resolvedNames = await mpResolvePreGamePlayerNames();
+  const white = resolvedNames.white;
+  const black = resolvedNames.black;
+
+  const overlay = document.createElement("div");
+  overlay.id = "mpPreGameIntro";
+  overlay.innerHTML = `
+    <div class="mp-intro-stage">
+      <div class="mp-intro-flash"></div>
+      <div class="mp-intro-versus">
+        <div class="mp-intro-player white">
+          <div class="mp-intro-side">WHITE</div>
+          <div class="mp-intro-name"></div>
+        </div>
+        <div class="mp-intro-vs">VS</div>
+        <div class="mp-intro-player black">
+          <div class="mp-intro-side">BLACK</div>
+          <div class="mp-intro-name"></div>
+        </div>
+      </div>
+      <div class="mp-intro-message"></div>
+    </div>`;
+  overlay.querySelector(".mp-intro-player.white .mp-intro-name").textContent = white;
+  overlay.querySelector(".mp-intro-player.black .mp-intro-name").textContent = black;
+  document.body.appendChild(overlay);
+
+  const message = overlay.querySelector(".mp-intro-message");
+  const flash = overlay.querySelector(".mp-intro-flash");
+  const show = async (label, className = "") => {
+    message.className = `mp-intro-message ${className} pop`;
+    message.textContent = label;
+    flash.classList.remove("fire");
+    overlay.classList.remove("impact");
+    void flash.offsetWidth;
+    void overlay.offsetWidth;
+    flash.classList.add("fire");
+    overlay.classList.add("impact");
+  };
+
+  try {
+    // Opening impact/music: the matchup remains visible while entry.mp3 plays.
+    await mpIntroWait(80);
+    await mpPlayIntroTrack(mpIntroEntryTrack);
+
+    // Spoken countdown: reveal each number and start its matching MP3
+    // immediately in the same sequence. The next number appears only after
+    // the current voice clip has finished, keeping sound and visuals aligned.
+    for (const number of ["3", "2", "1"]) {
+      await show(number, "count");
+      const voiceTrack = mpIntroCountdownTracks[number];
+      const played = await mpPlayIntroTrack(voiceTrack);
+
+      // If a browser blocks a countdown clip or the file is unavailable,
+      // retain the visual beat rather than skipping the countdown instantly.
+      if (!played) await mpIntroWait(780);
+    }
+
+    // FIGHT! stays on screen for the complete supplied fight.mp3 track.
+    await show("FIGHT!", "battle");
+    await mpPlayIntroTrack(mpIntroFightTrack);
+
+    overlay.classList.add("mp-intro-exit");
+    await mpIntroWait(360);
+  } finally {
+    overlay.remove();
+    mpIntroActive = false;
+    moveLock = false;
+
+    if (!mpGameOver && roomId) {
+      // Rebase from the latest authoritative snapshot at the END of the
+      // intro. This resets snapshotAt so White/Black lose zero seconds
+      // while entry.mp3, the spoken 3-2-1 clips, and fight.mp3 play.
+      mpRebaseClock(
+        snapshotWhiteTime,
+        snapshotBlackTime,
+        snapshotTurn,
+        'playing'
+      );
+      startClock();
+    }
+  }
+}
+
 /* ===============================
    BOARD INIT
 ================================ */
@@ -174951,6 +175510,7 @@ if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) {
 ================================ */
 
 function mpOnDragStart(source, piece) {
+  if (mpIntroActive) return false
   // ❌ Move in progress
   if (moveLock) return false
 
@@ -174981,7 +175541,7 @@ function mpOnDragStart(source, piece) {
 
 function onLiveMatchDrop(source, target) {
   // Guards
-  if (mpGameOver) return 'snapback'
+  if (mpIntroActive || mpGameOver) return 'snapback'
   if (serverTurn !== mySide) return 'snapback'
   if (moveLock) return 'snapback'
 
@@ -175232,7 +175792,7 @@ async function syncMoveToServer() {
 }
 
 
-async function mpRejoinRoomById(id) {
+async function mpRejoinRoomById(id, playIntro = false) {
   liveMatchXPGranted = false
 
   // Stop everything
@@ -175244,6 +175804,8 @@ async function mpRejoinRoomById(id) {
   }
 
   // Reset client state
+  mpIntroPlayed = false
+  mpIntroActive = false
   mpChess = new Chess()
   mpGameOver = false
   mpArchiveSaved = false
@@ -175352,7 +175914,7 @@ mpRebaseClock(
   data.status
 )
 
-if (data.status === 'playing') {
+if (data.status === 'playing' && !playIntro) {
   startClock()
 }
 
@@ -175370,6 +175932,9 @@ attachCheckHook(mpBoard, mpChess, "mpBoard")
 
 
   subscribeRoom()
+  if (data.status === 'playing' && playIntro) {
+    mpPlayPreGameIntro()
+  }
 }
 
 
@@ -175379,6 +175944,8 @@ attachCheckHook(mpBoard, mpChess, "mpBoard")
 ================================ */
 
 mpCreateBtn.onclick = async () => {
+  mpIntroPlayed = false
+  mpIntroActive = false
   liveMatchXPGranted = false
 
   const myName = currentProfile?.username || 'Player'
@@ -175468,6 +176035,8 @@ async function joinLiveMatchByCode(code){
 ================================ */
 
 mpJoinBtn.onclick = async () => {
+  mpIntroPlayed = false
+  mpIntroActive = false
   liveMatchXPGranted = false
 const myName = currentProfile?.username || 'Player'
   const code = mpJoinCode.value.trim().toUpperCase()
@@ -175509,7 +176078,6 @@ if (
 roomId = data.id
   // ⏱️ Joining always activates the game — seed the snapshot and start ticking now.
   mpRebaseClock(data.w_time, data.b_time, data.turn, 'playing')
-  startClock()
 // Creator chose side — we take the opposite
 if (
 
@@ -175599,6 +176167,7 @@ if (fresh) {
   initLiveMatchBoard()
   mpForcePOVLayout()
   updateMpPlayerLabels()
+  mpPlayPreGameIntro()
 }, 100)
   subscribeRoom()
   showJoinBanner(
@@ -175610,6 +176179,8 @@ const mpFenInput = document.getElementById('mpFenInput')
 const mpFenCreateBtn = document.getElementById('mpFenCreateBtn')
 
 mpFenCreateBtn.onclick = async () => {
+  mpIntroPlayed = false
+  mpIntroActive = false
   const fen = mpFenInput.value.trim()
   if (!fen) {
     mpShowModal("Invalid FEN", "Please paste a FEN string first")
@@ -175841,6 +176412,12 @@ channel = supabase
 
   // 🔥 FORCE UI UPDATE (THIS IS THE KEY FIX)
   updateMpPlayerLabels()
+        if (
+          payload.old?.status === "waiting" &&
+          row.status === "playing"
+        ) {
+          mpPlayPreGameIntro()
+        }
         if (!row || !row.fen) return
         // 🏆 XP HOOK — fires for ALL win types (mate, resign, time)
 grantLiveMatchXPIfWinner(row)
@@ -175906,7 +176483,7 @@ if (row.status !== 'finished') {
 
   // Don't burn White's clock while a lone creator is waiting for
   // an opponent — start ticking once the room is actually 'playing'.
-  if (row.status !== 'waiting') {
+  if (row.status !== 'waiting' && !mpIntroActive) {
     startClock()
   }
 
