@@ -176876,6 +176876,264 @@ let tcDrawOfferSent = false;
 let tcShownChecks = { w: 0, b: 0 };
 
 
+
+// =========================================================
+// ♚ THREE-CHECK — ISOLATED PRE-GAME CINEMATIC INTRO
+// Owns only tcIntro* state, DOM, CSS and audio.
+// Uses the same entry -> voice 3-2-1 -> FIGHT sequence
+// as Live Match / Puzzle Battle. No shared global intro flags.
+// =========================================================
+
+let tcIntroActive = false;
+let tcIntroRoomId = null;
+let tcIntroRunToken = 0;
+let tcIntroOverlay = null;
+let tcIntroTrackFinisher = null;
+
+const tcIntroEntryTrack = new Audio("sounds/entry.mp3");
+const tcIntroFightTrack = new Audio("sounds/fight.mp3");
+const tcIntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+const tcIntroAllTracks = [
+  tcIntroEntryTrack,
+  tcIntroCountdownTracks["3"],
+  tcIntroCountdownTracks["2"],
+  tcIntroCountdownTracks["1"],
+  tcIntroFightTrack
+];
+tcIntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function tcIntroEnsureStyles() {
+  if (tcEl("tcPreGameIntroStyles")) return;
+  const style = document.createElement("style");
+  style.id = "tcPreGameIntroStyles";
+  style.textContent = "\n    #tcPreGameIntro {\n      position: fixed; inset: 0; z-index: 100000;\n      display: flex; align-items: center; justify-content: center;\n      overflow: hidden; padding: clamp(12px, 3vw, 34px);\n      isolation: isolate;\n      background:\n        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);\n      color: #fff; font-family: inherit;\n      animation: tcIntroBackdrop .35s ease both;\n    }\n    #tcPreGameIntro * { box-sizing: border-box; }\n    #tcPreGameIntro::before {\n      content: \"\"; position: absolute; inset: -45%; z-index: -2;\n      background: repeating-conic-gradient(\n        from 0deg at 50% 50%,\n        rgba(255,255,255,.19) 0deg 1.1deg,\n        transparent 1.1deg 7deg,\n        rgba(0,0,0,.12) 7deg 8deg,\n        transparent 8deg 13deg\n      );\n      animation: tcIntroRays 24s linear infinite;\n      opacity: .78;\n    }\n    #tcPreGameIntro::after {\n      content: \"\"; position: absolute; inset: 0; z-index: -1;\n      background:\n        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);\n      pointer-events: none;\n    }\n    #tcPreGameIntro .tc-intro-stage {\n      width: min(1180px, 100%); text-align: center; position: relative;\n      z-index: 2; transform: translateZ(0);\n    }\n    #tcPreGameIntro .tc-intro-versus {\n      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);\n      align-items: center; gap: clamp(5px, 1.8vw, 24px);\n      width: 100%;\n    }\n    #tcPreGameIntro .tc-intro-player {\n      min-width: 0; min-height: clamp(132px, 25vh, 245px);\n      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);\n      display: flex; flex-direction: column; align-items: center; justify-content: center;\n      gap: clamp(9px, 1.8vh, 18px);\n      border-radius: clamp(12px, 2vw, 24px);\n      position: relative; overflow: hidden;\n      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));\n      border: 2px solid rgba(255,255,255,.8);\n      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);\n      animation: tcIntroLeft .72s cubic-bezier(.16,.9,.25,1) both;\n    }\n    #tcPreGameIntro .tc-intro-player::before {\n      content: \"\"; position: absolute; inset: 0; pointer-events: none;\n      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);\n      opacity: .8;\n    }\n    #tcPreGameIntro .tc-intro-player.black {\n      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));\n      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);\n      animation-name: tcIntroRight;\n    }\n    #tcPreGameIntro .tc-intro-side {\n      position: relative; z-index: 1;\n      display: inline-flex; align-items: center; justify-content: center;\n      min-width: clamp(76px, 10vw, 132px);\n      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);\n      border: 2px solid rgba(255,255,255,.92);\n      border-radius: 999px;\n      background: rgba(15,15,20,.28);\n      color: #fff; font-size: clamp(15px, 2vw, 27px);\n      font-weight: 1000; letter-spacing: .14em;\n      text-transform: uppercase;\n      text-shadow: 0 2px 8px rgba(0,0,0,.4);\n      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);\n    }\n    #tcPreGameIntro .tc-intro-player.black .tc-intro-side {\n      background: rgba(0,12,65,.34);\n    }\n    #tcPreGameIntro .tc-intro-name {\n      position: relative; z-index: 1; width: 100%;\n      font-size: clamp(25px, 5.7vw, 76px);\n      font-weight: 1000; letter-spacing: -.045em;\n      overflow-wrap: anywhere; word-break: break-word;\n      line-height: .98; text-transform: uppercase;\n      color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.18);\n      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);\n    }\n    #tcPreGameIntro .tc-intro-vs {\n      position: relative; z-index: 3;\n      font-size: clamp(76px, 15vw, 210px);\n      line-height: .82; font-weight: 1000; font-style: italic;\n      letter-spacing: -.1em; padding-right: .1em;\n      color: #fff;\n      -webkit-text-stroke: 2px rgba(255,255,255,.9);\n      text-shadow:\n        7px 8px 0 #ed1027,\n        -5px -4px 0 #164de2,\n        0 14px 35px rgba(0,0,0,.48);\n      transform: rotate(-7deg);\n      animation: tcIntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,\n                 tcIntroVSPulse 1.2s ease-in-out 1s infinite alternate;\n    }\n    #tcPreGameIntro .tc-intro-message {\n      min-height: clamp(68px, 12vh, 116px);\n      display: flex; align-items: center; justify-content: center;\n      margin-top: clamp(18px, 4vh, 38px);\n      font-size: clamp(30px, 6.8vw, 82px);\n      font-weight: 1000; font-style: italic; letter-spacing: .015em;\n      text-transform: uppercase; color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.35);\n      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);\n    }\n    #tcPreGameIntro .tc-intro-message.count {\n      min-height: clamp(130px, 26vh, 250px);\n      font-size: clamp(118px, 27vw, 300px); line-height: .78;\n      color: #fff; letter-spacing: -.07em;\n      -webkit-text-stroke: 3px rgba(255,255,255,.75);\n      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);\n    }\n    #tcPreGameIntro .tc-intro-message.battle {\n      color: #fff3a2;\n      font-size: clamp(34px, 7vw, 92px);\n      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);\n    }\n    #tcPreGameIntro .tc-intro-message.pop { animation: tcIntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }\n    #tcPreGameIntro .tc-intro-flash {\n      position: absolute; inset: -35%; pointer-events: none; opacity: 0;\n      z-index: 4;\n      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);\n    }\n    #tcPreGameIntro .tc-intro-flash.fire { animation: tcIntroFlash .48s ease-out; }\n    #tcPreGameIntro.impact .tc-intro-stage { animation: tcIntroShake .28s ease-out; }\n    #tcPreGameIntro.tc-intro-exit { animation: tcIntroExit .36s ease forwards; }\n    @keyframes tcIntroBackdrop { from { opacity:0 } to { opacity:1 } }\n    @keyframes tcIntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }\n    @keyframes tcIntroRays { to { transform: rotate(360deg); } }\n    @keyframes tcIntroLeft {\n      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }\n      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes tcIntroRight {\n      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }\n      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes tcIntroVS {\n      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }\n      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(-7deg) }\n    }\n    @keyframes tcIntroVSPulse {\n      from { filter:brightness(1); }\n      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }\n    }\n    @keyframes tcIntroPop {\n      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }\n      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(0) }\n    }\n    @keyframes tcIntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }\n    @keyframes tcIntroShake {\n      0%,100% { transform:translate3d(0,0,0) }\n      20% { transform:translate3d(-7px,2px,0) }\n      40% { transform:translate3d(6px,-2px,0) }\n      60% { transform:translate3d(-4px,1px,0) }\n      80% { transform:translate3d(3px,0,0) }\n    }\n    @media (max-width:560px) {\n      #tcPreGameIntro { padding: 12px; }\n      #tcPreGameIntro .tc-intro-versus { gap: 4px; }\n      #tcPreGameIntro .tc-intro-player {\n        min-height: 118px; padding: 14px 5px; border-radius: 12px;\n      }\n      #tcPreGameIntro .tc-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }\n      #tcPreGameIntro .tc-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }\n      #tcPreGameIntro .tc-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }\n      #tcPreGameIntro .tc-intro-message.count { font-size: clamp(112px, 34vw, 190px); }\n    }\n    @media (prefers-reduced-motion: reduce) {\n      #tcPreGameIntro *, #tcPreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }\n    }\n  ";
+  document.head.appendChild(style);
+}
+
+function tcIntroUnlockAudio() {
+  tcIntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const wasMuted = track.muted;
+    track.muted = true;
+    try {
+      const attempt = track.play();
+      if (attempt && typeof attempt.then === "function") {
+        attempt.then(() => {
+          track.pause();
+          try { track.currentTime = 0; } catch (_) {}
+          track.muted = wasMuted;
+        }).catch(() => {
+          track.muted = wasMuted;
+        });
+      } else {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = wasMuted;
+      }
+    } catch (_) {
+      track.muted = wasMuted;
+    }
+  });
+}
+document.addEventListener("pointerdown", tcIntroUnlockAudio, { once: true, passive: true });
+document.addEventListener("keydown", tcIntroUnlockAudio, { once: true });
+
+function tcIntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function tcIntroPlayTrack(track, fallbackMs) {
+  return new Promise(resolve => {
+    if (!track) {
+      resolve(false);
+      return;
+    }
+
+    let settled = false;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    };
+
+    const finish = played => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (tcIntroTrackFinisher === cancelThisTrack) {
+        tcIntroTrackFinisher = null;
+      }
+      resolve(played);
+    };
+    const cancelThisTrack = () => finish(false);
+    tcIntroTrackFinisher = cancelThisTrack;
+
+    try {
+      track.pause();
+      try { track.currentTime = 0; } catch (_) {}
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+
+      const armFallback = () => {
+        const durationMs =
+          Number.isFinite(track.duration) && track.duration > 0
+            ? Math.ceil(track.duration * 1000) + 700
+            : fallbackMs;
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(() => finish(false), Math.max(250, durationMs));
+      };
+
+      track.onloadedmetadata = armFallback;
+      armFallback();
+
+      const result = track.play();
+      if (result && typeof result.then === "function") {
+        result.catch(error => {
+          console.warn("Three-Check intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("Three-Check intro audio failed:", error);
+      finish(false);
+    }
+  });
+}
+
+function tcIntroCancel() {
+  tcIntroRunToken++;
+  tcIntroActive = false;
+  // Resolve the active audio wait before stopping the track.
+  if (tcIntroTrackFinisher) tcIntroTrackFinisher();
+  if (tcIntroOverlay) {
+    tcIntroOverlay.remove();
+    tcIntroOverlay = null;
+  }
+  tcIntroAllTracks.forEach(track => {
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    } catch (_) {}
+  });
+}
+
+async function tcIntroPlayRoom(room) {
+  if (!room || room.status !== "playing" || !room.id) return;
+  if (tcIntroRoomId === room.id && tcIntroActive) return;
+  if (tcIntroRoomId === room.id && !tcIntroActive) return;
+
+  // Invalidate any older animation if a room changes mid-sequence.
+  tcIntroCancel();
+  const token = tcIntroRunToken;
+  tcIntroRoomId = room.id;
+  tcIntroActive = true;
+
+  let overlay = null;
+  try {
+    tcIntroEnsureStyles();
+
+    overlay = document.createElement("div");
+    overlay.id = "tcPreGameIntro";
+    overlay.innerHTML = `
+      <div class="tc-intro-stage">
+        <div class="tc-intro-flash"></div>
+        <div class="tc-intro-versus">
+          <div class="tc-intro-player white">
+            <div class="tc-intro-side">WHITE</div>
+            <div class="tc-intro-name"></div>
+          </div>
+          <div class="tc-intro-vs">VS</div>
+          <div class="tc-intro-player black">
+            <div class="tc-intro-side">BLACK</div>
+            <div class="tc-intro-name"></div>
+          </div>
+        </div>
+        <div class="tc-intro-message"></div>
+      </div>`;
+
+    // Names are inserted as text, never as HTML.
+    overlay.querySelector(".tc-intro-player.white .tc-intro-name").textContent =
+      room.white_name || "White";
+    overlay.querySelector(".tc-intro-player.black .tc-intro-name").textContent =
+      room.black_name || "Black";
+
+    document.body.appendChild(overlay);
+    tcIntroOverlay = overlay;
+
+    const message = overlay.querySelector(".tc-intro-message");
+    const flash = overlay.querySelector(".tc-intro-flash");
+
+    const show = label => {
+      if (token !== tcIntroRunToken || !overlay?.isConnected) return;
+      message.className = "tc-intro-message pop";
+      if (label === "3" || label === "2" || label === "1") {
+        message.classList.add("count");
+      } else if (label === "FIGHT!") {
+        message.classList.add("battle");
+      }
+      message.textContent = label;
+      flash.classList.remove("fire");
+      overlay.classList.remove("impact");
+      void flash.offsetWidth;
+      void overlay.offsetWidth;
+      flash.classList.add("fire");
+      overlay.classList.add("impact");
+    };
+
+    await tcIntroWait(80);
+    if (token !== tcIntroRunToken) return;
+
+    // Entry clip plays while the names / VS remain on screen.
+    const entryPlayed = await tcIntroPlayTrack(tcIntroEntryTrack, 6000);
+    if (!entryPlayed) await tcIntroWait(850);
+    if (token !== tcIntroRunToken) return;
+
+    // Each spoken number remains visible for the duration of its own clip.
+    for (const number of ["3", "2", "1"]) {
+      show(number);
+      const played = await tcIntroPlayTrack(tcIntroCountdownTracks[number], 2500);
+      if (!played) await tcIntroWait(780);
+      if (token !== tcIntroRunToken) return;
+    }
+
+    show("FIGHT!");
+    const fightPlayed = await tcIntroPlayTrack(tcIntroFightTrack, 6000);
+    if (!fightPlayed) await tcIntroWait(1100);
+    if (token !== tcIntroRunToken) return;
+
+    overlay.classList.add("tc-intro-exit");
+    await tcIntroWait(360);
+  } catch (error) {
+    console.error("Three-Check pre-game intro failed:", error);
+  } finally {
+    if (token === tcIntroRunToken) {
+      if (overlay) overlay.remove();
+      if (tcIntroOverlay === overlay) tcIntroOverlay = null;
+      tcIntroActive = false;
+    }
+  }
+}
+
+
 // =========================================================
 // ♚ BASIC HELPERS
 // =========================================================
@@ -177816,7 +178074,8 @@ function tcCanMove() {
     tcRoom.status === "playing" &&
     tcRoom.turn === tcSide &&
     !tcBusy &&
-    !tcPromotionPending
+    !tcPromotionPending &&
+    !tcIntroActive
   );
 }
 
@@ -179234,9 +179493,13 @@ async function tcApplyRoom(room, saveSession = true) {
     if (tcRoomKey(room) === tcRoomKey(tcRoom)) return;
   }
 
+  const wasPlaying = !isNewRoom && tcRoom.status === "playing";
   tcPrevStatus = isNewRoom ? null : tcRoom.status;
 
   if (isNewRoom) {
+    // New room: its own intro gets a clean, isolated one-time lifecycle.
+    tcIntroCancel();
+    tcIntroRoomId = null;
     tcCancelReset();
     tcClosePromotion();
     tcPromotionPending = null;
@@ -179283,6 +179546,16 @@ async function tcApplyRoom(room, saveSession = true) {
 
   if (room.status === "accepted" || room.status === "playing") {
     tcRenderPlaying(room);
+
+    // Start the cinematic only when this room first becomes playable.
+    // The room-id guard prevents duplicate realtime + polling triggers.
+    const isFreshStartPosition =
+      (!room.pgn || !String(room.pgn).trim()) &&
+      (!room.fen || room.fen === new Chess().fen());
+
+    if (room.status === "playing" && !wasPlaying && isFreshStartPosition) {
+      tcIntroPlayRoom(room);
+    }
     return;
   }
 
@@ -179450,6 +179723,7 @@ function tcTerminalMessage(room) {
 
 function tcRenderTerminal(room) {
 
+  tcIntroCancel();
   tcStopRoomSync();
   tcClosePromotion();
   tcDrawOfferPending = false;
@@ -179587,6 +179861,8 @@ function tcScheduleReset(roomId) {
 }
 
 function tcResetToIdle() {
+  tcIntroCancel();
+  tcIntroRoomId = null;
   tcCancelReset();
   tcStopRoomSync();
   tcClosePromotion();
@@ -181776,6 +182052,283 @@ let c9DrawOfferSent = false;
 
 
 // =========================================================
+// ♟ CHESS960 — ISOLATED PRE-GAME CINEMATIC INTRO
+// Owns only c9Intro* state, DOM, CSS and audio.
+// Uses the same entry -> voice 3-2-1 -> FIGHT sequence
+// as Live Match / Puzzle Battle. No shared global intro flags.
+// =========================================================
+
+let c9IntroActive = false;
+let c9IntroRoomId = null;
+let c9IntroRunToken = 0;
+let c9IntroOverlay = null;
+let c9IntroTrackFinisher = null;
+
+const c9IntroEntryTrack = new Audio("sounds/entry.mp3");
+const c9IntroFightTrack = new Audio("sounds/fight.mp3");
+const c9IntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+const c9IntroAllTracks = [
+  c9IntroEntryTrack,
+  c9IntroCountdownTracks["3"],
+  c9IntroCountdownTracks["2"],
+  c9IntroCountdownTracks["1"],
+  c9IntroFightTrack
+];
+c9IntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function c9IntroEnsureStyles() {
+  if (c9El("c9PreGameIntroStyles")) return;
+  const style = document.createElement("style");
+  style.id = "c9PreGameIntroStyles";
+  style.textContent = "\n    #c9PreGameIntro {\n      position: fixed; inset: 0; z-index: 100000;\n      display: flex; align-items: center; justify-content: center;\n      overflow: hidden; padding: clamp(12px, 3vw, 34px);\n      isolation: isolate;\n      background:\n        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);\n      color: #fff; font-family: inherit;\n      animation: c9IntroBackdrop .35s ease both;\n    }\n    #c9PreGameIntro * { box-sizing: border-box; }\n    #c9PreGameIntro::before {\n      content: \"\"; position: absolute; inset: -45%; z-index: -2;\n      background: repeating-conic-gradient(\n        from 0deg at 50% 50%,\n        rgba(255,255,255,.19) 0deg 1.1deg,\n        transparent 1.1deg 7deg,\n        rgba(0,0,0,.12) 7deg 8deg,\n        transparent 8deg 13deg\n      );\n      animation: c9IntroRays 24s linear infinite;\n      opacity: .78;\n    }\n    #c9PreGameIntro::after {\n      content: \"\"; position: absolute; inset: 0; z-index: -1;\n      background:\n        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);\n      pointer-events: none;\n    }\n    #c9PreGameIntro .c9-intro-stage {\n      width: min(1180px, 100%); text-align: center; position: relative;\n      z-index: 2; transform: translateZ(0);\n    }\n    #c9PreGameIntro .c9-intro-versus {\n      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);\n      align-items: center; gap: clamp(5px, 1.8vw, 24px);\n      width: 100%;\n    }\n    #c9PreGameIntro .c9-intro-player {\n      min-width: 0; min-height: clamp(132px, 25vh, 245px);\n      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);\n      display: flex; flex-direction: column; align-items: center; justify-content: center;\n      gap: clamp(9px, 1.8vh, 18px);\n      border-radius: clamp(12px, 2vw, 24px);\n      position: relative; overflow: hidden;\n      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));\n      border: 2px solid rgba(255,255,255,.8);\n      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);\n      animation: c9IntroLeft .72s cubic-bezier(.16,.9,.25,1) both;\n    }\n    #c9PreGameIntro .c9-intro-player::before {\n      content: \"\"; position: absolute; inset: 0; pointer-events: none;\n      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);\n      opacity: .8;\n    }\n    #c9PreGameIntro .c9-intro-player.black {\n      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));\n      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);\n      animation-name: c9IntroRight;\n    }\n    #c9PreGameIntro .c9-intro-side {\n      position: relative; z-index: 1;\n      display: inline-flex; align-items: center; justify-content: center;\n      min-width: clamp(76px, 10vw, 132px);\n      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);\n      border: 2px solid rgba(255,255,255,.92);\n      border-radius: 999px;\n      background: rgba(15,15,20,.28);\n      color: #fff; font-size: clamp(15px, 2vw, 27px);\n      font-weight: 1000; letter-spacing: .14em;\n      text-transform: uppercase;\n      text-shadow: 0 2px 8px rgba(0,0,0,.4);\n      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);\n    }\n    #c9PreGameIntro .c9-intro-player.black .c9-intro-side {\n      background: rgba(0,12,65,.34);\n    }\n    #c9PreGameIntro .c9-intro-name {\n      position: relative; z-index: 1; width: 100%;\n      font-size: clamp(25px, 5.7vw, 76px);\n      font-weight: 1000; letter-spacing: -.045em;\n      overflow-wrap: anywhere; word-break: break-word;\n      line-height: .98; text-transform: uppercase;\n      color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.18);\n      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);\n    }\n    #c9PreGameIntro .c9-intro-vs {\n      position: relative; z-index: 3;\n      font-size: clamp(76px, 15vw, 210px);\n      line-height: .82; font-weight: 1000; font-style: italic;\n      letter-spacing: -.1em; padding-right: .1em;\n      color: #fff;\n      -webkit-text-stroke: 2px rgba(255,255,255,.9);\n      text-shadow:\n        7px 8px 0 #ed1027,\n        -5px -4px 0 #164de2,\n        0 14px 35px rgba(0,0,0,.48);\n      transform: rotate(-7deg);\n      animation: c9IntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,\n                 c9IntroVSPulse 1.2s ease-in-out 1s infinite alternate;\n    }\n    #c9PreGameIntro .c9-intro-message {\n      min-height: clamp(68px, 12vh, 116px);\n      display: flex; align-items: center; justify-content: center;\n      margin-top: clamp(18px, 4vh, 38px);\n      font-size: clamp(30px, 6.8vw, 82px);\n      font-weight: 1000; font-style: italic; letter-spacing: .015em;\n      text-transform: uppercase; color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.35);\n      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);\n    }\n    #c9PreGameIntro .c9-intro-message.count {\n      min-height: clamp(130px, 26vh, 250px);\n      font-size: clamp(118px, 27vw, 300px); line-height: .78;\n      color: #fff; letter-spacing: -.07em;\n      -webkit-text-stroke: 3px rgba(255,255,255,.75);\n      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);\n    }\n    #c9PreGameIntro .c9-intro-message.battle {\n      color: #fff3a2;\n      font-size: clamp(34px, 7vw, 92px);\n      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);\n    }\n    #c9PreGameIntro .c9-intro-message.pop { animation: c9IntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }\n    #c9PreGameIntro .c9-intro-flash {\n      position: absolute; inset: -35%; pointer-events: none; opacity: 0;\n      z-index: 4;\n      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);\n    }\n    #c9PreGameIntro .c9-intro-flash.fire { animation: c9IntroFlash .48s ease-out; }\n    #c9PreGameIntro.impact .c9-intro-stage { animation: c9IntroShake .28s ease-out; }\n    #c9PreGameIntro.c9-intro-exit { animation: c9IntroExit .36s ease forwards; }\n    @keyframes c9IntroBackdrop { from { opacity:0 } to { opacity:1 } }\n    @keyframes c9IntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }\n    @keyframes c9IntroRays { to { transform: rotate(360deg); } }\n    @keyframes c9IntroLeft {\n      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }\n      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes c9IntroRight {\n      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }\n      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes c9IntroVS {\n      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }\n      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(-7deg) }\n    }\n    @keyframes c9IntroVSPulse {\n      from { filter:brightness(1); }\n      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }\n    }\n    @keyframes c9IntroPop {\n      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }\n      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(0) }\n    }\n    @keyframes c9IntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }\n    @keyframes c9IntroShake {\n      0%,100% { transform:translate3d(0,0,0) }\n      20% { transform:translate3d(-7px,2px,0) }\n      40% { transform:translate3d(6px,-2px,0) }\n      60% { transform:translate3d(-4px,1px,0) }\n      80% { transform:translate3d(3px,0,0) }\n    }\n    @media (max-width:560px) {\n      #c9PreGameIntro { padding: 12px; }\n      #c9PreGameIntro .c9-intro-versus { gap: 4px; }\n      #c9PreGameIntro .c9-intro-player {\n        min-height: 118px; padding: 14px 5px; border-radius: 12px;\n      }\n      #c9PreGameIntro .c9-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }\n      #c9PreGameIntro .c9-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }\n      #c9PreGameIntro .c9-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }\n      #c9PreGameIntro .c9-intro-message.count { font-size: clamp(112px, 34vw, 190px); }\n    }\n    @media (prefers-reduced-motion: reduce) {\n      #c9PreGameIntro *, #c9PreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }\n    }\n  ";
+  document.head.appendChild(style);
+}
+
+function c9IntroUnlockAudio() {
+  c9IntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const wasMuted = track.muted;
+    track.muted = true;
+    try {
+      const attempt = track.play();
+      if (attempt && typeof attempt.then === "function") {
+        attempt.then(() => {
+          track.pause();
+          try { track.currentTime = 0; } catch (_) {}
+          track.muted = wasMuted;
+        }).catch(() => {
+          track.muted = wasMuted;
+        });
+      } else {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = wasMuted;
+      }
+    } catch (_) {
+      track.muted = wasMuted;
+    }
+  });
+}
+document.addEventListener("pointerdown", c9IntroUnlockAudio, { once: true, passive: true });
+document.addEventListener("keydown", c9IntroUnlockAudio, { once: true });
+
+function c9IntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function c9IntroPlayTrack(track, fallbackMs) {
+  return new Promise(resolve => {
+    if (!track) {
+      resolve(false);
+      return;
+    }
+
+    let settled = false;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    };
+
+    const finish = played => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (c9IntroTrackFinisher === cancelThisTrack) {
+        c9IntroTrackFinisher = null;
+      }
+      resolve(played);
+    };
+    const cancelThisTrack = () => finish(false);
+    c9IntroTrackFinisher = cancelThisTrack;
+
+    try {
+      track.pause();
+      try { track.currentTime = 0; } catch (_) {}
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+
+      const armFallback = () => {
+        const durationMs =
+          Number.isFinite(track.duration) && track.duration > 0
+            ? Math.ceil(track.duration * 1000) + 700
+            : fallbackMs;
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(() => finish(false), Math.max(250, durationMs));
+      };
+
+      track.onloadedmetadata = armFallback;
+      armFallback();
+
+      const result = track.play();
+      if (result && typeof result.then === "function") {
+        result.catch(error => {
+          console.warn("Chess960 intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("Chess960 intro audio failed:", error);
+      finish(false);
+    }
+  });
+}
+
+function c9IntroCancel() {
+  c9IntroRunToken++;
+  c9IntroActive = false;
+  // Resolve the active audio wait before stopping the track.
+  if (c9IntroTrackFinisher) c9IntroTrackFinisher();
+  if (c9IntroOverlay) {
+    c9IntroOverlay.remove();
+    c9IntroOverlay = null;
+  }
+  c9IntroAllTracks.forEach(track => {
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    } catch (_) {}
+  });
+}
+
+async function c9IntroPlayRoom(room) {
+  if (!room || room.status !== "playing" || !room.id) return;
+
+  // Only show the intro at the exact starting Chess960 position.
+  // This prevents a page reload or reconnect from replaying it mid-game.
+  const startFen = room.start_fen || c9StartFen(room.position_number);
+  const hasNoMoves = c9TokensOf(room).length === 0;
+  const isFreshStart = !!startFen && room.fen === startFen && hasNoMoves;
+  if (!isFreshStart) return;
+
+  const playedKey = "c9_intro_played_" + String(room.id);
+  try {
+    if (localStorage.getItem(playedKey) === "1") {
+      c9IntroRoomId = room.id;
+      return;
+    }
+  } catch (_) {}
+
+  if (c9IntroRoomId === room.id) return;
+
+  // Invalidate any older animation if a room changes mid-sequence.
+  c9IntroCancel();
+  const token = c9IntroRunToken;
+  c9IntroRoomId = room.id;
+  c9IntroActive = true;
+  // Persist immediately so a refresh cannot replay a half-finished intro.
+  try { localStorage.setItem(playedKey, "1"); } catch (_) {}
+  c9UpdateResignButton();
+  c9UpdateDrawButton();
+
+  let overlay = null;
+  try {
+    c9IntroEnsureStyles();
+
+    overlay = document.createElement("div");
+    overlay.id = "c9PreGameIntro";
+    overlay.innerHTML = `
+      <div class="c9-intro-stage">
+        <div class="c9-intro-flash"></div>
+        <div class="c9-intro-versus">
+          <div class="c9-intro-player white">
+            <div class="c9-intro-side">WHITE</div>
+            <div class="c9-intro-name"></div>
+          </div>
+          <div class="c9-intro-vs">VS</div>
+          <div class="c9-intro-player black">
+            <div class="c9-intro-side">BLACK</div>
+            <div class="c9-intro-name"></div>
+          </div>
+        </div>
+        <div class="c9-intro-message"></div>
+      </div>`;
+
+    // Names are inserted as text, never as HTML.
+    overlay.querySelector(".c9-intro-player.white .c9-intro-name").textContent =
+      room.white_name || "White";
+    overlay.querySelector(".c9-intro-player.black .c9-intro-name").textContent =
+      room.black_name || "Black";
+
+    document.body.appendChild(overlay);
+    c9IntroOverlay = overlay;
+
+    const message = overlay.querySelector(".c9-intro-message");
+    const flash = overlay.querySelector(".c9-intro-flash");
+
+    const show = label => {
+      if (token !== c9IntroRunToken || !overlay?.isConnected) return;
+      message.className = "c9-intro-message pop";
+      if (label === "3" || label === "2" || label === "1") {
+        message.classList.add("count");
+      } else if (label === "FIGHT!") {
+        message.classList.add("battle");
+      }
+      message.textContent = label;
+      flash.classList.remove("fire");
+      overlay.classList.remove("impact");
+      void flash.offsetWidth;
+      void overlay.offsetWidth;
+      flash.classList.add("fire");
+      overlay.classList.add("impact");
+    };
+
+    await c9IntroWait(80);
+    if (token !== c9IntroRunToken) return;
+
+    // Entry clip plays while the names / VS remain on screen.
+    const entryPlayed = await c9IntroPlayTrack(c9IntroEntryTrack, 6000);
+    if (!entryPlayed) await c9IntroWait(850);
+    if (token !== c9IntroRunToken) return;
+
+    // Each spoken number remains visible for the duration of its own clip.
+    for (const number of ["3", "2", "1"]) {
+      show(number);
+      const played = await c9IntroPlayTrack(c9IntroCountdownTracks[number], 2500);
+      if (!played) await c9IntroWait(780);
+      if (token !== c9IntroRunToken) return;
+    }
+
+    show("FIGHT!");
+    const fightPlayed = await c9IntroPlayTrack(c9IntroFightTrack, 6000);
+    if (!fightPlayed) await c9IntroWait(1100);
+    if (token !== c9IntroRunToken) return;
+
+    overlay.classList.add("c9-intro-exit");
+    await c9IntroWait(360);
+  } catch (error) {
+    console.error("Chess960 pre-game intro failed:", error);
+  } finally {
+    if (token === c9IntroRunToken) {
+      if (overlay) overlay.remove();
+      if (c9IntroOverlay === overlay) c9IntroOverlay = null;
+      c9IntroActive = false;
+      c9UpdateResignButton();
+      c9UpdateDrawButton();
+    }
+  }
+}
+
+// =========================================================
 // ♟ CHESS960 ENGINE (self-contained – does NOT need chess.js)
 // Full legal move generation incl. Chess960 castling, check,
 // checkmate, stalemate, threefold repetition, 50-move rule,
@@ -183239,7 +183792,8 @@ function c9UpdateResignButton() {
   button.disabled =
     !c9Room ||
     c9Room.status !== "playing" ||
-    c9Busy;
+    c9Busy ||
+    c9IntroActive;
 }
 
 function c9RenderMoves() {
@@ -183413,6 +183967,7 @@ function c9CanMove() {
     c9Game.pos.turn === c9Side &&
     !c9Game.result.over &&
     !c9Busy &&
+    !c9IntroActive &&
     !c9PromotionPending
   );
 }
@@ -183508,7 +184063,7 @@ function c9OnSnapEnd() {
 
 // Applies a move locally (sync) and then saves it (async).
 function c9TryMove(source, target, promotion) {
-  if (!c9Game || !c9Room) return false;
+  if (!c9Game || !c9Room || c9IntroActive) return false;
   if (c9Room.status !== "playing" || c9Room.turn !== c9Side) return false;
 
   const candidates = c9ResolveMoves(source, target);
@@ -184764,6 +185319,7 @@ function c9UpdateDrawButton() {
     !!c9Room &&
     c9Room.status === "playing" &&
     !c9Busy &&
+    !c9IntroActive &&
     !c9DrawOfferSent &&
     !c9DrawOfferPending;
 
@@ -184776,7 +185332,7 @@ function c9UpdateDrawButton() {
 
 async function c9OfferDraw() {
 
-  if (!c9Room) return;
+  if (!c9Room || c9IntroActive) return;
   if (c9Room.status !== "playing") return;
   if (c9Busy) return;
   if (c9DrawOfferSent) return;
@@ -184946,6 +185502,7 @@ async function c9ApplyRoom(room, saveSession = true) {
   c9InjectStyles();
 
   const isNewRoom = !c9Room || c9Room.id !== room.id;
+  const wasPlaying = !isNewRoom && c9Room.status === "playing";
   const previousMoveCount = !isNewRoom && c9Room ? c9TokensOf(c9Room).length : null;
 
   if (!isNewRoom) {
@@ -184957,6 +185514,9 @@ async function c9ApplyRoom(room, saveSession = true) {
   c9PrevStatus = isNewRoom ? null : c9Room.status;
 
   if (isNewRoom) {
+    // A different room gets its own independent intro lifecycle.
+    c9IntroCancel();
+    c9IntroRoomId = null;
     c9CancelReset();
     c9ClosePromotion();
     c9PromotionPending = null;
@@ -185002,6 +185562,12 @@ c9UpdateModeBadge();
 
   if (room.status === "accepted" || room.status === "playing") {
     c9RenderPlaying(room);
+
+    // Both opponents start the same intro when the room first becomes
+    // playable. Per-room storage prevents replay after a page refresh.
+    if (room.status === "playing" && (isNewRoom || !wasPlaying)) {
+      c9IntroPlayRoom(room);
+    }
     return;
   }
 
@@ -185187,6 +185753,7 @@ function c9ShowWinBanner(room) {
 
 function c9RenderTerminal(room) {
 
+  c9IntroCancel();
   c9StopRoomSync();
   c9ClosePromotion();
   c9DrawOfferPending = false;
@@ -185326,6 +185893,8 @@ function c9ScheduleReset(roomId) {
 }
 
 function c9ResetToIdle() {
+  c9IntroCancel();
+  c9IntroRoomId = null;
   c9CancelReset();
   c9StopRoomSync();
   c9ClosePromotion();
@@ -187101,6 +187670,265 @@ const KH_ACTIVE_STATUSES = ["pending", "playing"];
 const KH_RESET_SECONDS = 5;
 const KH_HILL_SQUARES = ["d4", "e4", "d5", "e5"];
 
+
+// =========================================================
+// 👑 KING OF THE HILL — ISOLATED CINEMATIC PRE-GAME INTRO
+// Own kh-prefixed state, CSS, overlay, audio and per-room guard.
+// =========================================================
+let khIntroActive = false;
+let khIntroRoomId = null;
+let khIntroRunToken = 0;
+let khIntroOverlay = null;
+let khIntroTrackFinisher = null;
+
+const khIntroEntryTrack = new Audio("sounds/entry.mp3");
+const khIntroFightTrack = new Audio("sounds/fight.mp3");
+const khIntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+const khIntroAllTracks = [
+  khIntroEntryTrack,
+  khIntroCountdownTracks["3"],
+  khIntroCountdownTracks["2"],
+  khIntroCountdownTracks["1"],
+  khIntroFightTrack
+];
+khIntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function khIntroEnsureStyles() {
+  if (khEl("khPreGameIntroStyles")) return;
+  const style = document.createElement("style");
+  style.id = "khPreGameIntroStyles";
+  style.textContent = "\n    #khPreGameIntro {\n      position: fixed; inset: 0; z-index: 100000;\n      display: flex; align-items: center; justify-content: center;\n      overflow: hidden; padding: clamp(12px, 3vw, 34px);\n      isolation: isolate;\n      background:\n        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);\n      color: #fff; font-family: inherit;\n      animation: khIntroBackdrop .35s ease both;\n    }\n    #khPreGameIntro * { box-sizing: border-box; }\n    #khPreGameIntro::before {\n      content: \"\"; position: absolute; inset: -45%; z-index: -2;\n      background: repeating-conic-gradient(\n        from 0deg at 50% 50%,\n        rgba(255,255,255,.19) 0deg 1.1deg,\n        transparent 1.1deg 7deg,\n        rgba(0,0,0,.12) 7deg 8deg,\n        transparent 8deg 13deg\n      );\n      animation: khIntroRays 24s linear infinite;\n      opacity: .78;\n    }\n    #khPreGameIntro::after {\n      content: \"\"; position: absolute; inset: 0; z-index: -1;\n      background:\n        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);\n      pointer-events: none;\n    }\n    #khPreGameIntro .kh-intro-stage {\n      width: min(1180px, 100%); text-align: center; position: relative;\n      z-index: 2; transform: translateZ(0);\n    }\n    #khPreGameIntro .kh-intro-versus {\n      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);\n      align-items: center; gap: clamp(5px, 1.8vw, 24px);\n      width: 100%;\n    }\n    #khPreGameIntro .kh-intro-player {\n      min-width: 0; min-height: clamp(132px, 25vh, 245px);\n      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);\n      display: flex; flex-direction: column; align-items: center; justify-content: center;\n      gap: clamp(9px, 1.8vh, 18px);\n      border-radius: clamp(12px, 2vw, 24px);\n      position: relative; overflow: hidden;\n      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));\n      border: 2px solid rgba(255,255,255,.8);\n      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);\n      animation: khIntroLeft .72s cubic-bezier(.16,.9,.25,1) both;\n    }\n    #khPreGameIntro .kh-intro-player::before {\n      content: \"\"; position: absolute; inset: 0; pointer-events: none;\n      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);\n      opacity: .8;\n    }\n    #khPreGameIntro .kh-intro-player.black {\n      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));\n      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);\n      animation-name: khIntroRight;\n    }\n    #khPreGameIntro .kh-intro-side {\n      position: relative; z-index: 1;\n      display: inline-flex; align-items: center; justify-content: center;\n      min-width: clamp(76px, 10vw, 132px);\n      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);\n      border: 2px solid rgba(255,255,255,.92);\n      border-radius: 999px;\n      background: rgba(15,15,20,.28);\n      color: #fff; font-size: clamp(15px, 2vw, 27px);\n      font-weight: 1000; letter-spacing: .14em;\n      text-transform: uppercase;\n      text-shadow: 0 2px 8px rgba(0,0,0,.4);\n      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);\n    }\n    #khPreGameIntro .kh-intro-player.black .kh-intro-side {\n      background: rgba(0,12,65,.34);\n    }\n    #khPreGameIntro .kh-intro-name {\n      position: relative; z-index: 1; width: 100%;\n      font-size: clamp(25px, 5.7vw, 76px);\n      font-weight: 1000; letter-spacing: -.045em;\n      overflow-wrap: anywhere; word-break: break-word;\n      line-height: .98; text-transform: uppercase;\n      color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.18);\n      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);\n    }\n    #khPreGameIntro .kh-intro-vs {\n      position: relative; z-index: 3;\n      font-size: clamp(76px, 15vw, 210px);\n      line-height: .82; font-weight: 1000; font-style: italic;\n      letter-spacing: -.1em; padding-right: .1em;\n      color: #fff;\n      -webkit-text-stroke: 2px rgba(255,255,255,.9);\n      text-shadow:\n        7px 8px 0 #ed1027,\n        -5px -4px 0 #164de2,\n        0 14px 35px rgba(0,0,0,.48);\n      transform: rotate(-7deg);\n      animation: khIntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,\n                 khIntroVSPulse 1.2s ease-in-out 1s infinite alternate;\n    }\n    #khPreGameIntro .kh-intro-message {\n      min-height: clamp(68px, 12vh, 116px);\n      display: flex; align-items: center; justify-content: center;\n      margin-top: clamp(18px, 4vh, 38px);\n      font-size: clamp(30px, 6.8vw, 82px);\n      font-weight: 1000; font-style: italic; letter-spacing: .015em;\n      text-transform: uppercase; color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.35);\n      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);\n    }\n    #khPreGameIntro .kh-intro-message.count {\n      min-height: clamp(130px, 26vh, 250px);\n      font-size: clamp(118px, 27vw, 300px); line-height: .78;\n      color: #fff; letter-spacing: -.07em;\n      -webkit-text-stroke: 3px rgba(255,255,255,.75);\n      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);\n    }\n    #khPreGameIntro .kh-intro-message.battle {\n      color: #fff3a2;\n      font-size: clamp(34px, 7vw, 92px);\n      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);\n    }\n    #khPreGameIntro .kh-intro-message.pop { animation: khIntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }\n    #khPreGameIntro .kh-intro-flash {\n      position: absolute; inset: -35%; pointer-events: none; opacity: 0;\n      z-index: 4;\n      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);\n    }\n    #khPreGameIntro .kh-intro-flash.fire { animation: khIntroFlash .48s ease-out; }\n    #khPreGameIntro.impact .kh-intro-stage { animation: khIntroShake .28s ease-out; }\n    #khPreGameIntro.kh-intro-exit { animation: khIntroExit .36s ease forwards; }\n    @keyframes khIntroBackdrop { from { opacity:0 } to { opacity:1 } }\n    @keyframes khIntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }\n    @keyframes khIntroRays { to { transform: rotate(360deg); } }\n    @keyframes khIntroLeft {\n      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }\n      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes khIntroRight {\n      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }\n      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes khIntroVS {\n      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }\n      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(-7deg) }\n    }\n    @keyframes khIntroVSPulse {\n      from { filter:brightness(1); }\n      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }\n    }\n    @keyframes khIntroPop {\n      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }\n      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(0) }\n    }\n    @keyframes khIntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }\n    @keyframes khIntroShake {\n      0%,100% { transform:translate3d(0,0,0) }\n      20% { transform:translate3d(-7px,2px,0) }\n      40% { transform:translate3d(6px,-2px,0) }\n      60% { transform:translate3d(-4px,1px,0) }\n      80% { transform:translate3d(3px,0,0) }\n    }\n    @media (max-width:560px) {\n      #khPreGameIntro { padding: 12px; }\n      #khPreGameIntro .kh-intro-versus { gap: 4px; }\n      #khPreGameIntro .kh-intro-player {\n        min-height: 118px; padding: 14px 5px; border-radius: 12px;\n      }\n      #khPreGameIntro .kh-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }\n      #khPreGameIntro .kh-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }\n      #khPreGameIntro .kh-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }\n      #khPreGameIntro .kh-intro-message.count { font-size: clamp(112px, 34vw, 190px); }\n    }\n    @media (prefers-reduced-motion: reduce) {\n      #khPreGameIntro *, #khPreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }\n    }\n  ";
+  document.head.appendChild(style);
+}
+
+function khIntroUnlockAudio() {
+  khIntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const wasMuted = track.muted;
+    track.muted = true;
+    try {
+      const attempt = track.play();
+      if (attempt && typeof attempt.then === "function") {
+        attempt.then(() => {
+          track.pause();
+          try { track.currentTime = 0; } catch (_) {}
+          track.muted = wasMuted;
+        }).catch(() => {
+          track.muted = wasMuted;
+        });
+      } else {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = wasMuted;
+      }
+    } catch (_) {
+      track.muted = wasMuted;
+    }
+  });
+}
+document.addEventListener("pointerdown", khIntroUnlockAudio, { once: true, passive: true });
+document.addEventListener("keydown", khIntroUnlockAudio, { once: true });
+
+function khIntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function khIntroPlayTrack(track, fallbackMs) {
+  return new Promise(resolve => {
+    if (!track) {
+      resolve(false);
+      return;
+    }
+
+    let settled = false;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    };
+
+    const finish = played => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (khIntroTrackFinisher === cancelThisTrack) {
+        khIntroTrackFinisher = null;
+      }
+      resolve(played);
+    };
+    const cancelThisTrack = () => finish(false);
+    khIntroTrackFinisher = cancelThisTrack;
+
+    try {
+      track.pause();
+      try { track.currentTime = 0; } catch (_) {}
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+
+      const armFallback = () => {
+        const durationMs =
+          Number.isFinite(track.duration) && track.duration > 0
+            ? Math.ceil(track.duration * 1000) + 700
+            : fallbackMs;
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(() => finish(false), Math.max(250, durationMs));
+      };
+
+      track.onloadedmetadata = armFallback;
+      armFallback();
+
+      const result = track.play();
+      if (result && typeof result.then === "function") {
+        result.catch(error => {
+          console.warn("King of the Hill intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("King of the Hill intro audio failed:", error);
+      finish(false);
+    }
+  });
+}
+
+function khIntroCancel() {
+  khIntroRunToken++;
+  khIntroActive = false;
+  // Resolve the active audio wait before stopping the track.
+  if (khIntroTrackFinisher) khIntroTrackFinisher();
+  if (khIntroOverlay) {
+    khIntroOverlay.remove();
+    khIntroOverlay = null;
+  }
+  khIntroAllTracks.forEach(track => {
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    } catch (_) {}
+  });
+}
+
+async function khIntroPlayRoom(room) {
+  if (!room || room.status !== "playing" || !room.id) return;
+  if (khIntroRoomId === room.id && khIntroActive) return;
+  if (khIntroRoomId === room.id && !khIntroActive) return;
+
+  // Invalidate any older animation if a room changes mid-sequence.
+  khIntroCancel();
+  const token = khIntroRunToken;
+  khIntroRoomId = room.id;
+  khIntroActive = true;
+  khUpdateResignButton();
+  khUpdateDrawButton();
+
+  let overlay = null;
+  try {
+    khIntroEnsureStyles();
+
+    overlay = document.createElement("div");
+    overlay.id = "khPreGameIntro";
+    overlay.innerHTML = `
+      <div class="kh-intro-stage">
+        <div class="kh-intro-flash"></div>
+        <div class="kh-intro-versus">
+          <div class="kh-intro-player white">
+            <div class="kh-intro-side">WHITE</div>
+            <div class="kh-intro-name"></div>
+          </div>
+          <div class="kh-intro-vs">VS</div>
+          <div class="kh-intro-player black">
+            <div class="kh-intro-side">BLACK</div>
+            <div class="kh-intro-name"></div>
+          </div>
+        </div>
+        <div class="kh-intro-message"></div>
+      </div>`;
+
+    // Names are inserted as text, never as HTML.
+    overlay.querySelector(".kh-intro-player.white .kh-intro-name").textContent =
+      room.white_name || "White";
+    overlay.querySelector(".kh-intro-player.black .kh-intro-name").textContent =
+      room.black_name || "Black";
+
+    document.body.appendChild(overlay);
+    khIntroOverlay = overlay;
+
+    const message = overlay.querySelector(".kh-intro-message");
+    const flash = overlay.querySelector(".kh-intro-flash");
+
+    const show = label => {
+      if (token !== khIntroRunToken || !overlay?.isConnected) return;
+      message.className = "kh-intro-message pop";
+      if (label === "3" || label === "2" || label === "1") {
+        message.classList.add("count");
+      } else if (label === "FIGHT!") {
+        message.classList.add("battle");
+      }
+      message.textContent = label;
+      flash.classList.remove("fire");
+      overlay.classList.remove("impact");
+      void flash.offsetWidth;
+      void overlay.offsetWidth;
+      flash.classList.add("fire");
+      overlay.classList.add("impact");
+    };
+
+    await khIntroWait(80);
+    if (token !== khIntroRunToken) return;
+
+    // Entry clip plays while the names / VS remain on screen.
+    const entryPlayed = await khIntroPlayTrack(khIntroEntryTrack, 6000);
+    if (!entryPlayed) await khIntroWait(850);
+    if (token !== khIntroRunToken) return;
+
+    // Each spoken number remains visible for the duration of its own clip.
+    for (const number of ["3", "2", "1"]) {
+      show(number);
+      const played = await khIntroPlayTrack(khIntroCountdownTracks[number], 2500);
+      if (!played) await khIntroWait(780);
+      if (token !== khIntroRunToken) return;
+    }
+
+    show("FIGHT!");
+    const fightPlayed = await khIntroPlayTrack(khIntroFightTrack, 6000);
+    if (!fightPlayed) await khIntroWait(1100);
+    if (token !== khIntroRunToken) return;
+
+    overlay.classList.add("kh-intro-exit");
+    await khIntroWait(360);
+  } catch (error) {
+    console.error("King of the Hill pre-game intro failed:", error);
+  } finally {
+    if (token === khIntroRunToken) {
+      if (overlay) overlay.remove();
+      if (khIntroOverlay === overlay) khIntroOverlay = null;
+      khIntroActive = false;
+      khUpdateResignButton();
+      khUpdateDrawButton();
+    }
+  }
+}
+
+
 let khChannel = null;
 let khChannelRoomId = null;
 
@@ -187781,7 +188609,8 @@ function khUpdateResignButton() {
   button.disabled =
     !khRoom ||
     khRoom.status !== "playing" ||
-    khBusy;
+    khBusy ||
+    khIntroActive;
 }
 
 function khRenderMoves() {
@@ -187957,7 +188786,8 @@ function khCanMove() {
     khRoom.status === "playing" &&
     khRoom.turn === khSide &&
     !khBusy &&
-    !khPromotionPending
+    !khPromotionPending &&
+    !khIntroActive
   );
 }
 
@@ -188031,6 +188861,7 @@ function khOnSnapEnd() {
 // Applies a move locally (sync) and then saves it (async).
 function khTryMove(source, target, promotion) {
   if (!khChess || !khRoom) return false;
+  if (khIntroActive) return false;
   if (khRoom.status !== "playing" || khRoom.turn !== khSide) return false;
 
   let move = null;
@@ -189055,7 +189886,7 @@ async function khCancelChallenge() {
 }
 
 async function khResignGame() {
-  if (!khRoom || khBusy) return;
+  if (!khRoom || khBusy || khIntroActive) return;
   if (khRoom.status !== "playing") return;
 
   const confirmed = window.confirm(
@@ -189064,8 +189895,8 @@ async function khResignGame() {
 
   if (!confirmed) return;
 
-  // The game may have ended while the confirm box was open.
-  if (!khRoom || khRoom.status !== "playing") return;
+  // The game may have ended or an intro may have started while the confirm box was open.
+  if (!khRoom || khRoom.status !== "playing" || khIntroActive) return;
 
   khClosePromotion();
 
@@ -189142,6 +189973,7 @@ function khUpdateDrawButton() {
     !!khRoom &&
     khRoom.status === "playing" &&
     !khBusy &&
+    !khIntroActive &&
     !khDrawOfferSent &&
     !khDrawOfferPending;
 
@@ -189155,6 +189987,7 @@ function khUpdateDrawButton() {
 async function khOfferDraw() {
 
   if (!khRoom) return;
+  if (khIntroActive) return;
   if (khRoom.status !== "playing") return;
   if (khBusy) return;
   if (khDrawOfferSent) return;
@@ -189396,9 +190229,12 @@ async function khApplyRoom(room, saveSession = true) {
     if (khRoomKey(room) === khRoomKey(khRoom)) return;
   }
 
+  const wasPlaying = !isNewRoom && khRoom.status === "playing";
   khPrevStatus = isNewRoom ? null : khRoom.status;
 
   if (isNewRoom) {
+    khIntroCancel();
+    khIntroRoomId = null;
     khCancelReset();
     khClosePromotion();
     khPromotionPending = null;
@@ -189440,6 +190276,16 @@ async function khApplyRoom(room, saveSession = true) {
 
   if (room.status === "accepted" || room.status === "playing") {
     khRenderPlaying(room);
+
+    const freshStartPosition =
+      room.status === "playing" &&
+      (!room.pgn || !String(room.pgn).trim()) &&
+      !!room.fen &&
+      room.fen === new Chess().fen();
+
+    if (freshStartPosition && !wasPlaying && khIntroRoomId !== room.id) {
+      khIntroPlayRoom(room);
+    }
     return;
   }
 
@@ -189609,6 +190455,7 @@ function khTerminalMessage(room) {
 
 function khRenderTerminal(room) {
 
+  khIntroCancel();
   khStopRoomSync();
   khClosePromotion();
   khDrawOfferPending = false;
@@ -189746,6 +190593,8 @@ function khScheduleReset(roomId) {
 }
 
 function khResetToIdle() {
+  khIntroCancel();
+  khIntroRoomId = null;
   khCancelReset();
   khStopRoomSync();
   khClosePromotion();
@@ -191550,6 +192399,273 @@ function dmEl(id) {
   return document.getElementById(id);
 }
 
+
+let dmIntroActive = false;
+let dmIntroRoomId = null;
+let dmIntroRunToken = 0;
+let dmIntroOverlay = null;
+let dmIntroTrackFinisher = null;
+
+const dmIntroEntryTrack = new Audio("sounds/entry.mp3");
+const dmIntroFightTrack = new Audio("sounds/fight.mp3");
+const dmIntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+const dmIntroAllTracks = [
+  dmIntroEntryTrack,
+  dmIntroCountdownTracks["3"],
+  dmIntroCountdownTracks["2"],
+  dmIntroCountdownTracks["1"],
+  dmIntroFightTrack
+];
+dmIntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function dmIntroEnsureStyles() {
+  if (dmEl("dmPreGameIntroStyles")) return;
+  const style = document.createElement("style");
+  style.id = "dmPreGameIntroStyles";
+  style.textContent = "\n    #dmPreGameIntro {\n      position: fixed; inset: 0; z-index: 100000;\n      display: flex; align-items: center; justify-content: center;\n      overflow: hidden; padding: clamp(12px, 3vw, 34px);\n      isolation: isolate;\n      background:\n        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);\n      color: #fff; font-family: inherit;\n      animation: dmIntroBackdrop .35s ease both;\n    }\n    #dmPreGameIntro * { box-sizing: border-box; }\n    #dmPreGameIntro::before {\n      content: \"\"; position: absolute; inset: -45%; z-index: -2;\n      background: repeating-conic-gradient(\n        from 0deg at 50% 50%,\n        rgba(255,255,255,.19) 0deg 1.1deg,\n        transparent 1.1deg 7deg,\n        rgba(0,0,0,.12) 7deg 8deg,\n        transparent 8deg 13deg\n      );\n      animation: dmIntroRays 24s linear infinite;\n      opacity: .78;\n    }\n    #dmPreGameIntro::after {\n      content: \"\"; position: absolute; inset: 0; z-index: -1;\n      background:\n        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);\n      pointer-events: none;\n    }\n    #dmPreGameIntro .dm-intro-stage {\n      width: min(1180px, 100%); text-align: center; position: relative;\n      z-index: 2; transform: translateZ(0);\n    }\n    #dmPreGameIntro .dm-intro-versus {\n      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);\n      align-items: center; gap: clamp(5px, 1.8vw, 24px);\n      width: 100%;\n    }\n    #dmPreGameIntro .dm-intro-player {\n      min-width: 0; min-height: clamp(132px, 25vh, 245px);\n      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);\n      display: flex; flex-direction: column; align-items: center; justify-content: center;\n      gap: clamp(9px, 1.8vh, 18px);\n      border-radius: clamp(12px, 2vw, 24px);\n      position: relative; overflow: hidden;\n      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));\n      border: 2px solid rgba(255,255,255,.8);\n      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);\n      animation: dmIntroLeft .72s cubic-bezier(.16,.9,.25,1) both;\n    }\n    #dmPreGameIntro .dm-intro-player::before {\n      content: \"\"; position: absolute; inset: 0; pointer-events: none;\n      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);\n      opacity: .8;\n    }\n    #dmPreGameIntro .dm-intro-player.black {\n      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));\n      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);\n      animation-name: dmIntroRight;\n    }\n    #dmPreGameIntro .dm-intro-side {\n      position: relative; z-index: 1;\n      display: inline-flex; align-items: center; justify-content: center;\n      min-width: clamp(76px, 10vw, 132px);\n      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);\n      border: 2px solid rgba(255,255,255,.92);\n      border-radius: 999px;\n      background: rgba(15,15,20,.28);\n      color: #fff; font-size: clamp(15px, 2vw, 27px);\n      font-weight: 1000; letter-spacing: .14em;\n      text-transform: uppercase;\n      text-shadow: 0 2px 8px rgba(0,0,0,.4);\n      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);\n    }\n    #dmPreGameIntro .dm-intro-player.black .dm-intro-side {\n      background: rgba(0,12,65,.34);\n    }\n    #dmPreGameIntro .dm-intro-name {\n      position: relative; z-index: 1; width: 100%;\n      font-size: clamp(25px, 5.7vw, 76px);\n      font-weight: 1000; letter-spacing: -.045em;\n      overflow-wrap: anywhere; word-break: break-word;\n      line-height: .98; text-transform: uppercase;\n      color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.18);\n      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);\n    }\n    #dmPreGameIntro .dm-intro-vs {\n      position: relative; z-index: 3;\n      font-size: clamp(76px, 15vw, 210px);\n      line-height: .82; font-weight: 1000; font-style: italic;\n      letter-spacing: -.1em; padding-right: .1em;\n      color: #fff;\n      -webkit-text-stroke: 2px rgba(255,255,255,.9);\n      text-shadow:\n        7px 8px 0 #ed1027,\n        -5px -4px 0 #164de2,\n        0 14px 35px rgba(0,0,0,.48);\n      transform: rotate(-7deg);\n      animation: dmIntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,\n                 dmIntroVSPulse 1.2s ease-in-out 1s infinite alternate;\n    }\n    #dmPreGameIntro .dm-intro-message {\n      min-height: clamp(68px, 12vh, 116px);\n      display: flex; align-items: center; justify-content: center;\n      margin-top: clamp(18px, 4vh, 38px);\n      font-size: clamp(30px, 6.8vw, 82px);\n      font-weight: 1000; font-style: italic; letter-spacing: .015em;\n      text-transform: uppercase; color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.35);\n      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);\n    }\n    #dmPreGameIntro .dm-intro-message.count {\n      min-height: clamp(130px, 26vh, 250px);\n      font-size: clamp(118px, 27vw, 300px); line-height: .78;\n      color: #fff; letter-spacing: -.07em;\n      -webkit-text-stroke: 3px rgba(255,255,255,.75);\n      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);\n    }\n    #dmPreGameIntro .dm-intro-message.battle {\n      color: #fff3a2;\n      font-size: clamp(34px, 7vw, 92px);\n      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);\n    }\n    #dmPreGameIntro .dm-intro-message.pop { animation: dmIntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }\n    #dmPreGameIntro .dm-intro-flash {\n      position: absolute; inset: -35%; pointer-events: none; opacity: 0;\n      z-index: 4;\n      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);\n    }\n    #dmPreGameIntro .dm-intro-flash.fire { animation: dmIntroFlash .48s ease-out; }\n    #dmPreGameIntro.impact .dm-intro-stage { animation: dmIntroShake .28s ease-out; }\n    #dmPreGameIntro.dm-intro-exit { animation: dmIntroExit .36s ease forwards; }\n    @keyframes dmIntroBackdrop { from { opacity:0 } to { opacity:1 } }\n    @keyframes dmIntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }\n    @keyframes dmIntroRays { to { transform: rotate(360deg); } }\n    @keyframes dmIntroLeft {\n      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }\n      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes dmIntroRight {\n      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }\n      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes dmIntroVS {\n      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }\n      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(-7deg) }\n    }\n    @keyframes dmIntroVSPulse {\n      from { filter:brightness(1); }\n      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }\n    }\n    @keyframes dmIntroPop {\n      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }\n      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(0) }\n    }\n    @keyframes dmIntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }\n    @keyframes dmIntroShake {\n      0%,100% { transform:translate3d(0,0,0) }\n      20% { transform:translate3d(-7px,2px,0) }\n      40% { transform:translate3d(6px,-2px,0) }\n      60% { transform:translate3d(-4px,1px,0) }\n      80% { transform:translate3d(3px,0,0) }\n    }\n    @media (max-width:560px) {\n      #dmPreGameIntro { padding: 12px; }\n      #dmPreGameIntro .dm-intro-versus { gap: 4px; }\n      #dmPreGameIntro .dm-intro-player {\n        min-height: 118px; padding: 14px 5px; border-radius: 12px;\n      }\n      #dmPreGameIntro .dm-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }\n      #dmPreGameIntro .dm-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }\n      #dmPreGameIntro .dm-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }\n      #dmPreGameIntro .dm-intro-message.count { font-size: clamp(112px, 34vw, 190px); }\n    }\n    @media (prefers-reduced-motion: reduce) {\n      #dmPreGameIntro *, #dmPreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }\n    }\n  ";
+  document.head.appendChild(style);
+}
+
+function dmIntroUnlockAudio() {
+  dmIntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const wasMuted = track.muted;
+    track.muted = true;
+    try {
+      const attempt = track.play();
+      if (attempt && typeof attempt.then === "function") {
+        attempt.then(() => {
+          track.pause();
+          try { track.currentTime = 0; } catch (_) {}
+          track.muted = wasMuted;
+        }).catch(() => {
+          track.muted = wasMuted;
+        });
+      } else {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = wasMuted;
+      }
+    } catch (_) {
+      track.muted = wasMuted;
+    }
+  });
+}
+document.addEventListener("pointerdown", dmIntroUnlockAudio, { once: true, passive: true });
+document.addEventListener("keydown", dmIntroUnlockAudio, { once: true });
+
+function dmIntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function dmIntroPlayTrack(track, fallbackMs) {
+  return new Promise(resolve => {
+    if (!track) {
+      resolve(false);
+      return;
+    }
+
+    let settled = false;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    };
+
+    const finish = played => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (dmIntroTrackFinisher === cancelThisTrack) {
+        dmIntroTrackFinisher = null;
+      }
+      resolve(played);
+    };
+    const cancelThisTrack = () => finish(false);
+    dmIntroTrackFinisher = cancelThisTrack;
+
+    try {
+      track.pause();
+      try { track.currentTime = 0; } catch (_) {}
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+
+      const armFallback = () => {
+        const durationMs =
+          Number.isFinite(track.duration) && track.duration > 0
+            ? Math.ceil(track.duration * 1000) + 700
+            : fallbackMs;
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(() => finish(false), Math.max(250, durationMs));
+      };
+
+      track.onloadedmetadata = armFallback;
+      armFallback();
+
+      const result = track.play();
+      if (result && typeof result.then === "function") {
+        result.catch(error => {
+          console.warn("Dice Multiplayer intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("Dice Multiplayer intro audio failed:", error);
+      finish(false);
+    }
+  });
+}
+
+function dmIntroCancel() {
+  dmIntroRunToken++;
+  dmIntroActive = false;
+  // Resolve the active audio wait before stopping the track.
+  if (dmIntroTrackFinisher) dmIntroTrackFinisher();
+  if (dmIntroOverlay) {
+    dmIntroOverlay.remove();
+    dmIntroOverlay = null;
+  }
+  dmIntroAllTracks.forEach(track => {
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      track.onloadedmetadata = null;
+    } catch (_) {}
+  });
+}
+
+async function dmIntroPlayRoom(room) {
+  if (!room || room.status !== "playing" || !room.id) return;
+  if (dmIntroRoomId === room.id) return;
+
+  // Avoid replaying the intro on a refresh/rejoin of the same room.
+  const introSeenKey = "dm_intro_seen_room_" + String(currentUser?.id || "guest");
+  try {
+    if (localStorage.getItem(introSeenKey) === String(room.id)) {
+      dmIntroRoomId = room.id;
+      return;
+    }
+    localStorage.setItem(introSeenKey, String(room.id));
+  } catch (_) {}
+
+  // Invalidate any older animation if a room changes mid-sequence.
+  dmIntroCancel();
+  const token = dmIntroRunToken;
+  dmIntroRoomId = room.id;
+  dmIntroActive = true;
+
+  // Close every in-game action as soon as the cinematic begins.
+  if (typeof dmUpdateRollButton === "function") dmUpdateRollButton();
+  if (typeof dmUpdateResignButton === "function") dmUpdateResignButton();
+  if (typeof dmUpdateDrawButton === "function") dmUpdateDrawButton();
+
+  let overlay = null;
+  try {
+    dmIntroEnsureStyles();
+
+    overlay = document.createElement("div");
+    overlay.id = "dmPreGameIntro";
+    overlay.innerHTML = `
+      <div class="dm-intro-stage">
+        <div class="dm-intro-flash"></div>
+        <div class="dm-intro-versus">
+          <div class="dm-intro-player white">
+            <div class="dm-intro-side">WHITE</div>
+            <div class="dm-intro-name"></div>
+          </div>
+          <div class="dm-intro-vs">VS</div>
+          <div class="dm-intro-player black">
+            <div class="dm-intro-side">BLACK</div>
+            <div class="dm-intro-name"></div>
+          </div>
+        </div>
+        <div class="dm-intro-message"></div>
+      </div>`;
+
+    // Names are inserted as text, never as HTML.
+    overlay.querySelector(".dm-intro-player.white .dm-intro-name").textContent =
+      room.white_name || "White";
+    overlay.querySelector(".dm-intro-player.black .dm-intro-name").textContent =
+      room.black_name || "Black";
+
+    document.body.appendChild(overlay);
+    dmIntroOverlay = overlay;
+
+    const message = overlay.querySelector(".dm-intro-message");
+    const flash = overlay.querySelector(".dm-intro-flash");
+
+    const show = label => {
+      if (token !== dmIntroRunToken || !overlay?.isConnected) return;
+      message.className = "dm-intro-message pop";
+      if (label === "3" || label === "2" || label === "1") {
+        message.classList.add("count");
+      } else if (label === "FIGHT!") {
+        message.classList.add("battle");
+      }
+      message.textContent = label;
+      flash.classList.remove("fire");
+      overlay.classList.remove("impact");
+      void flash.offsetWidth;
+      void overlay.offsetWidth;
+      flash.classList.add("fire");
+      overlay.classList.add("impact");
+    };
+
+    await dmIntroWait(80);
+    if (token !== dmIntroRunToken) return;
+
+    // Entry clip plays while the names / VS remain on screen.
+    const entryPlayed = await dmIntroPlayTrack(dmIntroEntryTrack, 6000);
+    if (!entryPlayed) await dmIntroWait(850);
+    if (token !== dmIntroRunToken) return;
+
+    // Each spoken number remains visible for the duration of its own clip.
+    for (const number of ["3", "2", "1"]) {
+      show(number);
+      const played = await dmIntroPlayTrack(dmIntroCountdownTracks[number], 2500);
+      if (!played) await dmIntroWait(780);
+      if (token !== dmIntroRunToken) return;
+    }
+
+    show("FIGHT!");
+    const fightPlayed = await dmIntroPlayTrack(dmIntroFightTrack, 6000);
+    if (!fightPlayed) await dmIntroWait(1100);
+    if (token !== dmIntroRunToken) return;
+
+    overlay.classList.add("dm-intro-exit");
+    await dmIntroWait(360);
+  } catch (error) {
+    console.error("Dice Multiplayer pre-game intro failed:", error);
+  } finally {
+    if (token === dmIntroRunToken) {
+      if (overlay) overlay.remove();
+      if (dmIntroOverlay === overlay) dmIntroOverlay = null;
+      dmIntroActive = false;
+      if (typeof dmUpdateRollButton === "function") dmUpdateRollButton();
+      if (typeof dmUpdateResignButton === "function") dmUpdateResignButton();
+      if (typeof dmUpdateDrawButton === "function") dmUpdateDrawButton();
+    }
+  }
+}
+
 function dmIsAdmin() {
   return !!currentProfile && currentProfile.role === "admin";
 }
@@ -192618,6 +193734,12 @@ function dmUpdateRollButton() {
 
   button.classList.remove("dm-roll-ready");
 
+  if (dmIntroActive) {
+    button.disabled = true;
+    button.textContent = "⚔️ Get Ready...";
+    return;
+  }
+
   if (!dmRoom || dmRoom.status !== "playing") {
     button.disabled = true;
     button.textContent = "🎲 Roll Dice";
@@ -192670,7 +193792,8 @@ function dmUpdateResignButton() {
   button.disabled =
     !dmRoom ||
     dmRoom.status !== "playing" ||
-    dmBusy;
+    dmBusy ||
+    dmIntroActive;
 }
 
 function dmRenderMoves() {
@@ -193017,7 +194140,8 @@ function dmCanMove() {
     !dmBusy &&
     !dmRolling &&
     !dmDiceAnimating &&
-    !dmPromotionPending
+    !dmPromotionPending &&
+    !dmIntroActive
   );
 }
 
@@ -193115,6 +194239,7 @@ function dmOnSnapEnd() {
 
 // Applies a move locally (sync) and then saves it (async).
 function dmTryMove(source, target, promotion) {
+  if (dmIntroActive) return false;
   if (!dmChess || !dmRoom) return false;
   if (dmRoom.status !== "playing" || dmRoom.turn !== dmSide) return false;
   if (!dmRoom.dice_piece) return false;
@@ -193225,6 +194350,7 @@ async function dmPersistMove() {
 
 async function dmRollDice() {
   if (!dmRoom || !dmChess) return;
+  if (dmIntroActive) return;
   if (dmRoom.status !== "playing") return;
   if (dmRoom.turn !== dmSide) return;
   if (dmRoom.dice_piece) return;
@@ -194799,7 +195925,7 @@ async function dmCancelChallenge() {
 }
 
 async function dmResignGame() {
-  if (!dmRoom || dmBusy) return;
+  if (!dmRoom || dmBusy || dmIntroActive) return;
   if (dmRoom.status !== "playing") return;
 
   const confirmed = window.confirm(
@@ -194906,6 +196032,7 @@ function dmUpdateDrawButton() {
     !!dmRoom &&
     dmRoom.status === "playing" &&
     !dmBusy &&
+    !dmIntroActive &&
     !dmDrawOfferSent &&
     !dmDrawOfferPending;
 
@@ -194936,7 +196063,7 @@ function dmUpdateDrawButton() {
 
 async function dmOfferDraw() {
 
-  if (!dmRoom) return;
+  if (!dmRoom || dmIntroActive) return;
 
   if (dmRoom.status !== "playing") {
     return;
@@ -195255,7 +196382,8 @@ async function dmApplyRoom(room, saveSession = true) {
   if (!side) return;
 
   const isNewRoom = !dmRoom || dmRoom.id !== room.id;
-    const previousFen = !isNewRoom && dmRoom ? dmRoom.fen : null;
+  const wasPlaying = !isNewRoom && dmRoom ? dmRoom.status === "playing" : false;
+  const previousFen = !isNewRoom && dmRoom ? dmRoom.fen : null;
 
   if (!isNewRoom) {
     // Ignore older snapshots and exact duplicates.
@@ -195266,6 +196394,8 @@ async function dmApplyRoom(room, saveSession = true) {
   dmPrevStatus = isNewRoom ? null : dmRoom.status;
 
   if (isNewRoom) {
+    dmIntroCancel();
+    dmIntroRoomId = null;
     dmCancelReset();
     dmStopDiceAnimation();
     dmClosePromotion();
@@ -195322,6 +196452,18 @@ async function dmApplyRoom(room, saveSession = true) {
 
   if (room.status === "accepted" || room.status === "playing") {
     dmRenderPlaying(room, shouldAnimate);
+
+    // Play only for a fresh start position and only once per room.
+    // This covers the receiving player and the challenger independently.
+    const isFreshStartPosition =
+      (!room.pgn || !String(room.pgn).trim()) &&
+      (!room.fen || room.fen === new Chess().fen()) &&
+      !room.dice_piece &&
+      Number(room.dice_roll_id || 0) === 0;
+
+    if (room.status === "playing" && !wasPlaying && isFreshStartPosition) {
+      dmIntroPlayRoom(room);
+    }
     return;
   }
 
@@ -195516,6 +196658,7 @@ if (dmChess) {
 
 function dmRenderTerminal(room) {
 
+  dmIntroCancel();
   dmStopRoomSync();
   dmClosePromotion();
   dmDrawOfferPending = false;
@@ -195709,6 +196852,8 @@ function dmScheduleReset(roomId) {
 }
 
 function dmResetToIdle() {
+  dmIntroCancel();
+  dmIntroRoomId = null;
   dmCancelReset();
   dmStopRoomSync();
   dmStopDiceAnimation();
@@ -196005,6 +197150,7 @@ function initPuzzleBattleBoard() {
     pieceTheme: getPieceThemePath(currentPieceTheme),
 
     onDragStart: (source, piece) => {
+      if (battleIntroActive || !battleStarted) return false;
       if (battleYouFrozen) return false;
 
 
@@ -197534,55 +198680,333 @@ function forceOpenPuzzleBattleTab() {
 
 }
 
+
+/* =====================================================
+   ⚔️ PUZZLE BATTLE — LIVE MATCH STYLE PRE-GAME INTRO
+   Shared start gate for room-code, direct-challenge,
+   admin/student and student/student matches.
+===================================================== */
+let battleIntroActive = false;
+let battleIntroPlayed = false;
+let battleStartPending = false;
+// Intro and end-state guards are scoped to a room, not the whole page session.
+let battleIntroRoomId = null;
+
+const pbIntroEntryTrack = new Audio("sounds/entry.mp3");
+const pbIntroFightTrack = new Audio("sounds/fight.mp3");
+const pbIntroCountdownTracks = {
+  "3": new Audio("sounds/3.mp3"),
+  "2": new Audio("sounds/2.mp3"),
+  "1": new Audio("sounds/1.mp3")
+};
+const pbIntroAllTracks = [
+  pbIntroEntryTrack,
+  pbIntroCountdownTracks["3"],
+  pbIntroCountdownTracks["2"],
+  pbIntroCountdownTracks["1"],
+  pbIntroFightTrack
+];
+pbIntroAllTracks.forEach(track => {
+  track.preload = "auto";
+  track.volume = 0.9;
+  track.loop = false;
+});
+
+function pbEnsureIntroStyles() {
+  if (document.getElementById("pbPreGameIntroStyles")) return;
+  const style = document.createElement("style");
+  style.id = "pbPreGameIntroStyles";
+  style.textContent = "\n    #pbPreGameIntro {\n      position: fixed; inset: 0; z-index: 100000;\n      display: flex; align-items: center; justify-content: center;\n      overflow: hidden; padding: clamp(12px, 3vw, 34px);\n      isolation: isolate;\n      background:\n        linear-gradient(112deg, #f20b20 0%, #c90018 48.4%, #1027a5 51.6%, #075be9 100%);\n      color: #fff; font-family: inherit;\n      animation: mpIntroBackdrop .35s ease both;\n    }\n    #pbPreGameIntro * { box-sizing: border-box; }\n    #pbPreGameIntro::before {\n      content: \"\"; position: absolute; inset: -45%; z-index: -2;\n      background: repeating-conic-gradient(\n        from 0deg at 50% 50%,\n        rgba(255,255,255,.19) 0deg 1.1deg,\n        transparent 1.1deg 7deg,\n        rgba(0,0,0,.12) 7deg 8deg,\n        transparent 8deg 13deg\n      );\n      animation: mpIntroRays 24s linear infinite;\n      opacity: .78;\n    }\n    #pbPreGameIntro::after {\n      content: \"\"; position: absolute; inset: 0; z-index: -1;\n      background:\n        radial-gradient(ellipse at 18% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(ellipse at 82% 50%, rgba(255,255,255,.17), transparent 48%),\n        radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(0,0,0,.18) 100%);\n      pointer-events: none;\n    }\n    #pbPreGameIntro .pb-intro-stage {\n      width: min(1180px, 100%); text-align: center; position: relative;\n      z-index: 2; transform: translateZ(0);\n    }\n    #pbPreGameIntro .pb-intro-versus {\n      display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);\n      align-items: center; gap: clamp(5px, 1.8vw, 24px);\n      width: 100%;\n    }\n    #pbPreGameIntro .pb-intro-player {\n      min-width: 0; min-height: clamp(132px, 25vh, 245px);\n      padding: clamp(16px, 3.2vw, 38px) clamp(8px, 1.5vw, 20px);\n      display: flex; flex-direction: column; align-items: center; justify-content: center;\n      gap: clamp(9px, 1.8vh, 18px);\n      border-radius: clamp(12px, 2vw, 24px);\n      position: relative; overflow: hidden;\n      background: linear-gradient(135deg, rgba(255,28,44,.96), rgba(151,0,18,.94));\n      border: 2px solid rgba(255,255,255,.8);\n      box-shadow: 0 18px 55px rgba(35,0,0,.36), inset 0 0 35px rgba(255,255,255,.12);\n      animation: mpIntroLeft .72s cubic-bezier(.16,.9,.25,1) both;\n    }\n    #pbPreGameIntro .pb-intro-player::before {\n      content: \"\"; position: absolute; inset: 0; pointer-events: none;\n      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.23), transparent 70%);\n      opacity: .8;\n    }\n    #pbPreGameIntro .pb-intro-player.black {\n      background: linear-gradient(135deg, rgba(0,111,255,.98), rgba(5,30,151,.96));\n      box-shadow: 0 18px 55px rgba(0,0,45,.4), inset 0 0 35px rgba(255,255,255,.12);\n      animation-name: mpIntroRight;\n    }\n    #pbPreGameIntro .pb-intro-side {\n      position: relative; z-index: 1;\n      display: inline-flex; align-items: center; justify-content: center;\n      min-width: clamp(76px, 10vw, 132px);\n      padding: clamp(5px, .8vw, 10px) clamp(12px, 1.8vw, 22px);\n      border: 2px solid rgba(255,255,255,.92);\n      border-radius: 999px;\n      background: rgba(15,15,20,.28);\n      color: #fff; font-size: clamp(15px, 2vw, 27px);\n      font-weight: 1000; letter-spacing: .14em;\n      text-transform: uppercase;\n      text-shadow: 0 2px 8px rgba(0,0,0,.4);\n      box-shadow: 0 4px 16px rgba(0,0,0,.2), inset 0 0 12px rgba(255,255,255,.16);\n    }\n    #pbPreGameIntro .pb-intro-player.black .pb-intro-side {\n      background: rgba(0,12,65,.34);\n    }\n    #pbPreGameIntro .pb-intro-name {\n      position: relative; z-index: 1; width: 100%;\n      font-size: clamp(25px, 5.7vw, 76px);\n      font-weight: 1000; letter-spacing: -.045em;\n      overflow-wrap: anywhere; word-break: break-word;\n      line-height: .98; text-transform: uppercase;\n      color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.18);\n      text-shadow: 0 4px 0 rgba(0,0,0,.16), 0 9px 25px rgba(0,0,0,.38);\n    }\n    #pbPreGameIntro .pb-intro-vs {\n      position: relative; z-index: 3;\n      font-size: clamp(76px, 15vw, 210px);\n      line-height: .82; font-weight: 1000; font-style: italic;\n      letter-spacing: -.1em; padding-right: .1em;\n      color: #fff;\n      -webkit-text-stroke: 2px rgba(255,255,255,.9);\n      text-shadow:\n        7px 8px 0 #ed1027,\n        -5px -4px 0 #164de2,\n        0 14px 35px rgba(0,0,0,.48);\n      transform: rotate(-7deg);\n      animation: mpIntroVS .72s cubic-bezier(.12,.88,.2,1.15) .18s both,\n                 mpIntroVSPulse 1.2s ease-in-out 1s infinite alternate;\n    }\n    #pbPreGameIntro .pb-intro-message {\n      min-height: clamp(68px, 12vh, 116px);\n      display: flex; align-items: center; justify-content: center;\n      margin-top: clamp(18px, 4vh, 38px);\n      font-size: clamp(30px, 6.8vw, 82px);\n      font-weight: 1000; font-style: italic; letter-spacing: .015em;\n      text-transform: uppercase; color: #fff;\n      -webkit-text-stroke: 1px rgba(255,255,255,.35);\n      text-shadow: 0 5px 0 rgba(0,0,0,.18), 0 0 24px rgba(255,255,255,.55);\n    }\n    #pbPreGameIntro .pb-intro-message.count {\n      min-height: clamp(130px, 26vh, 250px);\n      font-size: clamp(118px, 27vw, 300px); line-height: .78;\n      color: #fff; letter-spacing: -.07em;\n      -webkit-text-stroke: 3px rgba(255,255,255,.75);\n      text-shadow: 9px 10px 0 rgba(0,0,0,.22), 0 0 35px rgba(255,255,255,.7);\n    }\n    #pbPreGameIntro .pb-intro-message.battle {\n      color: #fff3a2;\n      font-size: clamp(34px, 7vw, 92px);\n      text-shadow: 0 5px 0 #a82a00, 0 0 22px #ffca3a, 0 0 58px rgba(255,220,90,.9);\n    }\n    #pbPreGameIntro .pb-intro-message.pop { animation: mpIntroPop .58s cubic-bezier(.12,.88,.2,1.15) both; }\n    #pbPreGameIntro .pb-intro-flash {\n      position: absolute; inset: -35%; pointer-events: none; opacity: 0;\n      z-index: 4;\n      background: radial-gradient(circle, rgba(255,255,255,.92) 0%, rgba(255,220,100,.52) 18%, transparent 58%);\n    }\n    #pbPreGameIntro .pb-intro-flash.fire { animation: mpIntroFlash .48s ease-out; }\n    #pbPreGameIntro.impact .pb-intro-stage { animation: mpIntroShake .28s ease-out; }\n    @keyframes mpIntroBackdrop { from { opacity:0 } to { opacity:1 } }\n    @keyframes mpIntroExit { from { opacity:1; transform:scale(1); filter:blur(0) } to { opacity:0; transform:scale(1.06); filter:blur(8px) } }\n    @keyframes mpIntroRays { to { transform: rotate(360deg); } }\n    @keyframes mpIntroLeft {\n      0% { opacity:0; transform:translateX(-120px) scale(.78) skewX(8deg) }\n      72% { opacity:1; transform:translateX(12px) scale(1.035) skewX(-1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes mpIntroRight {\n      0% { opacity:0; transform:translateX(120px) scale(.78) skewX(-8deg) }\n      72% { opacity:1; transform:translateX(-12px) scale(1.035) skewX(1deg) }\n      100% { opacity:1; transform:translateX(0) scale(1) }\n    }\n    @keyframes mpIntroVS {\n      0% { opacity:0; transform:scale(2.8) rotate(-18deg); filter:blur(9px) }\n      65% { opacity:1; transform:scale(.82) rotate(5deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(-7deg) }\n    }\n    @keyframes mpIntroVSPulse {\n      from { filter:brightness(1); }\n      to { filter:brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,.8)); }\n    }\n    @keyframes mpIntroPop {\n      0% { opacity:0; transform:scale(.25) rotate(-8deg); filter:blur(8px) }\n      62% { opacity:1; transform:scale(1.16) rotate(2deg); filter:blur(0) }\n      100% { opacity:1; transform:scale(1) rotate(0) }\n    }\n    @keyframes mpIntroFlash { 0% { opacity:0; transform:scale(.65) } 22% { opacity:1 } 100% { opacity:0; transform:scale(1.15) } }\n    @keyframes mpIntroShake {\n      0%,100% { transform:translate3d(0,0,0) }\n      20% { transform:translate3d(-7px,2px,0) }\n      40% { transform:translate3d(6px,-2px,0) }\n      60% { transform:translate3d(-4px,1px,0) }\n      80% { transform:translate3d(3px,0,0) }\n    }\n    @media (max-width:560px) {\n      #pbPreGameIntro { padding: 12px; }\n      #pbPreGameIntro .pb-intro-versus { gap: 4px; }\n      #pbPreGameIntro .pb-intro-player {\n        min-height: 118px; padding: 14px 5px; border-radius: 12px;\n      }\n      #pbPreGameIntro .pb-intro-side { min-width: 0; padding: 5px 9px; font-size: clamp(11px, 3vw, 16px); letter-spacing: .1em; }\n      #pbPreGameIntro .pb-intro-name { font-size: clamp(18px, 5.4vw, 34px); letter-spacing: -.04em; }\n      #pbPreGameIntro .pb-intro-vs { font-size: clamp(58px, 15vw, 92px); text-shadow: 4px 5px 0 #ed1027, -3px -2px 0 #164de2, 0 8px 18px rgba(0,0,0,.5); }\n      #pbPreGameIntro .pb-intro-message.count { font-size: clamp(112px, 34vw, 190px); }\n    }\n    @media (prefers-reduced-motion: reduce) {\n      #pbPreGameIntro *, #pbPreGameIntro { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }\n    }\n  ";
+  document.head.appendChild(style);
+}
+
+function pbUnlockIntroAudio() {
+  pbIntroAllTracks.forEach(track => {
+    if (!track || !track.paused) return;
+    const previousMuted = track.muted;
+    track.muted = true;
+    const attempt = track.play();
+    if (attempt && typeof attempt.then === "function") {
+      attempt.then(() => {
+        track.pause();
+        try { track.currentTime = 0; } catch (_) {}
+        track.muted = previousMuted;
+      }).catch(() => { track.muted = previousMuted; });
+    } else {
+      track.pause();
+      track.muted = previousMuted;
+    }
+  });
+}
+document.addEventListener("pointerdown", pbUnlockIntroAudio, { once: true, passive: true });
+document.addEventListener("keydown", pbUnlockIntroAudio, { once: true });
+
+function pbIntroWait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function pbPlayIntroTrack(track) {
+  return new Promise(resolve => {
+    if (!track) return resolve(false);
+    let finished = false;
+    const finish = played => {
+      if (finished) return;
+      finished = true;
+      track.onended = null;
+      track.onerror = null;
+      track.onabort = null;
+      resolve(played);
+    };
+    try {
+      track.pause();
+      track.currentTime = 0;
+      track.volume = 0.9;
+      track.muted = false;
+      track.onended = () => finish(true);
+      track.onerror = () => finish(false);
+      track.onabort = () => finish(false);
+      const result = track.play();
+      if (result && typeof result.then === "function") {
+        result.catch(error => {
+          console.warn("Puzzle Battle intro audio could not play:", error);
+          finish(false);
+        });
+      }
+    } catch (error) {
+      console.warn("Puzzle Battle intro audio failed:", error);
+      finish(false);
+    }
+  });
+}
+
+async function pbResolveIntroPlayerNames() {
+  const room = battleRoom || {};
+  let player1Name = "";
+  let player2Name = "";
+  const ids = [room.player1_id, room.player2_id].filter(Boolean);
+
+  if (ids.length) {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", ids);
+      if (!error && Array.isArray(data)) {
+        player1Name = data.find(p => p.id === room.player1_id)?.username || "";
+        player2Name = data.find(p => p.id === room.player2_id)?.username || "";
+      }
+    } catch (error) {
+      console.warn("Could not resolve Puzzle Battle player names:", error);
+    }
+  }
+
+  const localName = String(
+    currentProfile?.username || currentUser?.username || ""
+  ).trim();
+
+  if (!player1Name && currentUser?.id === room.player1_id) player1Name = localName;
+  if (!player2Name && currentUser?.id === room.player2_id) player2Name = localName;
+
+  return {
+    player1: player1Name || "Player 1",
+    player2: player2Name || "Player 2"
+  };
+}
+
+async function pbPlayPreGameIntro() {
+  if (battleIntroPlayed || battleIntroActive) return;
+  battleIntroPlayed = true;
+  battleIntroActive = true;
+
+  let overlay = null;
+  try {
+    // Keep the puzzle board unavailable until the entire cinematic has ended.
+    pbEnsureIntroStyles();
+    const names = await pbResolveIntroPlayerNames();
+
+    overlay = document.createElement("div");
+  overlay.id = "pbPreGameIntro";
+  overlay.innerHTML = `
+    <div class="pb-intro-stage">
+      <div class="pb-intro-flash"></div>
+      <div class="pb-intro-versus">
+        <div class="pb-intro-player white">
+          <div class="pb-intro-side">PLAYER 1</div>
+          <div class="pb-intro-name"></div>
+        </div>
+        <div class="pb-intro-vs">VS</div>
+        <div class="pb-intro-player black">
+          <div class="pb-intro-side">PLAYER 2</div>
+          <div class="pb-intro-name"></div>
+        </div>
+      </div>
+      <div class="pb-intro-message"></div>
+    </div>`;
+  overlay.querySelector(".pb-intro-player.white .pb-intro-name").textContent = names.player1;
+  overlay.querySelector(".pb-intro-player.black .pb-intro-name").textContent = names.player2;
+  document.body.appendChild(overlay);
+
+  const message = overlay.querySelector(".pb-intro-message");
+  const flash = overlay.querySelector(".pb-intro-flash");
+  const show = async (label, className = "") => {
+    message.className = `pb-intro-message ${className} pop`;
+    message.textContent = label;
+    flash.classList.remove("fire");
+    overlay.classList.remove("impact");
+    void flash.offsetWidth;
+    void overlay.offsetWidth;
+    flash.classList.add("fire");
+    overlay.classList.add("impact");
+  };
+
+    await pbIntroWait(80);
+    await pbPlayIntroTrack(pbIntroEntryTrack);
+
+    for (const number of ["3", "2", "1"]) {
+      await show(number, "count");
+      const played = await pbPlayIntroTrack(pbIntroCountdownTracks[number]);
+      if (!played) await pbIntroWait(780);
+    }
+
+    await show("FIGHT!", "battle");
+    await pbPlayIntroTrack(pbIntroFightTrack);
+
+    overlay.classList.add("pb-intro-exit");
+    await pbIntroWait(360);
+  } finally {
+    if (overlay) overlay.remove();
+    battleIntroActive = false;
+  }
+}
+
+
+function pbResetForNewBattleRoom(room) {
+  if (!room?.id || battleIntroRoomId === room.id) return;
+
+  console.log("♻️ New Puzzle Battle room — resetting intro and match guards", room.id);
+
+  // Stop any leftover local timer/poller from the previous match.
+  if (battleTimer) {
+    clearInterval(battleTimer);
+    battleTimer = null;
+  }
+  if (battleFinishPoller) {
+    clearInterval(battleFinishPoller);
+    battleFinishPoller = null;
+  }
+
+  // A fresh room must always receive a fresh cinematic and fresh end-state.
+  battleIntroRoomId = room.id;
+  battleIntroPlayed = false;
+  battleIntroActive = false;
+  battleStartPending = false;
+  battleStarted = false;
+  battleWinnerDeclared = false;
+  battleStartAt = null;
+  battleTimeLeft = Number(room.mode) === 5 ? 300 : 180;
+  battleSolved = false;
+  battleYouFrozen = false;
+  battlePendingPromotion = null;
+
+  // Clear the previous room's frozen-board presentation.
+  const boardEl = document.getElementById("puzzleBattleBoard");
+  if (boardEl) boardEl.classList.remove("battle-frozen");
+  if (battleBoard) {
+    battleBoard.draggable = true;
+  }
+
+  // Hide any previous result panel before the next intro.
+  const resultBox = document.getElementById("battleResult");
+  if (resultBox) resultBox.classList.add("hidden");
+
+  const timerEl = document.getElementById("battleTimer");
+  if (timerEl) {
+    const minutes = Math.floor(battleTimeLeft / 60);
+    const seconds = battleTimeLeft % 60;
+    timerEl.textContent = String(minutes).padStart(2, "0") + ":" +
+      String(seconds).padStart(2, "0");
+  }
+}
+
+
 async function forceStartBattle() {
   forceOpenPuzzleBattleTab();
   if (!battleRoom) return;
 
-  // Wait until board exists
+  // Wait until board exists before starting the shared intro.
   if (!battleBoard) {
     setTimeout(forceStartBattle, 200);
     return;
   }
 
-  if (battleStarted) return;
+  if (battleStarted || battleStartPending) return;
+  battleStartPending = true;
 
-  const { data: room } = await supabase
-    .from("puzzle_battle_rooms")
-    .select("status")
-    .eq("id", battleRoom.id)
-    .single();
+  let room = null;
+  try {
+    const { data, error } = await supabase
+      .from("puzzle_battle_rooms")
+      .select("*")
+      .eq("id", battleRoom.id)
+      .single();
+    room = data;
 
-  if (!room || room.status !== "active") {
-    setTimeout(forceStartBattle, 500);
-    return;
+    if (error || !room || room.status !== "active") {
+      battleStartPending = false;
+      setTimeout(forceStartBattle, 500);
+      return;
+    }
+
+    // Refresh the authoritative player IDs/names for every battle type.
+    // Reset one-time intro/end guards whenever a NEW room starts.
+    pbResetForNewBattleRoom(room);
+    battleRoom = room;
+    battleStarted = true;
+    battleXPGranted = false;
+
+    console.log("⚔️ Puzzle Battle start synced — playing pre-game intro");
+
+    const statusEl = document.getElementById("battleStatus");
+    if (statusEl) statusEl.textContent = "⚔️ Players ready — battle begins after the intro!";
+
+    // Reset match state, but DO NOT start the timer yet.
+    battleTimeLeft = battleRoom.mode === "5" ? 300 : 180;
+    if (battleTimer) clearInterval(battleTimer);
+    battleTimer = null;
+    battleStartAt = null;
+    const timerEl = document.getElementById("battleTimer");
+    if (timerEl) {
+      const minutes = Math.floor(battleTimeLeft / 60);
+      const seconds = battleTimeLeft % 60;
+      timerEl.textContent = String(minutes).padStart(2, "0") + ":" +
+        String(seconds).padStart(2, "0");
+    }
+
+    battlePuzzleList = [];
+    battlePuzzleIndex = 0;
+    battleSolved = false;
+
+    // Same cinematic sequence and supplied sounds as Live Match.
+    try {
+      await pbPlayPreGameIntro();
+    } catch (introError) {
+      console.error("Puzzle Battle intro failed; continuing safely:", introError);
+    }
+
+    // The battle clock starts only after entry, voice countdown and FIGHT audio finish.
+    if (!battleRoom || battleRoom.id !== room.id || battleWinnerDeclared) return;
+    battleStartAt = Date.now();
+    startBattleTimer();
+    loadBattlePuzzles();
+
+    if (statusEl) statusEl.textContent = "⚔️ Battle started — solve the puzzles!";
+  } catch (error) {
+    console.error("Puzzle Battle start failed:", error);
+    battleStarted = false;
+  } finally {
+    battleStartPending = false;
   }
-
-  battleStarted = true;
- 
-  battleXPGranted = false;
-
-
-  console.log("⚔️ Battle start synced for this client");
-
-  document.getElementById("battleStatus").textContent =
-    "⚔️ Battle started — puzzles loading!";
-
-  // Clean reset
- battleTimeLeft =
-    battleRoom.mode === "5"
-    ? 300
-    : 180;
-  battleTimer = null;
-  battlePuzzleList = [];
-  battlePuzzleIndex = 0;
-  battleSolved = false;
-
-  battleStartAt = Date.now();
-startBattleTimer();
-loadBattlePuzzles();
-
 }
-
 
 
 
@@ -197807,6 +199231,7 @@ window.showBattlePromotion = showBattlePromotion;
 
 function handleBattleMove(source, target) {
 
+  if (battleIntroActive || !battleStarted) return "snapback";
   if (battleYouFrozen) return "snapback";
   if (!battleCurrentPuzzle || battleSolved) return "snapback";
 
