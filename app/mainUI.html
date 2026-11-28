@@ -12718,7 +12718,45 @@ body {
   color: #000;
 }
 
+/* ===================================
+   OLYMPUS STUDY OPENING NAME
+=================================== */
 
+.study-notation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.study-opening-name {
+  display: block;
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 100%;
+
+  /* Show complete opening name */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+
+  color: #f5d879;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .study-opening-name {
+    font-size: 11px;
+    flex-basis: 100%;
+  }
+}
 
 
 
@@ -52672,7 +52710,12 @@ title="Voice volume"
 </button>
 
       <div class="study-notation">
-        <strong>Notation</strong>
+        <div class="study-notation-heading">
+ 
+  <span id="studyOpeningName" class="study-opening-name">
+   :
+  </span>
+</div>
         <div class="notation-placeholder" id="studyNotation">
     Select a chapter to view moves
         </div>
@@ -145566,7 +145609,7 @@ window.createNewStudyChapter = function(title) {
   // 🔥 Activate this chapter immediately
   studyMoveTreeRoot = newRoot;
   studyCurrentNode = newRoot;
-
+refreshStudyOpeningName();
 
 
   renderStudyChapters();
@@ -145603,6 +145646,9 @@ window.hardResetStudyState = function() {
   document.getElementById("studyTitle").textContent = "";
   document.getElementById("studyNotation").innerHTML =
     "Select a chapter to view moves";
+
+     // ♟️ Reset Study opening name
+  refreshStudyOpeningName();
 
   console.log("🧹 Study state fully reset");
 }
@@ -148206,6 +148252,207 @@ function deleteCurrentStudyMove() {
   console.log("⌫ Deleted move:", nodeToDelete.move?.san);
 }
 
+
+// ======================================================
+// ♟️ OLYMPUS STUDY — LIVE OPENING RECOGNITION
+// Lightweight integration with existing Olympus engine
+// ======================================================
+
+let studyOpeningCatalogue = null;
+let studyOpeningCataloguePromise = null;
+let studyOpeningRequestId = 0;
+
+
+// ------------------------------------------------------
+// BUILD CURRENT MOVE SEQUENCE
+// ------------------------------------------------------
+
+function getStudyOpeningPgnAtCurrentMove() {
+
+  const root = studyMoveTreeRoot;
+
+  if (!root) return "";
+
+  // Opening recognition is for standard starting positions.
+  const standardStart =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
+
+  const rootFields = String(root.fen || "")
+    .split(/\s+/)
+    .slice(0, 4)
+    .join(" ");
+
+  if (rootFields && rootFields !== standardStart) {
+    return null;
+  }
+
+  const moves = [];
+
+  let node = studyCurrentNode || root;
+
+  // At the starting position, use the chapter's mainline.
+  // This allows the opening name to appear immediately
+  // after importing a PGN.
+  if (node === root) {
+
+    while (node.children && node.children.length) {
+
+      node = node.children[0];
+
+      if (node.move && node.move.san) {
+        moves.push(node.move.san);
+      }
+
+    }
+
+  } else {
+
+    // Follow the actual selected move path.
+    // This also supports variations.
+    while (node && node !== root) {
+
+      if (node.move && node.move.san) {
+        moves.push(node.move.san);
+      }
+
+      node = node.parent;
+
+    }
+
+    if (node !== root) return "";
+
+    moves.reverse();
+
+  }
+
+  // Convert SAN moves into a simple PGN sequence.
+  return moves.map((san, index) => {
+
+    const moveNumber = Math.floor(index / 2) + 1;
+
+    return (
+      index % 2 === 0
+        ? `${moveNumber}. ${san}`
+        : san
+    );
+
+  }).join(" ");
+}
+
+
+// ------------------------------------------------------
+// UPDATE OPENING NAME
+// ------------------------------------------------------
+
+async function refreshStudyOpeningName() {
+
+  const label = document.getElementById("studyOpeningName");
+
+  if (!label) return;
+
+  // Each refresh invalidates older asynchronous results.
+  const requestId = ++studyOpeningRequestId;
+
+  const pgn = getStudyOpeningPgnAtCurrentMove();
+
+  // Custom starting position.
+  if (pgn === null) {
+
+    label.textContent = ": Custom position";
+    label.title = "Standard opening recognition is unavailable for this position.";
+
+    return;
+  }
+
+  // Empty chapter or no moves.
+  if (!pgn) {
+
+    label.textContent = ":";
+    label.title = "";
+
+    return;
+  }
+
+  try {
+
+    // Load the existing catalogue only once.
+    if (!studyOpeningCatalogue) {
+
+      label.textContent = ": Loading...";
+
+      if (!studyOpeningCataloguePromise) {
+
+        if (
+          typeof window.loadOlympusOpeningCatalogueForStudy !== "function"
+        ) {
+          throw new Error("Olympus opening loader is unavailable.");
+        }
+
+        studyOpeningCataloguePromise =
+          window.loadOlympusOpeningCatalogueForStudy();
+
+      }
+
+      studyOpeningCatalogue =
+        await studyOpeningCataloguePromise;
+
+    }
+
+    // Ignore stale results if the user has moved again.
+    if (requestId !== studyOpeningRequestId) return;
+
+    // Always classify the latest position.
+    const latestPgn = getStudyOpeningPgnAtCurrentMove();
+
+    if (latestPgn === null || !latestPgn) {
+
+      label.textContent =
+        latestPgn === null
+          ? ": Custom position"
+          : ": —";
+
+      return;
+    }
+
+    const engine = studyOpeningCatalogue?.engine;
+
+    const match =
+      typeof engine?.classifyPgn === "function"
+        ? engine.classifyPgn(latestPgn)
+        : null;
+
+    if (match && match.name) {
+
+      label.textContent =
+        `: ${match.eco ? match.eco + " · " : ""}${match.name}`;
+
+      label.title =
+        `${match.name}${match.eco ? " (" + match.eco + ")" : ""}`;
+
+    } else {
+
+      label.textContent = ": Not identified";
+      label.title = "No matching opening line was found in the local catalogue.";
+
+    }
+
+  } catch (error) {
+
+    if (requestId !== studyOpeningRequestId) return;
+
+    console.warn("Study opening recognition:", error);
+
+    label.textContent = ": Unavailable";
+    label.title = "Check the Olympus opening engine and database files.";
+
+    // Allow retry on a subsequent update.
+    studyOpeningCataloguePromise = null;
+    studyOpeningCatalogue = null;
+
+  }
+
+}
+
 // ============================================
 // 📘 STUDY NOTATION TREE (LICHESS STYLE)
 // ============================================
@@ -148214,6 +148461,7 @@ function renderStudyNotationTree() {
 
   const container = document.getElementById("studyNotation");
   if (!container) return;
+  refreshStudyOpeningName();
 
   container.innerHTML = "";
 
@@ -269904,6 +270152,9 @@ function syncNavVisibility() {
       get chessAvailable() { return !!this.status.chessAvailable; }
     };
   }
+  // Share existing opening catalogue loader with Study
+window.loadOlympusOpeningCatalogueForStudy =
+  loadLocalOpeningCatalogue;
 
   // Opening analysis is deliberately loaded only when the Opening Report tab is opened.
   // The local catalogue recognises actual board positions; PGN headers remain a fallback.
