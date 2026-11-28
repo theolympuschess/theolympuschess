@@ -120510,10 +120510,10 @@ Submit solution</button>
     </div>
 
     <div data-olab-panel="openingReport" role="tabpanel">
-      <div class="olab-section-head"><div><h3>📖 Opening Report</h3><p>Opening frequency and game-by-game move sequences from saved PGN tags and recorded game moves.</p></div></div>
+      <div class="olab-section-head"><div><h3>📖 Opening Report</h3><p>Automatic ECO and opening recognition from actual moves, using your local Lichess opening catalogue with transposition matching.</p></div></div>
       <div id="olab-openingStatus"></div>
       <div class="olab-grid" id="olab-openingStats"></div>
-      <div class="olab-section-head"><div><h3>Most-played openings and sequences</h3><p>Opening/ECO tags are shown when stored; otherwise identical first-move sequences are grouped without guessing an opening name.</p></div></div>
+      <div class="olab-section-head"><div><h3>Most-played openings</h3><p>Games are grouped by the deepest recognised ECO position. PGN headers are used only when no local position match is available.</p></div></div>
       <article class="olab-panel"><div id="olab-openingDistribution"></div></article>
       <div id="olab-openingHistory"></div>
       <p class="olab-footnote" id="olab-openingFootnote"></p>
@@ -269128,7 +269128,7 @@ document.addEventListener("DOMContentLoaded", startApp);
     threeCheckGames: { status: "idle", rows: [], error: null },
     legalCheckGames: { status: "idle", rows: [], error: null },
     legalMoveGames: { status: "idle", rows: [], error: null },
-    openingReport: { status: "idle", rows: [], warning: null, missing: 0, error: null },
+    openingReport: { status: "idle", rows: [], warning: null, missing: 0, catalogueCount: 0, classified: 0, headerFallback: 0, progress: null, error: null },
     attendance: { status: "idle", rows: [], warning: null, error: null },
     miniScores: { status: "idle", rows: [], error: null },
     battles: { status: "idle", rows: [], error: null },
@@ -269351,7 +269351,7 @@ function syncNavVisibility() {
       item.promise = null;
       item.rangeKey = null;
       if (Object.prototype.hasOwnProperty.call(item, "warning")) item.warning = null;
-      if (key === "openingReport") item.missing = 0;
+      if (key === "openingReport") { item.missing = 0; item.catalogueCount = 0; item.classified = 0; item.headerFallback = 0; item.progress = null; }
       if (key === "schedule") {
         item.batch = null;
         item.totalClasses = null;
@@ -269742,9 +269742,119 @@ function syncNavVisibility() {
     return records;
   }
 
+  // Opening recognition is code-lazy-loaded only when the Opening Report is opened.
+  // The local engine and generated ECO catalogue remain separate files beside MainUI.
+  let openingEngineScriptPromise = null;
+
+  function getOpeningChessConstructor() {
+    // MainUI is a module, while the recognition engine is loaded as a classic
+    // script. Pass the already-loaded Chess constructor across that boundary.
+    try {
+      if (typeof Chess === "function") return Chess;
+    } catch (_) {}
+    if (typeof window.Chess === "function") return window.Chess;
+    if (window.chess && typeof window.chess.Chess === "function") return window.chess.Chess;
+    return null;
+  }
+
+  function configureOpeningEngine(engine) {
+    const Ctor = getOpeningChessConstructor();
+    if (engine && typeof engine.configureChess === "function" && Ctor) {
+      engine.configureChess(Ctor);
+    }
+    return engine;
+  }
+
+  async function getOpeningEngine() {
+    if (window.OlympusOpenings && typeof window.OlympusOpenings.configureChess === "function") {
+      return configureOpeningEngine(window.OlympusOpenings);
+    }
+    // Discard an older in-memory API so the patched engine is requested.
+    if (window.OlympusOpenings && typeof window.OlympusOpenings.configureChess !== "function") {
+      try { delete window.OlympusOpenings; } catch (_) { window.OlympusOpenings = null; }
+    }
+    if (!openingEngineScriptPromise) {
+      openingEngineScriptPromise = new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-olab-opening-engine="true"]');
+        if (existing) existing.remove();
+        const script = document.createElement("script");
+        script.src = new URL("./olympus-openings.js?v=20261128-opening-fix2", document.baseURI).href;
+        script.async = true;
+        script.dataset.olabOpeningEngine = "true";
+        script.onload = () => window.OlympusOpenings && typeof window.OlympusOpenings.configureChess === "function"
+          ? resolve(configureOpeningEngine(window.OlympusOpenings))
+          : reject(new Error("Updated opening engine loaded but its configureChess API is unavailable. Confirm olympus-openings.js was replaced."));
+        script.onerror = () => {
+          script.dataset.failed = "true";
+          script.remove();
+          openingEngineScriptPromise = null;
+          reject(new Error("Could not load ./olympus-openings.js. Add the updated engine beside MainUI.html."));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return openingEngineScriptPromise;
+  }
+
+  function ensureOpeningProgressStyles() {
+    if (document.getElementById("olab-opening-progress-style")) return;
+    const style = document.createElement("style");
+    style.id = "olab-opening-progress-style";
+    style.textContent = `
+      #olympusPerformanceLab-section .olab-opening-progress { margin:8px 0 13px; padding:13px 15px; border:1px solid rgba(82,202,194,.24); border-radius:12px; background:linear-gradient(110deg,rgba(70,184,190,.075),rgba(157,135,226,.055)); }
+      #olympusPerformanceLab-section .olab-opening-progress-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; color:#eef8fa; font-size:12px; font-weight:850; }
+      #olympusPerformanceLab-section .olab-opening-progress-head strong { color:#78e0d5; font-size:13px; font-variant-numeric:tabular-nums; }
+      #olympusPerformanceLab-section .olab-opening-progress-track { height:10px; overflow:hidden; border-radius:99px; background:#27383d; box-shadow:inset 0 1px 3px rgba(0,0,0,.28); }
+      #olympusPerformanceLab-section .olab-opening-progress-fill { display:block; height:100%; width:0; border-radius:99px; background:linear-gradient(90deg,#3fc9b7,#7bdde0,#e7c66d); box-shadow:0 0 12px rgba(82,211,202,.22); transition:width .22s ease; }
+      #olympusPerformanceLab-section .olab-opening-progress-detail { display:block; margin-top:7px; color:#aebdc4; font-size:11px; line-height:1.45; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function openingProgressMarkup(progress) {
+    ensureOpeningProgressStyles();
+    const safePercent = Math.max(0, Math.min(100, Math.round(number(progress && progress.percent))));
+    const title = escapeHtml(progress && progress.title || "Preparing opening report…");
+    const detail = escapeHtml(progress && progress.detail || "");
+    return '<div class="olab-opening-progress" role="status" aria-live="polite">' +
+      '<div class="olab-opening-progress-head"><span>' + title + '</span><strong>' + safePercent + '%</strong></div>' +
+      '<div class="olab-opening-progress-track" role="progressbar" aria-label="Opening report loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + safePercent + '"><span class="olab-opening-progress-fill" style="width:' + safePercent + '%"></span></div>' +
+      (detail ? '<small class="olab-opening-progress-detail">' + detail + '</small>' : '') +
+      '</div>';
+  }
+
+  function setOpeningProgress(percentValue, title, detail) {
+    const item = cache.openingReport;
+    const next = {
+      percent: Math.max(0, Math.min(100, Math.round(number(percentValue)))),
+      title: String(title || "Preparing opening report…"),
+      detail: String(detail || "")
+    };
+    // Keep the bar monotonic within one report run.
+    if (item.progress && item.status === "loading") next.percent = Math.max(item.progress.percent || 0, next.percent);
+    item.progress = next;
+    const status = $("openingStatus");
+    if (status && state.activeTab === "openingReport") status.innerHTML = openingProgressMarkup(next);
+  }
+
+  // Returns the ENGINE (which has classifyPgns), with its load status attached.
+  // Previously this returned only the status object, so classifyPgns was never
+  // found and every game fell through to "Unclassified move sequence".
+  async function loadLocalOpeningCatalogue(onProgress) {
+    const engine = await getOpeningEngine();
+    const status = await engine.load(onProgress);
+    return {
+      engine,
+      status: status || (typeof engine.getStatus === "function" ? engine.getStatus() : {}),
+      classifyPgns: (list, progress) => engine.classifyPgns(list, progress),
+      get entryCount() { return number(this.status.entryCount); },
+      get validEntryCount() { return number(this.status.validEntryCount); },
+      get chessAvailable() { return !!this.status.chessAvailable; }
+    };
+  }
+
   // Opening analysis is deliberately loaded only when the Opening Report tab is opened.
-  // PGN headers are used for named openings/ECO codes. When headers are absent,
-  // the report groups games by the recorded first-move sequence instead of guessing names.
+  // The local catalogue recognises actual board positions; PGN headers remain a fallback.
   function parseOpeningText(raw) {
     const source = String(raw || "").trim();
     if (!source) return { opening: "", eco: "", variation: "", firstMoves: "" };
@@ -269774,9 +269884,47 @@ function syncNavVisibility() {
     return { opening, eco, variation, firstMoves };
   }
 
-  async function loadOpeningReportRows(identity) {
+  async function loadOpeningReportRows(identity, requestToken) {
     const errors = [];
     const groups = [];
+    let catalogue = null;
+    const viewToken = state.viewToken;
+    const reportProgress = (pct, title, detail) => {
+      // Ignore late progress callbacks from an older date range or a previous
+      // admin-viewed student. Existing request-token checks still guard data.
+      if (cache.openingReport.requestToken !== requestToken || state.viewToken !== viewToken) return;
+      setOpeningProgress(pct, title, detail);
+    };
+
+    reportProgress(1, "Preparing opening analysis", "Starting the local ECO catalogue and checking the selected student's game history.");
+
+    // Phase 1: load and index the bundled ECO catalogue. Its callback reports
+    // the actual number of entries indexed rather than displaying a fake timer.
+    try {
+      catalogue = await loadLocalOpeningCatalogue((progress) => {
+        if (!progress) return;
+        if (progress.phase === "download") {
+          reportProgress(3, "Loading local ECO catalogue", "Fetching olympus-opening-data.js from the same GitHub repository folder.");
+        } else if (progress.phase === "index") {
+          const ratio = progress.total ? progress.current / progress.total : 1;
+          const pct = 5 + Math.round(ratio * 55);
+          reportProgress(pct, "Indexing ECO opening positions", fmt(progress.current) + " / " + fmt(progress.total) + " opening records indexed" + (progress.chessAvailable ? " · position matching enabled" : " · SAN sequence matching enabled"));
+        }
+      });
+      reportProgress(62, "Opening catalogue ready", fmt(catalogue.validEntryCount || catalogue.entryCount || 0) + " opening records indexed. Now loading your game archives.");
+      if (catalogue.chessAvailable === false) {
+        errors.push("Chess position/transposition matching is unavailable in this browser session; exact SAN move-sequence matching is active.");
+      }
+    } catch (error) {
+      errors.push("Local ECO catalogue: " + (error && error.message ? error.message : "could not load"));
+      reportProgress(8, "Opening catalogue unavailable", "Checking saved PGN headers. Automatic ECO matching will be unavailable until the local catalogue files load correctly.");
+      catalogue = null;
+    }
+
+    // Phase 2: query the existing game archives. Progress advances as each
+    // Supabase source returns; game result ownership rules remain unchanged.
+    const totalFetches = identity.username ? 8 : 6;
+    let completedFetches = 0;
     const safeFetch = async (source, queryFactory, dateField) => {
       try {
         const result = await fetchAllPages(
@@ -269787,6 +269935,10 @@ function syncNavVisibility() {
         groups.push({ source, rows: result || [] });
       } catch (error) {
         errors.push(source + ": " + (error && error.message ? error.message : "query failed"));
+      } finally {
+        completedFetches++;
+        const pct = 62 + Math.round((completedFetches / totalFetches) * 14);
+        reportProgress(pct, "Loading game archives", completedFetches + " / " + totalFetches + " game archive queries completed.");
       }
     };
 
@@ -269798,7 +269950,7 @@ function syncNavVisibility() {
         .select("id,pgn,room_code,winner,white_id,black_id,white_name,black_name,ended_at")
         .or("white_id.eq." + identity.id + ",black_id.eq." + identity.id), "ended_at"),
       safeFetch("Chess960", () => supabase.from("chess960_rooms")
-        .select("id,room_code,challenger_id,challenged_id,challenger_name,challenged_name,white_id,black_id,white_name,black_name,status,winner,resigned_by,end_reason,created_at,updated_at,moves")
+        .select("id,room_code,position_number,challenger_id,challenged_id,challenger_name,challenged_name,white_id,black_id,white_name,black_name,status,winner,resigned_by,end_reason,created_at,updated_at,moves")
         .or("challenger_id.eq." + identity.id + ",challenged_id.eq." + identity.id + ",white_id.eq." + identity.id + ",black_id.eq." + identity.id), "created_at"),
       safeFetch("Dice Multiplayer", () => supabase.from("dice_multiplayer_rooms")
         .select("id,room_code,challenger_id,challenged_id,challenger_name,challenged_name,white_id,black_id,white_name,black_name,status,winner,resigned_by,created_at,updated_at,pgn")
@@ -269811,7 +269963,7 @@ function syncNavVisibility() {
         .or("challenger_id.eq." + identity.id + ",challenged_id.eq." + identity.id + ",white_id.eq." + identity.id + ",black_id.eq." + identity.id), "created_at")
     ]);
 
-    // Include eligible legacy live archives only when the matching player's UUID is NULL.
+    // Include legacy live archives only when the matching player UUID is NULL.
     if (identity.username) {
       await Promise.all([
         safeFetch("Legacy Live Match (White)", () => supabase.from("live_match_archive")
@@ -269824,18 +269976,25 @@ function syncNavVisibility() {
     }
 
     const seen = new Set();
-    const reportRows = [];
+    const sourceRows = [];
     let missing = 0;
-    groups.forEach(({ source, rows: sourceRows }) => {
-      (sourceRows || []).forEach((row) => {
+
+    groups.forEach(({ source, rows: sourceRecords }) => {
+      (sourceRecords || []).forEach((row) => {
+        // Exclude open/declined variant rooms from opening statistics.
+        if (!["Bot Games", "Live Match"].includes(source) && !source.startsWith("Legacy Live Match")) {
+          if (row.status && String(row.status).toLowerCase() !== "finished") return;
+        }
+
         const id = row.id == null ? "" : String(row.id);
         const dedupeKey = source.startsWith("Legacy Live Match") ? "Live Match:" + id : source + ":" + id;
         if (id && seen.has(dedupeKey)) return;
         if (id) seen.add(dedupeKey);
 
-        const raw = row.pgn || row.moves || "";
-        if (!String(raw).trim()) { missing++; return; }
-        const parsed = parseOpeningText(raw);
+        const rawPgn = String(row.pgn || "").trim();
+        const rawMoves = String(row.moves || "").trim();
+        if (!rawPgn && !rawMoves && source !== "Chess960") { missing++; return; }
+
         let result = "unknown";
         let opponent = "Opponent";
         let date = row.created_at || row.ended_at || row.updated_at || null;
@@ -269856,27 +270015,102 @@ function syncNavVisibility() {
           date = row.created_at;
         }
 
-        reportRows.push({
+        const parsed = parseOpeningText(rawPgn || rawMoves);
+        const isChess960 = source === "Chess960";
+        sourceRows.push({
           id,
           source: source.startsWith("Legacy Live Match") ? "Live Match" : source,
           date,
           opponent,
           result,
-          opening: parsed.opening,
-          eco: parsed.eco,
-          variation: parsed.variation,
-          firstMoves: parsed.firstMoves,
-          rawKind: row.moves && !row.pgn ? "Moves" : "PGN"
+          rawPgn: rawPgn || rawMoves,
+          parsed,
+          isChess960,
+          positionNumber: row.position_number == null ? null : Number(row.position_number),
+          rawKind: rawMoves && !rawPgn ? "Moves" : "PGN"
         });
       });
     });
 
+    // Phase 3: classify all standard game move text, reporting real per-game
+    // progress. Exact SAN-prefix matching also handles archives saved as
+    // plain text (e.g. "Nc3 Nf6") rather than formal numbered PGN.
+    const pgnsToClassify = sourceRows.map((row) => row.isChess960 ? "" : row.rawPgn);
+    let matches = [];
+    if (catalogue && typeof catalogue.classifyPgns === "function") {
+      try {
+        reportProgress(77, "Recognising openings", "Comparing saved move sequences with the local ECO catalogue.");
+        matches = await catalogue.classifyPgns(pgnsToClassify, (progress) => {
+          const ratio = progress.total ? progress.current / progress.total : 1;
+          const pct = 77 + Math.round(ratio * 22);
+          reportProgress(pct, "Recognising openings", fmt(progress.current) + " / " + fmt(progress.total) + " games checked · " + fmt(progress.classified || 0) + " recognised so far.");
+        });
+      } catch (error) {
+        errors.push("Opening position matching: " + (error && error.message ? error.message : "could not classify games"));
+        matches = [];
+      }
+    } else {
+      reportProgress(90, "Using available PGN headers", "The local catalogue could not be used; records with stored Opening/ECO headers remain available.");
+    }
+
+    let classified = 0;
+    let headerFallback = 0;
+    const reportRows = sourceRows.map((record, index) => {
+      const parsed = record.parsed || { opening: "", eco: "", variation: "", firstMoves: "" };
+      const match = matches[index] || null;
+      let opening = "";
+      let eco = "";
+      let variation = parsed.variation || "";
+      let recognitionMethod = "Unclassified move sequence";
+
+      if (record.isChess960) {
+        opening = record.positionNumber ? "Chess960 · Position " + record.positionNumber : "Chess960 starting position";
+        recognitionMethod = "Chess960 position number";
+        variation = "";
+      } else if (match && match.name) {
+        opening = match.name;
+        eco = match.eco || "";
+        recognitionMethod = match.method || "Local ECO opening match";
+        variation = "";
+        classified++;
+      } else if (parsed.opening || parsed.eco) {
+        opening = parsed.opening || "Opening from PGN header";
+        eco = parsed.eco || "";
+        recognitionMethod = "PGN header fallback";
+        headerFallback++;
+      }
+
+      return {
+        id: record.id,
+        source: record.source,
+        date: record.date,
+        opponent: record.opponent,
+        result: record.result,
+        opening,
+        eco,
+        variation,
+        firstMoves: parsed.firstMoves || "",
+        recognitionMethod,
+        matchedPly: match ? number(match.ply) : 0,
+        rawKind: record.rawKind
+      };
+    });
+
+    const warningParts = errors.slice();
+    if (!catalogue) {
+      warningParts.push("Automatic move recognition is unavailable. Add olympus-openings.js and olympus-opening-data.js beside MainUI; PGN headers remain the fallback.");
+    }
+
+    const progressTitle = catalogue ? "Opening analysis complete" : "Opening analysis complete · catalogue unavailable";
+    reportProgress(100, progressTitle, fmt(classified) + " games recognised from moves · " + fmt(headerFallback) + " using PGN headers · " + fmt(reportRows.length) + " total game records.");
+
     return {
       rows: reportRows,
       missing,
-      warning: errors.length
-        ? "Some opening sources could not be checked: " + errors.join(" · ")
-        : null
+      catalogueCount: catalogue && catalogue.entryCount ? catalogue.entryCount : 0,
+      classified,
+      headerFallback,
+      warning: warningParts.length ? warningParts.join(" · ") : null
     };
   }
 
@@ -270005,7 +270239,7 @@ function syncNavVisibility() {
     threeCheckGames: async (identity) => loadRoomGameRows(ROOM_GAME_DEFINITIONS[3], identity),
     legalCheckGames: async (identity) => loadLegalGameRows(LEGAL_GAME_DEFINITIONS[0], identity),
     legalMoveGames: async (identity) => loadLegalGameRows(LEGAL_GAME_DEFINITIONS[1], identity),
-    openingReport: async (identity) => loadOpeningReportRows(identity),
+    openingReport: async (identity, requestToken) => loadOpeningReportRows(identity, requestToken),
 
     attendance: async (identity) => {
       const select = "id,room_code,user_id,username,started_at";
@@ -270101,15 +270335,21 @@ function syncNavVisibility() {
     item.rangeKey = requestedRange;
     item.status = "loading";
     item.error = null;
+    if (key === "openingReport") item.progress = { percent: 1, title: "Preparing opening analysis", detail: "Starting…" };
     item.promise = (async () => {
       try {
         if (typeof supabase === "undefined" || !supabase) throw new Error("Existing Supabase client is unavailable.");
-        const value = await loaders[key](identity);
+        const value = await loaders[key](identity, token);
         if (item.requestToken !== token) return;
         if (key === "attendance" || key === "liveGames" || key === "openingReport") {
           item.rows = value.rows;
           item.warning = value.warning || null;
-          if (key === "openingReport") item.missing = number(value.missing || 0);
+          if (key === "openingReport") {
+            item.missing = number(value.missing || 0);
+            item.catalogueCount = number(value.catalogueCount || 0);
+            item.classified = number(value.classified || 0);
+            item.headerFallback = number(value.headerFallback || 0);
+          }
         } else if (key === "schedule") {
           item.rows = value.rows;
           item.batch = value.batch;
@@ -271204,12 +271444,21 @@ function syncNavVisibility() {
 
     const item = cache.openingReport;
     const status = $("openingStatus");
-    if (status) status.innerHTML = sourceStatus(["openingReport"]);
+    if (status) {
+      const baseStatus = sourceStatus(["openingReport"]);
+      if (item.status === "loading" && item.progress) {
+        status.innerHTML = baseStatus + openingProgressMarkup(item.progress);
+      } else if (item.status === "loaded" && item.progress) {
+        status.innerHTML = baseStatus + openingProgressMarkup(item.progress);
+      } else {
+        status.innerHTML = baseStatus;
+      }
+    }
     if (!dataReady("openingReport")) {
       stats.innerHTML = '<div class="olab-empty">Opening analysis is loading or has not been requested yet.</div>';
       distribution.innerHTML = '<div class="olab-empty">Opening distribution will appear after the report loads.</div>';
-      history.innerHTML = '<div class="olab-empty">Open this tab to analyse saved PGN headers and recorded first-move sequences.</div>';
-      if (footnote) footnote.textContent = "The report loads PGN/move text only when this tab is opened. It uses stored Opening/ECO headers where present and never invents an opening name.";
+      history.innerHTML = '<div class="olab-empty">Open this tab to load the local ECO catalogue and recognise openings from saved game moves.</div>';
+      if (footnote) footnote.textContent = "The report loads the local ECO catalogue and game PGNs only when this tab is opened. Opening names are matched from actual positions; PGN headers are a fallback.";
       return;
     }
 
@@ -271233,14 +271482,13 @@ function syncNavVisibility() {
     });
 
     const grouped = Array.from(groups.values()).sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-    const namedCount = records.filter((row) => !!row.opening).length;
     const ecoCount = records.filter((row) => !!row.eco).length;
-    const sequenceCount = new Set(records.filter((row) => row.firstMoves).map((row) => row.firstMoves)).size;
+    const autoCount = number(item.classified || 0);
     stats.innerHTML = [
-      statCard("Games analysed", fmt(records.length), "Saved PGN or move-sequence records", "blue"),
-      statCard("Named openings", fmt(namedCount), "PGNs with an Opening header", "green"),
-      statCard("ECO classifications", fmt(ecoCount), "PGNs with a stored ECO code", "purple"),
-      statCard("Unique move sequences", fmt(sequenceCount), "Recorded first eight plies", "gold")
+      statCard("Games analysed", fmt(records.length), "Saved completed games with available move text", "blue"),
+      statCard("Recognised from moves", fmt(autoCount), "Matched against local ECO positions", "green"),
+      statCard("ECO classifications", fmt(ecoCount), "Opening codes from the catalogue or PGN headers", "purple"),
+      statCard("Local database entries", fmt(item.catalogueCount || 0), "Lichess ECO opening sequences loaded", "gold")
     ].join("");
 
     renderBars(distribution, grouped.slice(0, 12).map((group) => ({
@@ -271262,13 +271510,14 @@ function syncNavVisibility() {
     const recent = openingPageInfo.visible;
     const openingPager = gamePagerHtml("openingReport", sortedRecords.length, openingPageInfo);
     const recentHtml = recent.length
-      ? '<div class="olab-section-head"><div><h3>Game-by-game opening details</h3><p>All analysed records are browsable using the page controls. Results are shown only when the source archive records a known outcome.</p></div></div>' + openingPager + '<div class="olab-table-wrap"><table class="olab-table olab-special-table"><thead><tr><th>Date</th><th>Game source</th><th>Opponent</th><th>Opening</th><th>ECO</th><th>First moves</th><th>Result</th></tr></thead><tbody>' + recent.map((row) => '<tr><td>' + escapeHtml(formatDate(row.date, false, true)) + '</td><td>' + escapeHtml(row.source) + '</td><td>' + escapeHtml(row.opponent || "Opponent") + '</td><td>' + escapeHtml(row.opening || "Not tagged") + (row.variation ? '<small class="olab-cell-sub">' + escapeHtml(row.variation) + '</small>' : '') + '</td><td>' + escapeHtml(row.eco || "—") + '</td><td>' + escapeHtml(row.firstMoves || "—") + '</td><td><span class="olab-status-pill" data-status="' + escapeHtml(row.result) + '">' + escapeHtml(row.result.toUpperCase()) + '</span></td></tr>').join("") + '</tbody></table></div>' + openingPager
+      ? '<div class="olab-section-head"><div><h3>Game-by-game opening details</h3><p>All analysed records are browsable using the page controls. Results are shown only when the source archive records a known outcome.</p></div></div>' + openingPager + '<div class="olab-table-wrap"><table class="olab-table olab-special-table"><thead><tr><th>Date</th><th>Game source</th><th>Opponent</th><th>Recognised opening</th><th>ECO</th><th>First moves</th><th>Recognition method</th><th>Result</th></tr></thead><tbody>' + recent.map((row) => '<tr><td>' + escapeHtml(formatDate(row.date, false, true)) + '</td><td>' + escapeHtml(row.source) + '</td><td>' + escapeHtml(row.opponent || "Opponent") + '</td><td>' + escapeHtml(row.opening || "Not tagged") + (row.variation ? '<small class="olab-cell-sub">' + escapeHtml(row.variation) + '</small>' : '') + '</td><td>' + escapeHtml(row.eco || "—") + '</td><td>' + escapeHtml(row.firstMoves || "—") + '</td><td>' + escapeHtml(row.recognitionMethod || "—") + '</td><td><span class="olab-status-pill" data-status="' + escapeHtml(row.result) + '">' + escapeHtml(row.result.toUpperCase()) + '</span></td></tr>').join("") + '</tbody></table></div>' + openingPager
       : '<div class="olab-empty">No game-by-game opening records are available.</div>';
 
     history.innerHTML = groupHtml + recentHtml;
     if (footnote) {
       const missingText = number(item.missing) ? " " + fmt(item.missing) + " source record(s) had no stored PGN/move text and were not included." : "";
-      footnote.textContent = "Opening names and ECO codes are read only from PGN headers. Records without those headers are grouped by the exact stored first-move sequence; this is not a formal ECO database classification. Chess960 uses its stored moves text where available. Legal Check and Legal Move are question challenges, so they do not contribute chess-opening records." + missingText;
+      const fallbackText = number(item.headerFallback) ? " " + fmt(item.headerFallback) + " record(s) used PGN-header fallback because no local position match was found." : "";
+      footnote.textContent = "Automatic opening recognition matches plain SAN move sequences (including records stored without PGN move numbers) against the local Lichess ECO catalogue. When the MainUI chess.js constructor is available, board-position matching also recognises transpositions. Stored PGN Opening/ECO headers are a fallback when no catalogue match exists; otherwise the game remains unclassified. Chess960 is labelled by its recorded starting-position number and is not assigned a standard ECO code. Legal Check and Legal Move are question challenges, so they do not contribute opening records." + fallbackText + missingText;
     }
   }
 
@@ -271841,7 +272090,7 @@ function syncNavVisibility() {
       item.rows = [];
       item.error = null;
       item.warning = null;
-      if (key === "openingReport") item.missing = 0;
+      if (key === "openingReport") { item.missing = 0; item.catalogueCount = 0; item.classified = 0; item.headerFallback = 0; item.progress = null; }
       item.promise = null;
       item.rangeKey = null;
     });
@@ -272032,7 +272281,7 @@ function syncNavVisibility() {
       cache[key].rangeKey = null;
       cache[key].requestToken = (cache[key].requestToken || 0) + 1;
       if (Object.prototype.hasOwnProperty.call(cache[key], "warning")) cache[key].warning = null;
-      if (key === "openingReport") cache[key].missing = 0;
+      if (key === "openingReport") { cache[key].missing = 0; cache[key].catalogueCount = 0; cache[key].classified = 0; cache[key].headerFallback = 0; cache[key].progress = null; }
       if (key === "schedule") { cache[key].batch = null; cache[key].totalClasses = null; }
     });
     try {
