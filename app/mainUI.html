@@ -12758,7 +12758,22 @@ body {
   }
 }
 
+/* Small live loading percentage */
 
+.study-opening-progress {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+
+  background: rgba(255, 215, 0, 0.13);
+  color: #ffe28a;
+
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
 
 /* ===============================
    WHATSAPP STYLE PRIVATE CHAT
@@ -148340,6 +148355,48 @@ function getStudyOpeningPgnAtCurrentMove() {
 }
 
 
+// ==============================================
+// ♟️ STUDY OPENING DATABASE LOADING PROGRESS
+// ==============================================
+
+
+// ==============================================
+// ♟️ STUDY OPENING DATABASE LOADING PROGRESS
+// ==============================================
+
+function updateStudyOpeningLoadProgress(progress) {
+
+  const label = document.getElementById("studyOpeningName");
+
+  if (!label) return;
+
+  // Database file downloading
+  if (progress.phase === "download") {
+
+    label.textContent = progress.complete
+      ? "Opening: Preparing index..."
+      : "Opening: Loading database...";
+
+    return;
+  }
+
+  // Catalogue indexing progress
+  if (progress.phase === "index") {
+
+    const percent = Math.max(
+      0,
+      Math.min(100, Math.round(Number(progress.percent) || 0))
+    );
+
+    label.innerHTML =
+      `Opening: Loading... <span class="study-opening-progress">${percent}%</span>`;
+
+    label.title =
+      `Indexing openings: ${progress.current} / ${progress.total}`;
+  }
+}
+
+
 // ------------------------------------------------------
 // UPDATE OPENING NAME
 // ------------------------------------------------------
@@ -148358,7 +148415,7 @@ async function refreshStudyOpeningName() {
   // Custom starting position.
   if (pgn === null) {
 
-    label.textContent = ": Custom position";
+    label.textContent = "Opening: Custom position";
     label.title = "Standard opening recognition is unavailable for this position.";
 
     return;
@@ -148367,7 +148424,7 @@ async function refreshStudyOpeningName() {
   // Empty chapter or no moves.
   if (!pgn) {
 
-    label.textContent = ":";
+    label.textContent = "Opening: —";
     label.title = "";
 
     return;
@@ -148378,7 +148435,7 @@ async function refreshStudyOpeningName() {
     // Load the existing catalogue only once.
     if (!studyOpeningCatalogue) {
 
-      label.textContent = ": Loading...";
+      label.textContent = "Opening: Loading...";
 
       if (!studyOpeningCataloguePromise) {
 
@@ -148389,7 +148446,9 @@ async function refreshStudyOpeningName() {
         }
 
         studyOpeningCataloguePromise =
-          window.loadOlympusOpeningCatalogueForStudy();
+          window.loadOlympusOpeningCatalogueForStudy(
+            updateStudyOpeningLoadProgress
+          );
 
       }
 
@@ -148408,8 +148467,8 @@ async function refreshStudyOpeningName() {
 
       label.textContent =
         latestPgn === null
-          ? ": Custom position"
-          : ": —";
+          ? "Opening: Custom position"
+          : "Opening: —";
 
       return;
     }
@@ -148424,14 +148483,14 @@ async function refreshStudyOpeningName() {
     if (match && match.name) {
 
       label.textContent =
-        `: ${match.eco ? match.eco + " · " : ""}${match.name}`;
+        `Opening: ${match.eco ? match.eco + " · " : ""}${match.name}`;
 
       label.title =
         `${match.name}${match.eco ? " (" + match.eco + ")" : ""}`;
 
     } else {
 
-      label.textContent = ": Not identified";
+      label.textContent = "Opening: Not identified";
       label.title = "No matching opening line was found in the local catalogue.";
 
     }
@@ -148442,7 +148501,7 @@ async function refreshStudyOpeningName() {
 
     console.warn("Study opening recognition:", error);
 
-    label.textContent = ": Unavailable";
+    label.textContent = "Opening: Unavailable";
     label.title = "Check the Olympus opening engine and database files.";
 
     // Allow retry on a subsequent update.
